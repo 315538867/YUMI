@@ -1,0 +1,8 @@
+node_modules
+out
+release
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+coverage

@@ -1,0 +1,72 @@
+{
+  "name": "yumi-studio-desktop",
+  "version": "0.1.0",
+  "description": "YUMI 捏捏工作室管理桌面应用",
+  "author": "YUMI Studio",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "npm run build && electron-builder",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "postinstall": "node scripts/rebuild-native.mjs",
+    "predev": "node scripts/rebuild-native.mjs",
+    "pretest": "npm rebuild better-sqlite3"
+  },
+  "dependencies": {
+    "@radix-ui/themes": "^3.2.1",
+    "better-sqlite3": "^11.8.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.3",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.1.0",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "jsdom": "^25.0.1",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^2.1.8"
+  },
+  "build": {
+    "appId": "com.yumi.studio",
+    "productName": "YUMI Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.business"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

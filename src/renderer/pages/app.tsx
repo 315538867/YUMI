@@ -1,0 +1,4197 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  addDays,
+  addMonths,
+  endOfMonth,
+  endOfWeek,
+  format,
+  parseISO,
+  startOfMonth,
+  startOfWeek
+} from 'date-fns'
+import { Badge, Button, Dialog, Flex, Heading, Table, Text, TextField } from '@radix-ui/themes'
+import {
+  ArchiveRestore,
+  CalendarDays,
+  ChevronRight,
+  CircleDollarSign,
+  LayoutDashboard,
+  Package,
+  Plus,
+  Search,
+  Settings,
+  Users
+} from 'lucide-react'
+import type {
+  AttachmentSummary,
+  AuditLogSummary,
+  BackupSummary,
+  LocalDataActivity,
+  CustomerProfile,
+  DashboardSummary,
+  FinancialStatus,
+  OrderCreateInput,
+  OrderDetail,
+  OrderSummary,
+  OrderUpdateInput,
+  OrderProfitReport,
+  ProductCostPreview,
+  ProductDetail,
+  ProductSummary,
+  ProductUpdateInput,
+  ProductionStatus,
+  ScheduleRiskCode,
+  ShiftDetail,
+  ShiftPreviewResult,
+  ShiftStatus,
+  ShiftSummary,
+  WorkerDetail,
+  WorkerSettlementReport,
+  CapacityRiskReport,
+  WorkerSummary,
+  WorkerUpdateInput
+} from '@shared/contracts'
+import { calculateDraftTotals, getErrorMessage, getWeekDates } from './workspace-utils'
+
+type View = 'overview' | 'orders' | 'schedule' | 'products' | 'workers' | 'reports' | 'settings'
+
+const navigation: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
+  { id: 'overview', label: '概览', icon: LayoutDashboard },
+  { id: 'orders', label: '订单', icon: CircleDollarSign },
+  { id: 'schedule', label: '排班', icon: CalendarDays },
+  { id: 'products', label: '商品', icon: Package },
+  { id: 'workers', label: '兼职人员', icon: Users },
+  { id: 'reports', label: '报表', icon: Search },
+  { id: 'settings', label: '设置与备份', icon: Settings }
+]
+
+const money = (cents: number) =>
+  new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(cents / 100)
+
+function Stat({
+  label,
+  value,
+  tone = 'default'
+}: {
+  label: string
+  value: string | number
+  tone?: 'default' | 'warning' | 'danger'
+}) {
+  return (
+    <div className={`stat ${tone}`}>
+      <Text size="2" color="gray">
+        {label}
+      </Text>
+      <Heading size="6">{value}</Heading>
+    </div>
+  )
+}
+
+export function App() {
+  const [view, setView] = useState<View>('overview')
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null)
+  const [products, setProducts] = useState<ProductSummary[]>([])
+  const [orders, setOrders] = useState<OrderSummary[]>([])
+  const [workers, setWorkers] = useState<WorkerSummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [newProductOpen, setNewProductOpen] = useState(false)
+  const [newWorkerOpen, setNewWorkerOpen] = useState(false)
+  const [newOrderOpen, setNewOrderOpen] = useState(false)
+  const [inspectingOrderId, setInspectingOrderId] = useState<string | null>(null)
+
+  const reload = async () => {
+    setLoading(true)
+    setLoadError('')
+    try {
+      const [dashboardData, productData, orderData, workerData] = await Promise.all([
+        window.yumi.dashboard.get(),
+        window.yumi.products.list(),
+        window.yumi.orders.list(),
+        window.yumi.workers.list()
+      ])
+      setDashboard(dashboardData)
+      setProducts(productData)
+      setOrders(orderData)
+      setWorkers(workerData)
+    } catch (reason) {
+      setLoadError(getErrorMessage(reason, '本地数据读取失败，请重试。'))
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    void reload()
+  }, [])
+
+  const title = useMemo(() => navigation.find((item) => item.id === view)?.label ?? '', [view])
+  const addLabel =
+    view === 'products'
+      ? '新建商品'
+      : view === 'workers'
+        ? '新增兼职人员'
+        : view === 'orders'
+          ? '新建订单'
+          : ''
+  const onAdd = () => {
+    if (view === 'products') setNewProductOpen(true)
+    if (view === 'workers') setNewWorkerOpen(true)
+    if (view === 'orders') setNewOrderOpen(true)
+  }
+
+  return (
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-mark">Y</span>
+          <span>
+            YUMI <em>STUDIO</em>
+          </span>
+        </div>
+        <nav>
+          {navigation.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className={view === id ? 'nav-item active' : 'nav-item'}
+              aria-current={view === id ? 'page' : undefined}
+              onClick={() => setView(id)}
+              type="button"
+            >
+              <Icon size={17} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <Text size="1" color="gray">
+            本机离线数据
+          </Text>
+          <Badge color="green" variant="soft">
+            已保护
+          </Badge>
+        </div>
+      </aside>
+      <section className="workspace">
+        <header className="command-bar">
+          <div>
+            <Heading size="5">{title}</Heading>
+            <Text size="2" color="gray">
+              YUMI 捏捏工作室 · 本地管理工作台
+            </Text>
+          </div>
+          <Flex gap="3" align="center">
+            <div aria-label="搜索功能暂未启用" className="search" role="search">
+              <Search size={16} />
+              <Text size="2" color="gray">
+                搜索订单、商品或客户
+              </Text>
+              <kbd>⌘ K</kbd>
+            </div>
+            {addLabel && (
+              <Button onClick={onAdd}>
+                <Plus size={16} />
+                {addLabel}
+              </Button>
+            )}
+          </Flex>
+        </header>
+        <section className="content">
+          {loading ? (
+            <div aria-live="polite" className="state-message">
+              <Text color="gray">正在读取本地数据…</Text>
+            </div>
+          ) : loadError ? (
+            <div aria-live="assertive" className="state-message error-state" role="alert">
+              <Text color="red">{loadError}</Text>
+              <Button onClick={() => void reload()} variant="soft">
+                重试读取
+              </Button>
+            </div>
+          ) : (
+            <ViewContent
+              view={view}
+              dashboard={dashboard!}
+              products={products}
+              orders={orders}
+              workers={workers}
+              onInspectOrder={setInspectingOrderId}
+              onNavigate={setView}
+              onDataChanged={reload}
+            />
+          )}
+        </section>
+      </section>
+      <ProductDialog open={newProductOpen} onOpenChange={setNewProductOpen} onDone={reload} />
+      <WorkerDialog open={newWorkerOpen} onOpenChange={setNewWorkerOpen} onDone={reload} />
+      <OrderDialog
+        open={newOrderOpen}
+        onOpenChange={setNewOrderOpen}
+        products={products}
+        onDone={reload}
+      />
+      <OrderInspector
+        orderId={inspectingOrderId}
+        products={products}
+        onOpenChange={(open) => {
+          if (!open) setInspectingOrderId(null)
+        }}
+        onChanged={reload}
+      />
+    </main>
+  )
+}
+
+function ViewContent({
+  view,
+  dashboard,
+  products,
+  orders,
+  workers,
+  onInspectOrder,
+  onNavigate,
+  onDataChanged
+}: {
+  view: View
+  dashboard: DashboardSummary
+  products: ProductSummary[]
+  orders: OrderSummary[]
+  workers: WorkerSummary[]
+  onInspectOrder(orderId: string): void
+  onNavigate(view: View): void
+  onDataChanged(): Promise<void>
+}) {
+  if (view === 'overview')
+    return (
+      <Overview
+        dashboard={dashboard}
+        orders={orders}
+        onInspectOrder={onInspectOrder}
+        onNavigate={onNavigate}
+      />
+    )
+  if (view === 'products') return <Products products={products} onDataChanged={onDataChanged} />
+  if (view === 'orders') return <Orders orders={orders} onInspectOrder={onInspectOrder} />
+  if (view === 'workers') return <Workers workers={workers} onDataChanged={onDataChanged} />
+  if (view === 'schedule')
+    return (
+      <Schedule
+        workers={workers}
+        orders={orders}
+        products={products}
+        onDataChanged={onDataChanged}
+      />
+    )
+  if (view === 'reports') return <Reports dashboard={dashboard} />
+  return <SettingsWorkspace onDataChanged={onDataChanged} />
+}
+
+function Overview({
+  dashboard,
+  orders,
+  onInspectOrder,
+  onNavigate
+}: {
+  dashboard: DashboardSummary
+  orders: OrderSummary[]
+  onInspectOrder(orderId: string): void
+  onNavigate(view: View): void
+}) {
+  const outstandingOrders = orders.filter((order) => order.outstandingCents > 0)
+  const upcomingOrders = orders.filter(
+    (order) => order.productionStatus !== 'completed' && order.productionStatus !== 'cancelled'
+  )
+  const queues = [
+    {
+      label: '待收款',
+      description: '需要继续跟进收款的订单',
+      value: `${dashboard.outstandingOrderCount} 笔 · ${money(dashboard.outstandingCents)}`,
+      tone: 'warning',
+      action: () => onNavigate('orders')
+    },
+    {
+      label: '临近发货',
+      description: '未来 7 天内需要发货',
+      value: `${dashboard.upcomingOrderCount} 笔订单`,
+      tone: 'warning',
+      action: () => onNavigate('orders')
+    },
+    {
+      label: '待补排',
+      description: '缺勤、请假或取消留下的制作量',
+      value: `${dashboard.rescheduleTaskCount} 个待补数量`,
+      tone: 'danger',
+      action: () => onNavigate('schedule')
+    },
+    {
+      label: '排班风险',
+      description: '已经保存风险确认的班次',
+      value: `${dashboard.riskShiftCount} 个班次`,
+      tone: dashboard.riskShiftCount ? 'danger' : 'default',
+      action: () => onNavigate('schedule')
+    }
+  ] as const
+
+  return (
+    <>
+      <div className="stat-grid">
+        <Stat label="待收款订单" value={dashboard.outstandingOrderCount} />
+        <Stat label="待收金额" value={money(dashboard.outstandingCents)} tone="warning" />
+        <Stat label="7 天内待发货" value={dashboard.upcomingOrderCount} tone="warning" />
+        <Stat label="需补排任务" value={dashboard.rescheduleTaskCount} tone="danger" />
+      </div>
+      <div className="panel">
+        <Flex justify="between" align="center" mb="4">
+          <div>
+            <Heading size="4">工作队列</Heading>
+            <Text size="2" color="gray">
+              从这里进入订单或日历，处理今天需要关注的事项。
+            </Text>
+          </div>
+          <Badge variant="soft">本地实时汇总</Badge>
+        </Flex>
+        <div className="queue-list">
+          {queues.map((queue) => (
+            <button
+              className={`queue-item ${queue.tone}`}
+              key={queue.label}
+              onClick={queue.action}
+              type="button"
+            >
+              <span className="queue-copy">
+                <Text weight="medium">{queue.label}</Text>
+                <Text as="span" size="1" color="gray">
+                  {queue.description}
+                </Text>
+              </span>
+              <span className="queue-value">{queue.value}</span>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="panel">
+        <Flex justify="between" align="center" mb="4">
+          <div>
+            <Heading size="4">待处理订单</Heading>
+            <Text size="2" color="gray">
+              优先显示待收款和未完成订单，单击行打开订单检查器。
+            </Text>
+          </div>
+          <Button variant="ghost" onClick={() => onNavigate('orders')}>
+            查看全部 <ChevronRight size={16} />
+          </Button>
+        </Flex>
+        <OrdersTable
+          orders={
+            outstandingOrders.length > 0
+              ? outstandingOrders.slice(0, 6)
+              : upcomingOrders.slice(0, 6)
+          }
+          onInspectOrder={onInspectOrder}
+        />
+        {orders.length === 0 && <Empty text="当前没有待处理订单。" />}
+      </div>
+    </>
+  )
+}
+function Products({
+  products,
+  onDataChanged
+}: {
+  products: ProductSummary[]
+  onDataChanged(): Promise<void>
+}) {
+  const [inspectingProductId, setInspectingProductId] = useState<string | null>(null)
+
+  return (
+    <>
+      <div className="panel">
+        <Flex justify="between" mb="4">
+          <div>
+            <Heading size="4">商品种类</Heading>
+            <Text size="2" color="gray">
+              单击商品维护售价、缝边、成本参数与模具日产能。
+            </Text>
+          </div>
+          <Badge variant="soft">{products.length} 个商品</Badge>
+        </Flex>
+        <Table.Root variant="surface">
+          <Table.Header>
+            <Table.Row>
+              <Table.ColumnHeaderCell>商品</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>分类</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>售价</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>缝边/个</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>标准工时</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>日产能</Table.ColumnHeaderCell>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            {products.map((product) => (
+              <Table.Row
+                aria-label={`打开商品 ${product.name}`}
+                className="selectable-row"
+                key={product.id}
+                onClick={() => setInspectingProductId(product.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setInspectingProductId(product.id)
+                  }
+                }}
+                tabIndex={0}
+              >
+                <Table.Cell>
+                  <Text weight="medium">{product.name}</Text>
+                  <Text size="1" color="gray">
+                    {product.code || '未设编码'}
+                  </Text>
+                </Table.Cell>
+                <Table.Cell>{product.category || '未分类'}</Table.Cell>
+                <Table.Cell>{money(product.basePriceCents)}</Table.Cell>
+                <Table.Cell>{money(product.edgePriceCents)}</Table.Cell>
+                <Table.Cell>{product.standardMinutesPerUnit} 分钟/个</Table.Cell>
+                <Table.Cell>
+                  <Badge color={product.enabled ? 'green' : 'gray'}>
+                    {product.dailyCapacity} 个/天
+                  </Badge>
+                </Table.Cell>
+              </Table.Row>
+            ))}
+          </Table.Body>
+        </Table.Root>
+        {products.length === 0 && (
+          <Empty text="还没有商品。先建立商品和成本参数，才能创建订单与排班。" />
+        )}
+      </div>
+      <ProductInspector
+        productId={inspectingProductId}
+        onOpenChange={(open) => {
+          if (!open) setInspectingProductId(null)
+        }}
+        onDataChanged={onDataChanged}
+      />
+    </>
+  )
+}
+function Orders({
+  orders,
+  onInspectOrder
+}: {
+  orders: OrderSummary[]
+  onInspectOrder(orderId: string): void
+}) {
+  return (
+    <div className="panel">
+      <Flex justify="between" mb="4">
+        <div>
+          <Heading size="4">订单</Heading>
+          <Text size="2" color="gray">
+            一笔订单可包含多个商品，支持分次收款和退款。
+          </Text>
+        </div>
+        <Badge variant="soft">{orders.length} 笔订单</Badge>
+      </Flex>
+      <OrdersTable orders={orders} onInspectOrder={onInspectOrder} />
+      {orders.length === 0 && (
+        <Empty text="还没有订单。建立商品后，可以录入客户、多个商品明细与预计发货日期。" />
+      )}
+    </div>
+  )
+}
+function OrdersTable({
+  orders,
+  onInspectOrder
+}: {
+  orders: OrderSummary[]
+  onInspectOrder(orderId: string): void
+}) {
+  return (
+    <Table.Root variant="surface">
+      <Table.Header>
+        <Table.Row>
+          <Table.ColumnHeaderCell>订单号</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell>客户</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell>预计发货</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell>制作截止</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell>制作状态</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell>待收</Table.ColumnHeaderCell>
+        </Table.Row>
+      </Table.Header>
+      <Table.Body>
+        {orders.map((order) => (
+          <Table.Row
+            key={order.id}
+            aria-label={`打开订单 ${order.code}`}
+            className="selectable-row"
+            onClick={() => onInspectOrder(order.id)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onInspectOrder(order.id)
+              }
+            }}
+            tabIndex={0}
+          >
+            <Table.Cell>
+              <Text weight="medium">{order.code}</Text>
+            </Table.Cell>
+            <Table.Cell>{order.customerName}</Table.Cell>
+            <Table.Cell>{order.expectedShipDate}</Table.Cell>
+            <Table.Cell>{order.productionDeadline}</Table.Cell>
+            <Table.Cell>
+              <Badge variant="soft">{order.productionStatus}</Badge>
+            </Table.Cell>
+            <Table.Cell>{money(order.outstandingCents)}</Table.Cell>
+          </Table.Row>
+        ))}
+      </Table.Body>
+    </Table.Root>
+  )
+}
+function Workers({
+  workers,
+  onDataChanged
+}: {
+  workers: WorkerSummary[]
+  onDataChanged(): Promise<void>
+}) {
+  const [inspectingWorkerId, setInspectingWorkerId] = useState<string | null>(null)
+
+  return (
+    <div className="panel">
+      <Flex justify="between" mb="4">
+        <div>
+          <Heading size="4">兼职人员</Heading>
+          <Text size="2" color="gray">
+            维护人员资料、默认工作时间，并查看历史排班与制作结算。
+          </Text>
+        </div>
+        <Badge variant="soft">{workers.filter((worker) => worker.active).length} 位在岗</Badge>
+      </Flex>
+      <Table.Root variant="surface">
+        <Table.Header>
+          <Table.Row>
+            <Table.ColumnHeaderCell>人员</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>时薪</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>默认工作时间</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {workers.map((worker) => (
+            <Table.Row
+              key={worker.id}
+              aria-label={`打开兼职人员 ${worker.name}`}
+              className="selectable-row"
+              onClick={() => setInspectingWorkerId(worker.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  setInspectingWorkerId(worker.id)
+                }
+              }}
+              tabIndex={0}
+            >
+              <Table.Cell>
+                <Text weight="medium">{worker.name}</Text>
+              </Table.Cell>
+              <Table.Cell>{money(worker.hourlyWageCents)}</Table.Cell>
+              <Table.Cell>
+                {worker.defaultWorkStart && worker.defaultWorkEnd
+                  ? `${worker.defaultWorkStart} – ${worker.defaultWorkEnd}`
+                  : '未设置'}
+              </Table.Cell>
+              <Table.Cell>
+                <Badge color={worker.active ? 'green' : 'gray'}>
+                  {worker.active ? '在岗' : '停用'}
+                </Badge>
+              </Table.Cell>
+            </Table.Row>
+          ))}
+        </Table.Body>
+      </Table.Root>
+      {workers.length === 0 && (
+        <Empty text="还没有兼职人员。创建人员后，可以在日历中直接安排最终上班时间段。" />
+      )}
+      <WorkerInspector
+        workerId={inspectingWorkerId}
+        onOpenChange={(open) => {
+          if (!open) setInspectingWorkerId(null)
+        }}
+        onDataChanged={onDataChanged}
+      />
+    </div>
+  )
+}
+
+function formatWorkerMinutes(minutes: number) {
+  if (minutes < 60) return `${minutes} 分钟`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`
+}
+
+function WorkerInspector({
+  workerId,
+  onOpenChange,
+  onDataChanged
+}: {
+  workerId: string | null
+  onOpenChange(open: boolean): void
+  onDataChanged(): Promise<void>
+}) {
+  const [worker, setWorker] = useState<WorkerDetail | null>(null)
+  const [draft, setDraft] = useState<WorkerUpdateInput | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!workerId) {
+      setWorker(null)
+      setDraft(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    void window.yumi.workers
+      .get(workerId)
+      .then((result) => {
+        if (cancelled) return
+        setWorker(result)
+        setDraft(
+          result
+            ? {
+                id: result.id,
+                name: result.name,
+                phone: result.phone,
+                hourlyWageCents: result.hourlyWageCents,
+                defaultWorkStart: result.defaultWorkStart,
+                defaultWorkEnd: result.defaultWorkEnd,
+                active: result.active,
+                effectiveFrom: new Date().toISOString().slice(0, 10)
+              }
+            : null
+        )
+      })
+      .catch((reason) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : '人员详情读取失败。')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workerId])
+
+  const patchDraft = (patch: Partial<WorkerUpdateInput>) =>
+    setDraft((current) => (current ? { ...current, ...patch } : current))
+
+  const save = async () => {
+    if (!draft) return
+    setSaving(true)
+    setError('')
+    try {
+      const saved = await window.yumi.workers.update(draft)
+      const detail = await window.yumi.workers.get(saved.id)
+      setWorker(detail)
+      setDraft(
+        detail
+          ? {
+              id: detail.id,
+              name: detail.name,
+              phone: detail.phone,
+              hourlyWageCents: detail.hourlyWageCents,
+              defaultWorkStart: detail.defaultWorkStart,
+              defaultWorkEnd: detail.defaultWorkEnd,
+              active: detail.active,
+              effectiveFrom: new Date().toISOString().slice(0, 10)
+            }
+          : null
+      )
+      await onDataChanged()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '人员资料保存失败。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog.Root open={Boolean(workerId)} onOpenChange={onOpenChange}>
+      <Dialog.Content maxWidth="920px" className="wide-dialog worker-inspector-dialog">
+        <Dialog.Title>兼职人员工作区</Dialog.Title>
+        {loading && <Text color="gray">正在读取人员资料…</Text>}
+        {error && (
+          <Text as="div" color="red" size="2" mt="3">
+            {error}
+          </Text>
+        )}
+        {worker && draft && (
+          <div className="inspector-content">
+            <div className="inspector-heading">
+              <div>
+                <Heading size="5">{worker.name}</Heading>
+                <Text as="div" color="gray" size="2" mt="1">
+                  {worker.phone || '未填写联系电话'} · {worker.active ? '当前在岗' : '已停用'}
+                </Text>
+              </div>
+              <Badge color={worker.active ? 'green' : 'gray'} variant="soft">
+                {worker.active ? '在岗' : '停用'}
+              </Badge>
+            </div>
+
+            <section className="form-section">
+              <div className="section-title">
+                <div>
+                  <Text weight="medium">人员资料与工作规则</Text>
+                  <Text as="div" color="gray" size="1">
+                    修改时薪会新增一条生效记录，不会改写历史结算。
+                  </Text>
+                </div>
+                <label className="switch-label">
+                  <input
+                    checked={draft.active}
+                    onChange={(event) => patchDraft({ active: event.target.checked })}
+                    type="checkbox"
+                  />
+                  <span>允许排班</span>
+                </label>
+              </div>
+              <div className="field-grid three">
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    姓名
+                  </Text>
+                  <TextField.Root
+                    value={draft.name}
+                    onChange={(event) => patchDraft({ name: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    联系电话
+                  </Text>
+                  <TextField.Root
+                    value={draft.phone ?? ''}
+                    onChange={(event) => patchDraft({ phone: event.target.value || null })}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    时薪（元）
+                  </Text>
+                  <TextField.Root
+                    inputMode="decimal"
+                    value={(draft.hourlyWageCents / 100).toFixed(2)}
+                    onChange={(event) =>
+                      patchDraft({
+                        hourlyWageCents: Math.round(Number(event.target.value) * 100) || 0
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    默认上班开始
+                  </Text>
+                  <TextField.Root
+                    type="time"
+                    value={draft.defaultWorkStart ?? ''}
+                    onChange={(event) =>
+                      patchDraft({ defaultWorkStart: event.target.value || null })
+                    }
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    默认下班结束
+                  </Text>
+                  <TextField.Root
+                    type="time"
+                    value={draft.defaultWorkEnd ?? ''}
+                    onChange={(event) => patchDraft({ defaultWorkEnd: event.target.value || null })}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    时薪生效日期
+                  </Text>
+                  <TextField.Root
+                    type="date"
+                    value={draft.effectiveFrom}
+                    onChange={(event) => patchDraft({ effectiveFrom: event.target.value })}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="inspector-kpis worker-kpis">
+              <Stat label="实际工时" value={formatWorkerMinutes(worker.totalActualMinutes)} />
+              <Stat label="合格数量" value={`${worker.totalQualifiedQuantity} 个`} />
+              <Stat label="按件提成" value={money(worker.totalCommissionCostCents)} />
+              <Stat
+                label="缺勤 / 请假"
+                value={`${worker.absenceCount} 次`}
+                tone={worker.absenceCount ? 'warning' : 'default'}
+              />
+            </section>
+
+            <section className="form-section">
+              <div className="section-title">
+                <Text weight="medium">时薪历史</Text>
+                <Text size="1" color="gray">
+                  共 {worker.wageHistory.length} 条记录
+                </Text>
+              </div>
+              <Table.Root variant="surface">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeaderCell>生效日期</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>时薪</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>记录时间</Table.ColumnHeaderCell>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {worker.wageHistory.map((history) => (
+                    <Table.Row key={history.id}>
+                      <Table.Cell>{history.effectiveFrom}</Table.Cell>
+                      <Table.Cell>{money(history.hourlyWageCents)}</Table.Cell>
+                      <Table.Cell>{history.createdAt.slice(0, 16).replace('T', ' ')}</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </section>
+
+            <section className="form-section">
+              <div className="section-title">
+                <Text weight="medium">历史排班与制作结算</Text>
+                <Text size="1" color="gray">
+                  按最近排班日期倒序
+                </Text>
+              </div>
+              <Table.Root variant="surface">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeaderCell>日期 / 时间</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>任务</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>实际工时</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>合格数量</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>按件提成</Table.ColumnHeaderCell>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {worker.shifts.map((shift) => (
+                    <Table.Row key={shift.id}>
+                      <Table.Cell>
+                        <Text weight="medium">{shift.shiftDate}</Text>
+                        <Text as="div" size="1" color="gray">
+                          {shift.startTime} – {shift.endTime}
+                        </Text>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Badge color={shiftStatusColor(shift.status)} variant="soft">
+                          {shiftStatusLabel(shift.status)}
+                        </Badge>
+                      </Table.Cell>
+                      <Table.Cell>{shift.taskCount} 项</Table.Cell>
+                      <Table.Cell>{formatWorkerMinutes(shift.actualMinutes)}</Table.Cell>
+                      <Table.Cell>{shift.qualifiedQuantity} 个</Table.Cell>
+                      <Table.Cell>{money(shift.commissionCostCents)}</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+              {worker.shifts.length === 0 && <Empty text="还没有历史排班记录。" />}
+            </section>
+          </div>
+        )}
+        <Flex gap="3" justify="end" mt="5">
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              关闭
+            </Button>
+          </Dialog.Close>
+          <Button disabled={!draft || saving} onClick={() => void save()}>
+            {saving ? '保存中…' : '保存人员资料'}
+          </Button>
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
+  )
+}
+
+function Schedule({
+  workers,
+  orders,
+  products,
+  onDataChanged
+}: {
+  workers: WorkerSummary[]
+  orders: OrderSummary[]
+  products: ProductSummary[]
+  onDataChanged(): Promise<void>
+}) {
+  const [anchorDate, setAnchorDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
+  const [shifts, setShifts] = useState<ShiftSummary[]>([])
+  const [shiftDetails, setShiftDetails] = useState<Record<string, ShiftDetail>>({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [target, setTarget] = useState<{ worker: WorkerSummary; date: string } | null>(null)
+  const [inspectingShiftId, setInspectingShiftId] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
+  const weekDates = useMemo(() => getWeekDates(anchorDate), [anchorDate])
+  const monthDates = useMemo(() => {
+    const anchor = parseISO(anchorDate)
+    const start = startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 })
+    const end = endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 })
+    const dates: string[] = []
+    let cursor = start
+    while (cursor <= end) {
+      dates.push(format(cursor, 'yyyy-MM-dd'))
+      cursor = addDays(cursor, 1)
+    }
+    return dates
+  }, [anchorDate])
+  const scheduleRange = viewMode === 'week' ? weekDates : monthDates
+  const weekLabels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const nextShifts = await window.yumi.schedule.list(
+          scheduleRange[0]!,
+          scheduleRange[scheduleRange.length - 1]!
+        )
+        if (!cancelled) {
+          setShifts(nextShifts)
+          if (viewMode === 'month') {
+            const details = await Promise.all(
+              nextShifts.map((shift) => window.yumi.schedule.get(shift.id))
+            )
+            const nextDetails: Record<string, ShiftDetail> = {}
+            details.forEach((detail) => {
+              if (detail) nextDetails[detail.id] = detail
+            })
+            setShiftDetails(nextDetails)
+          } else {
+            setShiftDetails({})
+          }
+        }
+      } catch (reason) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : '排班读取失败。')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [reloadToken, scheduleRange, viewMode])
+
+  return (
+    <div className="panel calendar">
+      <Flex justify="between" mb="5" align="center">
+        <div>
+          <Heading size="4">{viewMode === 'week' ? '周历排班' : '月度产能风险'}</Heading>
+          <Text size="2" color="gray">
+            直接为人员创建最终上班时间段；保存前检查重叠、工时、模具日产能和交期风险。
+          </Text>
+        </div>
+        <Flex gap="2" align="center">
+          <Button
+            size="1"
+            variant={viewMode === 'week' ? 'solid' : 'soft'}
+            onClick={() => setViewMode('week')}
+          >
+            周视图
+          </Button>
+          <Button
+            size="1"
+            variant={viewMode === 'month' ? 'solid' : 'soft'}
+            onClick={() => setViewMode('month')}
+          >
+            月度风险
+          </Button>
+          <Button
+            variant="soft"
+            color="gray"
+            onClick={() =>
+              setAnchorDate(
+                format(
+                  viewMode === 'week'
+                    ? addDays(parseISO(anchorDate), -7)
+                    : addMonths(parseISO(anchorDate), -1),
+                  'yyyy-MM-dd'
+                )
+              )
+            }
+          >
+            上一{viewMode === 'week' ? '周' : '月'}
+          </Button>
+          <Button
+            variant="soft"
+            color="gray"
+            onClick={() => setAnchorDate(format(new Date(), 'yyyy-MM-dd'))}
+          >
+            本{viewMode === 'week' ? '周' : '月'}
+          </Button>
+          <Button
+            variant="soft"
+            color="gray"
+            onClick={() =>
+              setAnchorDate(
+                format(
+                  viewMode === 'week'
+                    ? addDays(parseISO(anchorDate), 7)
+                    : addMonths(parseISO(anchorDate), 1),
+                  'yyyy-MM-dd'
+                )
+              )
+            }
+          >
+            下一{viewMode === 'week' ? '周' : '月'}
+          </Button>
+        </Flex>
+      </Flex>
+      {viewMode === 'week' ? (
+        <div className="week-grid">
+          <div className="time-axis">人员</div>
+          {weekDates.map((date, index) => (
+            <div className="day" key={date}>
+              <Text as="div" size="1">
+                {weekLabels[index]}
+              </Text>
+              <Text as="div" size="1" color="gray">
+                {format(parseISO(date), 'MM/dd')}
+              </Text>
+            </div>
+          ))}
+          {workers.length === 0 ? (
+            <div className="calendar-empty">
+              <CalendarDays size={24} />
+              <Text>创建兼职人员后，即可在此按日期与时间段安排上班。</Text>
+            </div>
+          ) : (
+            workers.map((worker) => (
+              <div className="worker-row" key={worker.id}>
+                <div className="worker-label">
+                  <Text weight="medium">{worker.name}</Text>
+                  <Text as="div" size="1" color="gray">
+                    {worker.active ? '可排班' : '已停用'}
+                  </Text>
+                </div>
+                {weekDates.map((date) => {
+                  const cellShifts = shifts
+                    .filter((shift) => shift.workerId === worker.id && shift.shiftDate === date)
+                    .sort((left, right) => left.startTime.localeCompare(right.startTime))
+                  return (
+                    <div className="slot" key={date}>
+                      {cellShifts.map((shift) => (
+                        <button
+                          className={`shift-block ${shift.status}`}
+                          key={shift.id}
+                          onClick={() => setInspectingShiftId(shift.id)}
+                          title="打开排班详情"
+                          type="button"
+                        >
+                          {shift.startTime}–{shift.endTime}
+                          <small>
+                            {shift.taskCount} 项任务 · {shiftStatusLabel(shift.status)}
+                          </small>
+                        </button>
+                      ))}
+                      {worker.active ? (
+                        <button
+                          className={
+                            cellShifts.length === 0 ? 'slot-add-button empty' : 'slot-add-button'
+                          }
+                          onClick={() => setTarget({ worker, date })}
+                          title="创建该日期的最终上班排班"
+                          type="button"
+                        >
+                          {cellShifts.length === 0 ? '＋' : '＋ 添加'}
+                        </button>
+                      ) : (
+                        <span className="slot-disabled">已停用</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <MonthCapacityGrid
+          anchorDate={anchorDate}
+          dates={monthDates}
+          shifts={shifts}
+          shiftDetails={shiftDetails}
+          products={products}
+        />
+      )}
+      {loading && (
+        <Text as="div" size="2" color="gray" mt="3">
+          正在刷新排班…
+        </Text>
+      )}
+      {error && (
+        <Text as="div" size="2" color="red" mt="3">
+          {error}
+        </Text>
+      )}
+      <ShiftDialog
+        target={target}
+        orders={orders}
+        onOpenChange={(open) => {
+          if (!open) setTarget(null)
+        }}
+        onDone={async () => {
+          setReloadToken((current) => current + 1)
+          await onDataChanged()
+        }}
+      />
+      <ShiftInspector
+        shiftId={inspectingShiftId}
+        orders={orders}
+        onOpenChange={(open) => {
+          if (!open) setInspectingShiftId(null)
+        }}
+        onDataChanged={async () => {
+          setReloadToken((current) => current + 1)
+          await onDataChanged()
+        }}
+      />
+    </div>
+  )
+}
+function MonthCapacityGrid({
+  anchorDate,
+  dates,
+  shifts,
+  shiftDetails,
+  products
+}: {
+  anchorDate: string
+  dates: string[]
+  shifts: ShiftSummary[]
+  shiftDetails: Record<string, ShiftDetail>
+  products: ProductSummary[]
+}) {
+  const productById = new Map(products.map((product) => [product.id, product]))
+  const summaries = dates.map((date) => {
+    const dayShifts = shifts.filter((shift) => shift.shiftDate === date)
+    const plannedByProduct = new Map<string, number>()
+    dayShifts.forEach((shift) => {
+      shiftDetails[shift.id]?.tasks.forEach((task) => {
+        plannedByProduct.set(
+          task.productId,
+          (plannedByProduct.get(task.productId) ?? 0) + task.plannedQuantity
+        )
+      })
+    })
+    const risks = [...plannedByProduct.entries()].flatMap(([productId, planned]) => {
+      const product = productById.get(productId)
+      return product && planned > product.dailyCapacity
+        ? [{ productName: product.name, planned, capacity: product.dailyCapacity }]
+        : []
+    })
+    return {
+      date,
+      dayShifts,
+      planned: [...plannedByProduct.values()].reduce((sum, value) => sum + value, 0),
+      risks
+    }
+  })
+  const currentMonth = anchorDate.slice(0, 7)
+  const labels = ['一', '二', '三', '四', '五', '六', '日']
+  return (
+    <div className="month-capacity">
+      <div className="month-weekdays">
+        {labels.map((label) => (
+          <span key={label}>周{label}</span>
+        ))}
+      </div>
+      <div className="month-grid">
+        {summaries.map((summary) => {
+          const inMonth = summary.date.startsWith(currentMonth)
+          return (
+            <div className={`month-day ${inMonth ? '' : 'outside'}`} key={summary.date}>
+              <Flex justify="between" align="center">
+                <Text weight="medium">{format(parseISO(summary.date), 'd')}</Text>
+                {summary.dayShifts.length > 0 && (
+                  <Badge variant="soft">{summary.dayShifts.length} 班</Badge>
+                )}
+              </Flex>
+              <Text as="div" size="1" color="gray">
+                计划 {summary.planned} 个
+              </Text>
+              {summary.risks.length > 0 ? (
+                <div className="month-risk-list">
+                  {summary.risks.map((risk) => (
+                    <Text key={risk.productName} size="1" color="red">
+                      超载：{risk.productName} {risk.planned}/{risk.capacity}
+                    </Text>
+                  ))}
+                </div>
+              ) : (
+                <Text as="div" size="1" color="gray">
+                  模具容量正常
+                </Text>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function Reports({ dashboard }: { dashboard: DashboardSummary }) {
+  const today = new Date()
+  const [fromDate, setFromDate] = useState(format(startOfMonth(today), 'yyyy-MM-dd'))
+  const [toDate, setToDate] = useState(format(endOfMonth(today), 'yyyy-MM-dd'))
+  const [productionStatus, setProductionStatus] = useState<ProductionStatus | 'all'>('all')
+  const [outstandingOnly, setOutstandingOnly] = useState(false)
+  const [reportType, setReportType] = useState<'orders' | 'workers' | 'capacity'>('orders')
+  const [report, setReport] = useState<OrderProfitReport | null>(null)
+  const [workerReport, setWorkerReport] = useState<WorkerSettlementReport | null>(null)
+  const [capacityReport, setCapacityReport] = useState<CapacityRiskReport | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const exportCurrentReport = async () => {
+    setError('')
+    try {
+      const result = await window.yumi.reports.export({
+        kind: reportType,
+        fromDate,
+        toDate,
+        productionStatus,
+        outstandingOnly
+      })
+      if (result.savedPath) window.alert(`报表已导出到：${result.savedPath}`)
+    } catch (reason) {
+      setError(getErrorMessage(reason, '报表导出失败，请重试。'))
+    }
+  }
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError('')
+    setReport(null)
+    setWorkerReport(null)
+    setCapacityReport(null)
+    const request =
+      reportType === 'orders'
+        ? window.yumi.reports.orderProfit({
+            fromDate,
+            toDate,
+            productionStatus,
+            outstandingOnly
+          })
+        : reportType === 'workers'
+          ? window.yumi.reports.workerSettlement({ fromDate, toDate })
+          : window.yumi.reports.capacityRisk({ fromDate, toDate })
+    void request
+      .then((data) => {
+        if (!active) return
+        if (reportType === 'orders') setReport(data as OrderProfitReport)
+        else if (reportType === 'workers') setWorkerReport(data as WorkerSettlementReport)
+        else setCapacityReport(data as CapacityRiskReport)
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(getErrorMessage(reason, '报表读取失败，请重试。'))
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [fromDate, toDate, productionStatus, outstandingOnly, refreshKey, reportType])
+
+  return (
+    <>
+      <div className="stat-grid">
+        <Stat label="待收金额" value={money(dashboard.outstandingCents)} tone="warning" />
+        <Stat label="排班风险记录" value={dashboard.riskShiftCount} tone="danger" />
+        <Stat label="待补排任务" value={dashboard.rescheduleTaskCount} tone="danger" />
+        <Stat label="7 天交期关注" value={dashboard.upcomingOrderCount} tone="warning" />
+      </div>
+      <div className="panel report-panel">
+        <Flex justify="between" align="start" gap="4" wrap="wrap" mb="4">
+          <div>
+            <Heading size="4">
+              {reportType === 'orders'
+                ? '订单资金与利润'
+                : reportType === 'workers'
+                  ? '兼职人员结算'
+                  : '商品成本与产能'}
+            </Heading>
+            <Text size="2" color="gray">
+              {reportType === 'orders'
+                ? '按预计发货日期查看应收、成本与利润，成本取订单创建时的商品与系统成本快照。'
+                : reportType === 'workers'
+                  ? '按排班日期汇总实际工时、合格完成数量、时薪成本、按件提成与缺勤。'
+                  : '查看商品单位成本、日期计划产能，并识别未完成订单的交期风险。'}
+            </Text>
+          </div>
+          <Flex gap="2" align="center">
+            <div className="report-tabs" role="tablist" aria-label="报表类型">
+              <button
+                className={reportType === 'orders' ? 'report-tab active' : 'report-tab'}
+                onClick={() => setReportType('orders')}
+                role="tab"
+                aria-selected={reportType === 'orders'}
+                type="button"
+              >
+                订单利润
+              </button>
+              <button
+                className={reportType === 'workers' ? 'report-tab active' : 'report-tab'}
+                onClick={() => setReportType('workers')}
+                role="tab"
+                aria-selected={reportType === 'workers'}
+                type="button"
+              >
+                人员结算
+              </button>
+              <button
+                className={reportType === 'capacity' ? 'report-tab active' : 'report-tab'}
+                onClick={() => setReportType('capacity')}
+                role="tab"
+                aria-selected={reportType === 'capacity'}
+                type="button"
+              >
+                产能风险
+              </button>
+            </div>
+            <Button variant="soft" onClick={() => void exportCurrentReport()} disabled={loading}>
+              导出 XLSX
+            </Button>
+            <Button
+              variant="soft"
+              onClick={() => setRefreshKey((value) => value + 1)}
+              disabled={loading}
+            >
+              {loading ? '读取中…' : '刷新报表'}
+            </Button>
+          </Flex>
+        </Flex>
+        <div className="report-filters" aria-label="报表筛选条件">
+          <label>
+            <Text as="span" size="1" color="gray">
+              {reportType === 'orders' ? '发货日期从' : '日期从'}
+            </Text>
+            <input
+              className="report-control"
+              type="date"
+              value={fromDate}
+              onChange={(event) => setFromDate(event.target.value)}
+            />
+          </label>
+          <label>
+            <Text as="span" size="1" color="gray">
+              {reportType === 'orders' ? '发货日期至' : '日期至'}
+            </Text>
+            <input
+              className="report-control"
+              type="date"
+              value={toDate}
+              onChange={(event) => setToDate(event.target.value)}
+            />
+          </label>
+          {reportType === 'orders' && (
+            <label>
+              <Text as="span" size="1" color="gray">
+                制作状态
+              </Text>
+              <select
+                className="report-control"
+                value={productionStatus}
+                onChange={(event) =>
+                  setProductionStatus(event.target.value as ProductionStatus | 'all')
+                }
+              >
+                <option value="all">全部状态</option>
+                {Object.entries(productionStatusLabel).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {reportType === 'orders' && (
+            <label className="report-checkbox">
+              <input
+                type="checkbox"
+                checked={outstandingOnly}
+                onChange={(event) => setOutstandingOnly(event.target.checked)}
+              />
+              <Text size="2">只看待收订单</Text>
+            </label>
+          )}
+        </div>
+        {loading ? (
+          <div className="state-message">
+            <Text color="gray">正在生成报表…</Text>
+          </div>
+        ) : error ? (
+          <div className="state-message error-state" role="alert">
+            <Text color="red">{error}</Text>
+            <Button variant="soft" onClick={() => setRefreshKey((value) => value + 1)}>
+              重试
+            </Button>
+          </div>
+        ) : reportType === 'orders' ? (
+          !report || report.rows.length === 0 ? (
+            <div className="state-message" role="status">
+              <Text color="gray">当前筛选条件下没有订单。</Text>
+            </div>
+          ) : (
+            <>
+              <div className="report-totals" aria-label="报表汇总">
+                <Stat label="订单数" value={report.totals.orderCount} />
+                <Stat label="应收" value={money(report.totals.receivableCents)} />
+                <Stat label="已收净额" value={money(report.totals.receivedNetCents)} />
+                <Stat label="待收" value={money(report.totals.outstandingCents)} tone="warning" />
+                <Stat label="预计利润" value={money(report.totals.estimatedProfitCents)} />
+                <Stat label="实际利润" value={money(report.totals.actualProfitCents)} />
+              </div>
+              <div className="report-table-wrap">
+                <Table.Root variant="surface" className="report-table">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeaderCell>订单</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>客户</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>预计发货</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>制作状态</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>财务状态</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>应收</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>已收净额</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>待收</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>预计成本</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>实际成本</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>预计利润</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>实际利润</Table.ColumnHeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {report.rows.map((row) => (
+                      <Table.Row key={row.id}>
+                        <Table.Cell>
+                          <Text weight="medium">{row.code}</Text>
+                        </Table.Cell>
+                        <Table.Cell>{row.customerName}</Table.Cell>
+                        <Table.Cell>{row.expectedShipDate}</Table.Cell>
+                        <Table.Cell>
+                          <Badge variant="soft">
+                            {productionStatusLabel[row.productionStatus]}
+                          </Badge>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Badge
+                            color={
+                              row.financialStatus === 'paid'
+                                ? 'green'
+                                : row.outstandingCents > 0
+                                  ? 'orange'
+                                  : 'gray'
+                            }
+                            variant="soft"
+                          >
+                            {financialStatusLabel[row.financialStatus]}
+                          </Badge>
+                        </Table.Cell>
+                        <Table.Cell>{money(row.receivableCents)}</Table.Cell>
+                        <Table.Cell>{money(row.receivedNetCents)}</Table.Cell>
+                        <Table.Cell>{money(row.outstandingCents)}</Table.Cell>
+                        <Table.Cell>{money(row.estimatedCostCents)}</Table.Cell>
+                        <Table.Cell>{money(row.actualCostCents)}</Table.Cell>
+                        <Table.Cell>{money(row.estimatedProfitCents)}</Table.Cell>
+                        <Table.Cell>{money(row.actualProfitCents)}</Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Root>
+              </div>
+            </>
+          )
+        ) : reportType === 'workers' ? (
+          !workerReport || workerReport.rows.length === 0 ? (
+            <div className="state-message" role="status">
+              <Text color="gray">当前日期范围内没有人员结算记录。</Text>
+            </div>
+          ) : (
+            <>
+              <div className="report-totals" aria-label="人员结算汇总">
+                <Stat label="人员数" value={workerReport.totals.workerCount} />
+                <Stat label="实际工时" value={`${workerReport.totals.actualMinutes} 分钟`} />
+                <Stat label="合格完成" value={`${workerReport.totals.qualifiedQuantity} 个`} />
+                <Stat label="时薪成本" value={money(workerReport.totals.laborCostCents)} />
+                <Stat label="按件提成" value={money(workerReport.totals.commissionCostCents)} />
+                <Stat label="缺勤次数" value={workerReport.totals.absenceCount} tone="warning" />
+              </div>
+              <div className="report-table-wrap">
+                <Table.Root variant="surface" className="report-table worker-report-table">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeaderCell>兼职人员</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>实际工时</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>合格完成</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>时薪成本</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>按件提成</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>缺勤次数</Table.ColumnHeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {workerReport.rows.map((row) => (
+                      <Table.Row key={row.workerId}>
+                        <Table.Cell>
+                          <Text weight="medium">{row.workerName}</Text>
+                        </Table.Cell>
+                        <Table.Cell>{row.actualMinutes} 分钟</Table.Cell>
+                        <Table.Cell>{row.qualifiedQuantity} 个</Table.Cell>
+                        <Table.Cell>{money(row.laborCostCents)}</Table.Cell>
+                        <Table.Cell>{money(row.commissionCostCents)}</Table.Cell>
+                        <Table.Cell>{row.absenceCount}</Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Root>
+              </div>
+            </>
+          )
+        ) : !capacityReport ||
+          (capacityReport.products.length === 0 &&
+            capacityReport.daily.length === 0 &&
+            capacityReport.risks.length === 0) ? (
+          <div className="state-message" role="status">
+            <Text color="gray">当前日期范围内没有产能或风险记录。</Text>
+          </div>
+        ) : (
+          <>
+            <div className="report-section-title">
+              <Heading size="3">商品成本与期间产量</Heading>
+            </div>
+            <div className="report-table-wrap">
+              <Table.Root variant="surface" className="report-table">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeaderCell>商品</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>预计单位成本</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>日产能</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>计划数量</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>合格完成</Table.ColumnHeaderCell>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {capacityReport.products.map((row) => (
+                    <Table.Row key={row.productId}>
+                      <Table.Cell>
+                        <Text weight="medium">{row.productName}</Text>
+                      </Table.Cell>
+                      <Table.Cell>{money(row.estimatedCostPerUnitCents)}</Table.Cell>
+                      <Table.Cell>{row.dailyCapacity} 个/天</Table.Cell>
+                      <Table.Cell>{row.plannedQuantity} 个</Table.Cell>
+                      <Table.Cell>{row.qualifiedQuantity} 个</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </div>
+            <div className="report-section-title">
+              <Heading size="3">每日计划与模具产能</Heading>
+            </div>
+            <div className="report-table-wrap">
+              <Table.Root variant="surface" className="report-table">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeaderCell>日期</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>商品</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>计划</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>合格完成</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>日产能</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>待补排</Table.ColumnHeaderCell>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {capacityReport.daily.map((row) => (
+                    <Table.Row key={`${row.date}-${row.productId}`}>
+                      <Table.Cell>{row.date}</Table.Cell>
+                      <Table.Cell>{row.productName}</Table.Cell>
+                      <Table.Cell>{row.plannedQuantity} 个</Table.Cell>
+                      <Table.Cell>{row.qualifiedQuantity} 个</Table.Cell>
+                      <Table.Cell>{row.dailyCapacity} 个</Table.Cell>
+                      <Table.Cell>{row.pendingScheduleQuantity} 个</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </div>
+            <div className="report-section-title">
+              <Heading size="3">未完成订单交期风险</Heading>
+            </div>
+            {capacityReport.risks.length === 0 ? (
+              <Text size="2" color="gray">
+                当前日期范围内没有识别到交期风险。
+              </Text>
+            ) : (
+              <div className="report-table-wrap">
+                <Table.Root variant="surface" className="report-table">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeaderCell>订单</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>客户</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>预计发货</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>剩余数量</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>风险原因</Table.ColumnHeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {capacityReport.risks.map((row) => (
+                      <Table.Row key={row.orderId}>
+                        <Table.Cell>
+                          <Text weight="medium">{row.orderCode}</Text>
+                        </Table.Cell>
+                        <Table.Cell>{row.customerName}</Table.Cell>
+                        <Table.Cell>{row.expectedShipDate}</Table.Cell>
+                        <Table.Cell>{row.remainingQuantity} 个</Table.Cell>
+                        <Table.Cell>
+                          <div className="risk-tags">
+                            {row.riskReasons.map((reason) => (
+                              <Badge key={reason} color="red" variant="soft">
+                                {reason}
+                              </Badge>
+                            ))}
+                          </div>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Root>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
+function SettingsWorkspace({ onDataChanged }: { onDataChanged(): Promise<void> }) {
+  const [activity, setActivity] = useState<LocalDataActivity | null>(null)
+  const [backups, setBackups] = useState<BackupSummary[]>([])
+  const [audits, setAudits] = useState<AuditLogSummary[]>([])
+  const [selectedRestore, setSelectedRestore] = useState<BackupSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [creatingBackup, setCreatingBackup] = useState(false)
+  const [loadingDemo, setLoadingDemo] = useState(false)
+  const [error, setError] = useState('')
+
+  const reload = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const [activityData, backupData, auditData] = await Promise.all([
+        window.yumi.backup.activity(),
+        window.yumi.backup.list(),
+        window.yumi.settings.listAuditLogs()
+      ])
+      setActivity(activityData)
+      setBackups(backupData)
+      setAudits(auditData.slice(0, 12))
+    } catch (reason) {
+      setError(getErrorMessage(reason, '备份状态读取失败，请重试。'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void reload()
+  }, [])
+
+  const createBackup = async () => {
+    setCreatingBackup(true)
+    setError('')
+    try {
+      await window.yumi.backup.create()
+      await reload()
+    } catch (reason) {
+      setError(getErrorMessage(reason, '创建备份失败，请稍后重试。'))
+    } finally {
+      setCreatingBackup(false)
+    }
+  }
+
+  const loadDemoData = async () => {
+    setLoadingDemo(true)
+    setError('')
+    try {
+      await window.yumi.demo.load()
+      await Promise.all([reload(), onDataChanged()])
+    } catch (reason) {
+      setError(getErrorMessage(reason, '演示数据加载失败，请稍后重试。'))
+    } finally {
+      setLoadingDemo(false)
+    }
+  }
+
+  const chooseRestoreSource = async () => {
+    setError('')
+    try {
+      const backup = await window.yumi.backup.chooseRestoreSource()
+      if (backup) setSelectedRestore(backup)
+    } catch (reason) {
+      setError(getErrorMessage(reason, '所选备份无法使用。'))
+    }
+  }
+
+  const restore = async () => {
+    if (!selectedRestore) return
+    setError('')
+    try {
+      await window.yumi.backup.restore({ backupPath: selectedRestore.backupPath, confirmed: true })
+    } catch (reason) {
+      setSelectedRestore(null)
+      setError(getErrorMessage(reason, '恢复未完成，当前数据未被覆盖。'))
+    }
+  }
+
+  const formatTime = (value: string) => format(parseISO(value), 'yyyy-MM-dd HH:mm')
+  const operationLabels: Record<string, string> = {
+    'backup.restored': '恢复本地备份',
+    'payment.recorded': '登记收退款',
+    'schedule.risk_confirmed': '确认排班风险',
+    'shift.status_updated': '更新排班状态'
+  }
+
+  return (
+    <div className="settings-workspace">
+      <section className="settings-hero">
+        <div className="settings-title">
+          <ArchiveRestore size={21} />
+          <div>
+            <Heading size="4">本地数据与备份</Heading>
+            <Text size="2" color="gray">
+              数据仅保存在这台电脑。备份包含 SQLite 数据库、附件及版本校验信息。
+            </Text>
+          </div>
+        </div>
+        <Badge color="green" variant="soft">
+          SQLite 本地存储
+        </Badge>
+      </section>
+
+      {error && (
+        <div className="inline-error" role="alert">
+          {error}
+        </div>
+      )}
+
+      <section className="settings-grid">
+        <div className="settings-section">
+          <Flex align="center" justify="between" mb="3">
+            <div>
+              <Text weight="medium">备份与恢复</Text>
+              <Text as="div" size="1" color="gray">
+                恢复前会自动保护当前数据，恢复后应用将重启。
+              </Text>
+            </div>
+            <Button size="2" onClick={() => void createBackup()} disabled={creatingBackup}>
+              {creatingBackup ? '正在备份…' : '立即备份'}
+            </Button>
+          </Flex>
+          {loading ? (
+            <Empty text="正在读取本地备份状态…" />
+          ) : (
+            <>
+              <div className="activity-line">
+                <span>最近备份</span>
+                <strong>
+                  {activity?.lastBackup ? formatTime(activity.lastBackup.createdAt) : '尚未创建'}
+                </strong>
+              </div>
+              <div className="activity-line">
+                <span>最近恢复</span>
+                <strong>
+                  {activity?.lastRestore ? formatTime(activity.lastRestore.restoredAt) : '暂无'}
+                </strong>
+              </div>
+              <Button variant="soft" color="gray" onClick={() => void chooseRestoreSource()}>
+                选择备份并恢复
+              </Button>
+              <div className="backup-list">
+                {backups.slice(0, 5).map((backup) => (
+                  <button
+                    className="backup-row"
+                    key={backup.id}
+                    onClick={() => setSelectedRestore(backup)}
+                    type="button"
+                  >
+                    <span>{formatTime(backup.createdAt)}</span>
+                    <span>{backup.attachmentCount} 个附件</span>
+                    <Badge
+                      color={backup.reason === 'pre_restore' ? 'amber' : 'gray'}
+                      variant="soft"
+                    >
+                      {backup.reason === 'pre_restore' ? '恢复前保护' : '手动备份'}
+                    </Badge>
+                  </button>
+                ))}
+                {!backups.length && <Empty text="尚无本地备份。" />}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="settings-section">
+          <Text weight="medium">最近导出</Text>
+          <Text as="div" size="1" color="gray" mt="1">
+            导出仅生成业务报表，不会暴露数据库文件。
+          </Text>
+          <div className="export-status">
+            {activity?.lastExport ? (
+              <>
+                <Badge color="blue" variant="soft">
+                  {activity.lastExport.kind === 'orders'
+                    ? '订单资金与利润'
+                    : activity.lastExport.kind === 'workers'
+                      ? '人员结算'
+                      : '产能风险'}
+                </Badge>
+                <Text size="2">{formatTime(activity.lastExport.exportedAt)}</Text>
+                <Text className="path-text" size="1" color="gray">
+                  {activity.lastExport.savedPath}
+                </Text>
+              </>
+            ) : (
+              <Empty text="尚未导出业务报表。" />
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-section demo-data-section">
+        <div>
+          <Text weight="medium">演示数据</Text>
+          <Text as="div" size="1" color="gray" mt="1">
+            在空白数据库中加载 2 个商品、2 笔订单、分次收退款、模具超载、缺勤待补排和实际制作记录。
+          </Text>
+        </div>
+        <Button
+          color="amber"
+          variant="soft"
+          onClick={() => void loadDemoData()}
+          disabled={loadingDemo || loading}
+        >
+          {loadingDemo ? '正在加载…' : '加载演示数据'}
+        </Button>
+      </section>
+
+      <section className="settings-section audit-section">
+        <Flex align="center" justify="between" mb="3">
+          <div>
+            <Text weight="medium">关键操作审计</Text>
+            <Text as="div" size="1" color="gray">
+              展示收退款、排班风险、缺勤与数据恢复等关键变更。
+            </Text>
+          </div>
+          <Button size="1" variant="soft" color="gray" onClick={() => void reload()}>
+            刷新
+          </Button>
+        </Flex>
+        {loading ? (
+          <Empty text="正在读取审计记录…" />
+        ) : audits.length ? (
+          <Table.Root className="audit-table" size="1" variant="surface">
+            <Table.Header>
+              <Table.Row>
+                <Table.ColumnHeaderCell>时间</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>操作</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>对象</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>操作者</Table.ColumnHeaderCell>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              {audits.map((audit) => (
+                <Table.Row key={audit.id}>
+                  <Table.Cell>{formatTime(audit.createdAt)}</Table.Cell>
+                  <Table.Cell>{operationLabels[audit.action] ?? audit.action}</Table.Cell>
+                  <Table.Cell>{audit.entityType}</Table.Cell>
+                  <Table.Cell>{audit.actorName}</Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table.Root>
+        ) : (
+          <Empty text="暂无关键操作记录。" />
+        )}
+      </section>
+
+      <Dialog.Root
+        open={Boolean(selectedRestore)}
+        onOpenChange={(open) => !open && setSelectedRestore(null)}
+      >
+        <Dialog.Content maxWidth="440px">
+          <Dialog.Title>确认恢复备份</Dialog.Title>
+          <Dialog.Description size="2" mb="4">
+            将恢复 {selectedRestore ? formatTime(selectedRestore.createdAt) : ''}{' '}
+            的备份，并覆盖当前数据和附件。
+            系统会先自动创建当前数据的保护备份，恢复成功后自动重启应用。
+          </Dialog.Description>
+          <Flex gap="3" justify="end">
+            <Dialog.Close>
+              <Button variant="soft" color="gray">
+                取消
+              </Button>
+            </Dialog.Close>
+            <Button color="red" onClick={() => void restore()}>
+              确认并继续
+            </Button>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
+    </div>
+  )
+}
+function Empty({ text }: { text: string }) {
+  return (
+    <div aria-live="polite" className="empty" role="status">
+      <Text color="gray">{text}</Text>
+    </div>
+  )
+}
+function ProductDialog({
+  open,
+  onOpenChange,
+  onDone
+}: {
+  open: boolean
+  onOpenChange(value: boolean): void
+  onDone(): Promise<void>
+}) {
+  const [name, setName] = useState('')
+  const [price, setPrice] = useState('')
+  const [saving, setSaving] = useState(false)
+  const submit = async () => {
+    setSaving(true)
+    await window.yumi.products.create({
+      name,
+      basePriceCents: Math.round(Number(price) * 100) || 0,
+      edgePriceCents: 0,
+      weightGrams: 0,
+      lossRate: 0,
+      standardMinutesPerUnit: 0,
+      packagingCostCents: 0,
+      commissionCentsPerUnit: 0,
+      moldCount: 1,
+      outputPerMoldPerBatch: 1,
+      maxBatchesPerDay: 1
+    })
+    await onDone()
+    setSaving(false)
+    onOpenChange(false)
+    setName('')
+    setPrice('')
+  }
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Content maxWidth="440px">
+        <Dialog.Title>新建商品</Dialog.Title>
+        <Dialog.Description size="2" mb="4">
+          先建立基础资料；完整成本和模具参数可在商品详情维护。
+        </Dialog.Description>
+        <Flex direction="column" gap="3">
+          <label>
+            <Text as="div" size="2" mb="1">
+              商品名称
+            </Text>
+            <TextField.Root
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例如：奶油小熊"
+            />
+          </label>
+          <label>
+            <Text as="div" size="2" mb="1">
+              基础售价（元）
+            </Text>
+            <TextField.Root
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              inputMode="decimal"
+              placeholder="0.00"
+            />
+          </label>
+        </Flex>
+        <Flex gap="3" mt="5" justify="end">
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              取消
+            </Button>
+          </Dialog.Close>
+          <Button disabled={!name || saving} onClick={() => void submit()}>
+            {saving ? '保存中…' : '保存商品'}
+          </Button>
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
+  )
+}
+function WorkerDialog({
+  open,
+  onOpenChange,
+  onDone
+}: {
+  open: boolean
+  onOpenChange(value: boolean): void
+  onDone(): Promise<void>
+}) {
+  const [name, setName] = useState('')
+  const [wage, setWage] = useState('')
+  const submit = async () => {
+    await window.yumi.workers.create({ name, hourlyWageCents: Math.round(Number(wage) * 100) || 0 })
+    await onDone()
+    onOpenChange(false)
+    setName('')
+    setWage('')
+  }
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Content maxWidth="440px">
+        <Dialog.Title>新增兼职人员</Dialog.Title>
+        <Dialog.Description size="2" mb="4">
+          时薪将作为实际制作工时成本的计算基础。
+        </Dialog.Description>
+        <Flex direction="column" gap="3">
+          <label>
+            <Text as="div" size="2" mb="1">
+              姓名
+            </Text>
+            <TextField.Root
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例如：小 A"
+            />
+          </label>
+          <label>
+            <Text as="div" size="2" mb="1">
+              时薪（元）
+            </Text>
+            <TextField.Root
+              value={wage}
+              onChange={(e) => setWage(e.target.value)}
+              inputMode="decimal"
+              placeholder="0.00"
+            />
+          </label>
+        </Flex>
+        <Flex gap="3" mt="5" justify="end">
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              取消
+            </Button>
+          </Dialog.Close>
+          <Button disabled={!name} onClick={() => void submit()}>
+            保存人员
+          </Button>
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
+  )
+}
+
+type OrderDraftLine = {
+  id: string
+  itemId?: string
+  productId: string
+  quantity: string
+  unitPrice: string
+  edgeEnabled: boolean
+  edgeQuantity: string
+  edgePrice: string
+  discount: string
+}
+
+const productionStatusLabel: Record<ProductionStatus, string> = {
+  pending_confirmation: '待确认',
+  pending_schedule: '待排班',
+  in_production: '制作中',
+  pending_shipment: '待发货',
+  completed: '已完成',
+  cancelled: '已取消'
+}
+
+const financialStatusLabel: Record<FinancialStatus, string> = {
+  unpaid: '未收款',
+  partial: '部分收款',
+  paid: '已结清',
+  refunding: '退款中',
+  refunded: '已退款',
+  overpaid: '超收'
+}
+
+const shiftStatusLabels: Record<ShiftStatus, string> = {
+  scheduled: '已排班',
+  leave: '请假',
+  absent: '缺勤',
+  late: '迟到',
+  cancelled: '已取消',
+  completed: '已完成'
+}
+
+function shiftStatusLabel(status: string): string {
+  return shiftStatusLabels[status as ShiftStatus] ?? status
+}
+
+function shiftStatusColor(status: string): 'gray' | 'green' | 'amber' | 'red' {
+  if (status === 'completed') return 'green'
+  if (status === 'leave' || status === 'absent' || status === 'cancelled') return 'red'
+  if (status === 'late') return 'amber'
+  return 'gray'
+}
+
+function createOrderDraftLine(product?: ProductSummary): OrderDraftLine {
+  return {
+    id: crypto.randomUUID(),
+    productId: product?.id ?? '',
+    quantity: '1',
+    unitPrice: product ? String(product.basePriceCents / 100) : '',
+    edgeEnabled: false,
+    edgeQuantity: '1',
+    edgePrice: product ? String(product.edgePriceCents / 100) : '',
+    discount: '0'
+  }
+}
+
+function OrderDialog({
+  open,
+  onOpenChange,
+  products,
+  order,
+  onDone
+}: {
+  open: boolean
+  onOpenChange(value: boolean): void
+  products: ProductSummary[]
+  order?: OrderDetail | null
+  onDone(): Promise<void>
+}) {
+  const availableProducts = useMemo(
+    () =>
+      products.filter(
+        (product) => product.enabled || order?.items.some((item) => item.productId === product.id)
+      ),
+    [products, order]
+  )
+  const [customers, setCustomers] = useState<CustomerProfile[]>([])
+  const [customerId, setCustomerId] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [contact, setContact] = useState('')
+  const [address, setAddress] = useState('')
+  const [expectedShipDate, setExpectedShipDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [reserveDays, setReserveDays] = useState('2')
+  const [orderDiscount, setOrderDiscount] = useState('0')
+  const [notes, setNotes] = useState('')
+  const [lines, setLines] = useState<OrderDraftLine[]>([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    const load = async () => {
+      const [customerData, defaults] = await Promise.all([
+        window.yumi.customers.list(),
+        window.yumi.settings.getOrderDefaults()
+      ])
+      setCustomers(customerData)
+      if (order) {
+        setCustomerId(order.customer.id)
+        setCustomerName(order.customer.name)
+        setContact(order.customer.contact ?? '')
+        setAddress(order.customer.defaultAddress ?? '')
+        setExpectedShipDate(order.expectedShipDate)
+        setReserveDays(String(order.reserveDays))
+        setOrderDiscount(String(order.discountCents / 100))
+        setNotes(order.notes ?? '')
+        setLines(
+          order.items.map((item) => ({
+            id: crypto.randomUUID(),
+            itemId: item.id,
+            productId: item.productId,
+            quantity: String(item.quantity),
+            unitPrice: String(item.unitPriceCents / 100),
+            edgeEnabled: item.edgeEnabled,
+            edgeQuantity: String(item.edgeQuantity),
+            edgePrice: String(item.edgePriceCents / 100),
+            discount: String(item.discountCents / 100)
+          }))
+        )
+      } else {
+        setCustomerId('')
+        setCustomerName('')
+        setContact('')
+        setAddress('')
+        setExpectedShipDate(format(new Date(), 'yyyy-MM-dd'))
+        setReserveDays(String(defaults.defaultReserveDays))
+        setOrderDiscount('0')
+        setNotes('')
+        setLines([createOrderDraftLine(availableProducts[0])])
+      }
+      setError('')
+    }
+    void load().catch(() => setError('无法读取客户或订单默认配置。'))
+  }, [open, availableProducts, order])
+
+  const totals = calculateDraftTotals(
+    lines.map((line) => ({
+      quantity: Number(line.quantity) || 0,
+      unitPriceCents: Math.round((Number(line.unitPrice) || 0) * 100),
+      edgeEnabled: line.edgeEnabled,
+      edgeQuantity: Number(line.edgeQuantity) || 0,
+      edgePriceCents: Math.round((Number(line.edgePrice) || 0) * 100),
+      discountCents: Math.round((Number(line.discount) || 0) * 100)
+    })),
+    Math.round((Number(orderDiscount) || 0) * 100)
+  )
+
+  const reset = () => {
+    setCustomerId('')
+    setCustomerName('')
+    setContact('')
+    setAddress('')
+    setExpectedShipDate(format(new Date(), 'yyyy-MM-dd'))
+    setReserveDays('2')
+    setOrderDiscount('0')
+    setNotes('')
+    setLines([createOrderDraftLine(availableProducts[0])])
+    setError('')
+  }
+
+  const chooseCustomer = (value: string) => {
+    setCustomerId(value)
+    const customer = customers.find((item) => item.id === value)
+    if (!customer) return
+    setCustomerName(customer.name)
+    setContact(customer.contact ?? '')
+    setAddress(customer.defaultAddress ?? '')
+  }
+
+  const updateLine = (id: string, patch: Partial<OrderDraftLine>) => {
+    setLines((current) => current.map((line) => (line.id === id ? { ...line, ...patch } : line)))
+  }
+
+  const changeProduct = (lineId: string, productId: string) => {
+    const product = availableProducts.find((item) => item.id === productId)
+    updateLine(lineId, {
+      productId,
+      unitPrice: product ? String(product.basePriceCents / 100) : '',
+      edgePrice: product ? String(product.edgePriceCents / 100) : ''
+    })
+  }
+
+  const submit = async () => {
+    if (!customerName.trim()) {
+      setError('请填写客户名称或先选择已有客户。')
+      return
+    }
+    if (!expectedShipDate) {
+      setError('请填写预计发货日期。')
+      return
+    }
+    if (lines.length === 0 || lines.some((line) => !line.productId || Number(line.quantity) <= 0)) {
+      setError('请至少保留一项数量大于 0 的商品。')
+      return
+    }
+    setSaving(true)
+    setError('')
+    const input: OrderCreateInput = {
+      customer: {
+        id: customerId || undefined,
+        name: customerName.trim(),
+        contact: contact.trim() || null,
+        defaultAddress: address.trim() || null
+      },
+      expectedShipDate,
+      reserveDays: Number(reserveDays),
+      discountCents: Math.round((Number(orderDiscount) || 0) * 100),
+      notes: notes.trim() || null,
+      items: lines.map((line) => ({
+        id: line.itemId,
+        productId: line.productId,
+        quantity: Number(line.quantity),
+        unitPriceCents: Math.round((Number(line.unitPrice) || 0) * 100),
+        edgeEnabled: line.edgeEnabled,
+        edgeQuantity: line.edgeEnabled ? Number(line.edgeQuantity) : 0,
+        edgePriceCents: Math.round((Number(line.edgePrice) || 0) * 100),
+        discountCents: Math.round((Number(line.discount) || 0) * 100)
+      }))
+    }
+    try {
+      if (order) {
+        await window.yumi.orders.update({ ...input, id: order.id } satisfies OrderUpdateInput)
+      } else {
+        await window.yumi.orders.create(input)
+      }
+      await onDone()
+      reset()
+      onOpenChange(false)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '订单保存失败，请检查输入。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog.Root
+      open={open}
+      onOpenChange={(value) => {
+        if (!value) reset()
+        onOpenChange(value)
+      }}
+    >
+      <Dialog.Content maxWidth="920px" className="wide-dialog">
+        <Dialog.Title>{order ? `编辑订单 ${order.code}` : '新建订单'}</Dialog.Title>
+        <Dialog.Description size="2" mb="4">
+          一个订单可录入多个商品；缝边费用、明细改价和订单优惠均会保存为订单快照。
+        </Dialog.Description>
+        <div className="order-form">
+          <section className="form-section customer-section">
+            <div className="section-title">
+              <Text weight="medium">客户与交期</Text>
+              <Text size="1" color="gray">
+                可以直接选择已有客户，也可快速建立新客户。
+              </Text>
+            </div>
+            <div className="field-grid three">
+              <label>
+                <Text as="div" size="2" mb="1">
+                  已有客户
+                </Text>
+                <select
+                  className="desktop-select"
+                  value={customerId}
+                  onChange={(event) => chooseCustomer(event.target.value)}
+                >
+                  <option value="">新建客户</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name}
+                      {customer.contact ? ` · ${customer.contact}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  客户名称
+                </Text>
+                <TextField.Root
+                  value={customerName}
+                  onChange={(event) => setCustomerName(event.target.value)}
+                  placeholder="昵称或姓名"
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  联系方式
+                </Text>
+                <TextField.Root
+                  value={contact}
+                  onChange={(event) => setContact(event.target.value)}
+                  placeholder="微信 / 手机号"
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  预计发货
+                </Text>
+                <TextField.Root
+                  type="date"
+                  value={expectedShipDate}
+                  onChange={(event) => setExpectedShipDate(event.target.value)}
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  预留时间（天）
+                </Text>
+                <TextField.Root
+                  type="number"
+                  min="0"
+                  value={reserveDays}
+                  onChange={(event) => setReserveDays(event.target.value)}
+                />
+              </label>
+              <label className="span-two">
+                <Text as="div" size="2" mb="1">
+                  常用地址
+                </Text>
+                <TextField.Root
+                  value={address}
+                  onChange={(event) => setAddress(event.target.value)}
+                  placeholder="可选"
+                />
+              </label>
+            </div>
+          </section>
+          <section className="form-section">
+            <Flex justify="between" align="center" mb="3">
+              <div>
+                <Text weight="medium">商品明细</Text>
+                <Text as="div" size="1" color="gray">
+                  订单保存后将固化当时的售价、缝边和成本参数。
+                </Text>
+              </div>
+              <Button
+                size="1"
+                variant="soft"
+                disabled={availableProducts.length === 0}
+                onClick={() =>
+                  setLines((current) => [...current, createOrderDraftLine(availableProducts[0])])
+                }
+              >
+                <Plus size={14} /> 添加商品
+              </Button>
+            </Flex>
+            {availableProducts.length === 0 ? (
+              <Empty text="没有启用中的商品。请先在商品工作区创建并启用商品。" />
+            ) : (
+              <div className="order-lines">
+                {lines.map((line, index) => (
+                  <div className="order-line" key={line.id}>
+                    <span className="line-index">{String(index + 1).padStart(2, '0')}</span>
+                    <select
+                      className="desktop-select product-choice"
+                      value={line.productId}
+                      onChange={(event) => changeProduct(line.id, event.target.value)}
+                    >
+                      {availableProducts.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name}
+                        </option>
+                      ))}
+                    </select>
+                    <label>
+                      <Text as="div" size="1" color="gray">
+                        数量
+                      </Text>
+                      <TextField.Root
+                        type="number"
+                        min="1"
+                        value={line.quantity}
+                        onChange={(event) => updateLine(line.id, { quantity: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <Text as="div" size="1" color="gray">
+                        成交单价
+                      </Text>
+                      <TextField.Root
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.unitPrice}
+                        onChange={(event) => updateLine(line.id, { unitPrice: event.target.value })}
+                      />
+                    </label>
+                    <label className="edge-toggle">
+                      <Text as="div" size="1" color="gray">
+                        缝边
+                      </Text>
+                      <input
+                        type="checkbox"
+                        checked={line.edgeEnabled}
+                        onChange={(event) =>
+                          updateLine(line.id, { edgeEnabled: event.target.checked })
+                        }
+                      />
+                    </label>
+                    <label>
+                      <Text as="div" size="1" color="gray">
+                        缝边数量
+                      </Text>
+                      <TextField.Root
+                        type="number"
+                        min="0"
+                        disabled={!line.edgeEnabled}
+                        value={line.edgeQuantity}
+                        onChange={(event) =>
+                          updateLine(line.id, { edgeQuantity: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      <Text as="div" size="1" color="gray">
+                        缝边单价
+                      </Text>
+                      <TextField.Root
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        disabled={!line.edgeEnabled}
+                        value={line.edgePrice}
+                        onChange={(event) => updateLine(line.id, { edgePrice: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <Text as="div" size="1" color="gray">
+                        明细优惠
+                      </Text>
+                      <TextField.Root
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.discount}
+                        onChange={(event) => updateLine(line.id, { discount: event.target.value })}
+                      />
+                    </label>
+                    <Button
+                      size="1"
+                      color="gray"
+                      variant="ghost"
+                      disabled={lines.length === 1}
+                      onClick={() =>
+                        setLines((current) => current.filter((item) => item.id !== line.id))
+                      }
+                    >
+                      删除
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="order-summary-bar">
+            <label>
+              <Text as="div" size="2" mb="1">
+                订单优惠（元）
+              </Text>
+              <TextField.Root
+                type="number"
+                min="0"
+                step="0.01"
+                value={orderDiscount}
+                onChange={(event) => setOrderDiscount(event.target.value)}
+              />
+            </label>
+            <div className="draft-amounts">
+              <Text size="1" color="gray">
+                商品及缝边 {money(totals.itemSubtotalCents)} · 明细优惠{' '}
+                {money(totals.itemDiscountCents)}
+              </Text>
+              <Text weight="medium">应收 {money(totals.receivableCents)}</Text>
+            </div>
+          </section>
+          <label>
+            <Text as="div" size="2" mb="1">
+              订单备注
+            </Text>
+            <TextField.Root
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="可选，例如颜色、附加要求或交付说明"
+            />
+          </label>
+        </div>
+        {error && (
+          <Text as="div" size="2" color="red" mt="4">
+            {error}
+          </Text>
+        )}
+        <Flex gap="3" mt="5" justify="end">
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              取消
+            </Button>
+          </Dialog.Close>
+          <Button disabled={saving || availableProducts.length === 0} onClick={() => void submit()}>
+            {saving ? '正在保存…' : order ? '保存订单修改' : '保存订单'}
+          </Button>
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
+  )
+}
+
+function OrderInspector({
+  orderId,
+  products,
+  onOpenChange,
+  onChanged
+}: {
+  orderId: string | null
+  products: ProductSummary[]
+  onOpenChange(value: boolean): void
+  onChanged(): Promise<void>
+}) {
+  const [order, setOrder] = useState<OrderDetail | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [paymentType, setPaymentType] = useState<'receipt' | 'refund'>('receipt')
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('微信')
+  const [paymentDate, setPaymentDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [paymentNote, setPaymentNote] = useState('')
+  const [receiptAttachment, setReceiptAttachment] = useState<AttachmentSummary | null>(null)
+  const [selectingReceipt, setSelectingReceipt] = useState(false)
+  const [savingPayment, setSavingPayment] = useState(false)
+  const [editing, setEditing] = useState(false)
+
+  useEffect(() => {
+    if (!orderId) {
+      setOrder(null)
+      return
+    }
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const detail = await window.yumi.orders.get(orderId)
+        if (!detail) setError('订单不存在或已被删除。')
+        setOrder(detail)
+      } catch (reason) {
+        setError(getErrorMessage(reason, '订单详情读取失败。'))
+      } finally {
+        setLoading(false)
+      }
+    }
+    void load()
+  }, [orderId])
+
+  const clearPendingReceipt = async () => {
+    if (!receiptAttachment) return
+    await window.yumi.attachments.delete(receiptAttachment.id)
+    setReceiptAttachment(null)
+  }
+
+  const chooseReceipt = async () => {
+    setSelectingReceipt(true)
+    setError('')
+    try {
+      await clearPendingReceipt()
+      const attachment = await window.yumi.attachments.chooseAndImport('payment_receipt')
+      if (attachment) setReceiptAttachment(attachment)
+    } catch (reason) {
+      setError(getErrorMessage(reason, '收款凭证选择失败。'))
+    } finally {
+      setSelectingReceipt(false)
+    }
+  }
+
+  const recordPayment = async () => {
+    if (!order || Number(paymentAmount) <= 0) {
+      setError('请输入大于 0 的金额。')
+      return
+    }
+    setSavingPayment(true)
+    setError('')
+    try {
+      const nextOrder = await window.yumi.orders.recordPayment({
+        orderId: order.id,
+        type: paymentType,
+        amountCents: Math.round(Number(paymentAmount) * 100),
+        paymentMethod: paymentMethod.trim() || '未填写',
+        paidAt: paymentDate,
+        note: paymentNote.trim() || null,
+        receiptAttachmentId: receiptAttachment?.id ?? null
+      })
+      setOrder(nextOrder)
+      setPaymentAmount('')
+      setPaymentNote('')
+      setReceiptAttachment(null)
+      await onChanged()
+    } catch (reason) {
+      setError(getErrorMessage(reason, '收退款记录保存失败。'))
+    } finally {
+      setSavingPayment(false)
+    }
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) void clearPendingReceipt()
+    onOpenChange(open)
+  }
+
+  return (
+    <Dialog.Root open={Boolean(orderId)} onOpenChange={handleOpenChange}>
+      <Dialog.Content maxWidth="760px" className="wide-dialog">
+        <Dialog.Title>订单检查器</Dialog.Title>
+        {loading && <Text color="gray">正在读取订单详情…</Text>}
+        {!loading && order && (
+          <div className="inspector-content">
+            <div className="inspector-heading">
+              <div>
+                <Heading size="5">{order.code}</Heading>
+                <Text size="2" color="gray">
+                  {order.customer.name} · 预计 {order.expectedShipDate} 发货 · 制作截止{' '}
+                  {order.productionDeadline}
+                </Text>
+              </div>
+              <Flex gap="2" align="center">
+                <Button size="1" variant="soft" onClick={() => setEditing(true)}>
+                  编辑订单
+                </Button>
+                <Badge variant="soft">{productionStatusLabel[order.productionStatus]}</Badge>
+                <Badge color="amber" variant="soft">
+                  {financialStatusLabel[order.financial.status]}
+                </Badge>
+              </Flex>
+            </div>
+            <div className="inspector-kpis">
+              <div>
+                <Text size="1" color="gray">
+                  应收
+                </Text>
+                <Text weight="medium">{money(order.financial.receivableCents)}</Text>
+              </div>
+              <div>
+                <Text size="1" color="gray">
+                  已收净额
+                </Text>
+                <Text weight="medium">{money(order.financial.receivedNetCents)}</Text>
+              </div>
+              <div>
+                <Text size="1" color="gray">
+                  待收
+                </Text>
+                <Text weight="medium">{money(order.financial.outstandingCents)}</Text>
+              </div>
+              <div>
+                <Text size="1" color="gray">
+                  预计 / 实际成本
+                </Text>
+                <Text weight="medium">
+                  {money(order.estimatedCostCents)} / {money(order.actualCostCents)}
+                </Text>
+              </div>
+            </div>
+            <section className="inspector-section">
+              <Text weight="medium">商品明细</Text>
+              <div className="detail-list">
+                {order.items.map((item) => (
+                  <div className="detail-line" key={item.id}>
+                    <div>
+                      <Text weight="medium">{item.productSnapshot.name}</Text>
+                      <Text as="div" size="1" color="gray">
+                        {item.quantity} 个 × {money(item.unitPriceCents)}
+                        {item.edgeEnabled
+                          ? ` · 缝边 ${item.edgeQuantity} 个 × ${money(item.edgePriceCents)}`
+                          : ''}
+                      </Text>
+                    </div>
+                    <Text>
+                      {money(
+                        item.unitPriceCents * item.quantity +
+                          item.edgePriceCents * item.edgeQuantity -
+                          item.discountCents
+                      )}
+                    </Text>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <section className="inspector-section payment-section">
+              <Flex justify="between" align="center">
+                <div>
+                  <Text weight="medium">收退款时间线</Text>
+                  <Text as="div" size="1" color="gray">
+                    每次到账或退款都会单独保留记录。
+                  </Text>
+                </div>
+                <Badge variant="soft">{order.payments.length} 条</Badge>
+              </Flex>
+              <div className="payment-entry">
+                <select
+                  className="desktop-select"
+                  value={paymentType}
+                  onChange={(event) => setPaymentType(event.target.value as 'receipt' | 'refund')}
+                >
+                  <option value="receipt">收款</option>
+                  <option value="refund">退款</option>
+                </select>
+                <TextField.Root
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(event) => setPaymentAmount(event.target.value)}
+                  placeholder="金额（元）"
+                />
+                <TextField.Root
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                  placeholder="方式"
+                />
+                <TextField.Root
+                  type="date"
+                  value={paymentDate}
+                  onChange={(event) => setPaymentDate(event.target.value)}
+                />
+                <Button
+                  disabled={savingPayment || selectingReceipt}
+                  onClick={() => void chooseReceipt()}
+                  variant="soft"
+                >
+                  {selectingReceipt
+                    ? '导入中…'
+                    : receiptAttachment
+                      ? `凭证：${receiptAttachment.originalName}`
+                      : '添加凭证'}
+                </Button>
+                {receiptAttachment && (
+                  <Button
+                    color="gray"
+                    disabled={savingPayment || selectingReceipt}
+                    onClick={() => void clearPendingReceipt()}
+                    variant="soft"
+                  >
+                    移除
+                  </Button>
+                )}
+                <Button disabled={savingPayment} onClick={() => void recordPayment()}>
+                  {savingPayment ? '保存中…' : '追加记录'}
+                </Button>
+              </div>
+              {order.payments.length === 0 ? (
+                <Empty text="尚未记录收款或退款。" />
+              ) : (
+                <div className="payment-timeline">
+                  {order.payments.map((payment) => (
+                    <div className="payment-row" key={payment.id}>
+                      <Badge color={payment.type === 'receipt' ? 'green' : 'red'} variant="soft">
+                        {payment.type === 'receipt' ? '收款' : '退款'}
+                      </Badge>
+                      <Text>{payment.paidAt}</Text>
+                      <Text>{payment.paymentMethod}</Text>
+                      <Text weight="medium">{money(payment.amountCents)}</Text>
+                      <Text color="gray" size="1">
+                        {payment.note || '—'}
+                        {payment.receiptAttachmentId ? ' · 已附凭证' : ''}
+                      </Text>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <TextField.Root
+                mt="2"
+                value={paymentNote}
+                onChange={(event) => setPaymentNote(event.target.value)}
+                placeholder="本次收退款备注（可选）"
+              />
+            </section>
+          </div>
+        )}
+        {error && (
+          <Text as="div" size="2" color="red" mt="4">
+            {error}
+          </Text>
+        )}
+        <Flex mt="5" justify="end">
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              关闭
+            </Button>
+          </Dialog.Close>
+        </Flex>
+      </Dialog.Content>
+      {order && (
+        <OrderDialog
+          open={editing}
+          onOpenChange={setEditing}
+          products={products}
+          order={order}
+          onDone={async () => {
+            await onChanged()
+            const refreshed = await window.yumi.orders.get(order.id)
+            if (refreshed) setOrder(refreshed)
+          }}
+        />
+      )}
+    </Dialog.Root>
+  )
+}
+
+type ShiftDraftTask = {
+  id: string
+  orderItemId: string
+  plannedQuantity: string
+}
+
+type SchedulableOrderItem = {
+  id: string
+  label: string
+}
+
+function ShiftDialog({
+  target,
+  shift,
+  orders,
+  onOpenChange,
+  onDone
+}: {
+  target: { worker: WorkerSummary; date: string } | null
+  shift?: ShiftDetail | null
+  orders: OrderSummary[]
+  onOpenChange(value: boolean): void
+  onDone(): Promise<void>
+}) {
+  const [items, setItems] = useState<SchedulableOrderItem[]>([])
+  const [startTime, setStartTime] = useState('09:00')
+  const [endTime, setEndTime] = useState('18:00')
+  const [tasks, setTasks] = useState<ShiftDraftTask[]>([])
+  const [preview, setPreview] = useState<ShiftPreviewResult | null>(null)
+  const [loadingItems, setLoadingItems] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const activeShift = shift ?? null
+    if (!target && !activeShift) {
+      setPreview(null)
+      return
+    }
+    setStartTime(activeShift?.startTime ?? target?.worker.defaultWorkStart ?? '09:00')
+    setEndTime(activeShift?.endTime ?? target?.worker.defaultWorkEnd ?? '18:00')
+    setPreview(null)
+    setError('')
+    const load = async () => {
+      setLoadingItems(true)
+      try {
+        const orderDetails = await Promise.all(
+          orders
+            .filter(
+              (order) =>
+                (order.productionStatus !== 'completed' &&
+                  order.productionStatus !== 'cancelled') ||
+                activeShift?.tasks.some((task) => task.orderId === order.id)
+            )
+            .map((order) => window.yumi.orders.get(order.id))
+        )
+        const nextItems = orderDetails.flatMap((order) =>
+          order
+            ? order.items.map((item) => ({
+                id: item.id,
+                label: `${order.code} · ${item.productSnapshot.name}（订单 ${item.quantity} 个）`
+              }))
+            : []
+        )
+        setItems(nextItems)
+        setTasks(
+          activeShift
+            ? activeShift.tasks.map((task) => ({
+                id: crypto.randomUUID(),
+                orderItemId: task.orderItemId,
+                plannedQuantity: String(task.plannedQuantity)
+              }))
+            : nextItems[0]
+              ? [{ id: crypto.randomUUID(), orderItemId: nextItems[0].id, plannedQuantity: '1' }]
+              : []
+        )
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : '可排班订单读取失败。')
+      } finally {
+        setLoadingItems(false)
+      }
+    }
+    void load()
+  }, [target, shift, orders])
+
+  const currentInput = {
+    workerId: shift?.workerId ?? target?.worker.id ?? '',
+    shiftDate: shift?.shiftDate ?? target?.date ?? '',
+    startTime,
+    endTime,
+    tasks: tasks.map((task) => ({
+      orderItemId: task.orderItemId,
+      plannedQuantity: Number(task.plannedQuantity)
+    }))
+  }
+
+  const updateTask = (id: string, patch: Partial<ShiftDraftTask>) => {
+    setTasks((current) => current.map((task) => (task.id === id ? { ...task, ...patch } : task)))
+    setPreview(null)
+  }
+
+  const checkRisks = async () => {
+    if (
+      (!target && !shift) ||
+      tasks.length === 0 ||
+      tasks.some((task) => !task.orderItemId || Number(task.plannedQuantity) <= 0)
+    ) {
+      setError('请至少安排一项数量大于 0 的订单商品。')
+      return
+    }
+    setChecking(true)
+    setError('')
+    try {
+      setPreview(await window.yumi.schedule.preview(currentInput))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '排班检查失败。')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const save = async () => {
+    if (!preview) {
+      await checkRisks()
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      const input = {
+        ...currentInput,
+        confirmedWarningCodes: preview.risks.map((risk) => risk.code as ScheduleRiskCode)
+      }
+      if (shift) await window.yumi.schedule.update({ ...input, id: shift.id })
+      else await window.yumi.schedule.save(input)
+      await onDone()
+      onOpenChange(false)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '排班保存失败。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog.Root open={Boolean(target || shift)} onOpenChange={onOpenChange}>
+      <Dialog.Content maxWidth="760px" className="wide-dialog">
+        <Dialog.Title>{shift ? '编辑最终上班排班' : '创建最终上班排班'}</Dialog.Title>
+        {(target || shift) && (
+          <Dialog.Description size="2" mb="4">
+            {shift
+              ? `${shift.workerName} · ${shift.shiftDate}`
+              : `${target!.worker.name} · ${target!.date}`}
+            。这里填写的是最终确认的上班时间段，不是可用时间意向。
+          </Dialog.Description>
+        )}
+        <div className="shift-form">
+          <div className="field-grid two">
+            <label>
+              <Text as="div" size="2" mb="1">
+                开始时间
+              </Text>
+              <TextField.Root
+                type="time"
+                value={startTime}
+                onChange={(event) => {
+                  setStartTime(event.target.value)
+                  setPreview(null)
+                }}
+              />
+            </label>
+            <label>
+              <Text as="div" size="2" mb="1">
+                结束时间
+              </Text>
+              <TextField.Root
+                type="time"
+                value={endTime}
+                onChange={(event) => {
+                  setEndTime(event.target.value)
+                  setPreview(null)
+                }}
+              />
+            </label>
+          </div>
+          <section className="form-section">
+            <Flex justify="between" align="center" mb="3">
+              <div>
+                <Text weight="medium">本时段制作任务</Text>
+                <Text as="div" size="1" color="gray">
+                  同一时段可以分配多个订单商品；模具容量按商品和日期合并检查。
+                </Text>
+              </div>
+              <Button
+                size="1"
+                variant="soft"
+                disabled={items.length === 0}
+                onClick={() =>
+                  setTasks((current) => [
+                    ...current,
+                    {
+                      id: crypto.randomUUID(),
+                      orderItemId: items[0]?.id ?? '',
+                      plannedQuantity: '1'
+                    }
+                  ])
+                }
+              >
+                <Plus size={14} /> 添加任务
+              </Button>
+            </Flex>
+            {loadingItems && <Text color="gray">正在读取可排班订单…</Text>}
+            {!loadingItems && items.length === 0 && <Empty text="没有可排班的未完成订单商品。" />}
+            <div className="shift-tasks">
+              {tasks.map((task, index) => (
+                <div className="shift-task" key={task.id}>
+                  <Text color="gray" size="1">
+                    {String(index + 1).padStart(2, '0')}
+                  </Text>
+                  <select
+                    className="desktop-select"
+                    value={task.orderItemId}
+                    onChange={(event) => updateTask(task.id, { orderItemId: event.target.value })}
+                  >
+                    {items.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <TextField.Root
+                    type="number"
+                    min="1"
+                    value={task.plannedQuantity}
+                    onChange={(event) =>
+                      updateTask(task.id, { plannedQuantity: event.target.value })
+                    }
+                    placeholder="计划数量"
+                  />
+                  <Button
+                    size="1"
+                    color="gray"
+                    variant="ghost"
+                    disabled={tasks.length === 1}
+                    onClick={() => {
+                      setTasks((current) => current.filter((item) => item.id !== task.id))
+                      setPreview(null)
+                    }}
+                  >
+                    删除
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+          {preview && (
+            <section
+              className={preview.risks.length > 0 ? 'risk-preview has-risk' : 'risk-preview'}
+            >
+              <Flex justify="between" align="center">
+                <Text weight="medium">排班检查结果</Text>
+                <Badge color={preview.risks.length > 0 ? 'amber' : 'green'} variant="soft">
+                  {preview.risks.length > 0 ? `${preview.risks.length} 项需确认` : '检查通过'}
+                </Badge>
+              </Flex>
+              <Text as="div" size="2" color="gray" mt="2">
+                时段 {preview.shiftMinutes} 分钟 · 计划制作 {preview.totalPlannedMinutes} 分钟
+              </Text>
+              {preview.risks.length > 0 && (
+                <div className="risk-list">
+                  {preview.risks.map((risk) => (
+                    <div className="risk-item" key={risk.code}>
+                      <Badge color={risk.level === 'critical' ? 'red' : 'amber'} variant="soft">
+                        {risk.level === 'critical' ? '风险' : '提示'}
+                      </Badge>
+                      <Text size="2">{risk.message}</Text>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Text as="div" size="1" color="gray" mt="3">
+                点击“确认并保存”代表你已知悉以上提示；系统不会因这些风险阻止保存。
+              </Text>
+            </section>
+          )}
+        </div>
+        {error && (
+          <Text as="div" size="2" color="red" mt="4">
+            {error}
+          </Text>
+        )}
+        <Flex gap="3" mt="5" justify="end">
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              取消
+            </Button>
+          </Dialog.Close>
+          {!preview && (
+            <Button
+              variant="soft"
+              disabled={checking || loadingItems || items.length === 0}
+              onClick={() => void checkRisks()}
+            >
+              {checking ? '检查中…' : '检查排班风险'}
+            </Button>
+          )}
+          <Button disabled={!preview || saving} onClick={() => void save()}>
+            {saving
+              ? '保存中…'
+              : preview?.risks.length
+                ? '确认风险并保存'
+                : shift
+                  ? '保存排班'
+                  : '确认并保存'}
+          </Button>
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
+  )
+}
+
+function ShiftInspector({
+  shiftId,
+  orders,
+  onOpenChange,
+  onDataChanged
+}: {
+  shiftId: string | null
+  orders: OrderSummary[]
+  onOpenChange(value: boolean): void
+  onDataChanged(): Promise<void>
+}) {
+  const [shift, setShift] = useState<ShiftDetail | null>(null)
+  const [recordingTask, setRecordingTask] = useState<ShiftDetail['tasks'][number] | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [savingStatus, setSavingStatus] = useState<ShiftStatus | null>(null)
+  const [error, setError] = useState('')
+  const [refreshToken, setRefreshToken] = useState(0)
+
+  useEffect(() => {
+    if (!shiftId) {
+      setShift(null)
+      setError('')
+      return
+    }
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const detail = await window.yumi.schedule.get(shiftId)
+        if (!detail) throw new Error('排班不存在或已被删除。')
+        if (!cancelled) setShift(detail)
+      } catch (reason) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : '排班详情读取失败。')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [refreshToken, shiftId])
+
+  const refresh = async () => {
+    setRefreshToken((current) => current + 1)
+    await onDataChanged()
+  }
+
+  const updateStatus = async (status: ShiftStatus) => {
+    if (!shift || status === shift.status) return
+    const releasesUnfinished = ['leave', 'absent', 'cancelled'].includes(status)
+    if (
+      releasesUnfinished &&
+      !window.confirm(
+        `${shiftStatusLabel(status)}后，未完成计划将进入待补排队列并可能影响订单交期。是否继续？`
+      )
+    ) {
+      return
+    }
+    setSavingStatus(status)
+    setError('')
+    try {
+      await window.yumi.schedule.updateStatus({ shiftId: shift.id, status })
+      await refresh()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '排班状态更新失败。')
+    } finally {
+      setSavingStatus(null)
+    }
+  }
+
+  return (
+    <Dialog.Root open={Boolean(shiftId)} onOpenChange={onOpenChange}>
+      <Dialog.Content maxWidth="860px" className="wide-dialog schedule-inspector-dialog">
+        <Dialog.Title>排班详情</Dialog.Title>
+        {loading && <Text color="gray">正在读取排班详情…</Text>}
+        {error && (
+          <Text as="div" color="red" size="2" mt="3">
+            {error}
+          </Text>
+        )}
+        {shift && (
+          <div className="inspector-content">
+            <div className="inspector-heading">
+              <div>
+                <Heading size="4">
+                  {shift.workerName} · {shift.shiftDate}
+                </Heading>
+                <Text as="div" color="gray" size="2" mt="1">
+                  最终上班时段 {shift.startTime}–{shift.endTime} · {shift.tasks.length} 项制作任务
+                </Text>
+              </div>
+              <Flex gap="2" align="center">
+                {shift.status === 'scheduled' && (
+                  <Button
+                    size="1"
+                    variant="soft"
+                    disabled={shift.tasks.some(
+                      (task) =>
+                        task.actualMinutes !== null ||
+                        task.qualifiedQuantity > 0 ||
+                        task.reworkQuantity > 0 ||
+                        task.scrapQuantity > 0
+                    )}
+                    onClick={() => setEditing(true)}
+                  >
+                    编辑排班
+                  </Button>
+                )}
+                <Badge color={shiftStatusColor(shift.status)} variant="soft">
+                  {shiftStatusLabel(shift.status)}
+                </Badge>
+              </Flex>
+            </div>
+
+            <section className="form-section shift-status-panel">
+              <Flex justify="between" align="center" gap="4" wrap="wrap">
+                <div>
+                  <Text weight="medium">排班状态</Text>
+                  <Text as="div" color="gray" size="1">
+                    请假、缺勤或取消会将本排班尚未完成的数量计入待补排。
+                  </Text>
+                </div>
+                <select
+                  aria-label="更新排班状态"
+                  className="desktop-select shift-status-select"
+                  disabled={Boolean(savingStatus)}
+                  onChange={(event) => void updateStatus(event.target.value as ShiftStatus)}
+                  value={shift.status}
+                >
+                  {(Object.keys(shiftStatusLabels) as ShiftStatus[]).map((status) => (
+                    <option key={status} value={status}>
+                      标记为：{shiftStatusLabels[status]}
+                    </option>
+                  ))}
+                </select>
+              </Flex>
+              {['leave', 'absent', 'cancelled'].includes(shift.status) && (
+                <Text as="div" color="red" size="2" mt="3">
+                  当前状态已释放未完成任务，请根据下方“待补排”数量安排新的制作时段。
+                </Text>
+              )}
+            </section>
+
+            {shift.confirmedRisks.length > 0 && (
+              <section className="risk-preview has-risk">
+                <Flex justify="between" align="center">
+                  <Text weight="medium">保存时已确认的风险</Text>
+                  <Badge color="amber" variant="soft">
+                    {shift.confirmedRisks.length} 项
+                  </Badge>
+                </Flex>
+                <div className="risk-list">
+                  {shift.confirmedRisks.map((risk) => (
+                    <Text key={risk} size="2">
+                      · {risk}
+                    </Text>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="inspector-section">
+              <Flex justify="between" align="center">
+                <div>
+                  <Text weight="medium">制作任务与实际结果</Text>
+                  <Text as="div" color="gray" size="1">
+                    实际工时成本按该次制作对应的历史时薪计算；仅合格数量计入按件提成。
+                  </Text>
+                </div>
+                <Badge variant="soft">{shift.tasks.length} 项</Badge>
+              </Flex>
+              <div className="shift-inspector-tasks">
+                {shift.tasks.map((task) => (
+                  <article className="shift-inspector-task" key={task.id}>
+                    <Flex justify="between" align="start" gap="3">
+                      <div>
+                        <Text weight="medium">{task.productName}</Text>
+                        <Text as="div" color="gray" size="1">
+                          {task.orderCode} · 计划 {task.plannedQuantity} 个 · 预计{' '}
+                          {task.estimatedMinutes} 分钟
+                        </Text>
+                      </div>
+                      <Button size="1" variant="soft" onClick={() => setRecordingTask(task)}>
+                        登记实际
+                      </Button>
+                    </Flex>
+                    <div className="task-metrics">
+                      <div>
+                        <Text as="div" color="gray" size="1">
+                          实际分钟
+                        </Text>
+                        <Text weight="medium">
+                          {task.actualMinutes === null ? '未登记' : `${task.actualMinutes} 分钟`}
+                        </Text>
+                      </div>
+                      <div>
+                        <Text as="div" color="gray" size="1">
+                          合格 / 返工 / 报废
+                        </Text>
+                        <Text weight="medium">
+                          {task.qualifiedQuantity} / {task.reworkQuantity} / {task.scrapQuantity}
+                        </Text>
+                      </div>
+                      <div>
+                        <Text as="div" color="gray" size="1">
+                          实际人工 + 提成
+                        </Text>
+                        <Text weight="medium">
+                          {money(task.actualLaborCostCents + task.commissionCostCents)}
+                        </Text>
+                      </div>
+                      <div>
+                        <Text as="div" color="gray" size="1">
+                          待补排
+                        </Text>
+                        <Badge color={task.unfinishedQuantity > 0 ? 'red' : 'green'} variant="soft">
+                          {task.unfinishedQuantity} 个
+                        </Badge>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
+        <Flex gap="3" justify="end" mt="5">
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              关闭
+            </Button>
+          </Dialog.Close>
+        </Flex>
+      </Dialog.Content>
+      {shift && (
+        <ShiftDialog
+          target={null}
+          shift={editing ? shift : null}
+          orders={orders}
+          onOpenChange={setEditing}
+          onDone={async () => {
+            setEditing(false)
+            await refresh()
+          }}
+        />
+      )}
+      <ProductionRecordDialog
+        task={recordingTask}
+        onOpenChange={(open) => {
+          if (!open) setRecordingTask(null)
+        }}
+        onSaved={async () => {
+          setRecordingTask(null)
+          await refresh()
+        }}
+      />
+    </Dialog.Root>
+  )
+}
+
+function ProductionRecordDialog({
+  task,
+  onOpenChange,
+  onSaved
+}: {
+  task: ShiftDetail['tasks'][number] | null
+  onOpenChange(value: boolean): void
+  onSaved(): Promise<void>
+}) {
+  const [actualMinutes, setActualMinutes] = useState('')
+  const [qualifiedQuantity, setQualifiedQuantity] = useState('')
+  const [reworkQuantity, setReworkQuantity] = useState('')
+  const [scrapQuantity, setScrapQuantity] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!task) return
+    setActualMinutes(String(task.actualMinutes ?? task.estimatedMinutes))
+    setQualifiedQuantity(String(task.qualifiedQuantity))
+    setReworkQuantity(String(task.reworkQuantity))
+    setScrapQuantity(String(task.scrapQuantity))
+    setError('')
+  }, [task])
+
+  const save = async () => {
+    if (!task) return
+    setSaving(true)
+    setError('')
+    try {
+      await window.yumi.production.record({
+        shiftTaskId: task.id,
+        actualMinutes: Number(actualMinutes),
+        qualifiedQuantity: Number(qualifiedQuantity),
+        reworkQuantity: Number(reworkQuantity),
+        scrapQuantity: Number(scrapQuantity)
+      })
+      await onSaved()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '实际制作结果保存失败。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog.Root open={Boolean(task)} onOpenChange={onOpenChange}>
+      <Dialog.Content maxWidth="560px">
+        <Dialog.Title>登记实际制作</Dialog.Title>
+        {task && (
+          <Dialog.Description size="2" mb="4">
+            {task.productName} · {task.orderCode} · 本次计划 {task.plannedQuantity} 个。
+          </Dialog.Description>
+        )}
+        <div className="field-grid two">
+          <label>
+            <Text as="div" size="2" mb="1">
+              实际制作分钟
+            </Text>
+            <TextField.Root
+              min="0"
+              onChange={(event) => setActualMinutes(event.target.value)}
+              type="number"
+              value={actualMinutes}
+            />
+          </label>
+          <label>
+            <Text as="div" size="2" mb="1">
+              合格完成数量
+            </Text>
+            <TextField.Root
+              min="0"
+              onChange={(event) => setQualifiedQuantity(event.target.value)}
+              type="number"
+              value={qualifiedQuantity}
+            />
+          </label>
+          <label>
+            <Text as="div" size="2" mb="1">
+              返工数量
+            </Text>
+            <TextField.Root
+              min="0"
+              onChange={(event) => setReworkQuantity(event.target.value)}
+              type="number"
+              value={reworkQuantity}
+            />
+          </label>
+          <label>
+            <Text as="div" size="2" mb="1">
+              报废数量
+            </Text>
+            <TextField.Root
+              min="0"
+              onChange={(event) => setScrapQuantity(event.target.value)}
+              type="number"
+              value={scrapQuantity}
+            />
+          </label>
+        </div>
+        <Text as="div" color="gray" size="1" mt="3">
+          合格、返工和报废数量之和不能超过本次计划数量。返工与报废不计按件提成。
+        </Text>
+        {error && (
+          <Text as="div" color="red" size="2" mt="3">
+            {error}
+          </Text>
+        )}
+        <Flex gap="3" justify="end" mt="5">
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              取消
+            </Button>
+          </Dialog.Close>
+          <Button disabled={saving} onClick={() => void save()}>
+            {saving ? '保存中…' : '保存实际结果'}
+          </Button>
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
+  )
+}
+
+function toProductUpdateInput(product: ProductDetail): ProductUpdateInput {
+  return {
+    id: product.id,
+    name: product.name,
+    code: product.code,
+    category: product.category,
+    basePriceCents: product.basePriceCents,
+    edgePriceCents: product.edgePriceCents,
+    weightGrams: product.weightGrams,
+    lossRate: product.lossRate,
+    standardMinutesPerUnit: product.standardMinutesPerUnit,
+    packagingCostCents: product.packagingCostCents,
+    commissionCentsPerUnit: product.commissionCentsPerUnit,
+    moldCount: product.moldCount,
+    outputPerMoldPerBatch: product.outputPerMoldPerBatch,
+    maxBatchesPerDay: product.maxBatchesPerDay,
+    imagePath: product.imagePath,
+    notes: product.notes,
+    enabled: product.enabled
+  }
+}
+
+function ProductInspector({
+  productId,
+  onOpenChange,
+  onDataChanged
+}: {
+  productId: string | null
+  onOpenChange(value: boolean): void
+  onDataChanged(): Promise<void>
+}) {
+  const [draft, setDraft] = useState<ProductDetail | null>(null)
+  const [preview, setPreview] = useState<ProductCostPreview | null>(null)
+  const [previewQuantity, setPreviewQuantity] = useState('1')
+  const [previewWage, setPreviewWage] = useState('0')
+  const [previewEdgeEnabled, setPreviewEdgeEnabled] = useState(false)
+  const [previewEdgeQuantity, setPreviewEdgeQuantity] = useState('1')
+  const [loading, setLoading] = useState(false)
+  const [calculating, setCalculating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [importingImage, setImportingImage] = useState(false)
+  const [pendingImageAttachment, setPendingImageAttachment] = useState<AttachmentSummary | null>(
+    null
+  )
+  const [error, setError] = useState('')
+
+  const patchDraft = (patch: Partial<ProductDetail>) => {
+    setDraft((current) => (current ? { ...current, ...patch } : current))
+    setPreview(null)
+  }
+
+  useEffect(() => {
+    if (!productId) {
+      setDraft(null)
+      setPreview(null)
+      setError('')
+      return
+    }
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const product = await window.yumi.products.get(productId)
+        if (!product) throw new Error('商品不存在或已被删除。')
+        if (!cancelled) {
+          setDraft(product)
+          setPreviewQuantity('1')
+          setPreviewWage('0')
+          setPreviewEdgeEnabled(false)
+          setPreviewEdgeQuantity('1')
+        }
+      } catch (reason) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : '商品详情读取失败。')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [productId])
+
+  const clearPendingImage = async () => {
+    if (!pendingImageAttachment) return
+    await window.yumi.attachments.delete(pendingImageAttachment.id)
+    setPendingImageAttachment(null)
+  }
+
+  const chooseProductImage = async () => {
+    setImportingImage(true)
+    setError('')
+    try {
+      await clearPendingImage()
+      const attachment = await window.yumi.attachments.chooseAndImport('product_image')
+      if (!attachment) return
+      setPendingImageAttachment(attachment)
+      patchDraft({ imagePath: attachment.storagePath })
+    } catch (reason) {
+      setError(getErrorMessage(reason, '商品图片选择失败。'))
+    } finally {
+      setImportingImage(false)
+    }
+  }
+
+  const removeProductImage = async () => {
+    if (!window.confirm('确定移除当前商品图片吗？保存商品后将删除本地附件。')) return
+    try {
+      if (pendingImageAttachment) await clearPendingImage()
+      patchDraft({ imagePath: null })
+    } catch (reason) {
+      setError(getErrorMessage(reason, '商品图片移除失败。'))
+    }
+  }
+
+  const refreshPreview = async () => {
+    if (!draft) return
+    setCalculating(true)
+    setError('')
+    try {
+      const result = await window.yumi.products.previewCost({
+        ...toProductUpdateInput(draft),
+        quantity: Number(previewQuantity),
+        hourlyLaborCostCents: Math.round(Number(previewWage) * 100),
+        edgeEnabled: previewEdgeEnabled,
+        edgeQuantity: previewEdgeEnabled ? Number(previewEdgeQuantity) : 0
+      })
+      setPreview(result)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '成本预估失败。')
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  const save = async () => {
+    if (!draft) return
+    setSaving(true)
+    setError('')
+    try {
+      const saved = await window.yumi.products.update(toProductUpdateInput(draft))
+      setDraft(saved)
+      setPreview(null)
+      setPendingImageAttachment(null)
+      await onDataChanged()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '商品保存失败。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const previewRevenue = preview
+    ? Number(previewQuantity) * draft!.basePriceCents + preview.edgeRevenueCents
+    : 0
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) void clearPendingImage()
+    onOpenChange(open)
+  }
+
+  return (
+    <Dialog.Root open={Boolean(productId)} onOpenChange={handleOpenChange}>
+      <Dialog.Content maxWidth="920px" className="wide-dialog product-inspector-dialog">
+        <Dialog.Title>商品资料与成本</Dialog.Title>
+        {loading && <Text color="gray">正在读取商品资料…</Text>}
+        {error && (
+          <Text as="div" color="red" size="2" mt="3">
+            {error}
+          </Text>
+        )}
+        {draft && (
+          <div className="inspector-content">
+            <div className="inspector-heading">
+              <div>
+                <Heading size="4">{draft.name}</Heading>
+                <Text as="div" color="gray" size="2" mt="1">
+                  {draft.code || '未设编码'} · {draft.category || '未分类'}
+                </Text>
+              </div>
+              <Badge color={draft.enabled ? 'green' : 'gray'} variant="soft">
+                {draft.enabled ? '启用中' : '已停用'}
+              </Badge>
+            </div>
+
+            <section className="form-section">
+              <Flex justify="between" align="center" mb="3">
+                <div>
+                  <Text weight="medium">商品与售价</Text>
+                  <Text as="div" color="gray" size="1">
+                    停用后不可再被新订单选择，但既有订单快照不会受影响。
+                  </Text>
+                </div>
+                <label className="switch-label">
+                  <input
+                    checked={draft.enabled}
+                    onChange={(event) => patchDraft({ enabled: event.target.checked })}
+                    type="checkbox"
+                  />
+                  <span>启用商品</span>
+                </label>
+              </Flex>
+              <div className="field-grid three">
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    商品名称
+                  </Text>
+                  <TextField.Root
+                    onChange={(event) => patchDraft({ name: event.target.value })}
+                    value={draft.name}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    商品编码
+                  </Text>
+                  <TextField.Root
+                    onChange={(event) => patchDraft({ code: event.target.value || null })}
+                    value={draft.code ?? ''}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    分类
+                  </Text>
+                  <TextField.Root
+                    onChange={(event) => patchDraft({ category: event.target.value || null })}
+                    value={draft.category ?? ''}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    基础售价（元/个）
+                  </Text>
+                  <TextField.Root
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      patchDraft({ basePriceCents: Math.round(Number(event.target.value) * 100) })
+                    }
+                    value={(draft.basePriceCents / 100).toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    缝边收费（元/个）
+                  </Text>
+                  <TextField.Root
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      patchDraft({ edgePriceCents: Math.round(Number(event.target.value) * 100) })
+                    }
+                    value={(draft.edgePriceCents / 100).toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    商品图片（可选）
+                  </Text>
+                  <Flex gap="2">
+                    <TextField.Root
+                      readOnly
+                      placeholder="未选择图片"
+                      value={draft.imagePath ? '已选择本地受控图片' : ''}
+                    />
+                    <Button
+                      disabled={importingImage || saving}
+                      onClick={() => void chooseProductImage()}
+                      size="1"
+                      variant="soft"
+                    >
+                      {importingImage ? '导入中…' : '选择'}
+                    </Button>
+                    {draft.imagePath && (
+                      <Button
+                        color="gray"
+                        disabled={importingImage || saving}
+                        onClick={() => void removeProductImage()}
+                        size="1"
+                        variant="soft"
+                      >
+                        移除
+                      </Button>
+                    )}
+                  </Flex>
+                </label>
+              </div>
+            </section>
+
+            <section className="form-section">
+              <Text weight="medium">制作、成本与模具参数</Text>
+              <div className="field-grid three" style={{ marginTop: 12 }}>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    单件重量（克）
+                  </Text>
+                  <TextField.Root
+                    min="0"
+                    onChange={(event) => patchDraft({ weightGrams: Number(event.target.value) })}
+                    type="number"
+                    value={draft.weightGrams.toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    损耗率（%）
+                  </Text>
+                  <TextField.Root
+                    min="0"
+                    onChange={(event) => patchDraft({ lossRate: Number(event.target.value) / 100 })}
+                    step="0.1"
+                    type="number"
+                    value={(draft.lossRate * 100).toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    标准制作时长（分钟/个）
+                  </Text>
+                  <TextField.Root
+                    min="0"
+                    onChange={(event) =>
+                      patchDraft({ standardMinutesPerUnit: Number(event.target.value) })
+                    }
+                    type="number"
+                    value={draft.standardMinutesPerUnit.toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    包装成本（元/个）
+                  </Text>
+                  <TextField.Root
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      patchDraft({
+                        packagingCostCents: Math.round(Number(event.target.value) * 100)
+                      })
+                    }
+                    value={(draft.packagingCostCents / 100).toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    固定提成（元/合格个）
+                  </Text>
+                  <TextField.Root
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      patchDraft({
+                        commissionCentsPerUnit: Math.round(Number(event.target.value) * 100)
+                      })
+                    }
+                    value={(draft.commissionCentsPerUnit / 100).toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    模具数量
+                  </Text>
+                  <TextField.Root
+                    min="1"
+                    onChange={(event) => patchDraft({ moldCount: Number(event.target.value) })}
+                    type="number"
+                    value={draft.moldCount.toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    每模每批产出
+                  </Text>
+                  <TextField.Root
+                    min="1"
+                    onChange={(event) =>
+                      patchDraft({ outputPerMoldPerBatch: Number(event.target.value) })
+                    }
+                    type="number"
+                    value={draft.outputPerMoldPerBatch.toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    每日批次数（手填）
+                  </Text>
+                  <TextField.Root
+                    min="1"
+                    onChange={(event) =>
+                      patchDraft({ maxBatchesPerDay: Number(event.target.value) })
+                    }
+                    type="number"
+                    value={draft.maxBatchesPerDay.toString()}
+                  />
+                </label>
+              </div>
+              <label className="notes-field">
+                <Text as="div" size="2" mb="1">
+                  备注
+                </Text>
+                <textarea
+                  onChange={(event) => patchDraft({ notes: event.target.value || null })}
+                  placeholder="记录款式、材料或制作注意事项"
+                  value={draft.notes ?? ''}
+                />
+              </label>
+            </section>
+
+            <section className="form-section cost-preview-panel">
+              <Flex justify="between" align="center" gap="3" wrap="wrap">
+                <div>
+                  <Text weight="medium">成本与日产能预估</Text>
+                  <Text as="div" color="gray" size="1">
+                    胶水与房租水电按当前系统成本设置计算；预估时薪只用于本次预览。
+                  </Text>
+                </div>
+                <Button
+                  disabled={calculating}
+                  onClick={() => void refreshPreview()}
+                  size="1"
+                  variant="soft"
+                >
+                  {calculating ? '计算中…' : '刷新预估'}
+                </Button>
+              </Flex>
+              <div className="preview-inputs">
+                <label>
+                  <Text as="div" size="1" color="gray" mb="1">
+                    预估数量
+                  </Text>
+                  <TextField.Root
+                    min="1"
+                    onChange={(event) => setPreviewQuantity(event.target.value)}
+                    type="number"
+                    value={previewQuantity}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="1" color="gray" mb="1">
+                    预估时薪（元）
+                  </Text>
+                  <TextField.Root
+                    min="0"
+                    onChange={(event) => setPreviewWage(event.target.value)}
+                    type="number"
+                    value={previewWage}
+                  />
+                </label>
+                <label className="edge-preview-toggle">
+                  <input
+                    checked={previewEdgeEnabled}
+                    onChange={(event) => setPreviewEdgeEnabled(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>计入缝边</span>
+                </label>
+                {previewEdgeEnabled && (
+                  <label>
+                    <Text as="div" size="1" color="gray" mb="1">
+                      缝边数量
+                    </Text>
+                    <TextField.Root
+                      min="0"
+                      onChange={(event) => setPreviewEdgeQuantity(event.target.value)}
+                      type="number"
+                      value={previewEdgeQuantity}
+                    />
+                  </label>
+                )}
+              </div>
+              {preview ? (
+                <>
+                  <div className="cost-preview-grid">
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        胶水 {preview.glueGrams} 克
+                      </Text>
+                      <Text weight="medium">{money(preview.glueCostCents)}</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        包装成本
+                      </Text>
+                      <Text weight="medium">{money(preview.packagingCostCents)}</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        人工 {preview.laborMinutes} 分钟
+                      </Text>
+                      <Text weight="medium">{money(preview.laborCostCents)}</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        按件提成
+                      </Text>
+                      <Text weight="medium">{money(preview.commissionCostCents)}</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        房租水电分摊
+                      </Text>
+                      <Text weight="medium">{money(preview.fixedOverheadCostCents)}</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        缝边收入
+                      </Text>
+                      <Text weight="medium">{money(preview.edgeRevenueCents)}</Text>
+                    </div>
+                  </div>
+                  <div className="cost-preview-total">
+                    <div>
+                      <Text color="gray" size="1">
+                        预计成本
+                      </Text>
+                      <Heading size="4">{money(preview.totalCostCents)}</Heading>
+                    </div>
+                    <div>
+                      <Text color="gray" size="1">
+                        预计收入
+                      </Text>
+                      <Heading size="4">{money(previewRevenue)}</Heading>
+                    </div>
+                    <div>
+                      <Text color="gray" size="1">
+                        预估毛利
+                      </Text>
+                      <Heading size="4">{money(previewRevenue - preview.totalCostCents)}</Heading>
+                    </div>
+                    <div>
+                      <Text color="gray" size="1">
+                        每日模具产能
+                      </Text>
+                      <Heading size="4">{preview.dailyCapacity} 个</Heading>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <Text as="div" color="gray" size="2" mt="3">
+                  填写预估数量与时薪后，点击“刷新预估”查看成本拆分和每日模具产能。
+                </Text>
+              )}
+            </section>
+          </div>
+        )}
+        <Flex gap="3" justify="end" mt="5">
+          <Dialog.Close>
+            <Button color="gray" variant="soft">
+              关闭
+            </Button>
+          </Dialog.Close>
+          <Button disabled={!draft || saving} onClick={() => void save()}>
+            {saving ? '保存中…' : '保存商品资料'}
+          </Button>
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
+  )
+}
