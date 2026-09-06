@@ -198,14 +198,15 @@ describe('订单表与发货清单分离导出', () => {
       expect(sheet.A1?.v).toBe('客户：小雨')
       expect(sheet.F1?.v).toBe('联系电话：13800000000')
       expect(sheet.A2?.v).toBe('收货地址：上海市静安区')
-      expect(sheet.A3?.v).toBe(`下单表：${orderDate}`)
+      expect(sheet.F2?.v).toBe(`下单日期：${orderDate}`)
+      expect(sheet.A3?.v).toBe('订单表')
       expect(
         [
           '序号',
           '产品图',
           '产品名称',
           '产品克重',
-          '理望单价',
+          '产品单价',
           '包装费',
           '替换袋',
           '总单价',
@@ -223,7 +224,7 @@ describe('订单表与发货清单分离导出', () => {
         '产品图',
         '产品名称',
         '产品克重',
-        '理望单价',
+        '产品单价',
         '包装费',
         '替换袋',
         '总单价',

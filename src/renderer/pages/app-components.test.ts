@@ -139,3 +139,12 @@ describe('成本设置简化', () => {
     expect(appSource).not.toContain('fixedOverheadCostCents')
   })
 })
+
+describe('数字字段输入体验', () => {
+  it('所有受控数字字段统一使用字符串草稿组件，避免小数点后的零被提前格式化', () => {
+    expect(appSource).toMatch(/import \{ parseNumericDraft \}/)
+    expect(appSource).toMatch(/<NumericTextField/)
+    expect(appSource).not.toContain('type="number"')
+    expect(appSource).not.toMatch(/Number\(event\.target\.value/)
+  })
+})

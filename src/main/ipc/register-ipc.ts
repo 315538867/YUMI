@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { DomainValidationError } from '@main/domain/errors'
+import { buildDocumentDefaultFileName } from '@main/ipc/export-file-name'
 import type { AttachmentService } from '@main/services/attachment-service'
 import type { BackupService } from '@main/services/backup-service'
 import { DemoDataService } from '@main/services/demo-data-service'
@@ -117,7 +118,7 @@ export function registerIpc(
     if (!order) throw new DomainValidationError('订单不存在')
     const result = await dialog.showSaveDialog({
       title: '保存订单表',
-      defaultPath: `yumi-order-${order.code}.xlsx`,
+      defaultPath: buildDocumentDefaultFileName(new Date(), '订单表', order.customer.name),
       filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
     })
     if (result.canceled || !result.filePath) return { savedPath: null }
@@ -131,7 +132,7 @@ export function registerIpc(
     if (!shipment) throw new DomainValidationError('发货记录不存在或不属于当前订单')
     const result = await dialog.showSaveDialog({
       title: '保存发货清单',
-      defaultPath: `yumi-shipment-${order.code}-${shipment.shippedAt}.xlsx`,
+      defaultPath: buildDocumentDefaultFileName(new Date(), '发货清单', order.customer.name),
       filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
     })
     if (result.canceled || !result.filePath) return { savedPath: null }

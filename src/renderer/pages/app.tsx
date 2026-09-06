@@ -63,6 +63,8 @@ import {
   knownProductionStatuses,
   knownShiftStatuses
 } from '../status-display'
+import { parseNumericDraft } from './numeric-draft'
+import { NumericTextField } from './numeric-text-field'
 import { calculateDraftTotals, getErrorMessage, getWeekDates } from './workspace-utils'
 
 type View = 'overview' | 'orders' | 'schedule' | 'products' | 'workers' | 'reports' | 'settings'
@@ -79,6 +81,11 @@ const navigation: Array<{ id: View; label: string; icon: typeof LayoutDashboard 
 
 const money = (cents: number) =>
   new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(cents / 100)
+
+const centsFromDraft = (value: string) => {
+  const numericValue = parseNumericDraft(value)
+  return numericValue === null ? null : Math.round(numericValue * 100)
+}
 
 const schedulingStatusPresentation: Record<
   ProductionScheduleStatus,
@@ -876,14 +883,13 @@ function WorkerInspector({
                   <Text as="div" size="2" mb="1">
                     时薪（元）
                   </Text>
-                  <TextField.Root
-                    inputMode="decimal"
-                    value={(draft.hourlyWageCents / 100).toFixed(2)}
-                    onChange={(event) =>
-                      patchDraft({
-                        hourlyWageCents: Math.round(Number(event.target.value) * 100) || 0
-                      })
-                    }
+                  <NumericTextField
+                    allowDecimal
+                    onValueChange={(value) => {
+                      const hourlyWageCents = centsFromDraft(value)
+                      if (hourlyWageCents !== null) patchDraft({ hourlyWageCents })
+                    }}
+                    value={draft.hourlyWageCents / 100}
                   />
                 </label>
                 <label>
@@ -2086,34 +2092,30 @@ function SettingsWorkspace({ onDataChanged }: { onDataChanged(): Promise<void> }
               <Text as="div" size="2" mb="1">
                 胶水单价（元/克）
               </Text>
-              <TextField.Root
-                inputMode="decimal"
+              <NumericTextField
+                allowDecimal
                 min="0"
-                onChange={(event) =>
-                  patchCostSettings({
-                    gluePriceCentsPerGram: Math.round(Number(event.target.value || 0) * 100)
-                  })
-                }
+                onValueChange={(value) => {
+                  const gluePriceCentsPerGram = centsFromDraft(value)
+                  if (gluePriceCentsPerGram !== null) patchCostSettings({ gluePriceCentsPerGram })
+                }}
                 step="0.01"
-                type="number"
-                value={(costSettings.gluePriceCentsPerGram / 100).toString()}
+                value={costSettings.gluePriceCentsPerGram / 100}
               />
             </label>
             <label>
               <Text as="div" size="2" mb="1">
                 默认兼职时薪（元/小时）
               </Text>
-              <TextField.Root
-                inputMode="decimal"
+              <NumericTextField
+                allowDecimal
                 min="0"
-                onChange={(event) =>
-                  patchCostSettings({
-                    defaultHourlyWageCents: Math.round(Number(event.target.value || 0) * 100)
-                  })
-                }
+                onValueChange={(value) => {
+                  const defaultHourlyWageCents = centsFromDraft(value)
+                  if (defaultHourlyWageCents !== null) patchCostSettings({ defaultHourlyWageCents })
+                }}
                 step="0.01"
-                type="number"
-                value={(costSettings.defaultHourlyWageCents / 100).toString()}
+                value={costSettings.defaultHourlyWageCents / 100}
               />
             </label>
             <label>
@@ -2466,36 +2468,36 @@ function ProductDialog({
                 <Text as="div" size="2" mb="1">
                   基础售价（元/个）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0"
                   step="0.01"
                   value={form.basePrice}
-                  onChange={(event) => patchForm({ basePrice: event.target.value })}
+                  onValueChange={(value) => patchForm({ basePrice: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   缝边收费（元/个）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0"
                   step="0.01"
                   value={form.edgePrice}
-                  onChange={(event) => patchForm({ edgePrice: event.target.value })}
+                  onValueChange={(value) => patchForm({ edgePrice: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   单件重量（克）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0"
                   step="0.01"
                   value={form.weight}
-                  onChange={(event) => patchForm({ weight: event.target.value })}
+                  onValueChange={(value) => patchForm({ weight: value })}
                 />
               </label>
             </div>
@@ -2507,109 +2509,106 @@ function ProductDialog({
                 <Text as="div" size="2" mb="1">
                   标准制作时长（分钟/个）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0"
                   step="0.01"
                   value={form.standardMinutes}
-                  onChange={(event) => patchForm({ standardMinutes: event.target.value })}
+                  onValueChange={(value) => patchForm({ standardMinutes: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   损耗率（%）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0"
                   max="99.99"
                   step="0.01"
                   value={form.lossRate}
-                  onChange={(event) => patchForm({ lossRate: event.target.value })}
+                  onValueChange={(value) => patchForm({ lossRate: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   包装成本（元/个）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0"
                   step="0.01"
                   value={form.packagingCost}
-                  onChange={(event) => patchForm({ packagingCost: event.target.value })}
+                  onValueChange={(value) => patchForm({ packagingCost: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   配件费（元/个）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0"
                   step="0.01"
                   value={form.accessoryCost}
-                  onChange={(event) => patchForm({ accessoryCost: event.target.value })}
+                  onValueChange={(value) => patchForm({ accessoryCost: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   替换袋费用（元/个）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0"
                   step="0.01"
                   value={form.replacementBagCost}
-                  onChange={(event) => patchForm({ replacementBagCost: event.target.value })}
+                  onValueChange={(value) => patchForm({ replacementBagCost: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   固定提成（元/合格个）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0"
                   step="0.01"
                   value={form.commission}
-                  onChange={(event) => patchForm({ commission: event.target.value })}
+                  onValueChange={(value) => patchForm({ commission: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   模具数量
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
                   min="1"
                   step="1"
                   value={form.moldCount}
-                  onChange={(event) => patchForm({ moldCount: event.target.value })}
+                  onValueChange={(value) => patchForm({ moldCount: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   每模每批产出
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
                   min="1"
                   step="1"
                   value={form.outputPerMoldPerBatch}
-                  onChange={(event) => patchForm({ outputPerMoldPerBatch: event.target.value })}
+                  onValueChange={(value) => patchForm({ outputPerMoldPerBatch: value })}
                 />
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
                   每日批次数
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
                   min="1"
                   step="1"
                   value={form.maxBatchesPerDay}
-                  onChange={(event) => patchForm({ maxBatchesPerDay: event.target.value })}
+                  onValueChange={(value) => patchForm({ maxBatchesPerDay: value })}
                 />
               </label>
             </div>
@@ -2736,11 +2735,11 @@ function WorkerDialog({
             <Text as="div" size="2" mb="1">
               时薪（元）
             </Text>
-            <TextField.Root
-              value={wage}
-              onChange={(e) => setWage(e.target.value)}
-              inputMode="decimal"
+            <NumericTextField
+              allowDecimal
+              onValueChange={setWage}
               placeholder="0.00"
+              value={wage}
             />
           </label>
         </Flex>
@@ -3042,11 +3041,10 @@ function OrderDialog({
                 <Text as="div" size="2" mb="1">
                   预留时间（天）
                 </Text>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
                   min="0"
                   value={reserveDays}
-                  onChange={(event) => setReserveDays(event.target.value)}
+                  onValueChange={(value) => setReserveDays(value)}
                 />
               </label>
               <label className="span-two">
@@ -3107,23 +3105,22 @@ function OrderDialog({
                       <Text as="div" size="1" color="gray">
                         数量
                       </Text>
-                      <TextField.Root
-                        type="number"
+                      <NumericTextField
                         min="1"
                         value={line.quantity}
-                        onChange={(event) => updateLine(line.id, { quantity: event.target.value })}
+                        onValueChange={(value) => updateLine(line.id, { quantity: value })}
                       />
                     </label>
                     <label>
                       <Text as="div" size="1" color="gray">
                         成交单价
                       </Text>
-                      <TextField.Root
-                        type="number"
+                      <NumericTextField
+                        allowDecimal
                         min="0"
                         step="0.01"
                         value={line.unitPrice}
-                        onChange={(event) => updateLine(line.id, { unitPrice: event.target.value })}
+                        onValueChange={(value) => updateLine(line.id, { unitPrice: value })}
                       />
                     </label>
                     <label className="edge-toggle">
@@ -3142,39 +3139,36 @@ function OrderDialog({
                       <Text as="div" size="1" color="gray">
                         缝边数量
                       </Text>
-                      <TextField.Root
-                        type="number"
+                      <NumericTextField
                         min="0"
                         disabled={!line.edgeEnabled}
                         value={line.edgeQuantity}
-                        onChange={(event) =>
-                          updateLine(line.id, { edgeQuantity: event.target.value })
-                        }
+                        onValueChange={(value) => updateLine(line.id, { edgeQuantity: value })}
                       />
                     </label>
                     <label>
                       <Text as="div" size="1" color="gray">
                         缝边单价
                       </Text>
-                      <TextField.Root
-                        type="number"
+                      <NumericTextField
+                        allowDecimal
                         min="0"
                         step="0.01"
                         disabled={!line.edgeEnabled}
                         value={line.edgePrice}
-                        onChange={(event) => updateLine(line.id, { edgePrice: event.target.value })}
+                        onValueChange={(value) => updateLine(line.id, { edgePrice: value })}
                       />
                     </label>
                     <label>
                       <Text as="div" size="1" color="gray">
                         明细优惠
                       </Text>
-                      <TextField.Root
-                        type="number"
+                      <NumericTextField
+                        allowDecimal
                         min="0"
                         step="0.01"
                         value={line.discount}
-                        onChange={(event) => updateLine(line.id, { discount: event.target.value })}
+                        onValueChange={(value) => updateLine(line.id, { discount: value })}
                       />
                     </label>
                     <Button
@@ -3198,12 +3192,12 @@ function OrderDialog({
               <Text as="div" size="2" mb="1">
                 订单优惠（元）
               </Text>
-              <TextField.Root
-                type="number"
+              <NumericTextField
+                allowDecimal
                 min="0"
                 step="0.01"
                 value={orderDiscount}
-                onChange={(event) => setOrderDiscount(event.target.value)}
+                onValueChange={(value) => setOrderDiscount(value)}
               />
             </label>
             <div className="draft-amounts">
@@ -3662,15 +3656,14 @@ function OrderInspector({
                       <Text as="div" size="1" color="gray" mb="1">
                         {item.productSnapshot.name} · 本次发货数量
                       </Text>
-                      <TextField.Root
-                        type="number"
+                      <NumericTextField
                         min="0"
                         step="1"
                         value={shipmentQuantities[item.id] ?? ''}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                           setShipmentQuantities((current) => ({
                             ...current,
-                            [item.id]: event.target.value
+                            [item.id]: value
                           }))
                         }
                         placeholder="0"
@@ -3775,12 +3768,12 @@ function OrderInspector({
                   <option value="receipt">收款</option>
                   <option value="refund">退款</option>
                 </select>
-                <TextField.Root
-                  type="number"
+                <NumericTextField
+                  allowDecimal
                   min="0.01"
                   step="0.01"
                   value={paymentAmount}
-                  onChange={(event) => setPaymentAmount(event.target.value)}
+                  onValueChange={(value) => setPaymentAmount(value)}
                   placeholder="金额（元）"
                 />
                 <TextField.Root
@@ -4038,13 +4031,12 @@ function ShiftDialog({
             <Text as="div" size="2" mb="1">
               本次额外增加分钟
             </Text>
-            <TextField.Root
-              type="number"
+            <NumericTextField
               min="0"
               step="1"
               value={extraMinutes}
-              onChange={(event) => {
-                setExtraMinutes(event.target.value)
+              onValueChange={(value) => {
+                setExtraMinutes(value)
                 setPreview(null)
               }}
               placeholder="例如 30"
@@ -4098,14 +4090,11 @@ function ShiftDialog({
                       </option>
                     ))}
                   </select>
-                  <TextField.Root
-                    type="number"
+                  <NumericTextField
                     min="1"
                     step="1"
                     value={task.plannedQuantity}
-                    onChange={(event) =>
-                      updateTask(task.id, { plannedQuantity: event.target.value })
-                    }
+                    onValueChange={(value) => updateTask(task.id, { plannedQuantity: value })}
                   />
                   <Text size="2" color="gray">
                     个
@@ -4485,15 +4474,14 @@ function ShiftInspector({
                     <Text as="div" size="1">
                       合格数量
                     </Text>
-                    <TextField.Root
-                      type="number"
+                    <NumericTextField
                       min="0"
                       step="1"
                       value={completionDraft[task.id]?.qualified ?? ''}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         setCompletionDraft((current) => ({
                           ...current,
-                          [task.id]: { ...current[task.id], qualified: event.target.value }
+                          [task.id]: { ...current[task.id], qualified: value }
                         }))
                       }
                     />
@@ -4502,15 +4490,14 @@ function ShiftInspector({
                     <Text as="div" size="1">
                       不合格数量
                     </Text>
-                    <TextField.Root
-                      type="number"
+                    <NumericTextField
                       min="0"
                       step="1"
                       value={completionDraft[task.id]?.unqualified ?? ''}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         setCompletionDraft((current) => ({
                           ...current,
-                          [task.id]: { ...current[task.id], unqualified: event.target.value }
+                          [task.id]: { ...current[task.id], unqualified: value }
                         }))
                       }
                     />
@@ -4767,24 +4754,26 @@ function ProductInspector({
                   <Text as="div" size="2" mb="1">
                     基础售价（元/个）
                   </Text>
-                  <TextField.Root
-                    inputMode="decimal"
-                    onChange={(event) =>
-                      patchDraft({ basePriceCents: Math.round(Number(event.target.value) * 100) })
-                    }
-                    value={(draft.basePriceCents / 100).toString()}
+                  <NumericTextField
+                    allowDecimal
+                    onValueChange={(value) => {
+                      const basePriceCents = centsFromDraft(value)
+                      if (basePriceCents !== null) patchDraft({ basePriceCents })
+                    }}
+                    value={draft.basePriceCents / 100}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     缝边收费（元/个）
                   </Text>
-                  <TextField.Root
-                    inputMode="decimal"
-                    onChange={(event) =>
-                      patchDraft({ edgePriceCents: Math.round(Number(event.target.value) * 100) })
-                    }
-                    value={(draft.edgePriceCents / 100).toString()}
+                  <NumericTextField
+                    allowDecimal
+                    onValueChange={(value) => {
+                      const edgePriceCents = centsFromDraft(value)
+                      if (edgePriceCents !== null) patchDraft({ edgePriceCents })
+                    }}
+                    value={draft.edgePriceCents / 100}
                   />
                 </label>
                 <label>
@@ -4828,133 +4817,136 @@ function ProductInspector({
                   <Text as="div" size="2" mb="1">
                     单件重量（克）
                   </Text>
-                  <TextField.Root
+                  <NumericTextField
+                    allowDecimal
                     min="0"
-                    onChange={(event) => patchDraft({ weightGrams: Number(event.target.value) })}
-                    type="number"
-                    value={draft.weightGrams.toString()}
+                    onValueChange={(value) => {
+                      const weightGrams = parseNumericDraft(value)
+                      if (weightGrams !== null) patchDraft({ weightGrams })
+                    }}
+                    value={draft.weightGrams}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     损耗率（%）
                   </Text>
-                  <TextField.Root
+                  <NumericTextField
+                    allowDecimal
                     min="0"
-                    onChange={(event) => patchDraft({ lossRate: Number(event.target.value) / 100 })}
+                    onValueChange={(value) => {
+                      const lossRate = parseNumericDraft(value)
+                      if (lossRate !== null) patchDraft({ lossRate: lossRate / 100 })
+                    }}
                     step="0.1"
-                    type="number"
-                    value={(draft.lossRate * 100).toString()}
+                    value={draft.lossRate * 100}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     标准制作时长（分钟/个）
                   </Text>
-                  <TextField.Root
+                  <NumericTextField
+                    allowDecimal
                     min="0"
-                    onChange={(event) =>
-                      patchDraft({ standardMinutesPerUnit: Number(event.target.value) })
-                    }
-                    type="number"
-                    value={draft.standardMinutesPerUnit.toString()}
+                    onValueChange={(value) => {
+                      const standardMinutesPerUnit = parseNumericDraft(value)
+                      if (standardMinutesPerUnit !== null) patchDraft({ standardMinutesPerUnit })
+                    }}
+                    value={draft.standardMinutesPerUnit}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     包装成本（元/个）
                   </Text>
-                  <TextField.Root
-                    inputMode="decimal"
-                    onChange={(event) =>
-                      patchDraft({
-                        packagingCostCents: Math.round(Number(event.target.value) * 100)
-                      })
-                    }
-                    value={(draft.packagingCostCents / 100).toString()}
+                  <NumericTextField
+                    allowDecimal
+                    onValueChange={(value) => {
+                      const packagingCostCents = centsFromDraft(value)
+                      if (packagingCostCents !== null) patchDraft({ packagingCostCents })
+                    }}
+                    value={draft.packagingCostCents / 100}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     配件费（元/个）
                   </Text>
-                  <TextField.Root
-                    inputMode="decimal"
+                  <NumericTextField
+                    allowDecimal
                     min="0"
-                    onChange={(event) =>
-                      patchDraft({
-                        accessoryCostCents: Math.round(Number(event.target.value) * 100)
-                      })
-                    }
-                    type="number"
-                    value={(draft.accessoryCostCents / 100).toString()}
+                    onValueChange={(value) => {
+                      const accessoryCostCents = centsFromDraft(value)
+                      if (accessoryCostCents !== null) patchDraft({ accessoryCostCents })
+                    }}
+                    value={draft.accessoryCostCents / 100}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     替换袋费用（元/个）
                   </Text>
-                  <TextField.Root
-                    inputMode="decimal"
+                  <NumericTextField
+                    allowDecimal
                     min="0"
-                    onChange={(event) =>
-                      patchDraft({
-                        replacementBagCostCents: Math.round(Number(event.target.value) * 100)
-                      })
-                    }
-                    type="number"
-                    value={(draft.replacementBagCostCents / 100).toString()}
+                    onValueChange={(value) => {
+                      const replacementBagCostCents = centsFromDraft(value)
+                      if (replacementBagCostCents !== null) patchDraft({ replacementBagCostCents })
+                    }}
+                    value={draft.replacementBagCostCents / 100}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     固定提成（元/合格个）
                   </Text>
-                  <TextField.Root
-                    inputMode="decimal"
-                    onChange={(event) =>
-                      patchDraft({
-                        commissionCentsPerUnit: Math.round(Number(event.target.value) * 100)
-                      })
-                    }
-                    value={(draft.commissionCentsPerUnit / 100).toString()}
+                  <NumericTextField
+                    allowDecimal
+                    onValueChange={(value) => {
+                      const commissionCentsPerUnit = centsFromDraft(value)
+                      if (commissionCentsPerUnit !== null) patchDraft({ commissionCentsPerUnit })
+                    }}
+                    value={draft.commissionCentsPerUnit / 100}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     模具数量
                   </Text>
-                  <TextField.Root
+                  <NumericTextField
                     min="1"
-                    onChange={(event) => patchDraft({ moldCount: Number(event.target.value) })}
-                    type="number"
-                    value={draft.moldCount.toString()}
+                    onValueChange={(value) => {
+                      const moldCount = parseNumericDraft(value)
+                      if (moldCount !== null) patchDraft({ moldCount })
+                    }}
+                    value={draft.moldCount}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     每模每批产出
                   </Text>
-                  <TextField.Root
+                  <NumericTextField
                     min="1"
-                    onChange={(event) =>
-                      patchDraft({ outputPerMoldPerBatch: Number(event.target.value) })
-                    }
-                    type="number"
-                    value={draft.outputPerMoldPerBatch.toString()}
+                    onValueChange={(value) => {
+                      const outputPerMoldPerBatch = parseNumericDraft(value)
+                      if (outputPerMoldPerBatch !== null) patchDraft({ outputPerMoldPerBatch })
+                    }}
+                    value={draft.outputPerMoldPerBatch}
                   />
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
                     每日批次数（手填）
                   </Text>
-                  <TextField.Root
+                  <NumericTextField
                     min="1"
-                    onChange={(event) =>
-                      patchDraft({ maxBatchesPerDay: Number(event.target.value) })
-                    }
-                    type="number"
-                    value={draft.maxBatchesPerDay.toString()}
+                    onValueChange={(value) => {
+                      const maxBatchesPerDay = parseNumericDraft(value)
+                      if (maxBatchesPerDay !== null) patchDraft({ maxBatchesPerDay })
+                    }}
+                    value={draft.maxBatchesPerDay}
                   />
                 </label>
               </div>
@@ -4992,10 +4984,9 @@ function ProductInspector({
                   <Text as="div" size="1" color="gray" mb="1">
                     预估数量
                   </Text>
-                  <TextField.Root
+                  <NumericTextField
                     min="1"
-                    onChange={(event) => setPreviewQuantity(event.target.value)}
-                    type="number"
+                    onValueChange={(value) => setPreviewQuantity(value)}
                     value={previewQuantity}
                   />
                 </label>
@@ -5012,10 +5003,9 @@ function ProductInspector({
                     <Text as="div" size="1" color="gray" mb="1">
                       缝边数量
                     </Text>
-                    <TextField.Root
+                    <NumericTextField
                       min="0"
-                      onChange={(event) => setPreviewEdgeQuantity(event.target.value)}
-                      type="number"
+                      onValueChange={(value) => setPreviewEdgeQuantity(value)}
                       value={previewEdgeQuantity}
                     />
                   </label>

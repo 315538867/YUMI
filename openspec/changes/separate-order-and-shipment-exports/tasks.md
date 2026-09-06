@@ -12,7 +12,7 @@
 
 ## 1. 测试先行与依赖
 
-- [x] 1.1 在 `src/main/services/shipping-management.test.ts` 替换当前纯 SheetJS 数据表断言，新增失败用例：订单表含 `下单表：YYYY.MM.DD`、客户信息、黄色表头、嵌图、`理望单价 + 包装费 + 替换袋` 的价格与数量/金额合计；发货清单含全订单商品、未发商品的本次数量 0、累计未发数量、发货标题、合计和页尾。测试使用临时最小 PNG 及 ExcelJS 回读导出 buffer。依赖：无。验证：实现前运行 `npx vitest run src/main/services/shipping-management.test.ts`，预期因旧 SheetJS 结构/无图片断言失败。
+- [x] 1.1 在 `src/main/services/shipping-management.test.ts` 替换当前纯 SheetJS 数据表断言，新增失败用例：订单表含 `订单表`、客户信息、黄色表头、嵌图、`产品单价 + 包装费 + 替换袋` 的价格与数量/金额合计；发货清单含全订单商品、未发商品的本次数量 0、累计未发数量、发货标题、合计和页尾。测试使用临时最小 PNG 及 ExcelJS 回读导出 buffer。依赖：无。验证：实现前运行 `npx vitest run src/main/services/shipping-management.test.ts`，预期因旧 SheetJS 结构/无图片断言失败。
 - [x] 1.2 在 `package.json` 与 `package-lock.json` 增加生产依赖 `exceljs`。依赖：1.1。验证：`npm ls exceljs` 返回已解析的生产依赖。
 
 ## 2. 工作簿构建与服务口径
@@ -38,3 +38,15 @@
 - 生产构建：`npm run build` 通过。
 - OpenSpec：`openspec validate separate-order-and-shipment-exports --strict` 通过。
 - 人工验收：已启动 Electron 调试；尝试访问应用进行实际保存与文件视觉检查时，macOS 会话处于锁定状态，自动解锁失败。任务 3.2 与状态回写 3.3 保持未完成，等待用户解锁后继续；未创建或修改任何临时业务数据。
+
+- 默认文件名：新增 `src/main/ipc/export-file-name.ts` 与其测试，订单表和发货清单分别生成为 `yyyyMMdd-HHmmss-订单表-客户名字.xlsx`、`yyyyMMdd-HHmmss-发货清单-客户名字.xlsx`；非法文件名字符替换为下划线。
+
+
+## 第 3 阶段：发货历史快照与排班任务唯一性
+
+- [ ] 4.1 在 `src/main/services/shipping-management.test.ts` 先新增失败用例：第一批发货后再保存第二批发货，重新导出第一批清单时，采购总数量、本次发货数量及未发货数量保持第一批保存时的数据。依赖：无。验证：实现前 `npx vitest run src/main/services/shipping-management.test.ts` 失败。
+- [ ] 4.2 在 `src/main/database/migrations.ts` 新增迁移，为 `shipments` 增加 `manifest_snapshot_json`；在 `src/shared/contracts.ts` 声明快照契约；在 `src/main/repositories/studio-repository.ts` 创建、编辑发货记录的事务内写入快照，并为旧记录按创建时序提供只读历史推算。依赖：4.1。验证：4.1 通过，迁移测试覆盖版本升级。
+- [ ] 4.3 修改 `src/main/services/studio-service.ts` 的发货清单导出，优先使用发货记录快照，保留订单归属校验；不得在导出阶段写入业务数据。依赖：4.2。验证：4.1 通过，并保留跨订单导出拒绝断言。
+- [ ] 4.4 在 `src/main/services/scheduling-management.test.ts` 先新增失败用例，验证同一排班同一订单同一产品的两个订单明细被拒绝，而不同订单相同产品仍可保存。依赖：无。验证：实现前 `npx vitest run src/main/services/scheduling-management.test.ts` 失败。
+- [ ] 4.5 修改 `src/main/services/studio-service.ts` 与 `src/renderer/pages/app.tsx`：服务端在预览、创建、编辑排班时校验订单+产品组合唯一；界面下拉框隐藏其他任务已选择的组合，无剩余组合时禁用添加按钮。依赖：4.4。验证：4.4 通过；`npx vitest run src/renderer/pages/app-components.test.ts` 通过。
+- [ ] 4.6 运行 `npm run typecheck`、`npm run lint`、`npm test`、`npm run build`、`openspec validate separate-order-and-shipment-exports --strict` 与 `git diff --check`；更新本方案、提案与实施记录。依赖：4.3、4.5。完成条件：每条命令退出码为 0；未获归档授权不得归档。

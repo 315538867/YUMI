@@ -175,12 +175,14 @@ export async function createOrderSheetWorkbook(
 
   worksheet.mergeCells('A1:E1')
   worksheet.mergeCells('F1:K1')
-  worksheet.mergeCells('A2:K2')
+  worksheet.mergeCells('A2:E2')
+  worksheet.mergeCells('F2:K2')
   worksheet.mergeCells('A3:K3')
   worksheet.getCell('A1').value = `客户：${input.customerName}`
   worksheet.getCell('F1').value = `联系电话：${input.contact}`
   worksheet.getCell('A2').value = `收货地址：${input.address}`
-  worksheet.getCell('A3').value = `下单表：${orderDate(input.createdAt)}`
+  worksheet.getCell('F2').value = `下单日期：${orderDate(input.createdAt)}`
+  worksheet.getCell('A3').value = '订单表'
   worksheet.getCell('A3').font = {
     name: 'Microsoft YaHei',
     size: 14,
@@ -188,7 +190,7 @@ export async function createOrderSheetWorkbook(
     color: { argb: 'FFCC0000' }
   }
   worksheet.getCell('A3').alignment = centered
-  for (const cell of ['A1', 'F1', 'A2']) {
+  for (const cell of ['A1', 'F1', 'A2', 'F2']) {
     worksheet.getCell(cell).font = { name: 'Microsoft YaHei', size: 10 }
     worksheet.getCell(cell).alignment = { vertical: 'middle' }
   }
@@ -198,7 +200,7 @@ export async function createOrderSheetWorkbook(
     '产品图',
     '产品名称',
     '产品克重',
-    '理望单价',
+    '产品单价',
     '包装费',
     '替换袋',
     '总单价',
