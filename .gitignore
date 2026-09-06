@@ -6,3 +6,5 @@ release
 *.db-shm
 *.db-wal
 coverage
+
+.worktrees/
