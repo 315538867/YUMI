@@ -65,6 +65,22 @@ describe('排班时长、完成登记与月度重量报表交互', () => {
   })
 })
 
+describe('用户可见状态中文化', () => {
+  it('订单、报表与排班界面统一使用集中状态展示模块', () => {
+    expect(appSource).toMatch(/from '\.\.\/status-display'/)
+    expect(appSource).toMatch(/getProductionStatusPresentation\(order\.productionStatus\)\.label/)
+    expect(appSource).toMatch(/getFinancialStatusPresentation\(row\.financialStatus\)\.label/)
+    expect(appSource).toMatch(/getShiftStatusPresentation\(shift\.status\)\.label/)
+    expect(appSource).toMatch(/knownProductionStatuses\.map/)
+    expect(appSource).toMatch(/knownShiftStatuses\.map/)
+  })
+
+  it('不直接将内部英文状态枚举渲染给用户', () => {
+    expect(appSource).not.toMatch(/>\s*\{order\.productionStatus\}\s*</)
+    expect(appSource).not.toMatch(/productionStatusLabel|financialStatusLabel|shiftStatusLabels/)
+  })
+})
+
 describe('订单、排班与兼职人员联动展示', () => {
   it('订单展示独立的排产状态及合格、已排和未排数量', () => {
     expect(appSource).toMatch(/待排产/)

@@ -29,7 +29,6 @@ import type {
   LocalDataActivity,
   CustomerProfile,
   DashboardSummary,
-  FinancialStatus,
   OrderCreateInput,
   OrderDetail,
   OrderSummary,
@@ -56,6 +55,13 @@ import type {
   WorkerSummary,
   WorkerUpdateInput
 } from '@shared/contracts'
+import {
+  getFinancialStatusPresentation,
+  getProductionStatusPresentation,
+  getShiftStatusPresentation,
+  knownProductionStatuses,
+  knownShiftStatuses
+} from '../status-display'
 import { calculateDraftTotals, getErrorMessage, getWeekDates } from './workspace-utils'
 
 type View = 'overview' | 'orders' | 'schedule' | 'products' | 'workers' | 'reports' | 'settings'
@@ -601,7 +607,7 @@ function OrdersTable({
             <Table.Cell>{order.expectedShipDate}</Table.Cell>
             <Table.Cell>{order.productionDeadline}</Table.Cell>
             <Table.Cell>
-              <Badge variant="soft">{order.productionStatus}</Badge>
+              <Badge color={getProductionStatusPresentation(order.productionStatus).color} variant="soft">{getProductionStatusPresentation(order.productionStatus).label}</Badge>
             </Table.Cell>
             <Table.Cell>
               <Badge color={getSchedulingStatusPresentation(order.schedulingStatus).color} variant="soft">
@@ -974,8 +980,8 @@ function WorkerInspector({
                         <Table.Cell>{task.plannedQuantity} / {task.qualifiedQuantity}</Table.Cell>
                         <Table.Cell>{task.unqualifiedQuantity} / {task.unfinishedQuantity}</Table.Cell>
                         <Table.Cell>
-                          <Badge color={shiftStatusColor(task.shiftStatus)} variant="soft">
-                            {shiftStatusLabel(task.shiftStatus)}
+                          <Badge color={getShiftStatusPresentation(task.shiftStatus).color} variant="soft">
+                            {getShiftStatusPresentation(task.shiftStatus).label}
                           </Badge>
                         </Table.Cell>
                         <Table.Cell>
@@ -1019,8 +1025,8 @@ function WorkerInspector({
                         </Text>
                       </Table.Cell>
                       <Table.Cell>
-                        <Badge color={shiftStatusColor(shift.status)} variant="soft">
-                          {shiftStatusLabel(shift.status)}
+                        <Badge color={getShiftStatusPresentation(shift.status).color} variant="soft">
+                          {getShiftStatusPresentation(shift.status).label}
                         </Badge>
                       </Table.Cell>
                       <Table.Cell>{shift.taskCount} 项</Table.Cell>
@@ -1231,7 +1237,7 @@ function Schedule({
                         >
                           最终 {shift.totalMinutes} 分钟
                           <small>
-                            基础 {shift.baseTaskMinutes} + 额外 {shift.extraMinutes} · {shift.taskCount} 项 · {shiftStatusLabel(shift.status)}
+                            基础 {shift.baseTaskMinutes} + 额外 {shift.extraMinutes} · {shift.taskCount} 项 · {getShiftStatusPresentation(shift.status).label}
                           </small>
                         </button>
                       ))}
@@ -1578,9 +1584,9 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
                 }
               >
                 <option value="all">全部状态</option>
-                {Object.entries(productionStatusLabel).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
+                {knownProductionStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {getProductionStatusPresentation(status).label}
                   </option>
                 ))}
               </select>
@@ -1661,22 +1667,13 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
                         <Table.Cell>{row.customerName}</Table.Cell>
                         <Table.Cell>{row.expectedShipDate}</Table.Cell>
                         <Table.Cell>
-                          <Badge variant="soft">
-                            {productionStatusLabel[row.productionStatus]}
+                          <Badge color={getProductionStatusPresentation(row.productionStatus).color} variant="soft">
+                            {getProductionStatusPresentation(row.productionStatus).label}
                           </Badge>
                         </Table.Cell>
                         <Table.Cell>
-                          <Badge
-                            color={
-                              row.financialStatus === 'paid'
-                                ? 'green'
-                                : row.outstandingCents > 0
-                                  ? 'orange'
-                                  : 'gray'
-                            }
-                            variant="soft"
-                          >
-                            {financialStatusLabel[row.financialStatus]}
+                          <Badge color={getFinancialStatusPresentation(row.financialStatus).color} variant="soft">
+                            {getFinancialStatusPresentation(row.financialStatus).label}
                           </Badge>
                         </Table.Cell>
                         <Table.Cell>{money(row.receivableCents)}</Table.Cell>
@@ -2441,44 +2438,6 @@ type OrderDraftLine = {
   discount: string
 }
 
-const productionStatusLabel: Record<ProductionStatus, string> = {
-  pending_confirmation: '待确认',
-  pending_schedule: '待排班',
-  in_production: '制作中',
-  pending_shipment: '待发货',
-  completed: '已完成',
-  cancelled: '已取消'
-}
-
-const financialStatusLabel: Record<FinancialStatus, string> = {
-  unpaid: '未收款',
-  partial: '部分收款',
-  paid: '已结清',
-  refunding: '退款中',
-  refunded: '已退款',
-  overpaid: '超收'
-}
-
-const shiftStatusLabels: Record<ShiftStatus, string> = {
-  scheduled: '已排班',
-  leave: '请假',
-  absent: '缺勤',
-  late: '迟到',
-  cancelled: '已取消',
-  completed: '已完成'
-}
-
-function shiftStatusLabel(status: string): string {
-  return shiftStatusLabels[status as ShiftStatus] ?? status
-}
-
-function shiftStatusColor(status: string): 'gray' | 'green' | 'amber' | 'red' {
-  if (status === 'completed') return 'green'
-  if (status === 'leave' || status === 'absent' || status === 'cancelled') return 'red'
-  if (status === 'late') return 'amber'
-  return 'gray'
-}
-
 function createOrderDraftLine(product?: ProductSummary): OrderDraftLine {
   return {
     id: crypto.randomUUID(),
@@ -3181,12 +3140,12 @@ function OrderInspector({
                 <Button size="1" variant="soft" onClick={() => setEditing(true)}>
                   编辑订单
                 </Button>
-                <Badge variant="soft">{productionStatusLabel[order.productionStatus]}</Badge>
+                <Badge color={getProductionStatusPresentation(order.productionStatus).color} variant="soft">{getProductionStatusPresentation(order.productionStatus).label}</Badge>
                 <Badge color={getSchedulingStatusPresentation(order.schedulingStatus).color} variant="soft">
                   {getSchedulingStatusPresentation(order.schedulingStatus).label}
                 </Badge>
                 <Badge color="amber" variant="soft">
-                  {financialStatusLabel[order.financial.status]}
+                  {getFinancialStatusPresentation(order.financial.status).label}
                 </Badge>
               </Flex>
             </div>
@@ -3211,18 +3170,18 @@ function OrderInspector({
               </div>
               <div>
                 <Text size="1" color="gray">
-                  预计 / 实际成本
-                </Text>
-                <Text weight="medium">
-                  {money(order.estimatedCostCents)} / {money(order.actualCostCents)}
-                </Text>
-              </div>
-              <div>
-                <Text size="1" color="gray">
                   排产：合格 / 已排 / 未排
                 </Text>
                 <Text weight="medium">
                   {order.progress.qualifiedQuantity} / {order.progress.scheduledQuantity} / {order.progress.unplannedQuantity}
+                </Text>
+              </div>
+              <div>
+                <Text size="1" color="gray">
+                  预计 / 实际成本
+                </Text>
+                <Text weight="medium">
+                  {money(order.estimatedCostCents)} / {money(order.actualCostCents)}
                 </Text>
               </div>
             </div>
@@ -3281,8 +3240,8 @@ function OrderInspector({
                         <Table.Cell>{schedule.plannedQuantity} / {schedule.qualifiedQuantity}</Table.Cell>
                         <Table.Cell>{schedule.unqualifiedQuantity} / {schedule.unfinishedQuantity}</Table.Cell>
                         <Table.Cell>
-                          <Badge color={shiftStatusColor(schedule.status)} variant="soft">
-                            {shiftStatusLabel(schedule.status)}
+                          <Badge color={getShiftStatusPresentation(schedule.status).color} variant="soft">
+                            {getShiftStatusPresentation(schedule.status).label}
                           </Badge>
                         </Table.Cell>
                         <Table.Cell>
@@ -3806,7 +3765,7 @@ function ShiftInspector({
   const updateStatus = async (status: ShiftStatus) => {
     if (!shift || status === shift.status) return
     if (status === 'completed') { openCompletion(); return }
-    if (['leave', 'absent', 'cancelled'].includes(status) && !window.confirm(`${shiftStatusLabel(status)}后，未完成计划将进入待补排队列并可能影响订单交期。是否继续？`)) return
+    if (['leave', 'absent', 'cancelled'].includes(status) && !window.confirm(`${getShiftStatusPresentation(status).label}后，未完成计划将进入待补排队列并可能影响订单交期。是否继续？`)) return
     setSavingStatus(status); setError('')
     try { await window.yumi.schedule.updateStatus({ shiftId: shift.id, status }); await refresh() }
     catch (reason) { setError(reason instanceof Error ? reason.message : '排班状态更新失败。') }
@@ -3829,8 +3788,8 @@ function ShiftInspector({
         {loading && <Text color="gray">正在读取排班详情…</Text>}
         {error && <Text as="div" color="red" size="2" mt="3">{error}</Text>}
         {shift && <div className="inspector-content">
-          <div className="inspector-heading"><div><Heading size="4">{shift.workerName} · {shift.shiftDate}</Heading><Text as="div" color="gray" size="2" mt="1">基础 {shift.baseTaskMinutes} 分钟 · 额外 {shift.extraMinutes} 分钟 · 最终 {shift.totalMinutes} 分钟 · {shift.tasks.length} 项制作任务</Text></div><Flex gap="2" align="center">{shift.status === 'scheduled' && <Button size="1" variant="soft" onClick={() => setEditing(true)}>编辑排班</Button>}<Badge color={shiftStatusColor(shift.status)} variant="soft">{shiftStatusLabel(shift.status)}</Badge></Flex></div>
-          <section className="form-section shift-status-panel"><Flex justify="between" align="center" gap="4" wrap="wrap"><div><Text weight="medium">排班状态</Text><Text as="div" color="gray" size="1">选择“已完成”后，需要为每项任务填写合格和不合格数量；工资结算与扣费暂不在此处理。</Text></div><select aria-label="更新排班状态" className="desktop-select shift-status-select" disabled={Boolean(savingStatus)} onChange={(event) => void updateStatus(event.target.value as ShiftStatus)} value={shift.status}>{(Object.keys(shiftStatusLabels) as ShiftStatus[]).map((status) => <option key={status} value={status}>标记为：{shiftStatusLabels[status]}</option>)}</select></Flex></section>
+          <div className="inspector-heading"><div><Heading size="4">{shift.workerName} · {shift.shiftDate}</Heading><Text as="div" color="gray" size="2" mt="1">基础 {shift.baseTaskMinutes} 分钟 · 额外 {shift.extraMinutes} 分钟 · 最终 {shift.totalMinutes} 分钟 · {shift.tasks.length} 项制作任务</Text></div><Flex gap="2" align="center">{shift.status === 'scheduled' && <Button size="1" variant="soft" onClick={() => setEditing(true)}>编辑排班</Button>}<Badge color={getShiftStatusPresentation(shift.status).color} variant="soft">{getShiftStatusPresentation(shift.status).label}</Badge></Flex></div>
+          <section className="form-section shift-status-panel"><Flex justify="between" align="center" gap="4" wrap="wrap"><div><Text weight="medium">排班状态</Text><Text as="div" color="gray" size="1">选择“已完成”后，需要为每项任务填写合格和不合格数量；工资结算与扣费暂不在此处理。</Text></div><select aria-label="更新排班状态" className="desktop-select shift-status-select" disabled={Boolean(savingStatus)} onChange={(event) => void updateStatus(event.target.value as ShiftStatus)} value={shift.status}>{knownShiftStatuses.map((status) => <option key={status} value={status}>标记为：{getShiftStatusPresentation(status).label}</option>)}</select></Flex></section>
           {shift.confirmedRisks.length > 0 && <section className="risk-preview has-risk"><Text weight="medium">保存时已确认的风险</Text><div className="risk-list">{shift.confirmedRisks.map((risk) => <Text key={risk} size="2">· {risk}</Text>)}</div></section>}
           <section className="inspector-section"><Flex justify="between" align="center"><div><Text weight="medium">制作任务与实际结果</Text><Text as="div" color="gray" size="1">实际完成数量包含合格与不合格数量；本期不展示工资或不合格扣费结算。</Text></div><Badge variant="soft">{shift.tasks.length} 项</Badge></Flex><div className="shift-inspector-tasks">{shift.tasks.map((task) => <article className="shift-inspector-task" key={task.id}><Text weight="medium">{task.productName}</Text><Text as="div" color="gray" size="1">{task.orderCode} · 计划 {task.plannedQuantity} 个 · 基础 {task.baseMinutes} 分钟</Text><div className="task-metrics"><div><Text as="div" color="gray" size="1">实际完成</Text><Text weight="medium">{task.completedQuantity === null ? '未填写' : `${task.completedQuantity} 个`}</Text></div><div><Text as="div" color="gray" size="1">合格 / 不合格</Text><Text weight="medium">{task.qualifiedQuantity} / {task.unqualifiedQuantity ?? 0}</Text></div><div><Text as="div" color="gray" size="1">待补排</Text><Badge color={task.unfinishedQuantity > 0 ? 'red' : 'green'} variant="soft">{task.unfinishedQuantity} 个</Badge></div></div></article>)}</div></section>
         </div>}
