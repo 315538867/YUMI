@@ -44,9 +44,11 @@ describe('SQLite 数据基础', () => {
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'shipment_items'")
         .get()
     ).toBeTruthy()
-    expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-      version: 7
-    })
+    expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual(
+      {
+        version: 8
+      }
+    )
 
     expect(column(database, 'products', 'accessory_cost_cents').dflt_value).toBe('0')
     expect(column(database, 'products', 'replacement_bag_cost_cents').dflt_value).toBe('0')
@@ -150,10 +152,15 @@ describe('SQLite 数据基础', () => {
 
     runMigrations(database)
 
-    expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-      version: 7
-    })
-    expect(column(database, 'cost_settings_history', 'default_hourly_wage_cents').dflt_value).toBe('0')
+    expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual(
+      {
+        version: 8
+      }
+    )
+    expect(column(database, 'shipments', 'manifest_snapshot_json').type).toBe('TEXT')
+    expect(column(database, 'cost_settings_history', 'default_hourly_wage_cents').dflt_value).toBe(
+      '0'
+    )
     expect(
       database
         .prepare(

@@ -262,12 +262,29 @@ export interface ShipmentItemDetail extends OrderShipmentSummary {
   shipmentQuantity: number
 }
 
+export interface ShipmentManifestSnapshotItem {
+  productId: string
+  productName: string
+  imagePath: string | null
+  orderedQuantity: number
+  shipmentQuantity: number
+  pendingQuantity: number
+}
+
+export interface ShipmentManifestSnapshot {
+  customerName: string
+  shippedAt: string
+  notes: string
+  rows: ShipmentManifestSnapshotItem[]
+}
+
 export interface ShipmentDetail {
   id: string
   orderId: string
   shippedAt: string
   notes: string | null
   items: ShipmentItemDetail[]
+  manifestSnapshot: ShipmentManifestSnapshot | null
   createdAt: string
   updatedAt: string
 }

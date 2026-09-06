@@ -104,6 +104,40 @@ describe('订单发货记录', () => {
     ).toThrow('本次发货数量不能超过待发数量（待发 2 件）')
   })
 
+  it('修正历史发货记录时仍按该记录时点保存待发快照', async () => {
+    const XLSX = await import('xlsx')
+    const context = createService()
+    databases.push(context.database)
+    const product = context.service.createProduct(productInput)
+    const order = context.service.createOrder({
+      customer: { name: '小雨' },
+      expectedShipDate: '2026-09-15',
+      items: [{ productId: product.id, quantity: 5 }]
+    })
+    const first = context.service.createShipment({
+      orderId: order.id,
+      shippedAt: '2026-09-10',
+      items: [{ orderItemId: order.items[0]!.id, quantity: 2 }]
+    })
+    context.service.createShipment({
+      orderId: order.id,
+      shippedAt: '2026-09-12',
+      items: [{ orderItemId: order.items[0]!.id, quantity: 1 }]
+    })
+    context.service.updateShipment({
+      id: first.id,
+      orderId: order.id,
+      shippedAt: '2026-09-10',
+      items: [{ orderItemId: order.items[0]!.id, quantity: 1 }]
+    })
+
+    const workbook = XLSX.read(
+      await context.service.exportShipmentManifest({ orderId: order.id, shipmentId: first.id }),
+      { type: 'buffer' }
+    )
+    expect(workbook.Sheets['发货清单']!.F4?.v).toBe(4)
+  })
+
   it('允许修正已保存的发货批次，并保护已发订单商品不能减少或删除', () => {
     const context = createService()
     databases.push(context.database)
@@ -272,6 +306,15 @@ describe('订单表与发货清单分离导出', () => {
         shippedAt: '2026-09-10',
         notes: '第一批',
         items: [{ orderItemId: order.items[0]!.id, quantity: 2 }]
+      })
+      context.service.createShipment({
+        orderId: order.id,
+        shippedAt: '2026-09-12',
+        notes: '第二批',
+        items: [
+          { orderItemId: order.items[0]!.id, quantity: 1 },
+          { orderItemId: order.items[1]!.id, quantity: 3 }
+        ]
       })
       const anotherOrder = context.service.createOrder({
         customer: { name: '小林' },

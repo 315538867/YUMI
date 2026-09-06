@@ -559,33 +559,23 @@ export class StudioService {
       .listShipments(order.id)
       .find((item) => item.id === parsed.shipmentId)
     if (!shipment) throw new DomainValidationError('发货记录不存在或不属于当前订单')
-    const shipmentQuantityByOrderItemId = new Map(
-      shipment.items.map((item) => [item.orderItemId, item.shipmentQuantity])
-    )
-    const pendingQuantityByOrderItemId = new Map(
-      this.repository
-        .getOrderShipmentSummary(order.id)
-        .map((item) => [item.orderItemId, item.pendingQuantity])
-    )
-    const imagePathByProductId = new Map(
-      order.items.map((item) => [
-        item.productId,
-        this.repository.getProduct(item.productId)?.imagePath ?? null
-      ])
-    )
+    const manifestSnapshot = this.repository.getShipmentManifestSnapshot(shipment.id)
+    if (!manifestSnapshot) throw new DomainValidationError('发货记录不存在')
     return createShipmentManifestWorkbook({
-      customerName: order.customer.name,
-      shippedAt: shipment.shippedAt,
-      notes: shipment.notes ?? '',
-      rows: order.items.map((item) => ({
-        productId: item.productId,
-        productName: item.productSnapshot.name,
-        orderedQuantity: item.quantity,
-        shipmentQuantity: shipmentQuantityByOrderItemId.get(item.id) ?? 0,
-        pendingQuantity: pendingQuantityByOrderItemId.get(item.id) ?? item.quantity,
-        notes: shipment.notes ?? ''
+      customerName: manifestSnapshot.customerName,
+      shippedAt: manifestSnapshot.shippedAt,
+      notes: manifestSnapshot.notes,
+      rows: manifestSnapshot.rows.map((row) => ({
+        productId: row.productId,
+        productName: row.productName,
+        orderedQuantity: row.orderedQuantity,
+        shipmentQuantity: row.shipmentQuantity,
+        pendingQuantity: row.pendingQuantity,
+        notes: manifestSnapshot.notes
       })),
-      imagePathByProductId
+      imagePathByProductId: new Map(
+        manifestSnapshot.rows.map((row) => [row.productId, row.imagePath])
+      )
     })
   }
 
@@ -644,12 +634,14 @@ export class StudioService {
   previewShift(input: ShiftInput | ShiftUpdateInput) {
     const parsed = 'id' in input ? validate(shiftUpdateSchema, input) : validate(shiftSchema, input)
     if (!isValid(parseISO(parsed.shiftDate))) throw new DomainValidationError('排班日期无效')
+    this.assertUniqueShiftOrderProducts(parsed.tasks)
     return this.repository.previewShift(parsed, 'id' in parsed ? parsed.id : undefined)
   }
 
   saveShift(input: ShiftInput) {
     const parsed = validate(shiftSchema, input)
     if (!isValid(parseISO(parsed.shiftDate))) throw new DomainValidationError('排班日期无效')
+    this.assertUniqueShiftOrderProducts(parsed.tasks)
     const preview = this.repository.previewShift(parsed)
     const confirmed = new Set(parsed.confirmedWarningCodes ?? [])
     const missing = preview.risks.filter((risk) => !confirmed.has(risk.code))
@@ -664,6 +656,7 @@ export class StudioService {
   updateShift(input: ShiftUpdateInput) {
     const parsed = validate(shiftUpdateSchema, input)
     if (!isValid(parseISO(parsed.shiftDate))) throw new DomainValidationError('排班日期无效')
+    this.assertUniqueShiftOrderProducts(parsed.tasks)
     const current = this.repository.getShiftDetail(parsed.id)
     if (!current) throw new DomainValidationError('排班不存在')
     if (current.status !== 'scheduled') throw new DomainValidationError('仅可编辑待执行的排班')
@@ -689,6 +682,17 @@ export class StudioService {
     const result = this.repository.updateShift({ ...parsed, confirmedWarningCodes: [...confirmed] })
     if (!result) throw new DomainValidationError('排班不存在')
     return result
+  }
+
+  private assertUniqueShiftOrderProducts(tasks: ShiftInput['tasks']): void {
+    const selectedOrderProducts = new Set<string>()
+    tasks.forEach((task) => {
+      const context = this.repository.getOrderItemSchedulingContext(task.orderItemId)
+      const key = `${context.orderId}:${context.productId}`
+      if (selectedOrderProducts.has(key))
+        throw new DomainValidationError('同一订单下同一产品只能选择一次')
+      selectedOrderProducts.add(key)
+    })
   }
 
   getShiftDetail(shiftId: string) {

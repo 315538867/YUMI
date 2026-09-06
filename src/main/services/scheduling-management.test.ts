@@ -125,6 +125,47 @@ describe('排班时长与完成数量', () => {
     }).confirmedRisks).toEqual(['ORDER_QUANTITY_EXCEEDED'])
   })
 
+  it('同一排班内拒绝同一订单下重复产品，但允许不同订单安排同一产品', () => {
+    const context = createService()
+    databases.push(context.database)
+    const product = context.service.createProduct({ ...productInput, standardMinutesPerUnit: 10 })
+    const worker = context.service.createWorker({ name: '小林', hourlyWageCents: 2800 })
+    const firstOrder = context.service.createOrder({
+      customer: { name: '小雨' },
+      expectedShipDate: '2026-09-15',
+      items: [
+        { productId: product.id, quantity: 2 },
+        { productId: product.id, quantity: 3 }
+      ]
+    })
+    const secondOrder = context.service.createOrder({
+      customer: { name: '小晴' },
+      expectedShipDate: '2026-09-15',
+      items: [{ productId: product.id, quantity: 2 }]
+    })
+    const base = { workerId: worker.id, shiftDate: '2026-09-10' }
+
+    expect(() =>
+      context.service.saveShift({
+        ...base,
+        tasks: [
+          { orderItemId: firstOrder.items[0]!.id, plannedQuantity: 1 },
+          { orderItemId: firstOrder.items[1]!.id, plannedQuantity: 1 }
+        ]
+      })
+    ).toThrow('同一订单下同一产品只能选择一次')
+
+    expect(
+      context.service.saveShift({
+        ...base,
+        tasks: [
+          { orderItemId: firstOrder.items[0]!.id, plannedQuantity: 1 },
+          { orderItemId: secondOrder.items[0]!.id, plannedQuantity: 1 }
+        ]
+      }).taskCount
+    ).toBe(2)
+  })
+
   it('不合格数量仅记录实际完成数据，不在完成状态写入工资或提成', () => {
     const context = createService()
     databases.push(context.database)

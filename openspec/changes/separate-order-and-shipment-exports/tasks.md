@@ -41,12 +41,19 @@
 
 - 默认文件名：新增 `src/main/ipc/export-file-name.ts` 与其测试，订单表和发货清单分别生成为 `yyyyMMdd-HHmmss-订单表-客户名字.xlsx`、`yyyyMMdd-HHmmss-发货清单-客户名字.xlsx`；非法文件名字符替换为下划线。
 
-
 ## 第 3 阶段：发货历史快照与排班任务唯一性
 
-- [ ] 4.1 在 `src/main/services/shipping-management.test.ts` 先新增失败用例：第一批发货后再保存第二批发货，重新导出第一批清单时，采购总数量、本次发货数量及未发货数量保持第一批保存时的数据。依赖：无。验证：实现前 `npx vitest run src/main/services/shipping-management.test.ts` 失败。
-- [ ] 4.2 在 `src/main/database/migrations.ts` 新增迁移，为 `shipments` 增加 `manifest_snapshot_json`；在 `src/shared/contracts.ts` 声明快照契约；在 `src/main/repositories/studio-repository.ts` 创建、编辑发货记录的事务内写入快照，并为旧记录按创建时序提供只读历史推算。依赖：4.1。验证：4.1 通过，迁移测试覆盖版本升级。
-- [ ] 4.3 修改 `src/main/services/studio-service.ts` 的发货清单导出，优先使用发货记录快照，保留订单归属校验；不得在导出阶段写入业务数据。依赖：4.2。验证：4.1 通过，并保留跨订单导出拒绝断言。
-- [ ] 4.4 在 `src/main/services/scheduling-management.test.ts` 先新增失败用例，验证同一排班同一订单同一产品的两个订单明细被拒绝，而不同订单相同产品仍可保存。依赖：无。验证：实现前 `npx vitest run src/main/services/scheduling-management.test.ts` 失败。
-- [ ] 4.5 修改 `src/main/services/studio-service.ts` 与 `src/renderer/pages/app.tsx`：服务端在预览、创建、编辑排班时校验订单+产品组合唯一；界面下拉框隐藏其他任务已选择的组合，无剩余组合时禁用添加按钮。依赖：4.4。验证：4.4 通过；`npx vitest run src/renderer/pages/app-components.test.ts` 通过。
-- [ ] 4.6 运行 `npm run typecheck`、`npm run lint`、`npm test`、`npm run build`、`openspec validate separate-order-and-shipment-exports --strict` 与 `git diff --check`；更新本方案、提案与实施记录。依赖：4.3、4.5。完成条件：每条命令退出码为 0；未获归档授权不得归档。
+- [x] 4.1 在 `src/main/services/shipping-management.test.ts` 先新增失败用例：第一批发货后再保存第二批发货，重新导出第一批清单时，采购总数量、本次发货数量及未发货数量保持第一批保存时的数据。依赖：无。验证：实现前 `npx vitest run src/main/services/shipping-management.test.ts` 失败。
+- [x] 4.2 在 `src/main/database/migrations.ts` 新增迁移，为 `shipments` 增加 `manifest_snapshot_json`；在 `src/shared/contracts.ts` 声明快照契约；在 `src/main/repositories/studio-repository.ts` 创建、编辑发货记录的事务内写入快照，并为旧记录按创建时序提供只读历史推算。依赖：4.1。验证：4.1 通过，迁移测试覆盖版本升级。
+- [x] 4.3 修改 `src/main/services/studio-service.ts` 的发货清单导出，优先使用发货记录快照，保留订单归属校验；不得在导出阶段写入业务数据。依赖：4.2。验证：4.1 通过，并保留跨订单导出拒绝断言。
+- [x] 4.4 在 `src/main/services/scheduling-management.test.ts` 先新增失败用例，验证同一排班同一订单同一产品的两个订单明细被拒绝，而不同订单相同产品仍可保存。依赖：无。验证：实现前 `npx vitest run src/main/services/scheduling-management.test.ts` 失败。
+- [x] 4.5 修改 `src/main/services/studio-service.ts` 与 `src/renderer/pages/app.tsx`：服务端在预览、创建、编辑排班时校验订单+产品组合唯一；界面下拉框隐藏其他任务已选择的组合，无剩余组合时禁用添加按钮。依赖：4.4。验证：4.4 通过；`npx vitest run src/renderer/pages/app-components.test.ts` 通过。
+- [x] 4.6 运行 `npm run typecheck`、`npm run lint`、`npm test`、`npm run build`、`openspec validate separate-order-and-shipment-exports --strict` 与 `git diff --check`；更新本方案、提案与实施记录。依赖：4.3、4.5。完成条件：每条命令退出码为 0；未获归档授权不得归档。
+
+## 验证记录（第 3 阶段，2026-09-06）
+
+- 测试先行：扩展 `shipping-management.test.ts` 后，旧实现重新导出第一批发货清单会使用后续发货后的最新待发数量；扩展 `scheduling-management.test.ts` 后，旧实现允许同一排班出现同一订单同一产品的重复任务。
+- 快照回归：`npx vitest run src/main/services/shipping-management.test.ts src/main/services/scheduling-management.test.ts src/renderer/pages/shift-task-options.test.ts src/main/database/database.test.ts` 通过，4 个测试文件、12 个测试通过；覆盖首批清单在后续发货后保持原待发数量、修正该发货记录后重建其快照、数据库迁移，以及同订单产品去重。
+- 渲染层回归：`npx vitest run src/renderer/pages/app-components.test.ts` 通过，1 个测试文件、14 个测试通过；另以纯函数测试覆盖已选订单产品从下拉选项中移除。
+- 类型检查：`npm run typecheck` 通过。
+- 最终验证：`npm run lint`、`npm test`、`npm run build`、`openspec validate separate-order-and-shipment-exports --strict` 与 `git diff --check` 均通过；全量测试为 32 个测试文件、96 个测试通过。`npm run lint` 曾错误扫描共享目录 `.worktrees` 下另一工作树的构建产物，已在 ESLint 忽略项中排除该目录后复验通过。

@@ -58,6 +58,7 @@ import type {
   ShiftSummary,
   ShipmentCreateInput,
   ShipmentDetail,
+  ShipmentManifestSnapshot,
   ShipmentUpdateInput,
   OrderShipmentSummary,
   WorkerCreateInput,
@@ -634,7 +635,9 @@ export class StudioRepository {
 
   listShipments(orderId: string): ShipmentDetail[] {
     const rows = this.database
-      .prepare('SELECT id FROM shipments WHERE order_id = ? ORDER BY shipped_at DESC, created_at DESC, id DESC')
+      .prepare(
+        'SELECT id FROM shipments WHERE order_id = ? ORDER BY shipped_at DESC, created_at DESC, id DESC'
+      )
       .all(orderId) as Row[]
     return rows.map((row) => this.getShipmentDetail(String(row.id))!).filter(Boolean)
   }
@@ -657,6 +660,7 @@ export class StudioRepository {
       input.items.forEach((item) =>
         insertItem.run(randomUUID(), id, item.orderItemId, item.quantity, timestamp, timestamp)
       )
+      this.persistShipmentManifestSnapshot(id)
     })()
     return this.getShipmentDetail(id)!
   }
@@ -680,8 +684,16 @@ export class StudioRepository {
          VALUES (?, ?, ?, ?, ?, ?)`
       )
       input.items.forEach((item) =>
-        insertItem.run(randomUUID(), input.id, item.orderItemId, item.quantity, timestamp, timestamp)
+        insertItem.run(
+          randomUUID(),
+          input.id,
+          item.orderItemId,
+          item.quantity,
+          timestamp,
+          timestamp
+        )
       )
+      this.persistShipmentManifestSnapshot(input.id)
     })()
     return this.getShipmentDetail(input.id)!
   }
@@ -715,14 +727,82 @@ export class StudioRepository {
     }
   }
 
+  getShipmentManifestSnapshot(id: string): ShipmentManifestSnapshot | null {
+    const row = this.database.prepare('SELECT * FROM shipments WHERE id = ?').get(id) as
+      Row | undefined
+    if (!row) return null
+    const storedSnapshot = row.manifest_snapshot_json as string | null | undefined
+    if (storedSnapshot) return JSON.parse(storedSnapshot) as ShipmentManifestSnapshot
+    return this.buildLegacyShipmentManifestSnapshot(row)
+  }
+
+  private persistShipmentManifestSnapshot(shipmentId: string): void {
+    const shipment = this.database
+      .prepare('SELECT * FROM shipments WHERE id = ?')
+      .get(shipmentId) as Row | undefined
+    if (!shipment) throw new DomainValidationError('发货记录不存在')
+    const snapshot = this.buildLegacyShipmentManifestSnapshot(shipment)
+    this.database
+      .prepare('UPDATE shipments SET manifest_snapshot_json = ? WHERE id = ?')
+      .run(JSON.stringify(snapshot), shipmentId)
+  }
+
+  private buildLegacyShipmentManifestSnapshot(shipment: Row): ShipmentManifestSnapshot {
+    const order = this.getOrderDetail(String(shipment.order_id))
+    if (!order) throw new DomainValidationError('订单不存在')
+    const rows = this.database
+      .prepare(
+        `SELECT oi.id AS order_item_id, oi.product_id, oi.quantity AS ordered_quantity,
+          oi.product_snapshot_json, p.image_path,
+          COALESCE(MAX(CASE WHEN si.shipment_id = ? THEN si.quantity ELSE 0 END), 0) AS shipment_quantity,
+          COALESCE(SUM(CASE WHEN s.created_at < ? OR s.id = ? THEN si.quantity ELSE 0 END), 0) AS shipped_quantity
+         FROM order_items oi
+         LEFT JOIN products p ON p.id = oi.product_id
+         LEFT JOIN shipment_items si ON si.order_item_id = oi.id
+         LEFT JOIN shipments s ON s.id = si.shipment_id
+         WHERE oi.order_id = ?
+         GROUP BY oi.id, oi.product_id, oi.quantity, oi.product_snapshot_json, p.image_path
+         ORDER BY oi.sort_order, oi.created_at, oi.id`
+      )
+      .all(shipment.id, shipment.created_at, shipment.id, shipment.order_id) as Row[]
+    return this.toShipmentManifestSnapshot(order.customer.name, shipment, rows)
+  }
+
+  private toShipmentManifestSnapshot(
+    customerName: string,
+    shipment: Row,
+    rows: Row[]
+  ): ShipmentManifestSnapshot {
+    return {
+      customerName,
+      shippedAt: String(shipment.shipped_at),
+      notes: (shipment.notes as string | null) ?? '',
+      rows: rows.map((row) => {
+        const snapshot = JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot
+        const orderedQuantity = Number(row.ordered_quantity)
+        return {
+          productId: String(row.product_id),
+          productName: snapshot.name,
+          imagePath: (row.image_path as string | null) ?? null,
+          orderedQuantity,
+          shipmentQuantity: Number(row.shipment_quantity),
+          pendingQuantity: Math.max(0, orderedQuantity - Number(row.shipped_quantity))
+        }
+      })
+    }
+  }
+
   private getShipmentDetail(id: string): ShipmentDetail | null {
-    const row = this.database.prepare('SELECT * FROM shipments WHERE id = ?').get(id) as Row | undefined
+    const row = this.database.prepare('SELECT * FROM shipments WHERE id = ?').get(id) as
+      Row | undefined
     if (!row) return null
     const summaries = new Map(
       this.getOrderShipmentSummary(String(row.order_id)).map((item) => [item.orderItemId, item])
     )
     const itemRows = this.database
-      .prepare('SELECT order_item_id, quantity FROM shipment_items WHERE shipment_id = ? ORDER BY created_at, id')
+      .prepare(
+        'SELECT order_item_id, quantity FROM shipment_items WHERE shipment_id = ? ORDER BY created_at, id'
+      )
       .all(id) as Row[]
     return {
       id: String(row.id),
@@ -734,6 +814,9 @@ export class StudioRepository {
         if (!summary) throw new DomainValidationError('发货记录包含不存在的订单商品')
         return { ...summary, shipmentQuantity: Number(item.quantity) }
       }),
+      manifestSnapshot: row.manifest_snapshot_json
+        ? (JSON.parse(String(row.manifest_snapshot_json)) as ShipmentManifestSnapshot)
+        : null,
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at)
     }
@@ -1068,16 +1151,22 @@ export class StudioRepository {
   }
 
   previewShift(input: ShiftInput, excludedShiftId?: string) {
-    const worker = this.database.prepare('SELECT id, active FROM workers WHERE id = ?').get(input.workerId) as Row | undefined
+    const worker = this.database
+      .prepare('SELECT id, active FROM workers WHERE id = ?')
+      .get(input.workerId) as Row | undefined
     if (!worker) throw new DomainValidationError('兼职人员不存在')
     if (Number(worker.active) !== 1) throw new DomainValidationError('兼职人员已停用，不能排班')
-    const otherPlannedByProduct = this.database.prepare(
-      `SELECT st.product_id, COALESCE(SUM(st.planned_quantity), 0) AS quantity
+    const otherPlannedByProduct = this.database
+      .prepare(
+        `SELECT st.product_id, COALESCE(SUM(st.planned_quantity), 0) AS quantity
        FROM shift_tasks st JOIN shifts s ON s.id = st.shift_id
        WHERE s.shift_date = ? AND s.status NOT IN ('leave', 'absent', 'cancelled')
        AND (? IS NULL OR s.id != ?) GROUP BY st.product_id`
-    ).all(input.shiftDate, excludedShiftId ?? null, excludedShiftId ?? null) as Row[]
-    const plannedByProduct = new Map(otherPlannedByProduct.map((row) => [String(row.product_id), Number(row.quantity)]))
+      )
+      .all(input.shiftDate, excludedShiftId ?? null, excludedShiftId ?? null) as Row[]
+    const plannedByProduct = new Map(
+      otherPlannedByProduct.map((row) => [String(row.product_id), Number(row.quantity)])
+    )
     const requestedByOrderItem = new Map<string, number>()
     input.tasks.forEach((task) => {
       requestedByOrderItem.set(
@@ -1086,8 +1175,9 @@ export class StudioRepository {
       )
     })
     const contexts = input.tasks.map((task) => {
-      const row = this.database.prepare(
-        `SELECT oi.id AS order_item_id, oi.product_id, oi.quantity, oi.product_snapshot_json, o.code AS order_code, o.production_deadline,
+      const row = this.database
+        .prepare(
+          `SELECT oi.id AS order_item_id, oi.product_id, oi.quantity, oi.product_snapshot_json, o.code AS order_code, o.production_deadline,
          COALESCE(SUM(st.qualified_quantity), 0) AS completed_quantity,
          COALESCE(SUM(CASE WHEN s.status = 'scheduled' AND (? IS NULL OR s.id != ?) THEN st.planned_quantity ELSE 0 END), 0) AS scheduled_quantity
          FROM order_items oi
@@ -1095,7 +1185,8 @@ export class StudioRepository {
          LEFT JOIN shift_tasks st ON st.order_item_id = oi.id
          LEFT JOIN shifts s ON s.id = st.shift_id
          WHERE oi.id = ? GROUP BY oi.id`
-      ).get(excludedShiftId ?? null, excludedShiftId ?? null, task.orderItemId) as Row | undefined
+        )
+        .get(excludedShiftId ?? null, excludedShiftId ?? null, task.orderItemId) as Row | undefined
       if (!row) throw new DomainValidationError('订单商品明细不存在')
       const snapshot = JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot
       const completedQuantity = Number(row.completed_quantity)
@@ -1114,12 +1205,20 @@ export class StudioRepository {
         completedQuantity,
         scheduledQuantity,
         dueDate: String(row.production_deadline),
-        dailyCapacity: calculateDailyCapacity({ moldCount: snapshot.moldCount, outputPerMoldPerBatch: snapshot.outputPerMoldPerBatch, maxBatchesPerDay: snapshot.maxBatchesPerDay }),
+        dailyCapacity: calculateDailyCapacity({
+          moldCount: snapshot.moldCount,
+          outputPerMoldPerBatch: snapshot.outputPerMoldPerBatch,
+          maxBatchesPerDay: snapshot.maxBatchesPerDay
+        }),
         otherPlannedQuantityForDay: otherQuantity
       }
     })
     try {
-      const base = previewShiftRisks({ date: input.shiftDate, extraMinutes: input.extraMinutes ?? 0, tasks: contexts })
+      const base = previewShiftRisks({
+        date: input.shiftDate,
+        extraMinutes: input.extraMinutes ?? 0,
+        tasks: contexts
+      })
       const exceededOrderItems = new Set<string>()
       const quantityRisks = contexts.flatMap((task) => {
         if (exceededOrderItems.has(task.orderItemId)) return []
@@ -1132,18 +1231,20 @@ export class StudioRepository {
         })
         if (progress.excessQuantity === 0) return []
         exceededOrderItems.add(task.orderItemId)
-        return [{
-          code: 'ORDER_QUANTITY_EXCEEDED' as const,
-          level: 'critical' as const,
-          message: `订单 ${task.orderCode} · ${task.productName} 的计划覆盖 ${progress.coveredQuantity} 件，超过订单合格产品数量 ${progress.orderedQuantity} 件。`,
-          orderItemId: task.orderItemId,
-          orderCode: task.orderCode,
-          orderedQuantity: progress.orderedQuantity,
-          qualifiedQuantity: progress.qualifiedQuantity,
-          scheduledQuantity: task.scheduledQuantity,
-          requestedQuantity: task.requestedQuantity,
-          excessQuantity: progress.excessQuantity
-        }]
+        return [
+          {
+            code: 'ORDER_QUANTITY_EXCEEDED' as const,
+            level: 'critical' as const,
+            message: `订单 ${task.orderCode} · ${task.productName} 的计划覆盖 ${progress.coveredQuantity} 件，超过订单合格产品数量 ${progress.orderedQuantity} 件。`,
+            orderItemId: task.orderItemId,
+            orderCode: task.orderCode,
+            orderedQuantity: progress.orderedQuantity,
+            qualifiedQuantity: progress.qualifiedQuantity,
+            scheduledQuantity: task.scheduledQuantity,
+            requestedQuantity: task.requestedQuantity,
+            excessQuantity: progress.excessQuantity
+          }
+        ]
       })
       return {
         ...base,
@@ -1421,16 +1522,46 @@ export class StudioRepository {
     const timestamp = now()
     this.database.transaction(() => {
       if (input.status === 'completed') {
-        const tasks = this.database.prepare('SELECT id FROM shift_tasks WHERE shift_id = ?').all(input.shiftId) as Row[]
+        const tasks = this.database
+          .prepare('SELECT id FROM shift_tasks WHERE shift_id = ?')
+          .all(input.shiftId) as Row[]
         const completions = input.taskCompletions ?? []
-        if (tasks.length !== completions.length || new Set(completions.map((item) => item.shiftTaskId)).size !== tasks.length || tasks.some((task) => !completions.some((item) => item.shiftTaskId === String(task.id)))) {
+        if (
+          tasks.length !== completions.length ||
+          new Set(completions.map((item) => item.shiftTaskId)).size !== tasks.length ||
+          tasks.some((task) => !completions.some((item) => item.shiftTaskId === String(task.id)))
+        ) {
           throw new DomainValidationError('标记已完成时必须填写每个任务的合格与不合格数量')
         }
-        const updateTask = this.database.prepare('UPDATE shift_tasks SET qualified_quantity = ?, unqualified_quantity = ?, completed_quantity = ?, updated_at = ? WHERE id = ? AND shift_id = ?')
-        completions.forEach((item) => updateTask.run(item.qualifiedQuantity, item.unqualifiedQuantity, item.qualifiedQuantity + item.unqualifiedQuantity, timestamp, item.shiftTaskId, input.shiftId))
+        const updateTask = this.database.prepare(
+          'UPDATE shift_tasks SET qualified_quantity = ?, unqualified_quantity = ?, completed_quantity = ?, updated_at = ? WHERE id = ? AND shift_id = ?'
+        )
+        completions.forEach((item) =>
+          updateTask.run(
+            item.qualifiedQuantity,
+            item.unqualifiedQuantity,
+            item.qualifiedQuantity + item.unqualifiedQuantity,
+            timestamp,
+            item.shiftTaskId,
+            input.shiftId
+          )
+        )
       }
-      this.database.prepare('UPDATE shifts SET status = ?, updated_at = ? WHERE id = ?').run(input.status, timestamp, input.shiftId)
-      this.writeAudit('shift.status.updated', 'shift', input.shiftId, { status: previous.status }, { status: input.status, taskCompletions: input.status === 'completed' ? input.taskCompletions : undefined }, { releasesUnfinishedQuantity: ['leave', 'absent', 'cancelled'].includes(input.status) }, timestamp)
+      this.database
+        .prepare('UPDATE shifts SET status = ?, updated_at = ? WHERE id = ?')
+        .run(input.status, timestamp, input.shiftId)
+      this.writeAudit(
+        'shift.status.updated',
+        'shift',
+        input.shiftId,
+        { status: previous.status },
+        {
+          status: input.status,
+          taskCompletions: input.status === 'completed' ? input.taskCompletions : undefined
+        },
+        { releasesUnfinishedQuantity: ['leave', 'absent', 'cancelled'].includes(input.status) },
+        timestamp
+      )
     })()
     return this.getShiftSummary(input.shiftId)
   }
@@ -1470,7 +1601,8 @@ export class StudioRepository {
         actualMinutes: row.actual_minutes === null ? null : Number(row.actual_minutes),
         completedQuantity: row.completed_quantity === null ? null : Number(row.completed_quantity),
         qualifiedQuantity,
-        unqualifiedQuantity: row.unqualified_quantity === null ? null : Number(row.unqualified_quantity),
+        unqualifiedQuantity:
+          row.unqualified_quantity === null ? null : Number(row.unqualified_quantity),
         reworkQuantity,
         scrapQuantity,
         actualLaborCostCents: Number(row.actual_labor_cost_cents),
@@ -1484,7 +1616,7 @@ export class StudioRepository {
     return { ...summary, tasks }
   }
 
-  private getOrderItemSchedulingContext(orderItemId: string): {
+  getOrderItemSchedulingContext(orderItemId: string): {
     productId: string
     orderId: string
     standardMinutesPerUnit: number
@@ -1835,7 +1967,12 @@ export class StudioRepository {
       plannedQuantity: Number(row.planned_quantity),
       qualifiedQuantity: Number(row.qualified_quantity),
       unqualifiedQuantity: Number(row.unqualified_quantity),
-      unfinishedQuantity: Math.max(0, Number(row.planned_quantity) - Number(row.qualified_quantity) - Number(row.unqualified_quantity))
+      unfinishedQuantity: Math.max(
+        0,
+        Number(row.planned_quantity) -
+          Number(row.qualified_quantity) -
+          Number(row.unqualified_quantity)
+      )
     }))
     return {
       ...summary,
@@ -1995,7 +2132,8 @@ export class StudioRepository {
           completedQuantity: result.completedQuantity + completedQuantity,
           qualifiedQuantity: result.qualifiedQuantity + Number(row.qualified_quantity ?? 0),
           unqualifiedQuantity: result.unqualifiedQuantity + Number(row.unqualified_quantity ?? 0),
-          totalWeightGrams: result.totalWeightGrams + completedQuantity * Number(snapshot.weightGrams)
+          totalWeightGrams:
+            result.totalWeightGrams + completedQuantity * Number(snapshot.weightGrams)
         }
       },
       { completedQuantity: 0, qualifiedQuantity: 0, unqualifiedQuantity: 0, totalWeightGrams: 0 }
@@ -2226,9 +2364,14 @@ export class StudioRepository {
     const summary = calculateProductionProgress({
       orderedQuantity: [...items.values()].reduce((sum, item) => sum + item.orderedQuantity, 0),
       qualifiedQuantity: [...items.values()].reduce((sum, item) => sum + item.qualifiedQuantity, 0),
-      unqualifiedQuantity: [...items.values()].reduce((sum, item) => sum + item.unqualifiedQuantity, 0),
+      unqualifiedQuantity: [...items.values()].reduce(
+        (sum, item) => sum + item.unqualifiedQuantity,
+        0
+      ),
       scheduledQuantity: [...items.values()].reduce((sum, item) => sum + item.scheduledQuantity, 0),
-      hasReleasedQuantity: [...items.values()].some((item) => item.status === 'pending_replenishment')
+      hasReleasedQuantity: [...items.values()].some(
+        (item) => item.status === 'pending_replenishment'
+      )
     })
     return { items, summary }
   }
@@ -2256,7 +2399,12 @@ export class StudioRepository {
       plannedQuantity: Number(row.planned_quantity),
       qualifiedQuantity: Number(row.qualified_quantity),
       unqualifiedQuantity: Number(row.unqualified_quantity),
-      unfinishedQuantity: Math.max(0, Number(row.planned_quantity) - Number(row.qualified_quantity) - Number(row.unqualified_quantity)),
+      unfinishedQuantity: Math.max(
+        0,
+        Number(row.planned_quantity) -
+          Number(row.qualified_quantity) -
+          Number(row.unqualified_quantity)
+      ),
       orderItemId: String(row.order_item_id),
       productName: (JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot).name
     }))

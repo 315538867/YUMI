@@ -357,6 +357,16 @@ const defaultHourlyWageSchema = {
   }
 }
 
+const shipmentManifestSnapshotSchema = {
+  version: 8,
+  name: 'shipment_manifest_snapshots',
+  run(database: Database.Database): void {
+    database.exec(`
+      ALTER TABLE shipments ADD COLUMN manifest_snapshot_json TEXT;
+    `)
+  }
+}
+
 const migrations = [
   initialSchema,
   productManagementSchema,
@@ -364,7 +374,8 @@ const migrations = [
   workerManagementSchema,
   scheduleRiskPersistenceSchema,
   operationalWorkflowSchema,
-  defaultHourlyWageSchema
+  defaultHourlyWageSchema,
+  shipmentManifestSnapshotSchema
 ]
 
 export function runMigrations(database: Database.Database): void {

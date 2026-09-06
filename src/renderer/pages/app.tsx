@@ -66,6 +66,7 @@ import {
 import { parseNumericDraft } from './numeric-draft'
 import { NumericTextField } from './numeric-text-field'
 import { calculateDraftTotals, getErrorMessage, getWeekDates } from './workspace-utils'
+import { getAvailableShiftTaskItems, type ShiftTaskOption } from './shift-task-options'
 
 type View = 'overview' | 'orders' | 'schedule' | 'products' | 'workers' | 'reports' | 'settings'
 
@@ -3876,10 +3877,7 @@ type ShiftDraftTask = {
   plannedQuantity: string
 }
 
-type SchedulableOrderItem = {
-  id: string
-  label: string
-}
+type SchedulableOrderItem = ShiftTaskOption
 
 function ShiftDialog({
   target,
@@ -3929,6 +3927,8 @@ function ShiftDialog({
           order
             ? order.items.map((item) => ({
                 id: item.id,
+                orderId: order.id,
+                productId: item.productId,
                 label: `${order.code} · ${item.productSnapshot.name}（合格 ${item.progress.qualifiedQuantity} · 已排 ${item.progress.scheduledQuantity} · 未排 ${item.progress.unplannedQuantity}）`
               }))
             : []
@@ -4056,16 +4056,21 @@ function ShiftDialog({
               <Button
                 size="1"
                 variant="soft"
-                disabled={items.length === 0}
+                disabled={getAvailableShiftTaskItems(items, tasks).length === 0}
                 onClick={() =>
-                  setTasks((current) => [
-                    ...current,
-                    {
-                      id: crypto.randomUUID(),
-                      orderItemId: items[0]?.id ?? '',
-                      plannedQuantity: '1'
-                    }
-                  ])
+                  setTasks((current) => {
+                    const nextItem = getAvailableShiftTaskItems(items, current)[0]
+                    return nextItem
+                      ? [
+                          ...current,
+                          {
+                            id: crypto.randomUUID(),
+                            orderItemId: nextItem.id,
+                            plannedQuantity: '1'
+                          }
+                        ]
+                      : current
+                  })
                 }
               >
                 <Plus size={14} /> 添加任务
@@ -4084,7 +4089,7 @@ function ShiftDialog({
                     value={task.orderItemId}
                     onChange={(event) => updateTask(task.id, { orderItemId: event.target.value })}
                   >
-                    {items.map((item) => (
+                    {getAvailableShiftTaskItems(items, tasks, task.id).map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.label}
                       </option>
