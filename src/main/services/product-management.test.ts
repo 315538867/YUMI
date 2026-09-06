@@ -47,6 +47,8 @@ describe('商品资料与系统成本设置', () => {
       name: '奶油小熊（秋季）',
       basePriceCents: 4200,
       edgePriceCents: 500,
+      accessoryCostCents: 250,
+      replacementBagCostCents: 80,
       enabled: false,
       imagePath: '/tmp/cream-bear.png',
       notes: '仅用于秋季限定订单'
@@ -57,6 +59,8 @@ describe('商品资料与系统成本设置', () => {
       name: '奶油小熊（秋季）',
       basePriceCents: 4200,
       edgePriceCents: 500,
+      accessoryCostCents: 250,
+      replacementBagCostCents: 80,
       enabled: false,
       imagePath: '/tmp/cream-bear.png',
       notes: '仅用于秋季限定订单',
@@ -134,18 +138,22 @@ describe('商品成本预览', () => {
         quantity: 10,
         hourlyLaborCostCents: 3000,
         edgeEnabled: true,
-        edgeQuantity: 10
+        edgeQuantity: 10,
+        accessoryCostCents: 250,
+        replacementBagCostCents: 80
       })
     ).toEqual({
       glueGrams: 220,
       glueCostCents: 11000,
       packagingCostCents: 1000,
+      accessoryCostCents: 2500,
+      replacementBagCostCents: 800,
       laborMinutes: 300,
       laborCostCents: 15000,
       commissionCostCents: 2000,
       fixedOverheadCostCents: 15000,
       edgeRevenueCents: 3000,
-      totalCostCents: 44000,
+      totalCostCents: 47300,
       dailyCapacity: 40
     })
   })

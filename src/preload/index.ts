@@ -9,6 +9,7 @@ const yumi: YumiApi = {
     orderProfit: (query) => ipcRenderer.invoke('reports:order-profit', query),
     workerSettlement: (query) => ipcRenderer.invoke('reports:worker-settlement', query),
     capacityRisk: (query) => ipcRenderer.invoke('reports:capacity-risk', query),
+    monthlyProductionWeight: (query) => ipcRenderer.invoke('reports:monthly-production-weight', query),
     export: (input) => ipcRenderer.invoke('reports:export', input)
   },
   attachments: {
@@ -46,7 +47,12 @@ const yumi: YumiApi = {
     create: (input) => ipcRenderer.invoke('orders:create', input),
     update: (input) => ipcRenderer.invoke('orders:update', input),
     recordPayment: (input) => ipcRenderer.invoke('orders:record-payment', input),
-    updateProductionStatus: (input) => ipcRenderer.invoke('orders:update-production-status', input)
+    updateProductionStatus: (input) => ipcRenderer.invoke('orders:update-production-status', input),
+    shipmentSummary: (orderId) => ipcRenderer.invoke('orders:shipment-summary', orderId),
+    listShipments: (orderId) => ipcRenderer.invoke('orders:shipments:list', orderId),
+    createShipment: (input) => ipcRenderer.invoke('orders:shipments:create', input),
+    updateShipment: (input) => ipcRenderer.invoke('orders:shipments:update', input),
+    exportWorkbook: (input) => ipcRenderer.invoke('orders:export-workbook', input)
   },
   workers: {
     list: () => ipcRenderer.invoke('workers:list'),

@@ -85,6 +85,9 @@ export function registerIpc(
     service.queryWorkerSettlementReport(input)
   )
   ipcMain.handle('reports:capacity-risk', (_event, input) => service.queryCapacityRiskReport(input))
+  ipcMain.handle('reports:monthly-production-weight', (_event, input) =>
+    service.queryMonthlyProductionWeight(input)
+  )
   ipcMain.handle('reports:export', async (_event, input) => {
     const result = await dialog.showSaveDialog({
       title: '导出业务报表',
@@ -103,6 +106,22 @@ export function registerIpc(
   ipcMain.handle('orders:update-production-status', (_event, input) =>
     service.updateOrderProductionStatus(input)
   )
+  ipcMain.handle('orders:shipment-summary', (_event, orderId) =>
+    service.getOrderShipmentSummary(orderId)
+  )
+  ipcMain.handle('orders:shipments:list', (_event, orderId) => service.listShipments(orderId))
+  ipcMain.handle('orders:shipments:create', (_event, input) => service.createShipment(input))
+  ipcMain.handle('orders:shipments:update', (_event, input) => service.updateShipment(input))
+  ipcMain.handle('orders:export-workbook', async (_event, input) => {
+    const result = await dialog.showSaveDialog({
+      title: '导出订单表和发货清单',
+      defaultPath: `yumi-order-${String(input.orderId).slice(0, 8)}.xlsx`,
+      filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
+    })
+    if (result.canceled || !result.filePath) return { savedPath: null }
+    writeFileSync(result.filePath, service.exportOrderWorkbook(input))
+    return { savedPath: result.filePath }
+  })
   ipcMain.handle('workers:list', () => repository.listWorkers())
   ipcMain.handle('workers:get', (_event, id) => service.getWorkerDetail(id))
   ipcMain.handle('workers:create', (_event, input) => service.createWorker(input))

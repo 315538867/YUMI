@@ -625,7 +625,7 @@ button {
 }
 .task-metrics {
   display: grid;
-  grid-template-columns: 1.1fr 1.2fr 1.25fr 0.65fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   padding: 10px;
   border-radius: 6px;
@@ -1077,4 +1077,90 @@ button {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+.shipment-section {
+  padding-top: 15px;
+  border-top: 1px solid #e9e5de;
+}
+.shipment-summary-list,
+.shipment-records {
+  overflow: hidden;
+  border: 1px solid #e9e5de;
+  border-radius: 8px;
+}
+.shipment-summary-row,
+.shipment-record {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border-top: 1px solid #eeeae4;
+}
+.shipment-summary-row:first-child,
+.shipment-record:first-child {
+  border-top: 0;
+}
+.shipment-entry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dce8e3;
+  border-radius: 8px;
+  background: #f5faf7;
+}
+.shipment-quantity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.shipment-meta-grid {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.shipment-export-choice {
+  max-width: 260px;
+}
+@media (max-width: 760px) {
+  .shipment-quantity-grid,
+  .shipment-meta-grid {
+    grid-template-columns: 1fr;
+  }
+  .shipment-summary-row,
+  .shipment-record {
+    align-items: start;
+    flex-direction: column;
+  }
+}
+
+
+.shift-extra-minutes {
+  display: block;
+  max-width: 260px;
+}
+.shift-duration-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.shift-duration-summary span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  color: #625d55;
+  font-size: 12px;
+}
+.shift-duration-summary strong { color: #2f4e46; font-size: 14px; }
+.completion-task-list { display: flex; flex-direction: column; gap: 12px; }
+.completion-task { padding: 12px; border: 1px solid #e9e5de; border-radius: 8px; background: #fffdfb; }
+.completion-task .field-grid { margin-top: 10px; }
+@media (max-width: 680px) {
+  .shift-duration-summary { grid-template-columns: 1fr; }
 }

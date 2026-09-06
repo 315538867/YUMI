@@ -12,6 +12,7 @@ import type {
   OrderDefaults,
   OrderProductionStatusInput,
   OrderUpdateInput,
+  OrderWorkbookInput,
   PaymentRecordInput,
   ProductionRecordInput,
   ProductCostPreview,
@@ -20,6 +21,8 @@ import type {
   ShiftInput,
   ShiftUpdateInput,
   ShiftStatusInput,
+  ShipmentCreateInput,
+  ShipmentUpdateInput,
   ProductUpdateInput,
   OrderProfitReport,
   OrderProfitReportQuery,
@@ -28,6 +31,8 @@ import type {
   WorkerSettlementReportQuery,
   CapacityRiskReport,
   CapacityRiskReportQuery,
+  MonthlyProductionWeightQuery,
+  MonthlyProductionWeightReport,
   ReportExportInput,
   WorkerUpdateInput
 } from '@shared/contracts'
@@ -46,6 +51,8 @@ const productBaseSchema = z.object({
   lossRate: z.number().min(0, '损耗率不能为负数').lt(1, '损耗率必须小于 100%'),
   standardMinutesPerUnit: z.number().nonnegative('标准制作时长不能为负数'),
   packagingCostCents: nonNegativeInteger,
+  accessoryCostCents: nonNegativeInteger.optional().default(0),
+  replacementBagCostCents: nonNegativeInteger.optional().default(0),
   commissionCentsPerUnit: nonNegativeInteger,
   moldCount: positiveInteger,
   outputPerMoldPerBatch: positiveInteger,
@@ -101,6 +108,44 @@ const orderCreateSchema = z.object({
   items: z.array(orderItemSchema).min(1, '订单至少需要一个商品明细')
 })
 const orderUpdateSchema = orderCreateSchema.extend({ id: z.string().uuid('订单 ID 无效') })
+const shipmentItemSchema = z.object({
+  orderItemId: z.string().uuid('订单商品明细 ID 无效'),
+  quantity: nonNegativeInteger
+})
+const shipmentBaseSchema = z.object({
+  orderId: z.string().uuid('订单 ID 无效'),
+  shippedAt: dateText,
+  notes: optionalText,
+  items: z.array(shipmentItemSchema).min(1, '发货至少需要一个商品明细')
+})
+
+function withUniqueShipmentItems<T extends z.ZodType<{ items: Array<{ orderItemId: string }> }>>(
+  schema: T
+): z.ZodEffects<T> {
+  return schema.superRefine((input, context) => {
+    const orderItemIds = new Set<string>()
+    input.items.forEach((item, index) => {
+      if (orderItemIds.has(item.orderItemId))
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['items', index, 'orderItemId'],
+          message: '同一订单商品只能填写一次本次发货数量'
+        })
+      orderItemIds.add(item.orderItemId)
+    })
+  })
+}
+
+const shipmentSchema = withUniqueShipmentItems(shipmentBaseSchema)
+const shipmentUpdateSchema = withUniqueShipmentItems(
+  shipmentBaseSchema.extend({ id: z.string().uuid('发货记录 ID 无效') })
+)
+
+const orderWorkbookSchema = z.object({
+  orderId: z.string().uuid('订单 ID 无效'),
+  shipmentId: z.string().uuid('发货记录 ID 无效').optional()
+})
+
 const paymentSchema = z.object({
   orderId: z.string().uuid('订单 ID 无效'),
   type: z.enum(['receipt', 'refund']),
@@ -125,7 +170,6 @@ const orderProductionStatusSchema = z.object({
     'cancelled'
   ])
 })
-const timeText = z.string().regex(/^\d{2}:\d{2}$/, '排班时间必须为 HH:mm')
 const shiftTaskSchema = z.object({
   orderItemId: z.string().uuid('订单商品明细 ID 无效'),
   plannedQuantity: positiveInteger
@@ -133,25 +177,24 @@ const shiftTaskSchema = z.object({
 const shiftSchema = z.object({
   workerId: z.string().uuid('兼职人员 ID 无效'),
   shiftDate: dateText,
-  startTime: timeText,
-  endTime: timeText,
+  extraMinutes: nonNegativeInteger.optional().default(0),
   tasks: z.array(shiftTaskSchema).min(1, '排班至少需要一个订单商品任务'),
-  confirmedWarningCodes: z
-    .array(
-      z.enum([
-        'WORKER_TIME_OVERLAP',
-        'SHIFT_OVER_CAPACITY',
-        'SHIFT_UNDER_CAPACITY',
-        'MOLD_DAILY_CAPACITY_EXCEEDED',
-        'DEADLINE_RISK'
-      ])
-    )
-    .optional()
+  confirmedWarningCodes: z.array(z.enum(['MOLD_DAILY_CAPACITY_EXCEEDED', 'DEADLINE_RISK'])).optional()
 })
 const shiftUpdateSchema = shiftSchema.extend({ id: z.string().uuid('排班 ID 无效') })
+const shiftTaskCompletionSchema = z.object({
+  shiftTaskId: z.string().uuid('排班任务 ID 无效'),
+  qualifiedQuantity: nonNegativeInteger,
+  unqualifiedQuantity: nonNegativeInteger
+})
 const shiftStatusSchema = z.object({
   shiftId: z.string().uuid('排班 ID 无效'),
-  status: z.enum(['scheduled', 'leave', 'absent', 'late', 'cancelled', 'completed'])
+  status: z.enum(['scheduled', 'leave', 'absent', 'late', 'cancelled', 'completed']),
+  taskCompletions: z.array(shiftTaskCompletionSchema).optional()
+}).superRefine((value, context) => {
+  if (value.status === 'completed' && !value.taskCompletions) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: '标记已完成时必须填写每个任务的合格与不合格数量', path: ['taskCompletions'] })
+  }
 })
 const productionRecordSchema = z.object({
   shiftTaskId: z.string().uuid('排班任务 ID 无效'),
@@ -220,6 +263,8 @@ export class StudioService {
       lossRate: parsed.lossRate,
       gluePricePerGram: settings.gluePriceCentsPerGram / 100,
       packagingCostPerUnit: parsed.packagingCostCents / 100,
+      accessoryCostPerUnit: parsed.accessoryCostCents / 100,
+      replacementBagCostPerUnit: parsed.replacementBagCostCents / 100,
       standardMinutesPerUnit: parsed.standardMinutesPerUnit,
       hourlyLaborCost: parsed.hourlyLaborCostCents / 100,
       commissionPerUnit: parsed.commissionCentsPerUnit / 100,
@@ -232,6 +277,8 @@ export class StudioService {
       glueGrams: result.glueGrams,
       glueCostCents: Math.round(result.glueCost * 100),
       packagingCostCents: Math.round(result.packagingCost * 100),
+      accessoryCostCents: Math.round(result.accessoryCost * 100),
+      replacementBagCostCents: Math.round(result.replacementBagCost * 100),
       laborMinutes: Math.round(result.laborHours * 60),
       laborCostCents: Math.round(result.laborCost * 100),
       commissionCostCents: Math.round(result.commissionCost * 100),
@@ -302,6 +349,11 @@ export class StudioService {
     if (parsed.fromDate > parsed.toDate)
       throw new DomainValidationError('结算报表开始日期不能晚于结束日期')
     return this.repository.queryWorkerSettlementReport(parsed)
+  }
+
+  queryMonthlyProductionWeight(input: MonthlyProductionWeightQuery): MonthlyProductionWeightReport {
+    const parsed = validate(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/, '月份必须为 YYYY-MM') }), input)
+    return this.repository.queryMonthlyProductionWeight(parsed)
   }
 
   queryCapacityRiskReport(input: CapacityRiskReportQuery): CapacityRiskReport {
@@ -416,6 +468,99 @@ export class StudioService {
         '交期风险'
       )
     }
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Uint8Array
+  }
+
+  getOrderShipmentSummary(orderId: string) {
+    if (!z.string().uuid().safeParse(orderId).success)
+      throw new DomainValidationError('订单 ID 无效')
+    return this.repository.getOrderShipmentSummary(orderId)
+  }
+
+  listShipments(orderId: string) {
+    if (!z.string().uuid().safeParse(orderId).success)
+      throw new DomainValidationError('订单 ID 无效')
+    return this.repository.listShipments(orderId)
+  }
+
+  createShipment(input: ShipmentCreateInput) {
+    return this.repository.createShipment(validate(shipmentSchema, input))
+  }
+
+  updateShipment(input: ShipmentUpdateInput) {
+    return this.repository.updateShipment(validate(shipmentUpdateSchema, input))
+  }
+
+  exportOrderWorkbook(input: OrderWorkbookInput): Uint8Array {
+    const parsed = validate(orderWorkbookSchema, input)
+    const order = this.repository.getOrderDetail(parsed.orderId)
+    if (!order) throw new DomainValidationError('订单不存在')
+    const shipments = this.repository.listShipments(order.id)
+    const shipment = parsed.shipmentId ? shipments.find((item) => item.id === parsed.shipmentId) : null
+    if (parsed.shipmentId && !shipment) throw new DomainValidationError('发货记录不存在或不属于当前订单')
+    const shipmentQuantities = new Map(
+      shipment?.items.map((item) => [item.orderItemId, item.shipmentQuantity]) ?? []
+    )
+    const shipmentSummary = new Map(
+      this.repository.getOrderShipmentSummary(order.id).map((item) => [item.orderItemId, item])
+    )
+    const orderAmount = (item: (typeof order.items)[number]) =>
+      item.unitPriceCents * item.quantity + item.edgePriceCents * item.edgeQuantity - item.discountCents
+    const totalQuantity = order.items.reduce((total, item) => total + item.quantity, 0)
+    const totalAmount = order.items.reduce((total, item) => total + orderAmount(item), 0)
+    const orderRows = [
+      ...order.items.map((item) => ({
+        订单编号: order.code,
+        客户名称: order.customer.name,
+        联系方式: order.customer.contact ?? '',
+        收货地址: order.customer.defaultAddress ?? '',
+        预计发货日期: order.expectedShipDate,
+        商品名称: item.productSnapshot.name,
+        商品编码: item.productSnapshot.code ?? '',
+        单件重量克: item.productSnapshot.weightGrams,
+        配件费: item.productSnapshot.accessoryCostCents,
+        替换袋费用: item.productSnapshot.replacementBagCostCents,
+        订购数量: item.quantity,
+        单价: item.unitPriceCents,
+        缝边数量: item.edgeQuantity,
+        金额: orderAmount(item),
+        订单备注: order.notes ?? ''
+      })),
+      {
+        订单编号: order.code,
+        客户名称: order.customer.name,
+        联系方式: '',
+        收货地址: '',
+        预计发货日期: '',
+        商品名称: '合计',
+        商品编码: '',
+        单件重量克: '',
+        配件费: '',
+        替换袋费用: '',
+        订购数量: totalQuantity,
+        单价: '',
+        缝边数量: '',
+        金额: totalAmount,
+        订单备注: ''
+      }
+    ]
+    const shippingRows = order.items.map((item) => {
+      const summary = shipmentSummary.get(item.id)
+      return {
+        订单编号: order.code,
+        客户名称: order.customer.name,
+        收货地址: order.customer.defaultAddress ?? '',
+        商品名称: item.productSnapshot.name,
+        订购数量: item.quantity,
+        本次发货数量: parsed.shipmentId ? (shipmentQuantities.get(item.id) ?? 0) : '',
+        累计已发数量: summary?.shippedQuantity ?? 0,
+        待发数量: summary?.pendingQuantity ?? item.quantity,
+        发货日期: shipment?.shippedAt ?? ''
+      }
+    })
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(orderRows), '订单表')
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(shippingRows), '发货清单表')
     return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Uint8Array
   }
 

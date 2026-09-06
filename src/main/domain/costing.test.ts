@@ -29,6 +29,29 @@ describe('商品成本计算', () => {
     expect(result.totalCost).toBe(268)
   })
 
+  it('将配件费和替换袋费用按制作数量计入预计直接成本', () => {
+    const result = calculateProductCost({
+      quantity: 10,
+      weightGrams: 12,
+      lossRate: 0.1,
+      gluePricePerGram: 0.5,
+      packagingCostPerUnit: 1.2,
+      accessoryCostPerUnit: 2.5,
+      replacementBagCostPerUnit: 0.8,
+      standardMinutesPerUnit: 30,
+      hourlyLaborCost: 24,
+      commissionPerUnit: 2,
+      fixedOverheadHourlyRate: 10,
+      edgeEnabled: false,
+      edgeQuantity: 0,
+      edgePricePerUnit: 0
+    })
+
+    expect(result.accessoryCost).toBe(25)
+    expect(result.replacementBagCost).toBe(8)
+    expect(result.totalCost).toBe(301)
+  })
+
   it('根据模具数量、每批产出和每日批次数计算日产能', () => {
     expect(
       calculateDailyCapacity({ moldCount: 20, outputPerMoldPerBatch: 1, maxBatchesPerDay: 2 })

@@ -87,7 +87,7 @@ describe('实际制作、人工成本与提成结算', () => {
       startTime: '09:00',
       endTime: '12:00',
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 4 }],
-      confirmedWarningCodes: ['SHIFT_UNDER_CAPACITY']
+      confirmedWarningCodes: []
     })
     const taskId = repository.getShiftDetail(shift.id)!.tasks[0]!.id
     service.recordProduction({

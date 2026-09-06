@@ -67,7 +67,7 @@ describe('审计日志写入器', () => {
       startTime: '09:00',
       endTime: '10:00',
       tasks: [{ orderItemId: updatedOrder.items[0]!.id, plannedQuantity: 1 }],
-      confirmedWarningCodes: ['DEADLINE_RISK', 'SHIFT_UNDER_CAPACITY']
+      confirmedWarningCodes: ['DEADLINE_RISK']
     })
     service.updateShiftStatus({ shiftId: shift.id, status: 'absent' })
 
@@ -118,7 +118,7 @@ describe('审计日志写入器', () => {
     expect(shiftLog).toMatchObject({
       metadata: expect.objectContaining({
         risks: expect.arrayContaining([expect.objectContaining({ code: 'DEADLINE_RISK' })]),
-        confirmedWarningCodes: ['DEADLINE_RISK', 'SHIFT_UNDER_CAPACITY']
+        confirmedWarningCodes: ['DEADLINE_RISK']
       })
     })
     const absenceLog = repository

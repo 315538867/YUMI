@@ -36,11 +36,11 @@ describe('兼职人员结算报表', () => {
     })
     const completedShift = service.saveShift({
       workerId: worker.id,
-      shiftDate: '2026-09-05',
+      shiftDate: '2026-09-10',
       startTime: '09:00',
       endTime: '14:00',
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 6 }],
-      confirmedWarningCodes: ['SHIFT_UNDER_CAPACITY']
+      confirmedWarningCodes: []
     })
     service.recordProduction({
       shiftTaskId: repository.getShiftDetail(completedShift.id)!.tasks[0]!.id,
@@ -56,11 +56,11 @@ describe('兼职人员结算报表', () => {
     })
     const absentShift = service.saveShift({
       workerId: worker.id,
-      shiftDate: '2026-09-06',
+      shiftDate: '2026-09-11',
       startTime: '09:00',
       endTime: '12:00',
       tasks: [{ orderItemId: absentOrder.items[0]!.id, plannedQuantity: 6 }],
-      confirmedWarningCodes: ['SHIFT_UNDER_CAPACITY']
+      confirmedWarningCodes: []
     })
     service.updateShiftStatus({ shiftId: absentShift.id, status: 'absent' })
 

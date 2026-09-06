@@ -14,6 +14,8 @@ export interface ProductDetail extends ProductSummary {
   weightGrams: number
   lossRate: number
   packagingCostCents: number
+  accessoryCostCents: number
+  replacementBagCostCents: number
   commissionCentsPerUnit: number
   moldCount: number
   outputPerMoldPerBatch: number
@@ -155,6 +157,8 @@ export interface ProductOrderSnapshot {
   lossRate: number
   standardMinutesPerUnit: number
   packagingCostCents: number
+  accessoryCostCents: number
+  replacementBagCostCents: number
   commissionCentsPerUnit: number
   moldCount: number
   outputPerMoldPerBatch: number
@@ -198,6 +202,62 @@ export interface OrderItemDetail {
   edgePriceCents: number
   discountCents: number
   estimatedCostCents: number
+}
+
+export interface ShipmentItemInput {
+  orderItemId: string
+  quantity: number
+}
+
+export interface ShipmentCreateInput {
+  orderId: string
+  shippedAt: string
+  notes?: string | null
+  items: ShipmentItemInput[]
+}
+
+export interface ShipmentUpdateInput extends ShipmentCreateInput {
+  id: string
+}
+
+export interface OrderShipmentSummary {
+  orderItemId: string
+  productName: string
+  orderedQuantity: number
+  shippedQuantity: number
+  pendingQuantity: number
+}
+
+export interface ShipmentItemDetail extends OrderShipmentSummary {
+  shipmentQuantity: number
+}
+
+export interface ShipmentDetail {
+  id: string
+  orderId: string
+  shippedAt: string
+  notes: string | null
+  items: ShipmentItemDetail[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface OrderWorkbookInput {
+  orderId: string
+  shipmentId?: string
+}
+
+export interface MonthlyProductionWeightQuery {
+  month: string
+}
+
+export interface MonthlyProductionWeightReport {
+  month: string
+  completedQuantity: number
+  qualifiedQuantity: number
+  unqualifiedQuantity: number
+  totalWeightGrams: number
+  totalWeightKilograms: number
 }
 
 export interface PaymentRecordInput {
@@ -250,12 +310,7 @@ export interface OrderProductionStatusInput {
   productionStatus: ProductionStatus
 }
 
-export type ScheduleRiskCode =
-  | 'WORKER_TIME_OVERLAP'
-  | 'SHIFT_OVER_CAPACITY'
-  | 'SHIFT_UNDER_CAPACITY'
-  | 'MOLD_DAILY_CAPACITY_EXCEEDED'
-  | 'DEADLINE_RISK'
+export type ScheduleRiskCode = 'MOLD_DAILY_CAPACITY_EXCEEDED' | 'DEADLINE_RISK'
 
 export interface ScheduleRisk {
   code: ScheduleRiskCode
@@ -271,8 +326,7 @@ export interface ShiftTaskInput {
 export interface ShiftInput {
   workerId: string
   shiftDate: string
-  startTime: string
-  endTime: string
+  extraMinutes?: number
   tasks: ShiftTaskInput[]
   confirmedWarningCodes?: ScheduleRiskCode[]
 }
@@ -282,8 +336,10 @@ export interface ShiftUpdateInput extends ShiftInput {
 }
 
 export interface ShiftPreviewResult {
-  shiftMinutes: number
-  totalPlannedMinutes: number
+  taskBaseMinutes: Array<{ orderItemId: string; baseMinutes: number }>
+  baseTaskMinutes: number
+  extraMinutes: number
+  totalMinutes: number
   risks: ScheduleRisk[]
   canSaveWithConfirmation: true
 }
@@ -298,8 +354,11 @@ export interface ShiftDetail extends ShiftSummary {
     orderCode: string
     plannedQuantity: number
     estimatedMinutes: number
+    baseMinutes: number
     actualMinutes: number | null
+    completedQuantity: number | null
     qualifiedQuantity: number
+    unqualifiedQuantity: number | null
     reworkQuantity: number
     scrapQuantity: number
     actualLaborCostCents: number
@@ -310,9 +369,16 @@ export interface ShiftDetail extends ShiftSummary {
 
 export type ShiftStatus = 'scheduled' | 'leave' | 'absent' | 'late' | 'cancelled' | 'completed'
 
+export interface ShiftTaskCompletionInput {
+  shiftTaskId: string
+  qualifiedQuantity: number
+  unqualifiedQuantity: number
+}
+
 export interface ShiftStatusInput {
   shiftId: string
   status: ShiftStatus
+  taskCompletions?: ShiftTaskCompletionInput[]
 }
 
 export interface ProductionRecordInput {
@@ -387,8 +453,11 @@ export interface ShiftSummary {
   workerId: string
   workerName: string
   shiftDate: string
-  startTime: string
-  endTime: string
+  startTime: string | null
+  endTime: string | null
+  baseTaskMinutes: number
+  extraMinutes: number
+  totalMinutes: number
   status: string
   taskCount: number
   confirmedRisks: string[]
@@ -527,6 +596,8 @@ export interface ProductCreateInput {
   lossRate: number
   standardMinutesPerUnit: number
   packagingCostCents: number
+  accessoryCostCents?: number
+  replacementBagCostCents?: number
   commissionCentsPerUnit: number
   moldCount: number
   outputPerMoldPerBatch: number
@@ -551,6 +622,8 @@ export interface ProductCostPreview {
   glueGrams: number
   glueCostCents: number
   packagingCostCents: number
+  accessoryCostCents: number
+  replacementBagCostCents: number
   laborMinutes: number
   laborCostCents: number
   commissionCostCents: number
@@ -584,6 +657,7 @@ export interface YumiApi {
     orderProfit(query: OrderProfitReportQuery): Promise<OrderProfitReport>
     workerSettlement(query: WorkerSettlementReportQuery): Promise<WorkerSettlementReport>
     capacityRisk(query: CapacityRiskReportQuery): Promise<CapacityRiskReport>
+    monthlyProductionWeight(query: MonthlyProductionWeightQuery): Promise<MonthlyProductionWeightReport>
     export(input: ReportExportInput): Promise<{ savedPath: string | null }>
   }
   products: {
@@ -622,6 +696,11 @@ export interface YumiApi {
     update(input: OrderUpdateInput): Promise<OrderDetail>
     recordPayment(input: PaymentRecordInput): Promise<OrderDetail>
     updateProductionStatus(input: OrderProductionStatusInput): Promise<OrderDetail>
+    shipmentSummary(orderId: string): Promise<OrderShipmentSummary[]>
+    listShipments(orderId: string): Promise<ShipmentDetail[]>
+    createShipment(input: ShipmentCreateInput): Promise<ShipmentDetail>
+    updateShipment(input: ShipmentUpdateInput): Promise<ShipmentDetail>
+    exportWorkbook(input: OrderWorkbookInput): Promise<{ savedPath: string | null }>
   }
   workers: {
     list(): Promise<WorkerSummary[]>

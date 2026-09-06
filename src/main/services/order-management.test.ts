@@ -13,6 +13,8 @@ const bearInput = {
   lossRate: 0.1,
   standardMinutesPerUnit: 30,
   packagingCostCents: 100,
+  accessoryCostCents: 250,
+  replacementBagCostCents: 80,
   commissionCentsPerUnit: 200,
   moldCount: 20,
   outputPerMoldPerBatch: 1,
@@ -85,7 +87,7 @@ describe('客户、订单与收退款管理', () => {
       productionDeadline: '2026-09-12',
       productionStatus: 'pending_confirmation',
       receivableCents: 13500,
-      estimatedCostCents: 7750,
+      estimatedCostCents: 9400,
       financial: { status: 'unpaid', outstandingCents: 13500 }
     })
     expect(order.items).toEqual([
@@ -97,20 +99,32 @@ describe('客户、订单与收退款管理', () => {
         edgeQuantity: 2,
         edgePriceCents: 300,
         discountCents: 400,
-        estimatedCostCents: 5800,
+        estimatedCostCents: 6460,
         productSnapshot: expect.objectContaining({
           basePriceCents: 3900,
+          accessoryCostCents: 250,
+          replacementBagCostCents: 80,
           gluePriceCentsPerGram: 50,
           fixedOverheadHourlyRateCents: 3000,
           standardMinutesPerUnit: 30
         })
       }),
-      expect.objectContaining({ productId: cloud.id, quantity: 3, estimatedCostCents: 1950 })
+      expect.objectContaining({ productId: cloud.id, quantity: 3, estimatedCostCents: 2940 })
     ])
 
-    context.service.updateProduct({ ...bear, basePriceCents: 9999, enabled: true })
+    context.service.updateProduct({
+      ...bear,
+      basePriceCents: 9999,
+      accessoryCostCents: 999,
+      replacementBagCostCents: 777,
+      enabled: true
+    })
     const restored = context.service.getOrderDetail(order.id)
-    expect(restored?.items[0]?.productSnapshot.basePriceCents).toBe(3900)
+    expect(restored?.items[0]?.productSnapshot).toMatchObject({
+      basePriceCents: 3900,
+      accessoryCostCents: 250,
+      replacementBagCostCents: 80
+    })
     expect(context.service.listCustomerOrderHistory(order.customer.id)).toEqual([
       expect.objectContaining({ id: order.id, code: order.code })
     ])

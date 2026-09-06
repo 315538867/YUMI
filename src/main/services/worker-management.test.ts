@@ -84,11 +84,11 @@ describe('兼职人员资料与时薪历史', () => {
     })
     const shift = service.saveShift({
       workerId: worker.id,
-      shiftDate: '2026-09-05',
+      shiftDate: '2026-09-10',
       startTime: '09:00',
       endTime: '12:00',
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 4 }],
-      confirmedWarningCodes: ['SHIFT_UNDER_CAPACITY']
+      confirmedWarningCodes: []
     })
     const taskId = repository.getShiftDetail(shift.id)!.tasks[0]!.id
     service.recordProduction({

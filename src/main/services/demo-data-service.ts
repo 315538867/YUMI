@@ -39,6 +39,8 @@ export class DemoDataService {
       lossRate: 0.1,
       standardMinutesPerUnit: 30,
       packagingCostCents: 100,
+      accessoryCostCents: 80,
+      replacementBagCostCents: 30,
       commissionCentsPerUnit: 200,
       moldCount: 20,
       outputPerMoldPerBatch: 1,
@@ -55,6 +57,8 @@ export class DemoDataService {
       lossRate: 0.12,
       standardMinutesPerUnit: 40,
       packagingCostCents: 150,
+      accessoryCostCents: 120,
+      replacementBagCostCents: 40,
       commissionCentsPerUnit: 300,
       moldCount: 2,
       outputPerMoldPerBatch: 1,
@@ -115,6 +119,25 @@ export class DemoDataService {
       paidAt: today,
       note: '缝边调整退款'
     })
+    // 发货记录由用户逐次录入；这里仅提供两次演示记录，汇总由系统计算。
+    this.studio.createShipment({
+      orderId: multiProductOrder.id,
+      shippedAt: today,
+      notes: '演示第一次发货',
+      items: [
+        { orderItemId: multiProductOrder.items[0]!.id, quantity: 2 },
+        { orderItemId: multiProductOrder.items[1]!.id, quantity: 1 }
+      ]
+    })
+    this.studio.createShipment({
+      orderId: multiProductOrder.id,
+      shippedAt: scheduledDate,
+      notes: '演示第二次发货',
+      items: [
+        { orderItemId: multiProductOrder.items[0]!.id, quantity: 1 },
+        { orderItemId: multiProductOrder.items[1]!.id, quantity: 1 }
+      ]
+    })
 
     const capacityOrder = this.studio.createOrder({
       customer: { name: '周同学', contact: '微信：zhou-demo' },
@@ -127,25 +150,20 @@ export class DemoDataService {
     const completedShift = this.saveShiftWithAllRisks({
       workerId: lin.id,
       shiftDate: completedDate,
-      startTime: '09:00',
-      endTime: '12:00',
+      extraMinutes: 25,
       tasks: [{ orderItemId: multiProductOrder.items[0]!.id, plannedQuantity: 4 }]
     })
     const completedTask = this.studio.getShiftDetail(completedShift.id)!.tasks[0]!
-    this.studio.recordProduction({
-      shiftTaskId: completedTask.id,
-      actualMinutes: 120,
-      qualifiedQuantity: 3,
-      reworkQuantity: 1,
-      scrapQuantity: 0
+    this.studio.updateShiftStatus({
+      shiftId: completedShift.id,
+      status: 'completed',
+      taskCompletions: [{ shiftTaskId: completedTask.id, qualifiedQuantity: 3, unqualifiedQuantity: 1 }]
     })
-    this.studio.updateShiftStatus({ shiftId: completedShift.id, status: 'completed' })
 
     const absentShift = this.saveShiftWithAllRisks({
       workerId: li.id,
       shiftDate: scheduledDate,
-      startTime: '13:00',
-      endTime: '16:00',
+      extraMinutes: 15,
       tasks: [{ orderItemId: capacityOrder.items[0]!.id, plannedQuantity: 2 }]
     })
     this.studio.updateShiftStatus({ shiftId: absentShift.id, status: 'absent' })
@@ -153,8 +171,7 @@ export class DemoDataService {
     this.saveShiftWithAllRisks({
       workerId: lin.id,
       shiftDate: scheduledDate,
-      startTime: '13:00',
-      endTime: '18:00',
+      extraMinutes: 15,
       tasks: [{ orderItemId: capacityOrder.items[0]!.id, plannedQuantity: 3 }]
     })
 

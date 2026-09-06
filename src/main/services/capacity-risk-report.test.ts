@@ -40,7 +40,7 @@ describe('商品成本、产能与交期风险报表', () => {
       startTime: '09:00',
       endTime: '12:00',
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 4 }],
-      confirmedWarningCodes: ['SHIFT_UNDER_CAPACITY']
+      confirmedWarningCodes: []
     })
     const taskId = repository.getShiftDetail(shift.id)!.tasks[0]!.id
     service.recordProduction({

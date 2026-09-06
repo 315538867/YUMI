@@ -38,6 +38,13 @@ describe('演示数据', () => {
       'receipt',
       'refund'
     ])
+    expect(repository.listShipments(multiProductOrder!.id)).toHaveLength(2)
+    expect(repository.getOrderShipmentSummary(multiProductOrder!.id)).toEqual([
+      expect.objectContaining({ orderedQuantity: 8, shippedQuantity: 3, pendingQuantity: 5 }),
+      expect.objectContaining({ orderedQuantity: 3, shippedQuantity: 2, pendingQuantity: 1 })
+    ])
+    expect(multiProductOrderDetail.items.map((item) => item.productSnapshot.accessoryCostCents)).toEqual([80, 120])
+    expect(multiProductOrderDetail.items.map((item) => item.productSnapshot.replacementBagCostCents)).toEqual([30, 40])
 
     const shifts = repository.listShifts('2000-01-01', '2100-01-01')
     expect(shifts.some((shift) => shift.status === 'absent')).toBe(true)
@@ -47,9 +54,11 @@ describe('演示数据', () => {
     expect(repository.getDashboard().rescheduleTaskCount).toBeGreaterThan(0)
 
     const completedShift = shifts.find((shift) => shift.status === 'completed')!
+    expect(completedShift).toMatchObject({ extraMinutes: 25, totalMinutes: 145 })
     expect(repository.getShiftDetail(completedShift.id)!.tasks[0]).toMatchObject({
       qualifiedQuantity: 3,
-      commissionCostCents: 600
+      unqualifiedQuantity: 1,
+      commissionCostCents: 0
     })
   })
 

@@ -6,6 +6,8 @@ export interface ProductCostInput {
   lossRate: number
   gluePricePerGram: number
   packagingCostPerUnit: number
+  accessoryCostPerUnit?: number
+  replacementBagCostPerUnit?: number
   standardMinutesPerUnit: number
   hourlyLaborCost: number
   commissionPerUnit: number
@@ -19,6 +21,8 @@ export interface ProductCostResult {
   glueGrams: number
   glueCost: number
   packagingCost: number
+  accessoryCost: number
+  replacementBagCost: number
   laborHours: number
   laborCost: number
   commissionCost: number
@@ -36,6 +40,10 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
   requirePositive(input.lossRate, '损耗率', true)
   requirePositive(input.gluePricePerGram, '胶水克单价', true)
   requirePositive(input.packagingCostPerUnit, '包装成本', true)
+  const accessoryCostPerUnit = input.accessoryCostPerUnit ?? 0
+  const replacementBagCostPerUnit = input.replacementBagCostPerUnit ?? 0
+  requirePositive(accessoryCostPerUnit, '配件费', true)
+  requirePositive(replacementBagCostPerUnit, '替换袋费用', true)
   requirePositive(input.standardMinutesPerUnit, '标准制作时长', true)
   requirePositive(input.hourlyLaborCost, '人工时薪', true)
   requirePositive(input.commissionPerUnit, '单件提成', true)
@@ -53,6 +61,8 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
   const glueGrams = roundQuantity(input.quantity * input.weightGrams * (1 + input.lossRate))
   const glueCost = roundMoney(glueGrams * input.gluePricePerGram)
   const packagingCost = roundMoney(input.quantity * input.packagingCostPerUnit)
+  const accessoryCost = roundMoney(input.quantity * accessoryCostPerUnit)
+  const replacementBagCost = roundMoney(input.quantity * replacementBagCostPerUnit)
   const laborHours = roundQuantity((input.quantity * input.standardMinutesPerUnit) / 60)
   const laborCost = roundMoney(laborHours * input.hourlyLaborCost)
   const commissionCost = roundMoney(input.quantity * input.commissionPerUnit)
@@ -65,12 +75,22 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
     glueGrams,
     glueCost,
     packagingCost,
+    accessoryCost,
+    replacementBagCost,
     laborHours,
     laborCost,
     commissionCost,
     fixedOverheadCost,
     edgeRevenue,
-    totalCost: roundMoney(glueCost + packagingCost + laborCost + commissionCost + fixedOverheadCost)
+    totalCost: roundMoney(
+      glueCost +
+        packagingCost +
+        accessoryCost +
+        replacementBagCost +
+        laborCost +
+        commissionCost +
+        fixedOverheadCost
+    )
   }
 }
 

@@ -29,6 +29,8 @@ import type {
   OrderProfitReport,
   OrderProfitReportQuery,
   OrderProfitReportRow,
+  MonthlyProductionWeightQuery,
+  MonthlyProductionWeightReport,
   WorkerSettlementReport,
   WorkerSettlementReportQuery,
   WorkerSettlementReportRow,
@@ -53,6 +55,10 @@ import type {
   ShiftUpdateInput,
   ShiftStatusInput,
   ShiftSummary,
+  ShipmentCreateInput,
+  ShipmentDetail,
+  ShipmentUpdateInput,
+  OrderShipmentSummary,
   WorkerCreateInput,
   WorkerDetail,
   WorkerShiftSummary,
@@ -101,6 +107,8 @@ function productDetailFromRow(row: Row): ProductDetail {
     weightGrams: Number(row.weight_grams),
     lossRate: Number(row.loss_rate),
     packagingCostCents: Number(row.packaging_cost_cents),
+    accessoryCostCents: Number(row.accessory_cost_cents ?? 0),
+    replacementBagCostCents: Number(row.replacement_bag_cost_cents ?? 0),
     commissionCentsPerUnit: Number(row.commission_cents_per_unit),
     moldCount: Number(row.mold_count),
     outputPerMoldPerBatch: Number(row.output_per_mold_per_batch),
@@ -169,6 +177,8 @@ function productSnapshot(product: ProductDetail, settings: CostSettings): Produc
     lossRate: product.lossRate,
     standardMinutesPerUnit: product.standardMinutesPerUnit,
     packagingCostCents: product.packagingCostCents,
+    accessoryCostCents: product.accessoryCostCents,
+    replacementBagCostCents: product.replacementBagCostCents,
     commissionCentsPerUnit: product.commissionCentsPerUnit,
     moldCount: product.moldCount,
     outputPerMoldPerBatch: product.outputPerMoldPerBatch,
@@ -191,6 +201,8 @@ function estimateItemCostCents(
     lossRate: snapshot.lossRate,
     gluePricePerGram: snapshot.gluePriceCentsPerGram / 100,
     packagingCostPerUnit: snapshot.packagingCostCents / 100,
+    accessoryCostPerUnit: snapshot.accessoryCostCents / 100,
+    replacementBagCostPerUnit: snapshot.replacementBagCostCents / 100,
     standardMinutesPerUnit: snapshot.standardMinutesPerUnit,
     // 订单创建时尚未分配具体兼职人员；实际人工工时成本会在完工记录中计算。
     hourlyLaborCost: 0,
@@ -222,7 +234,8 @@ export class StudioRepository {
       .prepare(
         `SELECT id, name, code, category, base_price_cents, edge_price_cents, enabled,
         weight_grams, loss_rate, standard_minutes_per_unit, packaging_cost_cents,
-        commission_cents_per_unit, mold_count, output_per_mold_per_batch, max_batches_per_day,
+        accessory_cost_cents, replacement_bag_cost_cents, commission_cents_per_unit, mold_count,
+        output_per_mold_per_batch, max_batches_per_day,
         image_path, notes FROM products WHERE id = ?`
       )
       .get(id) as Row | undefined
@@ -237,9 +250,10 @@ export class StudioRepository {
         .prepare(
           `INSERT INTO products (
             id, name, code, category, base_price_cents, edge_price_cents, weight_grams, loss_rate,
-            standard_minutes_per_unit, packaging_cost_cents, commission_cents_per_unit, mold_count,
+            standard_minutes_per_unit, packaging_cost_cents, accessory_cost_cents,
+            replacement_bag_cost_cents, commission_cents_per_unit, mold_count,
             output_per_mold_per_batch, max_batches_per_day, image_path, notes, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           id,
@@ -252,6 +266,8 @@ export class StudioRepository {
           input.lossRate,
           input.standardMinutesPerUnit,
           input.packagingCostCents,
+          input.accessoryCostCents ?? 0,
+          input.replacementBagCostCents ?? 0,
           input.commissionCentsPerUnit,
           input.moldCount,
           input.outputPerMoldPerBatch,
@@ -285,7 +301,8 @@ export class StudioRepository {
           `UPDATE products SET
             name = ?, code = ?, category = ?, base_price_cents = ?, edge_price_cents = ?,
             weight_grams = ?, loss_rate = ?, standard_minutes_per_unit = ?, packaging_cost_cents = ?,
-            commission_cents_per_unit = ?, mold_count = ?, output_per_mold_per_batch = ?,
+            accessory_cost_cents = ?, replacement_bag_cost_cents = ?, commission_cents_per_unit = ?,
+            mold_count = ?, output_per_mold_per_batch = ?,
             max_batches_per_day = ?, image_path = ?, notes = ?, enabled = ?, updated_at = ?
           WHERE id = ?`
         )
@@ -299,6 +316,8 @@ export class StudioRepository {
           input.lossRate,
           input.standardMinutesPerUnit,
           input.packagingCostCents,
+          input.accessoryCostCents ?? 0,
+          input.replacementBagCostCents ?? 0,
           input.commissionCentsPerUnit,
           input.moldCount,
           input.outputPerMoldPerBatch,
@@ -544,8 +563,9 @@ export class StudioRepository {
       const insertItem = this.database.prepare(
         `INSERT INTO order_items (
           id, order_id, product_id, product_snapshot_json, sort_order, quantity, unit_price_cents, edge_enabled,
-          edge_quantity, edge_price_cents, discount_cents, estimated_cost_cents, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          edge_quantity, edge_price_cents, discount_cents, accessory_cost_cents,
+          replacement_bag_cost_cents, estimated_cost_cents, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       preparedItems.forEach((item) => {
         insertItem.run(
@@ -560,6 +580,8 @@ export class StudioRepository {
           item.edgeQuantity,
           item.edgePriceCents,
           item.discountCents,
+          item.snapshot.accessoryCostCents,
+          item.snapshot.replacementBagCostCents,
           item.estimatedCostCents,
           timestamp,
           timestamp
@@ -583,6 +605,139 @@ export class StudioRepository {
       )
     })()
     return this.getOrderDetail(orderId)!
+  }
+
+  getOrderShipmentSummary(orderId: string): OrderShipmentSummary[] {
+    const rows = this.database
+      .prepare(
+        `SELECT oi.id AS order_item_id, oi.quantity AS ordered_quantity,
+          COALESCE(SUM(si.quantity), 0) AS shipped_quantity, oi.product_snapshot_json
+         FROM order_items oi
+         LEFT JOIN shipment_items si ON si.order_item_id = oi.id
+         WHERE oi.order_id = ?
+         GROUP BY oi.id, oi.quantity, oi.product_snapshot_json
+         ORDER BY oi.sort_order, oi.created_at, oi.id`
+      )
+      .all(orderId) as Row[]
+    return rows.map((row) => {
+      const orderedQuantity = Number(row.ordered_quantity)
+      const shippedQuantity = Number(row.shipped_quantity)
+      const snapshot = JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot
+      return {
+        orderItemId: String(row.order_item_id),
+        productName: snapshot.name,
+        orderedQuantity,
+        shippedQuantity,
+        pendingQuantity: orderedQuantity - shippedQuantity
+      }
+    })
+  }
+
+  listShipments(orderId: string): ShipmentDetail[] {
+    const rows = this.database
+      .prepare('SELECT id FROM shipments WHERE order_id = ? ORDER BY shipped_at DESC, created_at DESC, id DESC')
+      .all(orderId) as Row[]
+    return rows.map((row) => this.getShipmentDetail(String(row.id))!).filter(Boolean)
+  }
+
+  createShipment(input: ShipmentCreateInput): ShipmentDetail {
+    const id = randomUUID()
+    const timestamp = now()
+    this.database.transaction(() => {
+      this.assertShipmentItemsCanBeSaved(input.orderId, input.items)
+      this.database
+        .prepare(
+          `INSERT INTO shipments (id, order_id, shipped_at, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+        .run(id, input.orderId, input.shippedAt, input.notes?.trim() || null, timestamp, timestamp)
+      const insertItem = this.database.prepare(
+        `INSERT INTO shipment_items (id, shipment_id, order_item_id, quantity, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      input.items.forEach((item) =>
+        insertItem.run(randomUUID(), id, item.orderItemId, item.quantity, timestamp, timestamp)
+      )
+    })()
+    return this.getShipmentDetail(id)!
+  }
+
+  updateShipment(input: ShipmentUpdateInput): ShipmentDetail {
+    const timestamp = now()
+    this.database.transaction(() => {
+      const existing = this.database
+        .prepare('SELECT order_id FROM shipments WHERE id = ?')
+        .get(input.id) as Row | undefined
+      if (!existing) throw new DomainValidationError('发货记录不存在')
+      if (String(existing.order_id) !== input.orderId)
+        throw new DomainValidationError('发货记录不能更换所属订单')
+      this.assertShipmentItemsCanBeSaved(input.orderId, input.items, input.id)
+      this.database
+        .prepare('UPDATE shipments SET shipped_at = ?, notes = ?, updated_at = ? WHERE id = ?')
+        .run(input.shippedAt, input.notes?.trim() || null, timestamp, input.id)
+      this.database.prepare('DELETE FROM shipment_items WHERE shipment_id = ?').run(input.id)
+      const insertItem = this.database.prepare(
+        `INSERT INTO shipment_items (id, shipment_id, order_item_id, quantity, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      input.items.forEach((item) =>
+        insertItem.run(randomUUID(), input.id, item.orderItemId, item.quantity, timestamp, timestamp)
+      )
+    })()
+    return this.getShipmentDetail(input.id)!
+  }
+
+  private assertShipmentItemsCanBeSaved(
+    orderId: string,
+    items: ShipmentCreateInput['items'],
+    excludedShipmentId?: string
+  ): void {
+    const order = this.database.prepare('SELECT id FROM orders WHERE id = ?').get(orderId)
+    if (!order) throw new DomainValidationError('订单不存在')
+    for (const item of items) {
+      const orderItem = this.database
+        .prepare('SELECT id, quantity FROM order_items WHERE id = ? AND order_id = ?')
+        .get(item.orderItemId, orderId) as Row | undefined
+      if (!orderItem) throw new DomainValidationError('发货商品明细不属于当前订单')
+      const shipped = this.database
+        .prepare(
+          `SELECT COALESCE(SUM(quantity), 0) AS quantity
+           FROM shipment_items
+           WHERE order_item_id = ? AND (? IS NULL OR shipment_id <> ?)`
+        )
+        .get(item.orderItemId, excludedShipmentId ?? null, excludedShipmentId ?? null) as {
+        quantity: number
+      }
+      const pendingQuantity = Number(orderItem.quantity) - Number(shipped.quantity)
+      if (item.quantity > pendingQuantity)
+        throw new DomainValidationError(
+          `本次发货数量不能超过待发数量（待发 ${pendingQuantity} 件）`
+        )
+    }
+  }
+
+  private getShipmentDetail(id: string): ShipmentDetail | null {
+    const row = this.database.prepare('SELECT * FROM shipments WHERE id = ?').get(id) as Row | undefined
+    if (!row) return null
+    const summaries = new Map(
+      this.getOrderShipmentSummary(String(row.order_id)).map((item) => [item.orderItemId, item])
+    )
+    const itemRows = this.database
+      .prepare('SELECT order_item_id, quantity FROM shipment_items WHERE shipment_id = ? ORDER BY created_at, id')
+      .all(id) as Row[]
+    return {
+      id: String(row.id),
+      orderId: String(row.order_id),
+      shippedAt: String(row.shipped_at),
+      notes: (row.notes as string | null) ?? null,
+      items: itemRows.map((item) => {
+        const summary = summaries.get(String(item.order_item_id))
+        if (!summary) throw new DomainValidationError('发货记录包含不存在的订单商品')
+        return { ...summary, shipmentQuantity: Number(item.quantity) }
+      }),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at)
+    }
   }
 
   updateOrder(input: OrderUpdateInput): OrderDetail {
@@ -616,6 +771,18 @@ export class StudioRepository {
         if (item.quantity < Number(completed.quantity))
           throw new DomainValidationError(
             `商品数量不能低于已完成数量（已完成 ${completed.quantity} 件）`
+          )
+        const shipped = existing
+          ? (this.database
+              .prepare(
+                `SELECT COALESCE(SUM(shipment_items.quantity), 0) AS quantity
+                 FROM shipment_items WHERE order_item_id = ?`
+              )
+              .get(existing.id) as { quantity: number })
+          : { quantity: 0 }
+        if (item.quantity < Number(shipped.quantity))
+          throw new DomainValidationError(
+            `商品数量不能低于累计已发数量（累计已发 ${shipped.quantity} 件）`
           )
         const edgeEnabled = item.edgeEnabled ?? existing?.edgeEnabled ?? false
         const edgeQuantity = edgeEnabled
@@ -656,6 +823,10 @@ export class StudioRepository {
       const retainedIds = new Set(preparedItems.map((item) => item.id))
       for (const item of previous.items) {
         if (retainedIds.has(item.id)) continue
+        const shipmentDependency = this.database
+          .prepare('SELECT 1 AS found FROM shipment_items WHERE order_item_id = ? LIMIT 1')
+          .get(item.id)
+        if (shipmentDependency) throw new DomainValidationError('已有发货明细的订单商品不能删除')
         const dependency = this.database
           .prepare('SELECT 1 AS found FROM shift_tasks WHERE order_item_id = ? LIMIT 1')
           .get(item.id)
@@ -697,13 +868,15 @@ export class StudioRepository {
       const updateItem = this.database.prepare(
         `UPDATE order_items SET product_id = ?, product_snapshot_json = ?, sort_order = ?, quantity = ?,
          unit_price_cents = ?, edge_enabled = ?, edge_quantity = ?, edge_price_cents = ?, discount_cents = ?,
-         estimated_cost_cents = ?, updated_at = ? WHERE id = ? AND order_id = ?`
+         accessory_cost_cents = ?, replacement_bag_cost_cents = ?, estimated_cost_cents = ?, updated_at = ?
+         WHERE id = ? AND order_id = ?`
       )
       const insertItem = this.database.prepare(
         `INSERT INTO order_items (
           id, order_id, product_id, product_snapshot_json, sort_order, quantity, unit_price_cents, edge_enabled,
-          edge_quantity, edge_price_cents, discount_cents, estimated_cost_cents, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          edge_quantity, edge_price_cents, discount_cents, accessory_cost_cents,
+          replacement_bag_cost_cents, estimated_cost_cents, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       preparedItems.forEach((item) => {
         if (existingItems.has(item.id)) {
@@ -717,6 +890,8 @@ export class StudioRepository {
             item.edgeQuantity,
             item.edgePriceCents,
             item.discountCents,
+            item.snapshot.accessoryCostCents,
+            item.snapshot.replacementBagCostCents,
             item.estimatedCostCents,
             timestamp,
             item.id,
@@ -735,6 +910,8 @@ export class StudioRepository {
             item.edgeQuantity,
             item.edgePriceCents,
             item.discountCents,
+            item.snapshot.accessoryCostCents,
+            item.snapshot.replacementBagCostCents,
             item.estimatedCostCents,
             timestamp,
             timestamp
@@ -887,85 +1064,35 @@ export class StudioRepository {
   }
 
   previewShift(input: ShiftInput, excludedShiftId?: string) {
-    const worker = this.database
-      .prepare('SELECT id, active FROM workers WHERE id = ?')
-      .get(input.workerId) as Row | undefined
+    const worker = this.database.prepare('SELECT id, active FROM workers WHERE id = ?').get(input.workerId) as Row | undefined
     if (!worker) throw new DomainValidationError('兼职人员不存在')
     if (Number(worker.active) !== 1) throw new DomainValidationError('兼职人员已停用，不能排班')
-    const existingWorkerShifts = this.database
-      .prepare(
-        `SELECT start_time, end_time FROM shifts
-        WHERE worker_id = ? AND shift_date = ? AND status NOT IN ('leave', 'absent', 'cancelled')
-        AND (? IS NULL OR id != ?)`
-      )
-      .all(
-        input.workerId,
-        input.shiftDate,
-        excludedShiftId ?? null,
-        excludedShiftId ?? null
-      ) as Row[]
-    const otherPlannedByProduct = this.database
-      .prepare(
-        `SELECT st.product_id, COALESCE(SUM(st.planned_quantity), 0) AS quantity
-        FROM shift_tasks st JOIN shifts s ON s.id = st.shift_id
-        WHERE s.shift_date = ? AND s.status NOT IN ('leave', 'absent', 'cancelled')
-        AND (? IS NULL OR s.id != ?)
-        GROUP BY st.product_id`
-      )
-      .all(input.shiftDate, excludedShiftId ?? null, excludedShiftId ?? null) as Row[]
-    const plannedByProduct = new Map(
-      otherPlannedByProduct.map((row) => [String(row.product_id), Number(row.quantity)])
-    )
+    const otherPlannedByProduct = this.database.prepare(
+      `SELECT st.product_id, COALESCE(SUM(st.planned_quantity), 0) AS quantity
+       FROM shift_tasks st JOIN shifts s ON s.id = st.shift_id
+       WHERE s.shift_date = ? AND s.status NOT IN ('leave', 'absent', 'cancelled')
+       AND (? IS NULL OR s.id != ?) GROUP BY st.product_id`
+    ).all(input.shiftDate, excludedShiftId ?? null, excludedShiftId ?? null) as Row[]
+    const plannedByProduct = new Map(otherPlannedByProduct.map((row) => [String(row.product_id), Number(row.quantity)]))
     const contexts = input.tasks.map((task) => {
-      const row = this.database
-        .prepare(
-          `SELECT oi.id AS order_item_id, oi.product_id, oi.quantity, oi.product_snapshot_json,
-          o.production_deadline, COALESCE(SUM(existing.qualified_quantity), 0) AS completed_quantity
-          FROM order_items oi JOIN orders o ON o.id = oi.order_id
-          LEFT JOIN shift_tasks existing ON existing.order_item_id = oi.id
-          WHERE oi.id = ? GROUP BY oi.id`
-        )
-        .get(task.orderItemId) as Row | undefined
+      const row = this.database.prepare(
+        `SELECT oi.id AS order_item_id, oi.product_id, oi.quantity, oi.product_snapshot_json, o.production_deadline,
+         COALESCE(SUM(existing.qualified_quantity), 0) AS completed_quantity
+         FROM order_items oi JOIN orders o ON o.id = oi.order_id
+         LEFT JOIN shift_tasks existing ON existing.order_item_id = oi.id
+         WHERE oi.id = ? GROUP BY oi.id`
+      ).get(task.orderItemId) as Row | undefined
       if (!row) throw new DomainValidationError('订单商品明细不存在')
       const snapshot = JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot
       const completedQuantity = Number(row.completed_quantity)
       const remainingQuantity = Number(row.quantity) - completedQuantity
-      if (task.plannedQuantity > remainingQuantity) {
-        throw new DomainValidationError(
-          `计划数量不能超过订单商品待制作数量（剩余 ${remainingQuantity} 件）`
-        )
-      }
+      if (task.plannedQuantity > remainingQuantity) throw new DomainValidationError(`计划数量不能超过订单商品待制作数量（剩余 ${remainingQuantity} 件）`)
       const otherQuantity = plannedByProduct.get(String(row.product_id)) ?? 0
       plannedByProduct.set(String(row.product_id), otherQuantity + task.plannedQuantity)
-      return {
-        productId: String(row.product_id),
-        orderItemId: String(row.order_item_id),
-        plannedQuantity: task.plannedQuantity,
-        standardMinutesPerUnit: snapshot.standardMinutesPerUnit,
-        completedQuantity,
-        dueDate: String(row.production_deadline),
-        dailyCapacity: calculateDailyCapacity({
-          moldCount: snapshot.moldCount,
-          outputPerMoldPerBatch: snapshot.outputPerMoldPerBatch,
-          maxBatchesPerDay: snapshot.maxBatchesPerDay
-        }),
-        otherPlannedQuantityForDay: otherQuantity
-      }
+      return { productId:String(row.product_id), orderItemId:String(row.order_item_id), plannedQuantity:task.plannedQuantity, standardMinutesPerUnit:snapshot.standardMinutesPerUnit, completedQuantity, dueDate:String(row.production_deadline), dailyCapacity:calculateDailyCapacity({ moldCount:snapshot.moldCount, outputPerMoldPerBatch:snapshot.outputPerMoldPerBatch, maxBatchesPerDay:snapshot.maxBatchesPerDay }), otherPlannedQuantityForDay:otherQuantity }
     })
-    try {
-      return previewShiftRisks({
-        date: input.shiftDate,
-        startTime: input.startTime,
-        endTime: input.endTime,
-        existingWorkerShifts: existingWorkerShifts.map((shift) => ({
-          startTime: String(shift.start_time),
-          endTime: String(shift.end_time)
-        })),
-        tasks: contexts
-      })
-    } catch (error) {
-      throw new DomainValidationError(error instanceof Error ? error.message : '排班风险预览失败')
-    }
+    try { return previewShiftRisks({ date: input.shiftDate, extraMinutes: input.extraMinutes ?? 0, tasks: contexts }) }
+    catch (error) { throw new DomainValidationError(error instanceof Error ? error.message : '排班风险预览失败') }
   }
 
   saveShift(input: ShiftInput): ShiftSummary {
@@ -976,16 +1103,15 @@ export class StudioRepository {
       this.database
         .prepare(
           `INSERT INTO shifts (
-            id, worker_id, shift_date, start_time, end_time, status, confirmed_risks_json, detected_risks_json,
+            id, worker_id, shift_date, start_time, end_time, extra_minutes, status, confirmed_risks_json, detected_risks_json,
             created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, NULL, NULL, ?, 'scheduled', ?, ?, ?, ?)`
         )
         .run(
           id,
           input.workerId,
           input.shiftDate,
-          input.startTime,
-          input.endTime,
+          input.extraMinutes ?? 0,
           JSON.stringify(input.confirmedWarningCodes ?? []),
           JSON.stringify(preview.risks),
           timestamp,
@@ -1004,7 +1130,7 @@ export class StudioRepository {
           task.orderItemId,
           context.productId,
           task.plannedQuantity,
-          Math.round(task.plannedQuantity * context.standardMinutesPerUnit),
+          Math.ceil(task.plannedQuantity * context.standardMinutesPerUnit),
           timestamp,
           timestamp
         )
@@ -1052,14 +1178,13 @@ export class StudioRepository {
     this.database.transaction(() => {
       this.database
         .prepare(
-          `UPDATE shifts SET worker_id = ?, shift_date = ?, start_time = ?, end_time = ?,
+          `UPDATE shifts SET worker_id = ?, shift_date = ?, extra_minutes = ?,
           confirmed_risks_json = ?, detected_risks_json = ?, updated_at = ? WHERE id = ?`
         )
         .run(
           input.workerId,
           input.shiftDate,
-          input.startTime,
-          input.endTime,
+          input.extraMinutes ?? 0,
           JSON.stringify(input.confirmedWarningCodes ?? []),
           JSON.stringify(preview.risks),
           timestamp,
@@ -1079,7 +1204,7 @@ export class StudioRepository {
           task.orderItemId,
           context.productId,
           task.plannedQuantity,
-          Math.round(task.plannedQuantity * context.standardMinutesPerUnit),
+          Math.ceil(task.plannedQuantity * context.standardMinutesPerUnit),
           timestamp,
           timestamp
         )
@@ -1099,8 +1224,7 @@ export class StudioRepository {
         {
           workerId: previous.workerId,
           shiftDate: previous.shiftDate,
-          startTime: previous.startTime,
-          endTime: previous.endTime,
+          extraMinutes: previous.extraMinutes,
           tasks: previous.tasks.map((task) => ({
             orderItemId: task.orderItemId,
             plannedQuantity: task.plannedQuantity
@@ -1109,8 +1233,7 @@ export class StudioRepository {
         {
           workerId: input.workerId,
           shiftDate: input.shiftDate,
-          startTime: input.startTime,
-          endTime: input.endTime,
+          extraMinutes: input.extraMinutes ?? 0,
           tasks: input.tasks
         },
         { risks: preview.risks, confirmedWarningCodes: input.confirmedWarningCodes ?? [] },
@@ -1227,18 +1350,17 @@ export class StudioRepository {
     if (!previous) return null
     const timestamp = now()
     this.database.transaction(() => {
-      this.database
-        .prepare('UPDATE shifts SET status = ?, updated_at = ? WHERE id = ?')
-        .run(input.status, timestamp, input.shiftId)
-      this.writeAudit(
-        'shift.status.updated',
-        'shift',
-        input.shiftId,
-        { status: previous.status },
-        { status: input.status },
-        { releasesUnfinishedQuantity: ['leave', 'absent', 'cancelled'].includes(input.status) },
-        timestamp
-      )
+      if (input.status === 'completed') {
+        const tasks = this.database.prepare('SELECT id FROM shift_tasks WHERE shift_id = ?').all(input.shiftId) as Row[]
+        const completions = input.taskCompletions ?? []
+        if (tasks.length !== completions.length || new Set(completions.map((item) => item.shiftTaskId)).size !== tasks.length || tasks.some((task) => !completions.some((item) => item.shiftTaskId === String(task.id)))) {
+          throw new DomainValidationError('标记已完成时必须填写每个任务的合格与不合格数量')
+        }
+        const updateTask = this.database.prepare('UPDATE shift_tasks SET qualified_quantity = ?, unqualified_quantity = ?, completed_quantity = ?, updated_at = ? WHERE id = ? AND shift_id = ?')
+        completions.forEach((item) => updateTask.run(item.qualifiedQuantity, item.unqualifiedQuantity, item.qualifiedQuantity + item.unqualifiedQuantity, timestamp, item.shiftTaskId, input.shiftId))
+      }
+      this.database.prepare('UPDATE shifts SET status = ?, updated_at = ? WHERE id = ?').run(input.status, timestamp, input.shiftId)
+      this.writeAudit('shift.status.updated', 'shift', input.shiftId, { status: previous.status }, { status: input.status, taskCompletions: input.status === 'completed' ? input.taskCompletions : undefined }, { releasesUnfinishedQuantity: ['leave', 'absent', 'cancelled'].includes(input.status) }, timestamp)
     })()
     return this.getShiftSummary(input.shiftId)
   }
@@ -1251,7 +1373,7 @@ export class StudioRepository {
         .prepare(
           `SELECT st.id, st.order_item_id, st.product_id, oi.order_id, o.code AS order_code,
           oi.product_snapshot_json, st.planned_quantity, st.estimated_minutes, st.actual_minutes,
-          st.qualified_quantity, st.rework_quantity, st.scrap_quantity, st.actual_labor_cost_cents,
+          st.qualified_quantity, st.unqualified_quantity, st.completed_quantity, st.rework_quantity, st.scrap_quantity, st.actual_labor_cost_cents,
           st.commission_cost_cents
           FROM shift_tasks st
           JOIN order_items oi ON oi.id = st.order_item_id
@@ -1274,8 +1396,11 @@ export class StudioRepository {
         orderCode: String(row.order_code),
         plannedQuantity,
         estimatedMinutes: Number(row.estimated_minutes),
+        baseMinutes: Number(row.estimated_minutes),
         actualMinutes: row.actual_minutes === null ? null : Number(row.actual_minutes),
+        completedQuantity: row.completed_quantity === null ? null : Number(row.completed_quantity),
         qualifiedQuantity,
+        unqualifiedQuantity: row.unqualified_quantity === null ? null : Number(row.unqualified_quantity),
         reworkQuantity,
         scrapQuantity,
         actualLaborCostCents: Number(row.actual_labor_cost_cents),
@@ -1312,8 +1437,8 @@ export class StudioRepository {
   private getShiftSummary(id: string): ShiftSummary | null {
     const row = this.database
       .prepare(
-        `SELECT s.id, s.worker_id, w.name AS worker_name, s.shift_date, s.start_time, s.end_time, s.status,
-        s.confirmed_risks_json, COUNT(st.id) AS task_count
+        `SELECT s.id, s.worker_id, w.name AS worker_name, s.shift_date, s.start_time, s.end_time, s.extra_minutes, s.status,
+        s.confirmed_risks_json, COUNT(st.id) AS task_count, COALESCE(SUM(st.estimated_minutes), 0) AS base_task_minutes
         FROM shifts s JOIN workers w ON w.id = s.worker_id LEFT JOIN shift_tasks st ON st.shift_id = s.id
         WHERE s.id = ? GROUP BY s.id`
       )
@@ -1324,8 +1449,11 @@ export class StudioRepository {
           workerId: String(row.worker_id),
           workerName: String(row.worker_name),
           shiftDate: String(row.shift_date),
-          startTime: String(row.start_time),
-          endTime: String(row.end_time),
+          startTime: (row.start_time as string | null) ?? null,
+          endTime: (row.end_time as string | null) ?? null,
+          baseTaskMinutes: Number(row.base_task_minutes),
+          extraMinutes: Number(row.extra_minutes),
+          totalMinutes: Number(row.base_task_minutes) + Number(row.extra_minutes),
           status: String(row.status),
           taskCount: Number(row.task_count),
           confirmedRisks: JSON.parse(String(row.confirmed_risks_json)) as string[]
@@ -1582,7 +1710,7 @@ export class StudioRepository {
       this.database
         .prepare(
           `SELECT s.id, s.worker_id, w.name AS worker_name, s.shift_date, s.start_time, s.end_time, s.status,
-          s.confirmed_risks_json, COUNT(DISTINCT st.id) AS task_count,
+          s.confirmed_risks_json, COUNT(DISTINCT st.id) AS task_count, s.extra_minutes, COALESCE(SUM(st.estimated_minutes), 0) AS base_task_minutes,
           COALESCE(SUM(st.actual_minutes), 0) AS actual_minutes,
           COALESCE(SUM(st.qualified_quantity), 0) AS qualified_quantity,
           COALESCE(SUM(st.commission_cost_cents), 0) AS commission_cost_cents
@@ -1598,8 +1726,11 @@ export class StudioRepository {
         workerId: String(row.worker_id),
         workerName: String(row.worker_name),
         shiftDate: String(row.shift_date),
-        startTime: String(row.start_time),
-        endTime: String(row.end_time),
+        startTime: (row.start_time as string | null) ?? null,
+        endTime: (row.end_time as string | null) ?? null,
+        baseTaskMinutes: Number(row.base_task_minutes),
+        extraMinutes: Number(row.extra_minutes),
+        totalMinutes: Number(row.base_task_minutes) + Number(row.extra_minutes),
         status: String(row.status),
         taskCount: Number(row.task_count),
         confirmedRisks: JSON.parse(String(row.confirmed_risks_json)) as string[],
@@ -1743,6 +1874,41 @@ export class StudioRepository {
     }
   }
 
+  queryMonthlyProductionWeight(query: MonthlyProductionWeightQuery): MonthlyProductionWeightReport {
+    const rows = this.database
+      .prepare(
+        `SELECT st.completed_quantity, st.qualified_quantity, st.unqualified_quantity, oi.product_snapshot_json
+        FROM shift_tasks st
+        JOIN shifts s ON s.id = st.shift_id
+        JOIN order_items oi ON oi.id = st.order_item_id
+        WHERE s.status = 'completed'
+          AND st.completed_quantity IS NOT NULL
+          AND st.qualified_quantity IS NOT NULL
+          AND st.unqualified_quantity IS NOT NULL
+          AND st.completed_quantity = st.qualified_quantity + st.unqualified_quantity
+          AND substr(s.shift_date, 1, 7) = ?`
+      )
+      .all(query.month) as Row[]
+    const totals = rows.reduce(
+      (result, row) => {
+        const snapshot = JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot
+        const completedQuantity = Number(row.completed_quantity ?? 0)
+        return {
+          completedQuantity: result.completedQuantity + completedQuantity,
+          qualifiedQuantity: result.qualifiedQuantity + Number(row.qualified_quantity ?? 0),
+          unqualifiedQuantity: result.unqualifiedQuantity + Number(row.unqualified_quantity ?? 0),
+          totalWeightGrams: result.totalWeightGrams + completedQuantity * Number(snapshot.weightGrams)
+        }
+      },
+      { completedQuantity: 0, qualifiedQuantity: 0, unqualifiedQuantity: 0, totalWeightGrams: 0 }
+    )
+    return {
+      month: query.month,
+      ...totals,
+      totalWeightKilograms: Number((totals.totalWeightGrams / 1000).toFixed(3))
+    }
+  }
+
   queryCapacityRiskReport(query: CapacityRiskReportQuery): CapacityRiskReport {
     const settings = this.getCostSettings()
     const productRows = this.database
@@ -1857,10 +2023,10 @@ export class StudioRepository {
     return (
       this.database
         .prepare(
-          `SELECT s.id, s.worker_id, w.name AS worker_name, s.shift_date, s.start_time, s.end_time, s.status,
-          s.confirmed_risks_json, COUNT(st.id) AS task_count
+          `SELECT s.id, s.worker_id, w.name AS worker_name, s.shift_date, s.start_time, s.end_time, s.extra_minutes, s.status,
+          s.confirmed_risks_json, COUNT(st.id) AS task_count, COALESCE(SUM(st.estimated_minutes), 0) AS base_task_minutes
           FROM shifts s JOIN workers w ON w.id = s.worker_id LEFT JOIN shift_tasks st ON st.shift_id = s.id
-          WHERE s.shift_date BETWEEN ? AND ? GROUP BY s.id ORDER BY s.shift_date, s.start_time`
+          WHERE s.shift_date BETWEEN ? AND ? GROUP BY s.id ORDER BY s.shift_date, s.id`
         )
         .all(from, to) as Row[]
     ).map((row) => ({
@@ -1868,8 +2034,11 @@ export class StudioRepository {
       workerId: String(row.worker_id),
       workerName: String(row.worker_name),
       shiftDate: String(row.shift_date),
-      startTime: String(row.start_time),
-      endTime: String(row.end_time),
+      startTime: (row.start_time as string | null) ?? null,
+      endTime: (row.end_time as string | null) ?? null,
+      baseTaskMinutes: Number(row.base_task_minutes),
+      extraMinutes: Number(row.extra_minutes),
+      totalMinutes: Number(row.base_task_minutes) + Number(row.extra_minutes),
       status: String(row.status),
       taskCount: Number(row.task_count),
       confirmedRisks: JSON.parse(String(row.confirmed_risks_json)) as string[]

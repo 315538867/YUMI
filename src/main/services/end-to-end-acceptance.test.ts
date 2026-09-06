@@ -78,12 +78,12 @@ describe('端到端验收流程', () => {
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 4 }]
     }
     const preview = service.previewShift(shiftInput)
-    expect(preview.risks.map((risk) => risk.code)).toContain('SHIFT_UNDER_CAPACITY')
+    expect(preview.risks).toEqual([])
     const shift = service.saveShift({
       ...shiftInput,
       confirmedWarningCodes: preview.risks.map((risk) => risk.code)
     })
-    expect(shift.confirmedRisks).toContain('SHIFT_UNDER_CAPACITY')
+    expect(shift.confirmedRisks).toEqual([])
 
     const production = service.recordProduction({
       shiftTaskId: service.getShiftDetail(shift.id)!.tasks[0]!.id,
@@ -93,7 +93,11 @@ describe('端到端验收流程', () => {
       scrapQuantity: 0
     })
     expect(production).toMatchObject({ actualLaborCostCents: 6000, commissionCostCents: 1200 })
-    service.updateShiftStatus({ shiftId: shift.id, status: 'completed' })
+    service.updateShiftStatus({
+      shiftId: shift.id,
+      status: 'completed',
+      taskCompletions: [{ shiftTaskId: service.getShiftDetail(shift.id)!.tasks[0]!.id, qualifiedQuantity: 4, unqualifiedQuantity: 0 }]
+    })
 
     expect(
       service.queryOrderProfitReport({

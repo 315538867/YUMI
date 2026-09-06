@@ -35,7 +35,10 @@ import type {
   OrderSummary,
   OrderUpdateInput,
   OrderProfitReport,
+  OrderShipmentSummary,
+  ShipmentDetail,
   ProductCostPreview,
+  ProductCreateInput,
   ProductDetail,
   ProductSummary,
   ProductUpdateInput,
@@ -48,6 +51,7 @@ import type {
   WorkerDetail,
   WorkerSettlementReport,
   CapacityRiskReport,
+  MonthlyProductionWeightReport,
   WorkerSummary,
   WorkerUpdateInput
 } from '@shared/contracts'
@@ -612,7 +616,7 @@ function Workers({
         </Table.Body>
       </Table.Root>
       {workers.length === 0 && (
-        <Empty text="还没有兼职人员。创建人员后，可以在日历中直接安排最终上班时间段。" />
+        <Empty text="还没有兼职人员。创建人员后，可以按任务时长安排本次排班。" />
       )}
       <WorkerInspector
         workerId={inspectingWorkerId}
@@ -877,7 +881,7 @@ function WorkerInspector({
               <Table.Root variant="surface">
                 <Table.Header>
                   <Table.Row>
-                    <Table.ColumnHeaderCell>日期 / 时间</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>日期 / 排班时长</Table.ColumnHeaderCell>
                     <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
                     <Table.ColumnHeaderCell>任务</Table.ColumnHeaderCell>
                     <Table.ColumnHeaderCell>实际工时</Table.ColumnHeaderCell>
@@ -891,7 +895,7 @@ function WorkerInspector({
                       <Table.Cell>
                         <Text weight="medium">{shift.shiftDate}</Text>
                         <Text as="div" size="1" color="gray">
-                          {shift.startTime} – {shift.endTime}
+                          基础 {shift.baseTaskMinutes} 分钟 · 额外 {shift.extraMinutes} 分钟 · 最终 {shift.totalMinutes} 分钟
                         </Text>
                       </Table.Cell>
                       <Table.Cell>
@@ -1005,7 +1009,7 @@ function Schedule({
         <div>
           <Heading size="4">{viewMode === 'week' ? '周历排班' : '月度产能风险'}</Heading>
           <Text size="2" color="gray">
-            直接为人员创建最终上班时间段；保存前检查重叠、工时、模具日产能和交期风险。
+            以任务时长安排本次排班；系统计算任务基础、额外预留和最终总时长，并提示模具日产能与交期风险。
           </Text>
         </div>
         <Flex gap="2" align="center">
@@ -1080,7 +1084,7 @@ function Schedule({
           {workers.length === 0 ? (
             <div className="calendar-empty">
               <CalendarDays size={24} />
-              <Text>创建兼职人员后，即可在此按日期与时间段安排上班。</Text>
+              <Text>创建兼职人员后，即可在此按日期安排制作任务。</Text>
             </div>
           ) : (
             workers.map((worker) => (
@@ -1094,7 +1098,7 @@ function Schedule({
                 {weekDates.map((date) => {
                   const cellShifts = shifts
                     .filter((shift) => shift.workerId === worker.id && shift.shiftDate === date)
-                    .sort((left, right) => left.startTime.localeCompare(right.startTime))
+                    .sort((left, right) => left.id.localeCompare(right.id))
                   return (
                     <div className="slot" key={date}>
                       {cellShifts.map((shift) => (
@@ -1105,9 +1109,9 @@ function Schedule({
                           title="打开排班详情"
                           type="button"
                         >
-                          {shift.startTime}–{shift.endTime}
+                          最终 {shift.totalMinutes} 分钟
                           <small>
-                            {shift.taskCount} 项任务 · {shiftStatusLabel(shift.status)}
+                            基础 {shift.baseTaskMinutes} + 额外 {shift.extraMinutes} · {shift.taskCount} 项 · {shiftStatusLabel(shift.status)}
                           </small>
                         </button>
                       ))}
@@ -1117,7 +1121,7 @@ function Schedule({
                             cellShifts.length === 0 ? 'slot-add-button empty' : 'slot-add-button'
                           }
                           onClick={() => setTarget({ worker, date })}
-                          title="创建该日期的最终上班排班"
+                          title="创建该日期的排班"
                           type="button"
                         >
                           {cellShifts.length === 0 ? '＋' : '＋ 添加'}
@@ -1264,16 +1268,19 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
   const [toDate, setToDate] = useState(format(endOfMonth(today), 'yyyy-MM-dd'))
   const [productionStatus, setProductionStatus] = useState<ProductionStatus | 'all'>('all')
   const [outstandingOnly, setOutstandingOnly] = useState(false)
-  const [reportType, setReportType] = useState<'orders' | 'workers' | 'capacity'>('orders')
+  const [reportType, setReportType] = useState<'orders' | 'workers' | 'capacity' | 'production'>('orders')
+  const [month, setMonth] = useState(format(today, 'yyyy-MM'))
   const [report, setReport] = useState<OrderProfitReport | null>(null)
   const [workerReport, setWorkerReport] = useState<WorkerSettlementReport | null>(null)
   const [capacityReport, setCapacityReport] = useState<CapacityRiskReport | null>(null)
+  const [productionReport, setProductionReport] = useState<MonthlyProductionWeightReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
 
   const exportCurrentReport = async () => {
     setError('')
+    if (reportType === 'production') return
     try {
       const result = await window.yumi.reports.export({
         kind: reportType,
@@ -1295,6 +1302,7 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
     setReport(null)
     setWorkerReport(null)
     setCapacityReport(null)
+    setProductionReport(null)
     const request =
       reportType === 'orders'
         ? window.yumi.reports.orderProfit({
@@ -1305,13 +1313,16 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
           })
         : reportType === 'workers'
           ? window.yumi.reports.workerSettlement({ fromDate, toDate })
-          : window.yumi.reports.capacityRisk({ fromDate, toDate })
+          : reportType === 'capacity'
+            ? window.yumi.reports.capacityRisk({ fromDate, toDate })
+            : window.yumi.reports.monthlyProductionWeight({ month })
     void request
       .then((data) => {
         if (!active) return
         if (reportType === 'orders') setReport(data as OrderProfitReport)
         else if (reportType === 'workers') setWorkerReport(data as WorkerSettlementReport)
-        else setCapacityReport(data as CapacityRiskReport)
+        else if (reportType === 'capacity') setCapacityReport(data as CapacityRiskReport)
+        else setProductionReport(data as MonthlyProductionWeightReport)
       })
       .catch((reason: unknown) => {
         if (active) setError(getErrorMessage(reason, '报表读取失败，请重试。'))
@@ -1322,7 +1333,7 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
     return () => {
       active = false
     }
-  }, [fromDate, toDate, productionStatus, outstandingOnly, refreshKey, reportType])
+  }, [fromDate, toDate, month, productionStatus, outstandingOnly, refreshKey, reportType])
 
   return (
     <>
@@ -1340,14 +1351,18 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
                 ? '订单资金与利润'
                 : reportType === 'workers'
                   ? '兼职人员结算'
-                  : '商品成本与产能'}
+                  : reportType === 'capacity'
+                    ? '商品成本与产能'
+                    : '月度完成制作重量'}
             </Heading>
             <Text size="2" color="gray">
               {reportType === 'orders'
                 ? '按预计发货日期查看应收、成本与利润，成本取订单创建时的商品与系统成本快照。'
                 : reportType === 'workers'
                   ? '按排班日期汇总实际工时、合格完成数量、时薪成本、按件提成与缺勤。'
-                  : '查看商品单位成本、日期计划产能，并识别未完成订单的交期风险。'}
+                  : reportType === 'capacity'
+                    ? '查看商品单位成本、日期计划产能，并识别未完成订单的交期风险。'
+                    : '按已完成排班的实际完成数量和订单商品重量快照汇总；合格与不合格均计入实际完成。'}
             </Text>
           </div>
           <Flex gap="2" align="center">
@@ -1379,8 +1394,17 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
               >
                 产能风险
               </button>
+              <button
+                className={reportType === 'production' ? 'report-tab active' : 'report-tab'}
+                onClick={() => setReportType('production')}
+                role="tab"
+                aria-selected={reportType === 'production'}
+                type="button"
+              >
+                月度制作
+              </button>
             </div>
-            <Button variant="soft" onClick={() => void exportCurrentReport()} disabled={loading}>
+            <Button variant="soft" onClick={() => void exportCurrentReport()} disabled={loading || reportType === 'production'}>
               导出 XLSX
             </Button>
             <Button
@@ -1393,6 +1417,12 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
           </Flex>
         </Flex>
         <div className="report-filters" aria-label="报表筛选条件">
+          {reportType === 'production' ? (
+            <label>
+              <Text as="span" size="1" color="gray">统计月份</Text>
+              <input className="report-control" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+            </label>
+          ) : <>
           <label>
             <Text as="span" size="1" color="gray">
               {reportType === 'orders' ? '发货日期从' : '日期从'}
@@ -1446,6 +1476,7 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
               <Text size="2">只看待收订单</Text>
             </label>
           )}
+          </>}
         </div>
         {loading ? (
           <div className="state-message">
@@ -1458,6 +1489,16 @@ function Reports({ dashboard }: { dashboard: DashboardSummary }) {
               重试
             </Button>
           </div>
+        ) : reportType === 'production' ? (
+          !productionReport ? null : (
+            <div className="report-totals monthly-production-totals" aria-label="月度完成制作重量汇总">
+              <Stat label="实际完成" value={`${productionReport.completedQuantity} 个`} />
+              <Stat label="合格数量" value={`${productionReport.qualifiedQuantity} 个`} />
+              <Stat label="不合格数量" value={`${productionReport.unqualifiedQuantity} 个`} tone="warning" />
+              <Stat label="完成重量" value={`${productionReport.totalWeightGrams} g`} />
+              <Stat label="完成重量（kg）" value={`${productionReport.totalWeightKilograms} kg`} />
+            </div>
+          )
         ) : reportType === 'orders' ? (
           !report || report.rows.length === 0 ? (
             <div className="state-message" role="status">
@@ -1987,74 +2028,224 @@ function ProductDialog({
   onOpenChange(value: boolean): void
   onDone(): Promise<void>
 }) {
-  const [name, setName] = useState('')
-  const [price, setPrice] = useState('')
+  const emptyForm = () => ({
+    name: '',
+    code: '',
+    category: '',
+    basePrice: '',
+    edgePrice: '0',
+    weight: '0',
+    lossRate: '0',
+    standardMinutes: '0',
+    packagingCost: '0',
+    accessoryCost: '0',
+    replacementBagCost: '0',
+    commission: '0',
+    moldCount: '1',
+    outputPerMoldPerBatch: '1',
+    maxBatchesPerDay: '1',
+    notes: ''
+  })
+  const [form, setForm] = useState(emptyForm)
+  const [preview, setPreview] = useState<ProductCostPreview | null>(null)
   const [saving, setSaving] = useState(false)
+  const [calculating, setCalculating] = useState(false)
+  const [error, setError] = useState('')
+
+  const patchForm = (patch: Partial<typeof form>) => {
+    setForm((current) => ({ ...current, ...patch }))
+    setPreview(null)
+  }
+
+  const buildInput = (): ProductCreateInput => {
+    const numberValue = (value: string, label: string, options?: { integer?: boolean; positive?: boolean }) => {
+      const parsed = Number(value || 0)
+      if (!Number.isFinite(parsed) || parsed < 0 || (options?.integer && !Number.isInteger(parsed))) {
+        throw new Error(`${label}必须是非负${options?.integer ? '整数' : '数值'}。`)
+      }
+      if (options?.positive && parsed <= 0) throw new Error(`${label}必须大于 0。`)
+      return parsed
+    }
+    if (!form.name.trim()) throw new Error('商品名称不能为空。')
+    const cents = (value: string, label: string) =>
+      Math.round(numberValue(value, label) * 100)
+    const lossRate = numberValue(form.lossRate, '损耗率')
+    if (lossRate >= 100) throw new Error('损耗率必须小于 100%。')
+    return {
+      name: form.name.trim(),
+      code: form.code.trim() || null,
+      category: form.category.trim() || null,
+      basePriceCents: cents(form.basePrice, '基础售价'),
+      edgePriceCents: cents(form.edgePrice, '缝边收费'),
+      weightGrams: numberValue(form.weight, '单件重量'),
+      lossRate: lossRate / 100,
+      standardMinutesPerUnit: numberValue(form.standardMinutes, '标准制作时长'),
+      packagingCostCents: cents(form.packagingCost, '包装成本'),
+      accessoryCostCents: cents(form.accessoryCost, '配件费'),
+      replacementBagCostCents: cents(form.replacementBagCost, '替换袋费用'),
+      commissionCentsPerUnit: cents(form.commission, '固定提成'),
+      moldCount: numberValue(form.moldCount, '模具数量', { integer: true, positive: true }),
+      outputPerMoldPerBatch: numberValue(form.outputPerMoldPerBatch, '每模每批产出', {
+        integer: true,
+        positive: true
+      }),
+      maxBatchesPerDay: numberValue(form.maxBatchesPerDay, '每日批次数', {
+        integer: true,
+        positive: true
+      }),
+      notes: form.notes.trim() || null
+    }
+  }
+
+  const previewCost = async () => {
+    setCalculating(true)
+    setError('')
+    try {
+      const input = buildInput()
+      setPreview(
+        await window.yumi.products.previewCost({
+          ...input,
+          quantity: 1,
+          hourlyLaborCostCents: 0,
+          edgeEnabled: false,
+          edgeQuantity: 0
+        })
+      )
+    } catch (reason) {
+      setError(getErrorMessage(reason, '成本预览失败。'))
+    } finally {
+      setCalculating(false)
+    }
+  }
+
   const submit = async () => {
     setSaving(true)
-    await window.yumi.products.create({
-      name,
-      basePriceCents: Math.round(Number(price) * 100) || 0,
-      edgePriceCents: 0,
-      weightGrams: 0,
-      lossRate: 0,
-      standardMinutesPerUnit: 0,
-      packagingCostCents: 0,
-      commissionCentsPerUnit: 0,
-      moldCount: 1,
-      outputPerMoldPerBatch: 1,
-      maxBatchesPerDay: 1
-    })
-    await onDone()
-    setSaving(false)
-    onOpenChange(false)
-    setName('')
-    setPrice('')
+    setError('')
+    try {
+      await window.yumi.products.create(buildInput())
+      await onDone()
+      onOpenChange(false)
+      setForm(emptyForm())
+      setPreview(null)
+    } catch (reason) {
+      setError(getErrorMessage(reason, '商品保存失败。'))
+    } finally {
+      setSaving(false)
+    }
   }
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content maxWidth="440px">
+      <Dialog.Content maxWidth="920px" className="wide-dialog">
         <Dialog.Title>新建商品</Dialog.Title>
         <Dialog.Description size="2" mb="4">
-          先建立基础资料；完整成本和模具参数可在商品详情维护。
+          在同一张表单完成商品资料、制作参数和费用设置；所有费用为空时按 0 处理。
         </Dialog.Description>
-        <Flex direction="column" gap="3">
-          <label>
-            <Text as="div" size="2" mb="1">
-              商品名称
-            </Text>
-            <TextField.Root
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例如：奶油小熊"
-            />
-          </label>
-          <label>
-            <Text as="div" size="2" mb="1">
-              基础售价（元）
-            </Text>
-            <TextField.Root
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              inputMode="decimal"
-              placeholder="0.00"
-            />
-          </label>
-        </Flex>
+        <div className="inspector-content">
+          <section className="form-section">
+            <Text weight="medium">商品基础资料</Text>
+            <div className="field-grid three">
+              <label>
+                <Text as="div" size="2" mb="1">商品名称</Text>
+                <TextField.Root value={form.name} onChange={(event) => patchForm({ name: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">商品编码</Text>
+                <TextField.Root value={form.code} onChange={(event) => patchForm({ code: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">分类</Text>
+                <TextField.Root value={form.category} onChange={(event) => patchForm({ category: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">基础售价（元/个）</Text>
+                <TextField.Root type="number" min="0" step="0.01" value={form.basePrice} onChange={(event) => patchForm({ basePrice: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">缝边收费（元/个）</Text>
+                <TextField.Root type="number" min="0" step="0.01" value={form.edgePrice} onChange={(event) => patchForm({ edgePrice: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">单件重量（克）</Text>
+                <TextField.Root type="number" min="0" step="0.01" value={form.weight} onChange={(event) => patchForm({ weight: event.target.value })} />
+              </label>
+            </div>
+          </section>
+          <section className="form-section">
+            <Text weight="medium">制作参数与费用</Text>
+            <div className="field-grid three">
+              <label>
+                <Text as="div" size="2" mb="1">标准制作时长（分钟/个）</Text>
+                <TextField.Root type="number" min="0" step="0.01" value={form.standardMinutes} onChange={(event) => patchForm({ standardMinutes: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">损耗率（%）</Text>
+                <TextField.Root type="number" min="0" max="99.99" step="0.01" value={form.lossRate} onChange={(event) => patchForm({ lossRate: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">包装成本（元/个）</Text>
+                <TextField.Root type="number" min="0" step="0.01" value={form.packagingCost} onChange={(event) => patchForm({ packagingCost: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">配件费（元/个）</Text>
+                <TextField.Root type="number" min="0" step="0.01" value={form.accessoryCost} onChange={(event) => patchForm({ accessoryCost: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">替换袋费用（元/个）</Text>
+                <TextField.Root type="number" min="0" step="0.01" value={form.replacementBagCost} onChange={(event) => patchForm({ replacementBagCost: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">固定提成（元/合格个）</Text>
+                <TextField.Root type="number" min="0" step="0.01" value={form.commission} onChange={(event) => patchForm({ commission: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">模具数量</Text>
+                <TextField.Root type="number" min="1" step="1" value={form.moldCount} onChange={(event) => patchForm({ moldCount: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">每模每批产出</Text>
+                <TextField.Root type="number" min="1" step="1" value={form.outputPerMoldPerBatch} onChange={(event) => patchForm({ outputPerMoldPerBatch: event.target.value })} />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">每日批次数</Text>
+                <TextField.Root type="number" min="1" step="1" value={form.maxBatchesPerDay} onChange={(event) => patchForm({ maxBatchesPerDay: event.target.value })} />
+              </label>
+            </div>
+            <label className="notes-field">
+              <Text as="div" size="2" mb="1">备注</Text>
+              <textarea value={form.notes} onChange={(event) => patchForm({ notes: event.target.value })} />
+            </label>
+          </section>
+          <section className="form-section cost-preview-panel">
+            <Flex align="center" justify="between">
+              <div>
+                <Text weight="medium">单件成本预览</Text>
+                <Text as="div" size="1" color="gray">按当前填写的数据计算；人工时薪暂按 0 元。</Text>
+              </div>
+              <Button size="1" variant="soft" disabled={calculating} onClick={() => void previewCost()}>
+                {calculating ? '计算中…' : '预览单件成本'}
+              </Button>
+            </Flex>
+            {preview && (
+              <div className="cost-preview-grid">
+                <div><Text as="div" size="1" color="gray">包装成本</Text><Text weight="medium">{money(preview.packagingCostCents)}</Text></div>
+                <div><Text as="div" size="1" color="gray">配件费</Text><Text weight="medium">{money(preview.accessoryCostCents)}</Text></div>
+                <div><Text as="div" size="1" color="gray">替换袋费用</Text><Text weight="medium">{money(preview.replacementBagCostCents)}</Text></div>
+                <div><Text as="div" size="1" color="gray">预计直接成本</Text><Text weight="medium">{money(preview.totalCostCents)}</Text></div>
+              </div>
+            )}
+          </section>
+        </div>
+        {error && <Text as="div" color="red" size="2" mt="3">{error}</Text>}
         <Flex gap="3" mt="5" justify="end">
-          <Dialog.Close>
-            <Button variant="soft" color="gray">
-              取消
-            </Button>
-          </Dialog.Close>
-          <Button disabled={!name || saving} onClick={() => void submit()}>
-            {saving ? '保存中…' : '保存商品'}
-          </Button>
+          <Dialog.Close><Button variant="soft" color="gray">取消</Button></Dialog.Close>
+          <Button disabled={saving} onClick={() => void submit()}>{saving ? '保存中…' : '保存商品资料'}</Button>
         </Flex>
       </Dialog.Content>
     </Dialog.Root>
   )
 }
+
 function WorkerDialog({
   open,
   onOpenChange,
@@ -2294,6 +2485,11 @@ function OrderDialog({
     setAddress(customer.defaultAddress ?? '')
   }
 
+  const selectedCustomer = customers.find((item) => item.id === customerId)
+  const copyCustomerAddress = () => {
+    if (selectedCustomer?.defaultAddress) setAddress(selectedCustomer.defaultAddress)
+  }
+
   const updateLine = (id: string, patch: Partial<OrderDraftLine>) => {
     setLines((current) => current.map((line) => (line.id === id ? { ...line, ...patch } : line)))
   }
@@ -2442,9 +2638,14 @@ function OrderDialog({
                 />
               </label>
               <label className="span-two">
-                <Text as="div" size="2" mb="1">
-                  常用地址
-                </Text>
+                <Flex align="center" justify="between" mb="1">
+                  <Text size="2">收货地址</Text>
+                  {selectedCustomer?.defaultAddress && (
+                    <Button size="1" variant="ghost" type="button" onClick={copyCustomerAddress}>
+                      复制客户收货地址
+                    </Button>
+                  )}
+                </Flex>
                 <TextField.Root
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
@@ -2655,6 +2856,15 @@ function OrderInspector({
   const [selectingReceipt, setSelectingReceipt] = useState(false)
   const [savingPayment, setSavingPayment] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [shipmentSummary, setShipmentSummary] = useState<OrderShipmentSummary[]>([])
+  const [shipments, setShipments] = useState<ShipmentDetail[]>([])
+  const [shipmentDate, setShipmentDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [shipmentNotes, setShipmentNotes] = useState('')
+  const [shipmentQuantities, setShipmentQuantities] = useState<Record<string, string>>({})
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null)
+  const [savingShipment, setSavingShipment] = useState(false)
+  const [exportShipmentId, setExportShipmentId] = useState('')
+  const [exportingWorkbook, setExportingWorkbook] = useState(false)
 
   useEffect(() => {
     if (!orderId) {
@@ -2665,9 +2875,20 @@ function OrderInspector({
       setLoading(true)
       setError('')
       try {
-        const detail = await window.yumi.orders.get(orderId)
+        const [detail, summary, records] = await Promise.all([
+          window.yumi.orders.get(orderId),
+          window.yumi.orders.shipmentSummary(orderId),
+          window.yumi.orders.listShipments(orderId)
+        ])
         if (!detail) setError('订单不存在或已被删除。')
         setOrder(detail)
+        setShipmentSummary(summary)
+        setShipments(records)
+        setEditingShipmentId(null)
+        setShipmentQuantities({})
+        setShipmentNotes('')
+        setShipmentDate(format(new Date(), 'yyyy-MM-dd'))
+        setExportShipmentId('')
       } catch (reason) {
         setError(getErrorMessage(reason, '订单详情读取失败。'))
       } finally {
@@ -2729,6 +2950,94 @@ function OrderInspector({
   const handleOpenChange = (open: boolean) => {
     if (!open) void clearPendingReceipt()
     onOpenChange(open)
+  }
+
+  const reloadShipmentData = async (activeOrderId: string) => {
+    const [summary, records] = await Promise.all([
+      window.yumi.orders.shipmentSummary(activeOrderId),
+      window.yumi.orders.listShipments(activeOrderId)
+    ])
+    setShipmentSummary(summary)
+    setShipments(records)
+  }
+
+  const resetShipmentDraft = () => {
+    setEditingShipmentId(null)
+    setShipmentDate(format(new Date(), 'yyyy-MM-dd'))
+    setShipmentNotes('')
+    setShipmentQuantities({})
+  }
+
+  const editShipment = (shipment: ShipmentDetail) => {
+    setEditingShipmentId(shipment.id)
+    setShipmentDate(shipment.shippedAt)
+    setShipmentNotes(shipment.notes ?? '')
+    setShipmentQuantities(
+      Object.fromEntries(shipment.items.map((item) => [item.orderItemId, String(item.shipmentQuantity)]))
+    )
+  }
+
+  const saveShipment = async () => {
+    if (!order) return
+    const quantities = order.items.map((item) => ({
+      orderItemId: item.id,
+      rawQuantity: shipmentQuantities[item.id] ?? ''
+    }))
+    if (quantities.some((item) => item.rawQuantity && !/^\d+$/.test(item.rawQuantity))) {
+      setError('本次发货数量必须是非负整数。')
+      return
+    }
+    const items = quantities
+      .map((item) => ({ orderItemId: item.orderItemId, quantity: Number(item.rawQuantity || 0) }))
+      .filter((item) => item.quantity > 0)
+    if (items.length === 0) {
+      setError('请至少填写一项本次发货数量。')
+      return
+    }
+    setSavingShipment(true)
+    setError('')
+    try {
+      if (editingShipmentId) {
+        await window.yumi.orders.updateShipment({
+          id: editingShipmentId,
+          orderId: order.id,
+          shippedAt: shipmentDate,
+          notes: shipmentNotes.trim() || null,
+          items
+        })
+      } else {
+        await window.yumi.orders.createShipment({
+          orderId: order.id,
+          shippedAt: shipmentDate,
+          notes: shipmentNotes.trim() || null,
+          items
+        })
+      }
+      await reloadShipmentData(order.id)
+      await onChanged()
+      resetShipmentDraft()
+    } catch (reason) {
+      setError(getErrorMessage(reason, '发货记录保存失败。'))
+    } finally {
+      setSavingShipment(false)
+    }
+  }
+
+  const exportWorkbook = async () => {
+    if (!order) return
+    setExportingWorkbook(true)
+    setError('')
+    try {
+      const result = await window.yumi.orders.exportWorkbook({
+        orderId: order.id,
+        shipmentId: exportShipmentId || undefined
+      })
+      if (!result.savedPath) setError('已取消保存订单工作簿。')
+    } catch (reason) {
+      setError(getErrorMessage(reason, '订单工作簿导出失败。'))
+    } finally {
+      setExportingWorkbook(false)
+    }
   }
 
   return (
@@ -2808,6 +3117,124 @@ function OrderInspector({
                   </div>
                 ))}
               </div>
+            </section>
+            <section className="inspector-section shipment-section">
+              <Flex justify="between" align="center">
+                <div>
+                  <Text weight="medium">发货清单</Text>
+                  <Text as="div" size="1" color="gray">
+                    每次发货由用户填写本次数量；系统自动汇总累计已发和待发数量。
+                  </Text>
+                </div>
+                <Badge variant="soft">{shipments.length} 批</Badge>
+              </Flex>
+              <div className="shipment-summary-list">
+                {order.items.map((item) => {
+                  const summary = shipmentSummary.find((entry) => entry.orderItemId === item.id)
+                  return (
+                    <div className="shipment-summary-row" key={item.id}>
+                      <Text weight="medium">{item.productSnapshot.name}</Text>
+                      <Text size="2" color="gray">
+                        订购 {summary?.orderedQuantity ?? item.quantity} · 累计已发{' '}
+                        {summary?.shippedQuantity ?? 0} · 待发 {summary?.pendingQuantity ?? item.quantity}
+                      </Text>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="shipment-entry-form">
+                <div className="shipment-quantity-grid">
+                  {order.items.map((item) => (
+                    <label key={item.id}>
+                      <Text as="div" size="1" color="gray" mb="1">
+                        {item.productSnapshot.name} · 本次发货数量
+                      </Text>
+                      <TextField.Root
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={shipmentQuantities[item.id] ?? ''}
+                        onChange={(event) =>
+                          setShipmentQuantities((current) => ({
+                            ...current,
+                            [item.id]: event.target.value
+                          }))
+                        }
+                        placeholder="0"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="shipment-meta-grid">
+                  <label>
+                    <Text as="div" size="1" color="gray" mb="1">
+                      发货日期
+                    </Text>
+                    <TextField.Root
+                      type="date"
+                      value={shipmentDate}
+                      onChange={(event) => setShipmentDate(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <Text as="div" size="1" color="gray" mb="1">
+                      发货备注
+                    </Text>
+                    <TextField.Root
+                      value={shipmentNotes}
+                      onChange={(event) => setShipmentNotes(event.target.value)}
+                      placeholder="可选"
+                    />
+                  </label>
+                  <Flex gap="2" align="end" justify="end">
+                    {editingShipmentId && (
+                      <Button size="1" variant="soft" color="gray" onClick={resetShipmentDraft}>
+                        取消编辑
+                      </Button>
+                    )}
+                    <Button size="1" disabled={savingShipment} onClick={() => void saveShipment()}>
+                      {savingShipment ? '保存中…' : editingShipmentId ? '保存发货修正' : '保存本次发货'}
+                    </Button>
+                  </Flex>
+                </div>
+              </div>
+              {shipments.length > 0 && (
+                <div className="shipment-records">
+                  {shipments.map((shipment) => (
+                    <div className="shipment-record" key={shipment.id}>
+                      <div>
+                        <Text weight="medium">{shipment.shippedAt}</Text>
+                        <Text as="div" size="1" color="gray">
+                          {shipment.items
+                            .map((item) => `${item.productName} ${item.shipmentQuantity} 件`)
+                            .join('；')}
+                          {shipment.notes ? ` · ${shipment.notes}` : ''}
+                        </Text>
+                      </div>
+                      <Button size="1" variant="soft" onClick={() => editShipment(shipment)}>
+                        编辑
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Flex gap="2" align="center" justify="end">
+                <select
+                  className="desktop-select shipment-export-choice"
+                  value={exportShipmentId}
+                  onChange={(event) => setExportShipmentId(event.target.value)}
+                >
+                  <option value="">导出累计发货清单（不含本次）</option>
+                  {shipments.map((shipment) => (
+                    <option key={shipment.id} value={shipment.id}>
+                      导出 {shipment.shippedAt} 这次发货
+                    </option>
+                  ))}
+                </select>
+                <Button size="1" variant="soft" disabled={exportingWorkbook} onClick={() => void exportWorkbook()}>
+                  {exportingWorkbook ? '导出中…' : '生成订单表和发货清单'}
+                </Button>
+              </Flex>
             </section>
             <section className="inspector-section payment-section">
               <Flex justify="between" align="center">
@@ -2955,8 +3382,7 @@ function ShiftDialog({
   onDone(): Promise<void>
 }) {
   const [items, setItems] = useState<SchedulableOrderItem[]>([])
-  const [startTime, setStartTime] = useState('09:00')
-  const [endTime, setEndTime] = useState('18:00')
+  const [extraMinutes, setExtraMinutes] = useState('0')
   const [tasks, setTasks] = useState<ShiftDraftTask[]>([])
   const [preview, setPreview] = useState<ShiftPreviewResult | null>(null)
   const [loadingItems, setLoadingItems] = useState(false)
@@ -2970,8 +3396,7 @@ function ShiftDialog({
       setPreview(null)
       return
     }
-    setStartTime(activeShift?.startTime ?? target?.worker.defaultWorkStart ?? '09:00')
-    setEndTime(activeShift?.endTime ?? target?.worker.defaultWorkEnd ?? '18:00')
+    setExtraMinutes(String(activeShift?.extraMinutes ?? 0))
     setPreview(null)
     setError('')
     const load = async () => {
@@ -2981,8 +3406,7 @@ function ShiftDialog({
           orders
             .filter(
               (order) =>
-                (order.productionStatus !== 'completed' &&
-                  order.productionStatus !== 'cancelled') ||
+                (order.productionStatus !== 'completed' && order.productionStatus !== 'cancelled') ||
                 activeShift?.tasks.some((task) => task.orderId === order.id)
             )
             .map((order) => window.yumi.orders.get(order.id))
@@ -3019,8 +3443,7 @@ function ShiftDialog({
   const currentInput = {
     workerId: shift?.workerId ?? target?.worker.id ?? '',
     shiftDate: shift?.shiftDate ?? target?.date ?? '',
-    startTime,
-    endTime,
+    extraMinutes: Number(extraMinutes),
     tasks: tasks.map((task) => ({
       orderItemId: task.orderItemId,
       plannedQuantity: Number(task.plannedQuantity)
@@ -3035,10 +3458,12 @@ function ShiftDialog({
   const checkRisks = async () => {
     if (
       (!target && !shift) ||
+      !Number.isInteger(Number(extraMinutes)) ||
+      Number(extraMinutes) < 0 ||
       tasks.length === 0 ||
       tasks.some((task) => !task.orderItemId || Number(task.plannedQuantity) <= 0)
     ) {
-      setError('请至少安排一项数量大于 0 的订单商品。')
+      setError('请填写非负整数的本次额外增加分钟，并至少安排一项数量大于 0 的任务。')
       return
     }
     setChecking(true)
@@ -3078,67 +3503,38 @@ function ShiftDialog({
   return (
     <Dialog.Root open={Boolean(target || shift)} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="760px" className="wide-dialog">
-        <Dialog.Title>{shift ? '编辑最终上班排班' : '创建最终上班排班'}</Dialog.Title>
+        <Dialog.Title>{shift ? '编辑排班' : '创建排班'}</Dialog.Title>
         {(target || shift) && (
           <Dialog.Description size="2" mb="4">
-            {shift
-              ? `${shift.workerName} · ${shift.shiftDate}`
-              : `${target!.worker.name} · ${target!.date}`}
-            。这里填写的是最终确认的上班时间段，不是可用时间意向。
+            {shift ? `${shift.workerName} · ${shift.shiftDate}` : `${target!.worker.name} · ${target!.date}`}。
+            任务时长按标准时长计算；额外时间仅作用于本次整条排班。
           </Dialog.Description>
         )}
         <div className="shift-form">
-          <div className="field-grid two">
-            <label>
-              <Text as="div" size="2" mb="1">
-                开始时间
-              </Text>
-              <TextField.Root
-                type="time"
-                value={startTime}
-                onChange={(event) => {
-                  setStartTime(event.target.value)
-                  setPreview(null)
-                }}
-              />
-            </label>
-            <label>
-              <Text as="div" size="2" mb="1">
-                结束时间
-              </Text>
-              <TextField.Root
-                type="time"
-                value={endTime}
-                onChange={(event) => {
-                  setEndTime(event.target.value)
-                  setPreview(null)
-                }}
-              />
-            </label>
-          </div>
+          <label className="shift-extra-minutes">
+            <Text as="div" size="2" mb="1">本次额外增加分钟</Text>
+            <TextField.Root
+              type="number"
+              min="0"
+              step="1"
+              value={extraMinutes}
+              onChange={(event) => {
+                setExtraMinutes(event.target.value)
+                setPreview(null)
+              }}
+              placeholder="例如 30"
+            />
+            <Text as="div" size="1" color="gray" mt="1">
+              用于本次排班的准备、收尾或弹性时间，不会限制单个任务的实际完成时长。
+            </Text>
+          </label>
           <section className="form-section">
             <Flex justify="between" align="center" mb="3">
               <div>
-                <Text weight="medium">本时段制作任务</Text>
-                <Text as="div" size="1" color="gray">
-                  同一时段可以分配多个订单商品；模具容量按商品和日期合并检查。
-                </Text>
+                <Text weight="medium">本次制作任务</Text>
+                <Text as="div" size="1" color="gray">同一排班可安排多个订单商品；模具容量按商品和日期合并检查。</Text>
               </div>
-              <Button
-                size="1"
-                variant="soft"
-                disabled={items.length === 0}
-                onClick={() =>
-                  setTasks((current) => [
-                    ...current,
-                    {
-                      id: crypto.randomUUID(),
-                      orderItemId: items[0]?.id ?? '',
-                      plannedQuantity: '1'
-                    }
-                  ])
-                }
-              >
+              <Button size="1" variant="soft" disabled={items.length === 0} onClick={() => setTasks((current) => [...current, { id: crypto.randomUUID(), orderItemId: items[0]?.id ?? '', plannedQuantity: '1' }])}>
                 <Plus size={14} /> 添加任务
               </Button>
             </Flex>
@@ -3147,106 +3543,37 @@ function ShiftDialog({
             <div className="shift-tasks">
               {tasks.map((task, index) => (
                 <div className="shift-task" key={task.id}>
-                  <Text color="gray" size="1">
-                    {String(index + 1).padStart(2, '0')}
-                  </Text>
-                  <select
-                    className="desktop-select"
-                    value={task.orderItemId}
-                    onChange={(event) => updateTask(task.id, { orderItemId: event.target.value })}
-                  >
-                    {items.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
+                  <Text color="gray" size="1">{String(index + 1).padStart(2, '0')}</Text>
+                  <select className="desktop-select" value={task.orderItemId} onChange={(event) => updateTask(task.id, { orderItemId: event.target.value })}>
+                    {items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                   </select>
-                  <TextField.Root
-                    type="number"
-                    min="1"
-                    value={task.plannedQuantity}
-                    onChange={(event) =>
-                      updateTask(task.id, { plannedQuantity: event.target.value })
-                    }
-                    placeholder="计划数量"
-                  />
-                  <Button
-                    size="1"
-                    color="gray"
-                    variant="ghost"
-                    disabled={tasks.length === 1}
-                    onClick={() => {
-                      setTasks((current) => current.filter((item) => item.id !== task.id))
-                      setPreview(null)
-                    }}
-                  >
-                    删除
-                  </Button>
+                  <TextField.Root type="number" min="1" step="1" value={task.plannedQuantity} onChange={(event) => updateTask(task.id, { plannedQuantity: event.target.value })} />
+                  <Text size="2" color="gray">个</Text>
+                  <Button size="1" variant="ghost" color="gray" disabled={tasks.length === 1} onClick={() => { setTasks((current) => current.filter((item) => item.id !== task.id)); setPreview(null) }}>移除</Button>
                 </div>
               ))}
             </div>
           </section>
           {preview && (
-            <section
-              className={preview.risks.length > 0 ? 'risk-preview has-risk' : 'risk-preview'}
-            >
-              <Flex justify="between" align="center">
-                <Text weight="medium">排班检查结果</Text>
-                <Badge color={preview.risks.length > 0 ? 'amber' : 'green'} variant="soft">
-                  {preview.risks.length > 0 ? `${preview.risks.length} 项需确认` : '检查通过'}
-                </Badge>
-              </Flex>
-              <Text as="div" size="2" color="gray" mt="2">
-                时段 {preview.shiftMinutes} 分钟 · 计划制作 {preview.totalPlannedMinutes} 分钟
-              </Text>
-              {preview.risks.length > 0 && (
-                <div className="risk-list">
-                  {preview.risks.map((risk) => (
-                    <div className="risk-item" key={risk.code}>
-                      <Badge color={risk.level === 'critical' ? 'red' : 'amber'} variant="soft">
-                        {risk.level === 'critical' ? '风险' : '提示'}
-                      </Badge>
-                      <Text size="2">{risk.message}</Text>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Text as="div" size="1" color="gray" mt="3">
-                点击“确认并保存”代表你已知悉以上提示；系统不会因这些风险阻止保存。
-              </Text>
+            <section className={`risk-preview ${preview.risks.length > 0 ? 'has-risk' : ''}`}>
+              <Text weight="medium">本次时长汇总</Text>
+              <div className="shift-duration-summary">
+                <span>任务基础时长 <strong>{preview.baseTaskMinutes} 分钟</strong></span>
+                <span>额外增加 <strong>{preview.extraMinutes} 分钟</strong></span>
+                <span>最终总时长 <strong>{preview.totalMinutes} 分钟</strong></span>
+              </div>
+              {preview.taskBaseMinutes.map((task, index) => <Text as="div" size="1" color="gray" key={task.orderItemId}>任务 {index + 1} 基础时长：{task.baseMinutes} 分钟</Text>)}
+              {preview.risks.length > 0 && <div className="risk-list">{preview.risks.map((risk) => <Text key={risk.code} size="2">· {risk.message}</Text>)}</div>}
             </section>
           )}
+          {error && <Text as="div" color="red" size="2">{error}</Text>}
+          <Flex justify="end" gap="3" mt="4">
+            <Dialog.Close><Button variant="soft" color="gray">取消</Button></Dialog.Close>
+            <Button onClick={() => void (preview ? save() : checkRisks())} disabled={checking || saving || loadingItems}>
+              {checking ? '计算中…' : saving ? '保存中…' : preview ? '确认并保存' : '校验并计算时长'}
+            </Button>
+          </Flex>
         </div>
-        {error && (
-          <Text as="div" size="2" color="red" mt="4">
-            {error}
-          </Text>
-        )}
-        <Flex gap="3" mt="5" justify="end">
-          <Dialog.Close>
-            <Button variant="soft" color="gray">
-              取消
-            </Button>
-          </Dialog.Close>
-          {!preview && (
-            <Button
-              variant="soft"
-              disabled={checking || loadingItems || items.length === 0}
-              onClick={() => void checkRisks()}
-            >
-              {checking ? '检查中…' : '检查排班风险'}
-            </Button>
-          )}
-          <Button disabled={!preview || saving} onClick={() => void save()}>
-            {saving
-              ? '保存中…'
-              : preview?.risks.length
-                ? '确认风险并保存'
-                : shift
-                  ? '保存排班'
-                  : '确认并保存'}
-          </Button>
-        </Flex>
       </Dialog.Content>
     </Dialog.Root>
   )
@@ -3264,378 +3591,74 @@ function ShiftInspector({
   onDataChanged(): Promise<void>
 }) {
   const [shift, setShift] = useState<ShiftDetail | null>(null)
-  const [recordingTask, setRecordingTask] = useState<ShiftDetail['tasks'][number] | null>(null)
   const [editing, setEditing] = useState(false)
+  const [completionOpen, setCompletionOpen] = useState(false)
+  const [completionDraft, setCompletionDraft] = useState<Record<string, { qualified: string; unqualified: string }>>({})
   const [loading, setLoading] = useState(false)
   const [savingStatus, setSavingStatus] = useState<ShiftStatus | null>(null)
   const [error, setError] = useState('')
   const [refreshToken, setRefreshToken] = useState(0)
 
   useEffect(() => {
-    if (!shiftId) {
-      setShift(null)
-      setError('')
-      return
-    }
+    if (!shiftId) { setShift(null); setError(''); return }
     let cancelled = false
     const load = async () => {
-      setLoading(true)
-      setError('')
+      setLoading(true); setError('')
       try {
         const detail = await window.yumi.schedule.get(shiftId)
         if (!detail) throw new Error('排班不存在或已被删除。')
         if (!cancelled) setShift(detail)
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : '排班详情读取失败。')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+      } finally { if (!cancelled) setLoading(false) }
     }
     void load()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [refreshToken, shiftId])
 
-  const refresh = async () => {
-    setRefreshToken((current) => current + 1)
-    await onDataChanged()
+  const refresh = async () => { setRefreshToken((current) => current + 1); await onDataChanged() }
+  const openCompletion = () => {
+    if (!shift) return
+    setCompletionDraft(Object.fromEntries(shift.tasks.map((task) => [task.id, { qualified: String(task.qualifiedQuantity), unqualified: String(task.unqualifiedQuantity ?? 0) }])))
+    setCompletionOpen(true)
   }
-
   const updateStatus = async (status: ShiftStatus) => {
     if (!shift || status === shift.status) return
-    const releasesUnfinished = ['leave', 'absent', 'cancelled'].includes(status)
-    if (
-      releasesUnfinished &&
-      !window.confirm(
-        `${shiftStatusLabel(status)}后，未完成计划将进入待补排队列并可能影响订单交期。是否继续？`
-      )
-    ) {
-      return
-    }
-    setSavingStatus(status)
-    setError('')
-    try {
-      await window.yumi.schedule.updateStatus({ shiftId: shift.id, status })
-      await refresh()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '排班状态更新失败。')
-    } finally {
-      setSavingStatus(null)
-    }
+    if (status === 'completed') { openCompletion(); return }
+    if (['leave', 'absent', 'cancelled'].includes(status) && !window.confirm(`${shiftStatusLabel(status)}后，未完成计划将进入待补排队列并可能影响订单交期。是否继续？`)) return
+    setSavingStatus(status); setError('')
+    try { await window.yumi.schedule.updateStatus({ shiftId: shift.id, status }); await refresh() }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '排班状态更新失败。') }
+    finally { setSavingStatus(null) }
+  }
+  const submitCompletion = async () => {
+    if (!shift) return
+    const completions = shift.tasks.map((task) => ({ shiftTaskId: task.id, qualifiedQuantity: Number(completionDraft[task.id]?.qualified), unqualifiedQuantity: Number(completionDraft[task.id]?.unqualified) }))
+    if (completions.some((item) => !Number.isInteger(item.qualifiedQuantity) || !Number.isInteger(item.unqualifiedQuantity) || item.qualifiedQuantity < 0 || item.unqualifiedQuantity < 0)) { setError('请为每项任务填写非负整数的合格数量与不合格数量。'); return }
+    setSavingStatus('completed'); setError('')
+    try { await window.yumi.schedule.updateStatus({ shiftId: shift.id, status: 'completed', taskCompletions: completions }); setCompletionOpen(false); await refresh() }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '完成数据保存失败。') }
+    finally { setSavingStatus(null) }
   }
 
-  return (
+  return <>
     <Dialog.Root open={Boolean(shiftId)} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="860px" className="wide-dialog schedule-inspector-dialog">
         <Dialog.Title>排班详情</Dialog.Title>
         {loading && <Text color="gray">正在读取排班详情…</Text>}
-        {error && (
-          <Text as="div" color="red" size="2" mt="3">
-            {error}
-          </Text>
-        )}
-        {shift && (
-          <div className="inspector-content">
-            <div className="inspector-heading">
-              <div>
-                <Heading size="4">
-                  {shift.workerName} · {shift.shiftDate}
-                </Heading>
-                <Text as="div" color="gray" size="2" mt="1">
-                  最终上班时段 {shift.startTime}–{shift.endTime} · {shift.tasks.length} 项制作任务
-                </Text>
-              </div>
-              <Flex gap="2" align="center">
-                {shift.status === 'scheduled' && (
-                  <Button
-                    size="1"
-                    variant="soft"
-                    disabled={shift.tasks.some(
-                      (task) =>
-                        task.actualMinutes !== null ||
-                        task.qualifiedQuantity > 0 ||
-                        task.reworkQuantity > 0 ||
-                        task.scrapQuantity > 0
-                    )}
-                    onClick={() => setEditing(true)}
-                  >
-                    编辑排班
-                  </Button>
-                )}
-                <Badge color={shiftStatusColor(shift.status)} variant="soft">
-                  {shiftStatusLabel(shift.status)}
-                </Badge>
-              </Flex>
-            </div>
-
-            <section className="form-section shift-status-panel">
-              <Flex justify="between" align="center" gap="4" wrap="wrap">
-                <div>
-                  <Text weight="medium">排班状态</Text>
-                  <Text as="div" color="gray" size="1">
-                    请假、缺勤或取消会将本排班尚未完成的数量计入待补排。
-                  </Text>
-                </div>
-                <select
-                  aria-label="更新排班状态"
-                  className="desktop-select shift-status-select"
-                  disabled={Boolean(savingStatus)}
-                  onChange={(event) => void updateStatus(event.target.value as ShiftStatus)}
-                  value={shift.status}
-                >
-                  {(Object.keys(shiftStatusLabels) as ShiftStatus[]).map((status) => (
-                    <option key={status} value={status}>
-                      标记为：{shiftStatusLabels[status]}
-                    </option>
-                  ))}
-                </select>
-              </Flex>
-              {['leave', 'absent', 'cancelled'].includes(shift.status) && (
-                <Text as="div" color="red" size="2" mt="3">
-                  当前状态已释放未完成任务，请根据下方“待补排”数量安排新的制作时段。
-                </Text>
-              )}
-            </section>
-
-            {shift.confirmedRisks.length > 0 && (
-              <section className="risk-preview has-risk">
-                <Flex justify="between" align="center">
-                  <Text weight="medium">保存时已确认的风险</Text>
-                  <Badge color="amber" variant="soft">
-                    {shift.confirmedRisks.length} 项
-                  </Badge>
-                </Flex>
-                <div className="risk-list">
-                  {shift.confirmedRisks.map((risk) => (
-                    <Text key={risk} size="2">
-                      · {risk}
-                    </Text>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            <section className="inspector-section">
-              <Flex justify="between" align="center">
-                <div>
-                  <Text weight="medium">制作任务与实际结果</Text>
-                  <Text as="div" color="gray" size="1">
-                    实际工时成本按该次制作对应的历史时薪计算；仅合格数量计入按件提成。
-                  </Text>
-                </div>
-                <Badge variant="soft">{shift.tasks.length} 项</Badge>
-              </Flex>
-              <div className="shift-inspector-tasks">
-                {shift.tasks.map((task) => (
-                  <article className="shift-inspector-task" key={task.id}>
-                    <Flex justify="between" align="start" gap="3">
-                      <div>
-                        <Text weight="medium">{task.productName}</Text>
-                        <Text as="div" color="gray" size="1">
-                          {task.orderCode} · 计划 {task.plannedQuantity} 个 · 预计{' '}
-                          {task.estimatedMinutes} 分钟
-                        </Text>
-                      </div>
-                      <Button size="1" variant="soft" onClick={() => setRecordingTask(task)}>
-                        登记实际
-                      </Button>
-                    </Flex>
-                    <div className="task-metrics">
-                      <div>
-                        <Text as="div" color="gray" size="1">
-                          实际分钟
-                        </Text>
-                        <Text weight="medium">
-                          {task.actualMinutes === null ? '未登记' : `${task.actualMinutes} 分钟`}
-                        </Text>
-                      </div>
-                      <div>
-                        <Text as="div" color="gray" size="1">
-                          合格 / 返工 / 报废
-                        </Text>
-                        <Text weight="medium">
-                          {task.qualifiedQuantity} / {task.reworkQuantity} / {task.scrapQuantity}
-                        </Text>
-                      </div>
-                      <div>
-                        <Text as="div" color="gray" size="1">
-                          实际人工 + 提成
-                        </Text>
-                        <Text weight="medium">
-                          {money(task.actualLaborCostCents + task.commissionCostCents)}
-                        </Text>
-                      </div>
-                      <div>
-                        <Text as="div" color="gray" size="1">
-                          待补排
-                        </Text>
-                        <Badge color={task.unfinishedQuantity > 0 ? 'red' : 'green'} variant="soft">
-                          {task.unfinishedQuantity} 个
-                        </Badge>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </div>
-        )}
-        <Flex gap="3" justify="end" mt="5">
-          <Dialog.Close>
-            <Button variant="soft" color="gray">
-              关闭
-            </Button>
-          </Dialog.Close>
-        </Flex>
+        {error && <Text as="div" color="red" size="2" mt="3">{error}</Text>}
+        {shift && <div className="inspector-content">
+          <div className="inspector-heading"><div><Heading size="4">{shift.workerName} · {shift.shiftDate}</Heading><Text as="div" color="gray" size="2" mt="1">基础 {shift.baseTaskMinutes} 分钟 · 额外 {shift.extraMinutes} 分钟 · 最终 {shift.totalMinutes} 分钟 · {shift.tasks.length} 项制作任务</Text></div><Flex gap="2" align="center">{shift.status === 'scheduled' && <Button size="1" variant="soft" onClick={() => setEditing(true)}>编辑排班</Button>}<Badge color={shiftStatusColor(shift.status)} variant="soft">{shiftStatusLabel(shift.status)}</Badge></Flex></div>
+          <section className="form-section shift-status-panel"><Flex justify="between" align="center" gap="4" wrap="wrap"><div><Text weight="medium">排班状态</Text><Text as="div" color="gray" size="1">选择“已完成”后，需要为每项任务填写合格和不合格数量；工资结算与扣费暂不在此处理。</Text></div><select aria-label="更新排班状态" className="desktop-select shift-status-select" disabled={Boolean(savingStatus)} onChange={(event) => void updateStatus(event.target.value as ShiftStatus)} value={shift.status}>{(Object.keys(shiftStatusLabels) as ShiftStatus[]).map((status) => <option key={status} value={status}>标记为：{shiftStatusLabels[status]}</option>)}</select></Flex></section>
+          {shift.confirmedRisks.length > 0 && <section className="risk-preview has-risk"><Text weight="medium">保存时已确认的风险</Text><div className="risk-list">{shift.confirmedRisks.map((risk) => <Text key={risk} size="2">· {risk}</Text>)}</div></section>}
+          <section className="inspector-section"><Flex justify="between" align="center"><div><Text weight="medium">制作任务与实际结果</Text><Text as="div" color="gray" size="1">实际完成数量包含合格与不合格数量；本期不展示工资或不合格扣费结算。</Text></div><Badge variant="soft">{shift.tasks.length} 项</Badge></Flex><div className="shift-inspector-tasks">{shift.tasks.map((task) => <article className="shift-inspector-task" key={task.id}><Text weight="medium">{task.productName}</Text><Text as="div" color="gray" size="1">{task.orderCode} · 计划 {task.plannedQuantity} 个 · 基础 {task.baseMinutes} 分钟</Text><div className="task-metrics"><div><Text as="div" color="gray" size="1">实际完成</Text><Text weight="medium">{task.completedQuantity === null ? '未填写' : `${task.completedQuantity} 个`}</Text></div><div><Text as="div" color="gray" size="1">合格 / 不合格</Text><Text weight="medium">{task.qualifiedQuantity} / {task.unqualifiedQuantity ?? 0}</Text></div><div><Text as="div" color="gray" size="1">待补排</Text><Badge color={task.unfinishedQuantity > 0 ? 'red' : 'green'} variant="soft">{task.unfinishedQuantity} 个</Badge></div></div></article>)}</div></section>
+        </div>}
+        <Flex gap="3" justify="end" mt="5"><Dialog.Close><Button variant="soft" color="gray">关闭</Button></Dialog.Close></Flex>
       </Dialog.Content>
-      {shift && (
-        <ShiftDialog
-          target={null}
-          shift={editing ? shift : null}
-          orders={orders}
-          onOpenChange={setEditing}
-          onDone={async () => {
-            setEditing(false)
-            await refresh()
-          }}
-        />
-      )}
-      <ProductionRecordDialog
-        task={recordingTask}
-        onOpenChange={(open) => {
-          if (!open) setRecordingTask(null)
-        }}
-        onSaved={async () => {
-          setRecordingTask(null)
-          await refresh()
-        }}
-      />
+      {shift && <ShiftDialog target={null} shift={editing ? shift : null} orders={orders} onOpenChange={setEditing} onDone={async () => { setEditing(false); await refresh() }} />}
     </Dialog.Root>
-  )
-}
-
-function ProductionRecordDialog({
-  task,
-  onOpenChange,
-  onSaved
-}: {
-  task: ShiftDetail['tasks'][number] | null
-  onOpenChange(value: boolean): void
-  onSaved(): Promise<void>
-}) {
-  const [actualMinutes, setActualMinutes] = useState('')
-  const [qualifiedQuantity, setQualifiedQuantity] = useState('')
-  const [reworkQuantity, setReworkQuantity] = useState('')
-  const [scrapQuantity, setScrapQuantity] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (!task) return
-    setActualMinutes(String(task.actualMinutes ?? task.estimatedMinutes))
-    setQualifiedQuantity(String(task.qualifiedQuantity))
-    setReworkQuantity(String(task.reworkQuantity))
-    setScrapQuantity(String(task.scrapQuantity))
-    setError('')
-  }, [task])
-
-  const save = async () => {
-    if (!task) return
-    setSaving(true)
-    setError('')
-    try {
-      await window.yumi.production.record({
-        shiftTaskId: task.id,
-        actualMinutes: Number(actualMinutes),
-        qualifiedQuantity: Number(qualifiedQuantity),
-        reworkQuantity: Number(reworkQuantity),
-        scrapQuantity: Number(scrapQuantity)
-      })
-      await onSaved()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '实际制作结果保存失败。')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Dialog.Root open={Boolean(task)} onOpenChange={onOpenChange}>
-      <Dialog.Content maxWidth="560px">
-        <Dialog.Title>登记实际制作</Dialog.Title>
-        {task && (
-          <Dialog.Description size="2" mb="4">
-            {task.productName} · {task.orderCode} · 本次计划 {task.plannedQuantity} 个。
-          </Dialog.Description>
-        )}
-        <div className="field-grid two">
-          <label>
-            <Text as="div" size="2" mb="1">
-              实际制作分钟
-            </Text>
-            <TextField.Root
-              min="0"
-              onChange={(event) => setActualMinutes(event.target.value)}
-              type="number"
-              value={actualMinutes}
-            />
-          </label>
-          <label>
-            <Text as="div" size="2" mb="1">
-              合格完成数量
-            </Text>
-            <TextField.Root
-              min="0"
-              onChange={(event) => setQualifiedQuantity(event.target.value)}
-              type="number"
-              value={qualifiedQuantity}
-            />
-          </label>
-          <label>
-            <Text as="div" size="2" mb="1">
-              返工数量
-            </Text>
-            <TextField.Root
-              min="0"
-              onChange={(event) => setReworkQuantity(event.target.value)}
-              type="number"
-              value={reworkQuantity}
-            />
-          </label>
-          <label>
-            <Text as="div" size="2" mb="1">
-              报废数量
-            </Text>
-            <TextField.Root
-              min="0"
-              onChange={(event) => setScrapQuantity(event.target.value)}
-              type="number"
-              value={scrapQuantity}
-            />
-          </label>
-        </div>
-        <Text as="div" color="gray" size="1" mt="3">
-          合格、返工和报废数量之和不能超过本次计划数量。返工与报废不计按件提成。
-        </Text>
-        {error && (
-          <Text as="div" color="red" size="2" mt="3">
-            {error}
-          </Text>
-        )}
-        <Flex gap="3" justify="end" mt="5">
-          <Dialog.Close>
-            <Button variant="soft" color="gray">
-              取消
-            </Button>
-          </Dialog.Close>
-          <Button disabled={saving} onClick={() => void save()}>
-            {saving ? '保存中…' : '保存实际结果'}
-          </Button>
-        </Flex>
-      </Dialog.Content>
-    </Dialog.Root>
-  )
+    <Dialog.Root open={completionOpen} onOpenChange={setCompletionOpen}><Dialog.Content maxWidth="680px"><Dialog.Title>填写实际完成数据</Dialog.Title><Dialog.Description size="2" mb="4">每项任务必须填写合格数量和不合格数量；实际完成数将自动相加。本期不计算工资与扣费。</Dialog.Description><div className="completion-task-list">{shift?.tasks.map((task) => <div className="completion-task" key={task.id}><Text weight="medium">{task.productName} · {task.orderCode}</Text><Text size="1" color="gray">计划 {task.plannedQuantity} 个</Text><div className="field-grid two"><label><Text as="div" size="1">合格数量</Text><TextField.Root type="number" min="0" step="1" value={completionDraft[task.id]?.qualified ?? ''} onChange={(event) => setCompletionDraft((current) => ({ ...current, [task.id]: { ...current[task.id], qualified: event.target.value } }))} /></label><label><Text as="div" size="1">不合格数量</Text><TextField.Root type="number" min="0" step="1" value={completionDraft[task.id]?.unqualified ?? ''} onChange={(event) => setCompletionDraft((current) => ({ ...current, [task.id]: { ...current[task.id], unqualified: event.target.value } }))} /></label></div></div>)}</div><Flex justify="end" gap="3" mt="4"><Button variant="soft" color="gray" onClick={() => setCompletionOpen(false)}>取消</Button><Button onClick={() => void submitCompletion()} disabled={savingStatus === 'completed'}>{savingStatus === 'completed' ? '保存中…' : '确认已完成'}</Button></Flex></Dialog.Content></Dialog.Root>
+  </>
 }
 
 function toProductUpdateInput(product: ProductDetail): ProductUpdateInput {
@@ -3650,6 +3673,8 @@ function toProductUpdateInput(product: ProductDetail): ProductUpdateInput {
     lossRate: product.lossRate,
     standardMinutesPerUnit: product.standardMinutesPerUnit,
     packagingCostCents: product.packagingCostCents,
+    accessoryCostCents: product.accessoryCostCents,
+    replacementBagCostCents: product.replacementBagCostCents,
     commissionCentsPerUnit: product.commissionCentsPerUnit,
     moldCount: product.moldCount,
     outputPerMoldPerBatch: product.outputPerMoldPerBatch,
@@ -3982,6 +4007,34 @@ function ProductInspector({
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
+                    配件费（元/个）
+                  </Text>
+                  <TextField.Root
+                    inputMode="decimal"
+                    min="0"
+                    onChange={(event) =>
+                      patchDraft({ accessoryCostCents: Math.round(Number(event.target.value) * 100) })
+                    }
+                    type="number"
+                    value={(draft.accessoryCostCents / 100).toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    替换袋费用（元/个）
+                  </Text>
+                  <TextField.Root
+                    inputMode="decimal"
+                    min="0"
+                    onChange={(event) =>
+                      patchDraft({ replacementBagCostCents: Math.round(Number(event.target.value) * 100) })
+                    }
+                    type="number"
+                    value={(draft.replacementBagCostCents / 100).toString()}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
                     固定提成（元/合格个）
                   </Text>
                   <TextField.Root
@@ -4120,6 +4173,18 @@ function ProductInspector({
                         包装成本
                       </Text>
                       <Text weight="medium">{money(preview.packagingCostCents)}</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        配件费
+                      </Text>
+                      <Text weight="medium">{money(preview.accessoryCostCents)}</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        替换袋费用
+                      </Text>
+                      <Text weight="medium">{money(preview.replacementBagCostCents)}</Text>
                     </div>
                     <div>
                       <Text as="div" color="gray" size="1">

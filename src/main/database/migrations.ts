@@ -238,12 +238,121 @@ const scheduleRiskPersistenceSchema = {
   }
 }
 
+const operationalWorkflowSchema = {
+  version: 6,
+  name: 'operational_workflow_refinements',
+  run(database: Database.Database): void {
+    database.exec(`
+      ALTER TABLE products ADD COLUMN accessory_cost_cents INTEGER NOT NULL DEFAULT 0
+        CHECK(accessory_cost_cents >= 0);
+      ALTER TABLE products ADD COLUMN replacement_bag_cost_cents INTEGER NOT NULL DEFAULT 0
+        CHECK(replacement_bag_cost_cents >= 0);
+      ALTER TABLE order_items ADD COLUMN accessory_cost_cents INTEGER NOT NULL DEFAULT 0
+        CHECK(accessory_cost_cents >= 0);
+      ALTER TABLE order_items ADD COLUMN replacement_bag_cost_cents INTEGER NOT NULL DEFAULT 0
+        CHECK(replacement_bag_cost_cents >= 0);
+
+      ALTER TABLE shift_tasks RENAME TO shift_tasks_legacy;
+      ALTER TABLE shifts RENAME TO shifts_legacy;
+
+      CREATE TABLE shifts (
+        id TEXT PRIMARY KEY,
+        worker_id TEXT NOT NULL REFERENCES workers(id),
+        shift_date TEXT NOT NULL,
+        start_time TEXT,
+        end_time TEXT,
+        extra_minutes INTEGER NOT NULL DEFAULT 0 CHECK(extra_minutes >= 0),
+        status TEXT NOT NULL DEFAULT 'pending',
+        confirmed_risks_json TEXT NOT NULL DEFAULT '[]',
+        detected_risks_json TEXT NOT NULL DEFAULT '[]',
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE shift_tasks (
+        id TEXT PRIMARY KEY,
+        shift_id TEXT NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+        order_item_id TEXT NOT NULL REFERENCES order_items(id),
+        product_id TEXT NOT NULL REFERENCES products(id),
+        planned_quantity INTEGER NOT NULL,
+        estimated_minutes INTEGER NOT NULL,
+        actual_minutes INTEGER,
+        qualified_quantity INTEGER NOT NULL DEFAULT 0,
+        unqualified_quantity INTEGER,
+        completed_quantity INTEGER,
+        rework_quantity INTEGER NOT NULL DEFAULT 0,
+        scrap_quantity INTEGER NOT NULL DEFAULT 0,
+        actual_labor_cost_cents INTEGER NOT NULL DEFAULT 0,
+        commission_cost_cents INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK(completed_quantity IS NULL OR completed_quantity >= 0),
+        CHECK(unqualified_quantity IS NULL OR unqualified_quantity >= 0)
+      );
+
+      INSERT INTO shifts (
+        id, worker_id, shift_date, start_time, end_time, extra_minutes, status,
+        confirmed_risks_json, detected_risks_json, notes, created_at, updated_at
+      )
+      SELECT
+        id, worker_id, shift_date, start_time, end_time, 0, status,
+        confirmed_risks_json, detected_risks_json, notes, created_at, updated_at
+      FROM shifts_legacy;
+
+      INSERT INTO shift_tasks (
+        id, shift_id, order_item_id, product_id, planned_quantity, estimated_minutes,
+        actual_minutes, qualified_quantity, unqualified_quantity, completed_quantity,
+        rework_quantity, scrap_quantity, actual_labor_cost_cents, commission_cost_cents,
+        created_at, updated_at
+      )
+      SELECT
+        id, shift_id, order_item_id, product_id, planned_quantity, estimated_minutes,
+        actual_minutes, qualified_quantity, NULL, NULL,
+        rework_quantity, scrap_quantity, actual_labor_cost_cents, commission_cost_cents,
+        created_at, updated_at
+      FROM shift_tasks_legacy;
+
+      DROP TABLE shift_tasks_legacy;
+      DROP TABLE shifts_legacy;
+
+      CREATE INDEX IF NOT EXISTS idx_shifts_worker_date ON shifts(worker_id, shift_date);
+      CREATE INDEX IF NOT EXISTS idx_shift_tasks_shift_id ON shift_tasks(shift_id);
+      CREATE INDEX IF NOT EXISTS idx_shift_tasks_product_id ON shift_tasks(product_id);
+
+      CREATE TABLE IF NOT EXISTS shipments (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL REFERENCES orders(id),
+        shipped_at TEXT NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS shipment_items (
+        id TEXT PRIMARY KEY,
+        shipment_id TEXT NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+        order_item_id TEXT NOT NULL REFERENCES order_items(id),
+        quantity INTEGER NOT NULL CHECK(quantity >= 0),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(shipment_id, order_item_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_shipments_order_id ON shipments(order_id);
+      CREATE INDEX IF NOT EXISTS idx_shipment_items_shipment_id ON shipment_items(shipment_id);
+      CREATE INDEX IF NOT EXISTS idx_shipment_items_order_item_id ON shipment_items(order_item_id);
+    `)
+  }
+}
+
 const migrations = [
   initialSchema,
   productManagementSchema,
   orderManagementSchema,
   workerManagementSchema,
-  scheduleRiskPersistenceSchema
+  scheduleRiskPersistenceSchema,
+  operationalWorkflowSchema
 ]
 
 export function runMigrations(database: Database.Database): void {
