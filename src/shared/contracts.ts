@@ -27,17 +27,14 @@ export interface ProductDetail extends ProductSummary {
 export interface CostSettings {
   id: string
   gluePriceCentsPerGram: number
-  monthlyFixedCostCents: number
-  targetEffectiveMinutes: number
-  fixedOverheadHourlyRateCents: number
+  defaultHourlyWageCents: number
   effectiveFrom: string
   createdAt: string
 }
 
 export interface CostSettingsInput {
   gluePriceCentsPerGram: number
-  monthlyFixedCostCents: number
-  targetEffectiveMinutes: number
+  defaultHourlyWageCents?: number
   effectiveFrom: string
 }
 
@@ -182,7 +179,7 @@ export interface ProductOrderSnapshot {
   outputPerMoldPerBatch: number
   maxBatchesPerDay: number
   gluePriceCentsPerGram: number
-  fixedOverheadHourlyRateCents: number
+  defaultHourlyWageCents?: number
 }
 
 export interface OrderItemInput {
@@ -680,12 +677,12 @@ export interface ProductUpdateInput extends ProductCreateInput {
 
 export interface ProductCostPreviewInput extends ProductCreateInput {
   quantity: number
-  hourlyLaborCostCents: number
   edgeEnabled: boolean
   edgeQuantity: number
 }
 
 export interface ProductCostPreview {
+  appliedHourlyWageCents: number
   glueGrams: number
   glueCostCents: number
   packagingCostCents: number
@@ -694,7 +691,6 @@ export interface ProductCostPreview {
   laborMinutes: number
   laborCostCents: number
   commissionCostCents: number
-  fixedOverheadCostCents: number
   edgeRevenueCents: number
   totalCostCents: number
   dailyCapacity: number

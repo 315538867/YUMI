@@ -63,7 +63,6 @@ const productBaseSchema = z.object({
 const productCreateSchema = productBaseSchema
 const productCostPreviewSchema = productBaseSchema.extend({
   quantity: positiveInteger,
-  hourlyLaborCostCents: nonNegativeInteger,
   edgeEnabled: z.boolean(),
   edgeQuantity: nonNegativeInteger
 })
@@ -73,8 +72,12 @@ const productUpdateSchema = productBaseSchema.extend({
 })
 const costSettingsSchema = z.object({
   gluePriceCentsPerGram: nonNegativeInteger,
-  monthlyFixedCostCents: nonNegativeInteger,
-  targetEffectiveMinutes: z.number().int().positive('目标有效工时必须大于 0'),
+  defaultHourlyWageCents: z
+    .number()
+    .int('默认兼职时薪必须是非负整数')
+    .nonnegative('默认兼职时薪必须是非负整数')
+    .optional()
+    .default(0),
   effectiveFrom: dateText
 })
 const orderDefaultsSchema = z.object({ defaultReserveDays: nonNegativeInteger })
@@ -266,14 +269,14 @@ export class StudioService {
       accessoryCostPerUnit: parsed.accessoryCostCents / 100,
       replacementBagCostPerUnit: parsed.replacementBagCostCents / 100,
       standardMinutesPerUnit: parsed.standardMinutesPerUnit,
-      hourlyLaborCost: parsed.hourlyLaborCostCents / 100,
+      hourlyLaborCost: settings.defaultHourlyWageCents / 100,
       commissionPerUnit: parsed.commissionCentsPerUnit / 100,
-      fixedOverheadHourlyRate: settings.fixedOverheadHourlyRateCents / 100,
       edgeEnabled: parsed.edgeEnabled,
       edgeQuantity: parsed.edgeQuantity,
       edgePricePerUnit: parsed.edgePriceCents / 100
     })
     return {
+      appliedHourlyWageCents: settings.defaultHourlyWageCents,
       glueGrams: result.glueGrams,
       glueCostCents: Math.round(result.glueCost * 100),
       packagingCostCents: Math.round(result.packagingCost * 100),
@@ -282,7 +285,6 @@ export class StudioService {
       laborMinutes: Math.round(result.laborHours * 60),
       laborCostCents: Math.round(result.laborCost * 100),
       commissionCostCents: Math.round(result.commissionCost * 100),
-      fixedOverheadCostCents: Math.round(result.fixedOverheadCost * 100),
       edgeRevenueCents: Math.round(result.edgeRevenue * 100),
       totalCostCents: Math.round(result.totalCost * 100),
       dailyCapacity: calculateDailyCapacity({

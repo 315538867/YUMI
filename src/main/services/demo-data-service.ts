@@ -23,8 +23,6 @@ export class DemoDataService {
 
     this.studio.updateCostSettings({
       gluePriceCentsPerGram: 18,
-      monthlyFixedCostCents: 180000,
-      targetEffectiveMinutes: 9600,
       effectiveFrom: today
     })
     this.studio.updateOrderDefaults({ defaultReserveDays: 2 })

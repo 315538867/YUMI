@@ -72,12 +72,16 @@ const now = () => new Date().toISOString()
 const costSettingsKey = 'cost-settings'
 const orderDefaultsKey = 'order-defaults'
 const defaultOrderDefaults: OrderDefaults = { defaultReserveDays: 2 }
+const retiredCostSettingsValues = {
+  monthlyFixedCostCents: 0,
+  targetEffectiveMinutes: 9600,
+  fixedOverheadHourlyRateCents: 0
+} as const
+
 const defaultCostSettings: CostSettings = {
   id: 'default',
   gluePriceCentsPerGram: 0,
-  monthlyFixedCostCents: 0,
-  targetEffectiveMinutes: 9600,
-  fixedOverheadHourlyRateCents: 0,
+  defaultHourlyWageCents: 0,
   effectiveFrom: '',
   createdAt: ''
 }
@@ -135,9 +139,7 @@ function costSettingsFromRow(row: Row): CostSettings {
   return {
     id: String(row.id),
     gluePriceCentsPerGram: Number(row.glue_price_cents_per_gram),
-    monthlyFixedCostCents: Number(row.monthly_fixed_cost_cents),
-    targetEffectiveMinutes: Number(row.target_effective_minutes),
-    fixedOverheadHourlyRateCents: Number(row.fixed_overhead_hourly_rate_cents),
+    defaultHourlyWageCents: Number(row.default_hourly_wage_cents ?? 0),
     effectiveFrom: String(row.effective_from),
     createdAt: String(row.created_at)
   }
@@ -185,7 +187,7 @@ function productSnapshot(product: ProductDetail, settings: CostSettings): Produc
     outputPerMoldPerBatch: product.outputPerMoldPerBatch,
     maxBatchesPerDay: product.maxBatchesPerDay,
     gluePriceCentsPerGram: settings.gluePriceCentsPerGram,
-    fixedOverheadHourlyRateCents: settings.fixedOverheadHourlyRateCents
+    defaultHourlyWageCents: settings.defaultHourlyWageCents
   }
 }
 
@@ -205,10 +207,10 @@ function estimateItemCostCents(
     accessoryCostPerUnit: snapshot.accessoryCostCents / 100,
     replacementBagCostPerUnit: snapshot.replacementBagCostCents / 100,
     standardMinutesPerUnit: snapshot.standardMinutesPerUnit,
-    // 订单创建时尚未分配具体兼职人员；实际人工工时成本会在完工记录中计算。
-    hourlyLaborCost: 0,
+    // 订单创建时尚未分配具体兼职人员；预计人工成本采用当时的全局默认时薪。
+    // 实际人工工时成本仍会在完工记录中按兼职人员时薪计算。
+    hourlyLaborCost: (snapshot.defaultHourlyWageCents ?? 0) / 100,
     commissionPerUnit: snapshot.commissionCentsPerUnit / 100,
-    fixedOverheadHourlyRate: snapshot.fixedOverheadHourlyRateCents / 100,
     edgeEnabled,
     edgeQuantity,
     edgePricePerUnit: edgePriceCents / 100
@@ -350,8 +352,7 @@ export class StudioRepository {
   getCostSettings(): CostSettings {
     const row = this.database
       .prepare(
-        `SELECT id, glue_price_cents_per_gram, monthly_fixed_cost_cents,
-        target_effective_minutes, fixed_overhead_hourly_rate_cents, effective_from, created_at
+        `SELECT id, glue_price_cents_per_gram, default_hourly_wage_cents, effective_from, created_at
         FROM cost_settings_history ORDER BY effective_from DESC, created_at DESC LIMIT 1`
       )
       .get() as Row | undefined
@@ -362,8 +363,7 @@ export class StudioRepository {
     return (
       this.database
         .prepare(
-          `SELECT id, glue_price_cents_per_gram, monthly_fixed_cost_cents,
-          target_effective_minutes, fixed_overhead_hourly_rate_cents, effective_from, created_at
+          `SELECT id, glue_price_cents_per_gram, default_hourly_wage_cents, effective_from, created_at
           FROM cost_settings_history ORDER BY effective_from DESC, created_at DESC`
         )
         .all() as Row[]
@@ -373,13 +373,10 @@ export class StudioRepository {
   updateCostSettings(input: CostSettingsInput): CostSettings {
     const id = randomUUID()
     const timestamp = now()
-    const fixedOverheadHourlyRateCents = Math.round(
-      input.monthlyFixedCostCents / (input.targetEffectiveMinutes / 60)
-    )
     const record: CostSettings = {
       id,
       ...input,
-      fixedOverheadHourlyRateCents,
+      defaultHourlyWageCents: input.defaultHourlyWageCents ?? 0,
       createdAt: timestamp
     }
     this.database.transaction(() => {
@@ -387,15 +384,16 @@ export class StudioRepository {
         .prepare(
           `INSERT INTO cost_settings_history (
             id, glue_price_cents_per_gram, monthly_fixed_cost_cents, target_effective_minutes,
-            fixed_overhead_hourly_rate_cents, effective_from, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+            fixed_overhead_hourly_rate_cents, default_hourly_wage_cents, effective_from, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           record.id,
           record.gluePriceCentsPerGram,
-          record.monthlyFixedCostCents,
-          record.targetEffectiveMinutes,
-          record.fixedOverheadHourlyRateCents,
+          retiredCostSettingsValues.monthlyFixedCostCents,
+          retiredCostSettingsValues.targetEffectiveMinutes,
+          retiredCostSettingsValues.fixedOverheadHourlyRateCents,
+          record.defaultHourlyWageCents,
           record.effectiveFrom,
           record.createdAt
         )
@@ -2029,11 +2027,7 @@ export class StudioRepository {
       estimatedCostPerUnitCents: Math.round(
         Number(row.weight_grams) * (1 + Number(row.loss_rate)) * settings.gluePriceCentsPerGram +
           Number(row.packaging_cost_cents) +
-          Number(row.commission_cents_per_unit) +
-          (Number(row.max_batches_per_day) > 0
-            ? (Number(row.standard_minutes_per_unit ?? 0) * settings.fixedOverheadHourlyRateCents) /
-              60
-            : 0)
+          Number(row.commission_cents_per_unit)
       ),
       dailyCapacity:
         Number(row.mold_count) *

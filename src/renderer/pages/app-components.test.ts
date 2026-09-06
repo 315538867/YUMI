@@ -101,3 +101,27 @@ describe('订单、排班与兼职人员联动展示', () => {
     expect(appSource).toMatch(/onInspectShift\(schedule\.id\)/)
   })
 })
+
+describe('全局默认兼职时薪展示', () => {
+  it('设置页面维护默认时薪，商品预览统一使用系统设置而不是临时输入', () => {
+    expect(appSource).toMatch(/默认兼职时薪（元\/小时）/)
+    expect(appSource).toMatch(/window\.yumi\.settings\.getCost\(\)/)
+    expect(appSource).toMatch(/window\.yumi\.settings\.updateCost/)
+    expect(appSource).toMatch(/按全局默认兼职时薪/)
+    expect(appSource).toMatch(/appliedHourlyWageCents/)
+    expect(appSource).not.toMatch(/预估时薪（元）/)
+    expect(appSource).not.toMatch(/previewWage/)
+  })
+})
+
+
+describe('成本设置简化', () => {
+  it('不再暴露固定成本分摊的设置或预览展示', () => {
+    expect(appSource).not.toContain('月度固定成本（元）')
+    expect(appSource).not.toContain('目标有效工时（分钟）')
+    expect(appSource).not.toContain('房租水电分摊')
+    expect(appSource).not.toContain('monthlyFixedCostCents')
+    expect(appSource).not.toContain('targetEffectiveMinutes')
+    expect(appSource).not.toContain('fixedOverheadCostCents')
+  })
+})

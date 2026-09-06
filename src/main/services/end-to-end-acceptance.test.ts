@@ -21,8 +21,6 @@ describe('端到端验收流程', () => {
 
     service.updateCostSettings({
       gluePriceCentsPerGram: 20,
-      monthlyFixedCostCents: 240000,
-      targetEffectiveMinutes: 12000,
       effectiveFrom: todayText
     })
     const product = service.createProduct({

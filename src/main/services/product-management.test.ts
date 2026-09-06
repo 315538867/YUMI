@@ -75,18 +75,18 @@ describe('商品资料与系统成本设置', () => {
 
     const saved = context.service.updateCostSettings({
       gluePriceCentsPerGram: 50,
-      monthlyFixedCostCents: 480000,
-      targetEffectiveMinutes: 9600,
+      defaultHourlyWageCents: 3000,
       effectiveFrom: '2026-09-01'
     })
 
     expect(saved).toMatchObject({
       gluePriceCentsPerGram: 50,
-      monthlyFixedCostCents: 480000,
-      targetEffectiveMinutes: 9600,
-      fixedOverheadHourlyRateCents: 3000,
+      defaultHourlyWageCents: 3000,
       effectiveFrom: '2026-09-01'
     })
+    expect(saved).not.toHaveProperty('monthlyFixedCostCents')
+    expect(saved).not.toHaveProperty('targetEffectiveMinutes')
+    expect(saved).not.toHaveProperty('fixedOverheadHourlyRateCents')
     expect(context.repository.getCostSettingsHistory()).toHaveLength(1)
     expect(context.repository.listAuditLogs('system_cost_settings')).toEqual([
       expect.objectContaining({
@@ -97,7 +97,7 @@ describe('商品资料与系统成本设置', () => {
     ])
   })
 
-  it('拒绝无效的损耗率与目标有效工时', () => {
+  it('拒绝无效的损耗率与默认兼职时薪', () => {
     const context = createService()
     databases.push(context.database)
 
@@ -107,11 +107,10 @@ describe('商品资料与系统成本设置', () => {
     expect(() =>
       context.service.updateCostSettings({
         gluePriceCentsPerGram: 50,
-        monthlyFixedCostCents: 480000,
-        targetEffectiveMinutes: 0,
+        defaultHourlyWageCents: -1,
         effectiveFrom: '2026-09-01'
       })
-    ).toThrow('目标有效工时必须大于 0')
+    ).toThrow('默认兼职时薪必须是非负整数')
   })
 })
 
@@ -127,8 +126,7 @@ describe('商品成本预览', () => {
     databases.push(context.database)
     context.service.updateCostSettings({
       gluePriceCentsPerGram: 50,
-      monthlyFixedCostCents: 480000,
-      targetEffectiveMinutes: 9600,
+      defaultHourlyWageCents: 3000,
       effectiveFrom: '2026-09-01'
     })
 
@@ -136,13 +134,13 @@ describe('商品成本预览', () => {
       context.service.previewProductCost({
         ...productInput,
         quantity: 10,
-        hourlyLaborCostCents: 3000,
         edgeEnabled: true,
         edgeQuantity: 10,
         accessoryCostCents: 250,
         replacementBagCostCents: 80
       })
     ).toEqual({
+      appliedHourlyWageCents: 3000,
       glueGrams: 220,
       glueCostCents: 11000,
       packagingCostCents: 1000,
@@ -151,10 +149,72 @@ describe('商品成本预览', () => {
       laborMinutes: 300,
       laborCostCents: 15000,
       commissionCostCents: 2000,
-      fixedOverheadCostCents: 15000,
       edgeRevenueCents: 3000,
-      totalCostCents: 47300,
+      totalCostCents: 32300,
       dailyCapacity: 40
+    })
+  })
+})
+
+describe('全局默认兼职时薪', () => {
+  const databases: StudioDatabase[] = []
+
+  afterEach(() => {
+    databases.splice(0).forEach((database) => database.close())
+  })
+
+  it('成本预览统一采用全局默认兼职时薪，不接受单次临时时薪', () => {
+    const context = createService()
+    databases.push(context.database)
+    context.service.updateCostSettings({
+      gluePriceCentsPerGram: 50,
+      defaultHourlyWageCents: 3000,
+      effectiveFrom: '2026-09-06'
+    })
+
+    expect(
+      context.service.previewProductCost({
+        ...productInput,
+        quantity: 10,
+        edgeEnabled: false,
+        edgeQuantity: 0
+      })
+    ).toMatchObject({
+      appliedHourlyWageCents: 3000,
+      laborMinutes: 300,
+      laborCostCents: 15000
+    })
+  })
+
+  it('订单预计成本快照保留创建时的默认兼职时薪', () => {
+    const context = createService()
+    databases.push(context.database)
+    context.service.updateCostSettings({
+      gluePriceCentsPerGram: 0,
+      defaultHourlyWageCents: 3000,
+      effectiveFrom: '2026-09-06'
+    })
+    const product = context.service.createProduct(productInput)
+    const order = context.service.createOrder({
+      customer: { name: '时薪快照客户' },
+      expectedShipDate: '2026-09-20',
+      items: [{ productId: product.id, quantity: 2 }]
+    })
+
+    expect(order.items[0]).toMatchObject({
+      estimatedCostCents: 3600,
+      productSnapshot: { defaultHourlyWageCents: 3000 }
+    })
+
+    context.service.updateCostSettings({
+      gluePriceCentsPerGram: 0,
+      defaultHourlyWageCents: 4000,
+      effectiveFrom: '2026-09-07'
+    })
+
+    expect(context.service.getOrderDetail(order.id)?.items[0]).toMatchObject({
+      estimatedCostCents: 3600,
+      productSnapshot: { defaultHourlyWageCents: 3000 }
     })
   })
 })

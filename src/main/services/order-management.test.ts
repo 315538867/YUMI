@@ -56,8 +56,6 @@ describe('客户、订单与收退款管理', () => {
     databases.push(context.database)
     context.service.updateCostSettings({
       gluePriceCentsPerGram: 50,
-      monthlyFixedCostCents: 480000,
-      targetEffectiveMinutes: 9600,
       effectiveFrom: '2026-09-01'
     })
     context.service.updateOrderDefaults({ defaultReserveDays: 3 })
@@ -87,9 +85,10 @@ describe('客户、订单与收退款管理', () => {
       productionDeadline: '2026-09-12',
       productionStatus: 'pending_confirmation',
       receivableCents: 13500,
-      estimatedCostCents: 9400,
+      estimatedCostCents: 4900,
       financial: { status: 'unpaid', outstandingCents: 13500 }
     })
+    expect(order.items[0]?.productSnapshot).not.toHaveProperty('fixedOverheadHourlyRateCents')
     expect(order.items).toEqual([
       expect.objectContaining({
         productId: bear.id,
@@ -99,17 +98,16 @@ describe('客户、订单与收退款管理', () => {
         edgeQuantity: 2,
         edgePriceCents: 300,
         discountCents: 400,
-        estimatedCostCents: 6460,
+        estimatedCostCents: 3460,
         productSnapshot: expect.objectContaining({
           basePriceCents: 3900,
           accessoryCostCents: 250,
           replacementBagCostCents: 80,
           gluePriceCentsPerGram: 50,
-          fixedOverheadHourlyRateCents: 3000,
           standardMinutesPerUnit: 30
         })
       }),
-      expect.objectContaining({ productId: cloud.id, quantity: 3, estimatedCostCents: 2940 })
+      expect.objectContaining({ productId: cloud.id, quantity: 3, estimatedCostCents: 1440 })
     ])
 
     context.service.updateProduct({

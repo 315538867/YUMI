@@ -346,13 +346,25 @@ const operationalWorkflowSchema = {
   }
 }
 
+const defaultHourlyWageSchema = {
+  version: 7,
+  name: 'global_default_worker_hourly_wage',
+  run(database: Database.Database): void {
+    database.exec(`
+      ALTER TABLE cost_settings_history
+      ADD COLUMN default_hourly_wage_cents INTEGER NOT NULL DEFAULT 0;
+    `)
+  }
+}
+
 const migrations = [
   initialSchema,
   productManagementSchema,
   orderManagementSchema,
   workerManagementSchema,
   scheduleRiskPersistenceSchema,
-  operationalWorkflowSchema
+  operationalWorkflowSchema,
+  defaultHourlyWageSchema
 ]
 
 export function runMigrations(database: Database.Database): void {

@@ -37,8 +37,6 @@ describe('订单资金与利润报表', () => {
     databases.push(context.database)
     context.service.updateCostSettings({
       gluePriceCentsPerGram: 50,
-      monthlyFixedCostCents: 480000,
-      targetEffectiveMinutes: 9600,
       effectiveFrom: '2026-09-01'
     })
     const product = context.service.createProduct(productInput)
@@ -74,9 +72,9 @@ describe('订单资金与利润报表', () => {
       receivableCents: 7800,
       receivedNetCents: 3000,
       outstandingCents: 4800,
-      estimatedCostCents: 5800,
+      estimatedCostCents: 2800,
       actualCostCents: 0,
-      estimatedProfitCents: 2000,
+      estimatedProfitCents: 5000,
       actualProfitCents: 3000,
       financialStatus: 'partial'
     })
@@ -84,7 +82,7 @@ describe('订单资金与利润报表', () => {
       orderCount: 1,
       receivableCents: 7800,
       outstandingCents: 4800,
-      estimatedProfitCents: 2000,
+      estimatedProfitCents: 5000,
       actualProfitCents: 3000
     })
   })

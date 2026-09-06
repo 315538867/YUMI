@@ -45,7 +45,7 @@ describe('SQLite 数据基础', () => {
         .get()
     ).toBeTruthy()
     expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-      version: 6
+      version: 7
     })
 
     expect(column(database, 'products', 'accessory_cost_cents').dflt_value).toBe('0')
@@ -78,6 +78,19 @@ describe('SQLite 数据基础', () => {
         (5, 'schedule_risk_details', '2026-09-01T00:00:00.000Z');
 
       CREATE TABLE workers (id TEXT PRIMARY KEY);
+      CREATE TABLE cost_settings_history (
+        id TEXT PRIMARY KEY,
+        glue_price_cents_per_gram INTEGER NOT NULL,
+        monthly_fixed_cost_cents INTEGER NOT NULL,
+        target_effective_minutes INTEGER NOT NULL,
+        fixed_overhead_hourly_rate_cents INTEGER NOT NULL,
+        effective_from TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO cost_settings_history (
+        id, glue_price_cents_per_gram, monthly_fixed_cost_cents, target_effective_minutes,
+        fixed_overhead_hourly_rate_cents, effective_from, created_at
+      ) VALUES ('cost-legacy', 50, 480000, 9600, 3000, '2026-09-01', '2026-09-01T00:00:00.000Z');
       CREATE TABLE products (id TEXT PRIMARY KEY);
       CREATE TABLE orders (id TEXT PRIMARY KEY);
       CREATE TABLE order_items (id TEXT PRIMARY KEY, order_id TEXT NOT NULL, product_id TEXT NOT NULL);
@@ -138,8 +151,16 @@ describe('SQLite 数据基础', () => {
     runMigrations(database)
 
     expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-      version: 6
+      version: 7
     })
+    expect(column(database, 'cost_settings_history', 'default_hourly_wage_cents').dflt_value).toBe('0')
+    expect(
+      database
+        .prepare(
+          "SELECT default_hourly_wage_cents FROM cost_settings_history WHERE id = 'cost-legacy'"
+        )
+        .get()
+    ).toEqual({ default_hourly_wage_cents: 0 })
     expect(
       database
         .prepare(

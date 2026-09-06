@@ -11,7 +11,6 @@ export interface ProductCostInput {
   standardMinutesPerUnit: number
   hourlyLaborCost: number
   commissionPerUnit: number
-  fixedOverheadHourlyRate: number
   edgeEnabled: boolean
   edgeQuantity: number
   edgePricePerUnit: number
@@ -26,7 +25,6 @@ export interface ProductCostResult {
   laborHours: number
   laborCost: number
   commissionCost: number
-  fixedOverheadCost: number
   edgeRevenue: number
   totalCost: number
 }
@@ -47,7 +45,6 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
   requirePositive(input.standardMinutesPerUnit, '标准制作时长', true)
   requirePositive(input.hourlyLaborCost, '人工时薪', true)
   requirePositive(input.commissionPerUnit, '单件提成', true)
-  requirePositive(input.fixedOverheadHourlyRate, '固定成本时薪', true)
   requirePositive(input.edgeQuantity, '缝边数量', true)
   requirePositive(input.edgePricePerUnit, '缝边单价', true)
 
@@ -66,7 +63,6 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
   const laborHours = roundQuantity((input.quantity * input.standardMinutesPerUnit) / 60)
   const laborCost = roundMoney(laborHours * input.hourlyLaborCost)
   const commissionCost = roundMoney(input.quantity * input.commissionPerUnit)
-  const fixedOverheadCost = roundMoney(laborHours * input.fixedOverheadHourlyRate)
   const edgeRevenue = input.edgeEnabled
     ? roundMoney(input.edgeQuantity * input.edgePricePerUnit)
     : 0
@@ -80,7 +76,6 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
     laborHours,
     laborCost,
     commissionCost,
-    fixedOverheadCost,
     edgeRevenue,
     totalCost: roundMoney(
       glueCost +
@@ -88,8 +83,7 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
         accessoryCost +
         replacementBagCost +
         laborCost +
-        commissionCost +
-        fixedOverheadCost
+        commissionCost
     )
   }
 }

@@ -28,6 +28,7 @@ import type {
   BackupSummary,
   LocalDataActivity,
   CustomerProfile,
+  CostSettings,
   DashboardSummary,
   OrderCreateInput,
   OrderDetail,
@@ -1856,9 +1857,11 @@ function SettingsWorkspace({ onDataChanged }: { onDataChanged(): Promise<void> }
   const [activity, setActivity] = useState<LocalDataActivity | null>(null)
   const [backups, setBackups] = useState<BackupSummary[]>([])
   const [audits, setAudits] = useState<AuditLogSummary[]>([])
+  const [costSettings, setCostSettings] = useState<CostSettings | null>(null)
   const [selectedRestore, setSelectedRestore] = useState<BackupSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [creatingBackup, setCreatingBackup] = useState(false)
+  const [savingCostSettings, setSavingCostSettings] = useState(false)
   const [loadingDemo, setLoadingDemo] = useState(false)
   const [error, setError] = useState('')
 
@@ -1866,16 +1869,18 @@ function SettingsWorkspace({ onDataChanged }: { onDataChanged(): Promise<void> }
     setLoading(true)
     setError('')
     try {
-      const [activityData, backupData, auditData] = await Promise.all([
+      const [activityData, backupData, auditData, costSettingsData] = await Promise.all([
         window.yumi.backup.activity(),
         window.yumi.backup.list(),
-        window.yumi.settings.listAuditLogs()
+        window.yumi.settings.listAuditLogs(),
+        window.yumi.settings.getCost()
       ])
       setActivity(activityData)
       setBackups(backupData)
       setAudits(auditData.slice(0, 12))
+      setCostSettings(costSettingsData)
     } catch (reason) {
-      setError(getErrorMessage(reason, '备份状态读取失败，请重试。'))
+      setError(getErrorMessage(reason, '设置与备份数据读取失败，请重试。'))
     } finally {
       setLoading(false)
     }
@@ -1895,6 +1900,28 @@ function SettingsWorkspace({ onDataChanged }: { onDataChanged(): Promise<void> }
       setError(getErrorMessage(reason, '创建备份失败，请稍后重试。'))
     } finally {
       setCreatingBackup(false)
+    }
+  }
+
+  const patchCostSettings = (patch: Partial<CostSettings>) => {
+    setCostSettings((current) => (current ? { ...current, ...patch } : current))
+  }
+
+  const saveCostSettings = async () => {
+    if (!costSettings) return
+    setSavingCostSettings(true)
+    setError('')
+    try {
+      await window.yumi.settings.updateCost({
+        gluePriceCentsPerGram: costSettings.gluePriceCentsPerGram,
+        defaultHourlyWageCents: costSettings.defaultHourlyWageCents,
+        effectiveFrom: costSettings.effectiveFrom || format(new Date(), 'yyyy-MM-dd')
+      })
+      await Promise.all([reload(), onDataChanged()])
+    } catch (reason) {
+      setError(getErrorMessage(reason, '系统成本设置保存失败，请重试。'))
+    } finally {
+      setSavingCostSettings(false)
     }
   }
 
@@ -1962,6 +1989,74 @@ function SettingsWorkspace({ onDataChanged }: { onDataChanged(): Promise<void> }
           {error}
         </div>
       )}
+
+      <section className="settings-section">
+        <Flex align="center" justify="between" mb="3" gap="3" wrap="wrap">
+          <div>
+            <Text weight="medium">系统成本设置</Text>
+            <Text as="div" size="1" color="gray">
+              商品和订单预计成本包含材料、包装、默认兼职时薪和按件提成；实际制作仍按兼职人员个人时薪结算。
+            </Text>
+          </div>
+          <Button
+            disabled={loading || !costSettings || savingCostSettings}
+            onClick={() => void saveCostSettings()}
+            size="2"
+          >
+            {savingCostSettings ? '保存中…' : '保存成本设置'}
+          </Button>
+        </Flex>
+        {loading || !costSettings ? (
+          <Empty text="正在读取系统成本设置…" />
+        ) : (
+          <div className="field-grid three">
+            <label>
+              <Text as="div" size="2" mb="1">
+                胶水单价（元/克）
+              </Text>
+              <TextField.Root
+                inputMode="decimal"
+                min="0"
+                onChange={(event) =>
+                  patchCostSettings({
+                    gluePriceCentsPerGram: Math.round(Number(event.target.value || 0) * 100)
+                  })
+                }
+                step="0.01"
+                type="number"
+                value={(costSettings.gluePriceCentsPerGram / 100).toString()}
+              />
+            </label>
+            <label>
+              <Text as="div" size="2" mb="1">
+                默认兼职时薪（元/小时）
+              </Text>
+              <TextField.Root
+                inputMode="decimal"
+                min="0"
+                onChange={(event) =>
+                  patchCostSettings({
+                    defaultHourlyWageCents: Math.round(Number(event.target.value || 0) * 100)
+                  })
+                }
+                step="0.01"
+                type="number"
+                value={(costSettings.defaultHourlyWageCents / 100).toString()}
+              />
+            </label>
+            <label>
+              <Text as="div" size="2" mb="1">
+                生效日期
+              </Text>
+              <TextField.Root
+                onChange={(event) => patchCostSettings({ effectiveFrom: event.target.value })}
+                type="date"
+                value={costSettings.effectiveFrom || format(new Date(), 'yyyy-MM-dd')}
+              />
+            </label>
+          </div>
+        )}
+      </section>
 
       <section className="settings-grid">
         <div className="settings-section">
@@ -2223,7 +2318,6 @@ function ProductDialog({
         await window.yumi.products.previewCost({
           ...input,
           quantity: 1,
-          hourlyLaborCostCents: 0,
           edgeEnabled: false,
           edgeQuantity: 0
         })
@@ -2337,7 +2431,7 @@ function ProductDialog({
             <Flex align="center" justify="between">
               <div>
                 <Text weight="medium">单件成本预览</Text>
-                <Text as="div" size="1" color="gray">按当前填写的数据计算；人工时薪暂按 0 元。</Text>
+                <Text as="div" size="1" color="gray">按当前填写的数据计算；人工成本按全局默认兼职时薪计算。</Text>
               </div>
               <Button size="1" variant="soft" disabled={calculating} onClick={() => void previewCost()}>
                 {calculating ? '计算中…' : '预览单件成本'}
@@ -2348,6 +2442,7 @@ function ProductDialog({
                 <div><Text as="div" size="1" color="gray">包装成本</Text><Text weight="medium">{money(preview.packagingCostCents)}</Text></div>
                 <div><Text as="div" size="1" color="gray">配件费</Text><Text weight="medium">{money(preview.accessoryCostCents)}</Text></div>
                 <div><Text as="div" size="1" color="gray">替换袋费用</Text><Text weight="medium">{money(preview.replacementBagCostCents)}</Text></div>
+                <div><Text as="div" size="1" color="gray">默认兼职时薪</Text><Text weight="medium">{money(preview.appliedHourlyWageCents)}/小时</Text></div>
                 <div><Text as="div" size="1" color="gray">预计直接成本</Text><Text weight="medium">{money(preview.totalCostCents)}</Text></div>
               </div>
             )}
@@ -3837,7 +3932,6 @@ function ProductInspector({
   const [draft, setDraft] = useState<ProductDetail | null>(null)
   const [preview, setPreview] = useState<ProductCostPreview | null>(null)
   const [previewQuantity, setPreviewQuantity] = useState('1')
-  const [previewWage, setPreviewWage] = useState('0')
   const [previewEdgeEnabled, setPreviewEdgeEnabled] = useState(false)
   const [previewEdgeQuantity, setPreviewEdgeQuantity] = useState('1')
   const [loading, setLoading] = useState(false)
@@ -3871,7 +3965,6 @@ function ProductInspector({
         if (!cancelled) {
           setDraft(product)
           setPreviewQuantity('1')
-          setPreviewWage('0')
           setPreviewEdgeEnabled(false)
           setPreviewEdgeQuantity('1')
         }
@@ -3927,7 +4020,6 @@ function ProductInspector({
       const result = await window.yumi.products.previewCost({
         ...toProductUpdateInput(draft),
         quantity: Number(previewQuantity),
-        hourlyLaborCostCents: Math.round(Number(previewWage) * 100),
         edgeEnabled: previewEdgeEnabled,
         edgeQuantity: previewEdgeEnabled ? Number(previewEdgeQuantity) : 0
       })
@@ -4242,7 +4334,7 @@ function ProductInspector({
                 <div>
                   <Text weight="medium">成本与日产能预估</Text>
                   <Text as="div" color="gray" size="1">
-                    胶水与房租水电按当前系统成本设置计算；预估时薪只用于本次预览。
+                    胶水、房租水电与人工均按当前系统成本设置计算；人工部分按全局默认兼职时薪计算。
                   </Text>
                 </div>
                 <Button
@@ -4264,17 +4356,6 @@ function ProductInspector({
                     onChange={(event) => setPreviewQuantity(event.target.value)}
                     type="number"
                     value={previewQuantity}
-                  />
-                </label>
-                <label>
-                  <Text as="div" size="1" color="gray" mb="1">
-                    预估时薪（元）
-                  </Text>
-                  <TextField.Root
-                    min="0"
-                    onChange={(event) => setPreviewWage(event.target.value)}
-                    type="number"
-                    value={previewWage}
                   />
                 </label>
                 <label className="edge-preview-toggle">
@@ -4328,6 +4409,12 @@ function ProductInspector({
                     </div>
                     <div>
                       <Text as="div" color="gray" size="1">
+                        默认兼职时薪
+                      </Text>
+                      <Text weight="medium">{money(preview.appliedHourlyWageCents)}/小时</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
                         人工 {preview.laborMinutes} 分钟
                       </Text>
                       <Text weight="medium">{money(preview.laborCostCents)}</Text>
@@ -4337,12 +4424,6 @@ function ProductInspector({
                         按件提成
                       </Text>
                       <Text weight="medium">{money(preview.commissionCostCents)}</Text>
-                    </div>
-                    <div>
-                      <Text as="div" color="gray" size="1">
-                        房租水电分摊
-                      </Text>
-                      <Text weight="medium">{money(preview.fixedOverheadCostCents)}</Text>
                     </div>
                     <div>
                       <Text as="div" color="gray" size="1">
@@ -4380,7 +4461,7 @@ function ProductInspector({
                 </>
               ) : (
                 <Text as="div" color="gray" size="2" mt="3">
-                  填写预估数量与时薪后，点击“刷新预估”查看成本拆分和每日模具产能。
+                  填写预估数量后，点击“刷新预估”查看包含全局默认兼职时薪的成本拆分和每日模具产能。
                 </Text>
               )}
             </section>
