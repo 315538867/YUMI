@@ -3,6 +3,7 @@ import { addDays, format } from 'date-fns'
 import { createDatabase, type StudioDatabase } from '@main/database/connection'
 import { StudioRepository } from '@main/repositories/studio-repository'
 import { StudioService } from './studio-service'
+import { createOrderCustomer } from './test-order-customer'
 
 describe('端到端验收流程', () => {
   const databases: StudioDatabase[] = []
@@ -43,7 +44,7 @@ describe('端到端验收流程', () => {
       defaultWorkEnd: '18:00'
     })
     const order = service.createOrder({
-      customer: { name: '验收客户' },
+      customer: createOrderCustomer(service, { name: '验收客户' }),
       expectedShipDate: format(addDays(today, 3), 'yyyy-MM-dd'),
       reserveDays: 1,
       items: [{ productId: product.id, quantity: 4, edgeEnabled: true, edgeQuantity: 2 }]
@@ -145,7 +146,7 @@ describe('端到端验收流程', () => {
     const workerA = service.createWorker({ name: '联动小林', hourlyWageCents: 2800 })
     const workerB = service.createWorker({ name: '联动小周', hourlyWageCents: 3000 })
     const order = service.createOrder({
-      customer: { name: '联动客户' }, expectedShipDate: '2026-09-20',
+      customer: createOrderCustomer(service, { name: '联动客户' }), expectedShipDate: '2026-09-20',
       items: [
         { productId: productA.id, quantity: 5 },
         { productId: productB.id, quantity: 3 }

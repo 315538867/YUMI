@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createDatabase, type StudioDatabase } from '@main/database/connection'
 import { StudioRepository } from '@main/repositories/studio-repository'
 import { StudioService } from './studio-service'
+import { createOrderCustomer } from './test-order-customer'
 
 const productInput = {
   name: '奶油小熊',
@@ -32,7 +33,7 @@ describe('实际制作、人工成本与提成结算', () => {
     const product = service.createProduct(productInput)
     const worker = service.createWorker({ name: '小林', hourlyWageCents: 2800 })
     const order = service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(service, { name: '小雨' }),
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 10 }]
     })
@@ -77,7 +78,7 @@ describe('实际制作、人工成本与提成结算', () => {
     const product = service.createProduct(productInput)
     const worker = service.createWorker({ name: '小林', hourlyWageCents: 2800 })
     const order = service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(service, { name: '小雨' }),
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 4 }]
     })
@@ -122,7 +123,7 @@ describe('实际制作、人工成本与提成结算', () => {
     const product = service.createProduct(productInput)
     const worker = service.createWorker({ name: '小林', hourlyWageCents: 2800 })
     const order = service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(service, { name: '小雨' }),
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 2 }]
     })

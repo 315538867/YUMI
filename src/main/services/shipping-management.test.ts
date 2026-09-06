@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createDatabase, type StudioDatabase } from '@main/database/connection'
 import { StudioRepository } from '@main/repositories/studio-repository'
 import { StudioService } from './studio-service'
+import { createOrderCustomer } from './test-order-customer'
 
 async function withTemporaryProductImage<T>(
   callback: (imagePath: string) => Promise<T>
@@ -59,7 +60,7 @@ describe('订单发货记录', () => {
     databases.push(context.database)
     const product = context.service.createProduct(productInput)
     const order = context.service.createOrder({
-      customer: { name: '小雨', defaultAddress: '上海市静安区' },
+      customer: createOrderCustomer(context.service, { name: '小雨', defaultAddress: '上海市静安区' }),
       expectedShipDate: '2026-09-15',
       items: [{ productId: product.id, quantity: 5 }]
     })
@@ -110,7 +111,7 @@ describe('订单发货记录', () => {
     const product = context.service.createProduct(productInput)
     const anotherProduct = context.service.createProduct({ ...productInput, name: '云朵捏捏' })
     const order = context.service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(context.service, { name: '小雨' }),
       expectedShipDate: '2026-09-15',
       items: [
         { productId: product.id, quantity: 5 },
@@ -176,7 +177,7 @@ describe('订单表与发货清单分离导出', () => {
         imagePath
       })
       const order = context.service.createOrder({
-        customer: { name: '小雨', contact: '13800000000', defaultAddress: '上海市静安区' },
+        customer: createOrderCustomer(context.service, { name: '小雨', contact: '13800000000', defaultAddress: '上海市静安区' }),
         expectedShipDate: '2026-09-15',
         notes: '双面防尘扣',
         items: [{ productId: product.id, quantity: 5 }]
@@ -260,7 +261,7 @@ describe('订单表与发货清单分离导出', () => {
         imagePath
       })
       const order = context.service.createOrder({
-        customer: { name: '小雨', defaultAddress: '上海市静安区' },
+        customer: createOrderCustomer(context.service, { name: '小雨', defaultAddress: '上海市静安区' }),
         expectedShipDate: '2026-09-15',
         items: [
           { productId: firstProduct.id, quantity: 5 },
@@ -274,7 +275,7 @@ describe('订单表与发货清单分离导出', () => {
         items: [{ orderItemId: order.items[0]!.id, quantity: 2 }]
       })
       const anotherOrder = context.service.createOrder({
-        customer: { name: '小林' },
+        customer: createOrderCustomer(context.service, { name: '小林' }),
         expectedShipDate: '2026-09-18',
         items: [{ productId: firstProduct.id, quantity: 1 }]
       })

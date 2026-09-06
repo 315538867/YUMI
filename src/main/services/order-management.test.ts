@@ -61,13 +61,19 @@ describe('客户、订单与收退款管理', () => {
     context.service.updateOrderDefaults({ defaultReserveDays: 3 })
     const bear = context.service.createProduct(bearInput)
     const cloud = context.service.createProduct(cloudInput)
+    const customer = context.service.createCustomer({
+      name: '小雨',
+      contact: '13800000000',
+      defaultAddress: '上海市静安区',
+      notes: '周末收货'
+    })
 
     const order = context.service.createOrder({
       customer: {
-        name: '小雨',
-        contact: '13800000000',
-        defaultAddress: '上海市静安区',
-        notes: '周末收货'
+        id: customer.id,
+        name: customer.name,
+        contact: customer.contact,
+        defaultAddress: customer.defaultAddress
       },
       expectedShipDate: '2026-09-15',
       discountCents: 500,
@@ -133,8 +139,9 @@ describe('客户、订单与收退款管理', () => {
     databases.push(context.database)
     const bear = context.service.createProduct(bearInput)
     const cloud = context.service.createProduct(cloudInput)
+    const customer = context.service.createCustomer({ name: '小雨', contact: '13800000000' })
     const order = context.service.createOrder({
-      customer: { name: '小雨', contact: '13800000000' },
+      customer: { id: customer.id, name: customer.name, contact: customer.contact },
       expectedShipDate: '2026-09-15',
       reserveDays: 2,
       items: [{ productId: bear.id, quantity: 2, edgeEnabled: true, edgeQuantity: 2 }]
@@ -189,8 +196,9 @@ describe('客户、订单与收退款管理', () => {
     const context = createService()
     databases.push(context.database)
     const product = context.service.createProduct(bearInput)
+    const customer = context.service.createCustomer({ name: '小雨' })
     const order = context.service.createOrder({
-      customer: { name: '小雨' },
+      customer: { id: customer.id, name: customer.name },
       expectedShipDate: '2026-09-15',
       reserveDays: 2,
       items: [{ productId: product.id, quantity: 3 }]
@@ -264,23 +272,24 @@ describe('客户、订单与收退款管理', () => {
     databases.push(context.database)
     const product = context.service.createProduct(bearInput)
     const activeProduct = context.service.createProduct(cloudInput)
+    const customer = context.service.createCustomer({ name: '小雨' })
     context.service.updateProduct({ ...product, enabled: false })
 
     expect(() =>
       context.service.createOrder({
-        customer: { name: '小雨' },
+        customer: { id: customer.id, name: customer.name },
         expectedShipDate: '2026-09-15',
         items: [{ productId: product.id, quantity: 1 }]
       })
     ).toThrow('商品未启用，不能创建订单')
     expect(() =>
       context.service.createOrder({
-        customer: { name: '小雨' },
+        customer: { id: customer.id, name: customer.name },
         expectedShipDate: '2026-09-15',
         items: [{ productId: activeProduct.id, quantity: 1, edgeEnabled: true, edgeQuantity: 2 }]
       })
     ).toThrow('缝边数量不能超过商品数量')
-    expect(context.repository.listCustomers()).toHaveLength(0)
+    expect(context.repository.listCustomers()).toHaveLength(1)
     expect(() =>
       context.service.recordPayment({
         orderId: '01800000-0000-7000-8000-000000000001',
@@ -308,8 +317,9 @@ describe('订单排产联动', () => {
       commissionCentsPerUnit: 100, moldCount: 10, outputPerMoldPerBatch: 1, maxBatchesPerDay: 2
     })
     const worker = service.createWorker({ name: '排产小林', hourlyWageCents: 2800 })
+    const customer = service.createCustomer({ name: '排产客户' })
     const order = service.createOrder({
-      customer: { name: '排产客户' }, expectedShipDate: '2026-09-20',
+      customer: { id: customer.id, name: customer.name }, expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 10 }]
     })
     const first = service.saveShift({
@@ -338,5 +348,82 @@ describe('订单排产联动', () => {
     expect(repository.listOrders()).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: order.id, progress: expect.objectContaining({ unplannedQuantity: 5 }), schedulingStatus: 'pending_replenishment' })])
     )
+  })
+})
+
+describe('订单客户关联约束', () => {
+  const databases: StudioDatabase[] = []
+  afterEach(() => databases.splice(0).forEach((database) => database.close()))
+
+  it('要求选择已有客户，订单快照修改不回写客户主档', () => {
+    const context = createService()
+    databases.push(context.database)
+    const product = context.service.createProduct(bearInput)
+
+    expect(() =>
+      context.service.createOrder({
+        customer: { name: '不应自动建档客户' },
+        expectedShipDate: '2026-09-20',
+        items: [{ productId: product.id, quantity: 1 }]
+      })
+    ).toThrow('请先选择已有客户')
+
+    const customer = context.service.createCustomer({
+      name: '已有客户',
+      contact: '13600004444',
+      defaultAddress: '客户主档地址'
+    })
+    const order = context.service.createOrder({
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        contact: customer.contact,
+        defaultAddress: customer.defaultAddress
+      },
+      expectedShipDate: '2026-09-20',
+      items: [{ productId: product.id, quantity: 1 }]
+    })
+
+    expect(() =>
+      context.service.updateOrder({
+        id: order.id,
+        customer: { name: '不应自动建档客户' },
+        expectedShipDate: '2026-09-21',
+        items: [{ id: order.items[0]!.id, productId: product.id, quantity: 1 }]
+      })
+    ).toThrow('请先选择已有客户')
+
+    const updated = context.service.updateOrder({
+      id: order.id,
+      customer: {
+        id: customer.id,
+        name: '订单专用名称',
+        contact: '13500005555',
+        defaultAddress: '订单专用地址'
+      },
+      expectedShipDate: '2026-09-21',
+      items: [{ id: order.items[0]!.id, productId: product.id, quantity: 1 }]
+    })
+    expect(updated.customer).toMatchObject({
+      name: '订单专用名称',
+      contact: '13500005555',
+      defaultAddress: '订单专用地址'
+    })
+    expect(context.repository.getCustomer(customer.id)).toMatchObject({
+      name: '已有客户',
+      contact: '13600004444',
+      defaultAddress: '客户主档地址'
+    })
+    context.service.updateCustomer({
+      id: customer.id,
+      name: '更新后的客户主档',
+      contact: '13400006666',
+      defaultAddress: '更新后的主档地址'
+    })
+    expect(context.service.getOrderDetail(order.id)?.customer).toMatchObject({
+      name: '订单专用名称',
+      contact: '13500005555',
+      defaultAddress: '订单专用地址'
+    })
   })
 })

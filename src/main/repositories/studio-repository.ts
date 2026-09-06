@@ -16,8 +16,12 @@ import type {
   AuditLogSummary,
   CostSettings,
   CostSettingsInput,
+  CustomerDetail,
   CustomerInput,
+  CustomerManagementQuery,
+  CustomerOverview,
   CustomerProfile,
+  CustomerUpdateInput,
   DashboardSummary,
   OrderCreateInput,
   OrderDefaults,
@@ -465,8 +469,53 @@ export class StudioRepository {
   }
 
   createCustomer(input: CustomerInput): CustomerProfile {
-    const customer = this.insertCustomer(input)
-    return customer
+    return this.insertCustomer(input)
+  }
+
+  updateCustomer(input: CustomerUpdateInput): CustomerProfile | null {
+    const timestamp = now()
+    const result = this.database
+      .prepare(
+        `UPDATE customers
+        SET name = ?, contact = ?, default_address = ?, notes = ?, updated_at = ?
+        WHERE id = ?`
+      )
+      .run(
+        input.name.trim(),
+        input.contact?.trim() || null,
+        input.defaultAddress?.trim() || null,
+        input.notes?.trim() || null,
+        timestamp,
+        input.id
+      )
+    return result.changes > 0 ? this.getCustomer(input.id) : null
+  }
+
+  deleteCustomer(id: string): boolean {
+    let deleted = false
+    this.database.transaction(() => {
+      const linkedOrderCount = this.database
+        .prepare('SELECT COUNT(*) AS count FROM orders WHERE customer_id = ?')
+        .get(id) as { count: number }
+      if (Number(linkedOrderCount.count) > 0)
+        throw new DomainValidationError('该客户已有订单记录，不能删除')
+      deleted = this.database.prepare('DELETE FROM customers WHERE id = ?').run(id).changes > 0
+    })()
+    return deleted
+  }
+
+  listCustomerManagement(query: CustomerManagementQuery = {}): CustomerOverview[] {
+    const keyword = query.keyword?.trim()
+    const whereSql = keyword
+      ? 'WHERE c.name LIKE ? COLLATE NOCASE OR c.contact LIKE ? COLLATE NOCASE OR c.default_address LIKE ? COLLATE NOCASE'
+      : ''
+    const parameters = keyword ? [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`] : []
+    return this.queryCustomerOverviews(whereSql, parameters)
+  }
+
+  getCustomerDetail(id: string): CustomerDetail | null {
+    const [customer] = this.queryCustomerOverviews('WHERE c.id = ?', [id])
+    return customer ? { ...customer, orders: this.listCustomerOrderHistory(id) } : null
   }
 
   listCustomerOrderHistory(customerId: string): OrderSummary[] {
@@ -477,9 +526,7 @@ export class StudioRepository {
     const orderId = randomUUID()
     const timestamp = now()
     this.database.transaction(() => {
-      const customer = input.customer.id
-        ? this.getCustomer(input.customer.id)
-        : this.insertCustomer(input.customer)
+      const customer = this.getCustomer(input.customer.id)
       if (!customer) throw new DomainValidationError('客户不存在')
       const reserveDays = input.reserveDays ?? this.getOrderDefaults().defaultReserveDays
       const productionDeadline = calculateProductionDeadline(input.expectedShipDate, reserveDays)
@@ -532,7 +579,7 @@ export class StudioRepository {
         name: input.customer.name.trim(),
         contact: input.customer.contact?.trim() || null,
         defaultAddress: input.customer.defaultAddress?.trim() || null,
-        notes: input.customer.notes?.trim() || null
+        notes: null
       }
       const code = `YM-${timestamp.slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 4).toUpperCase()}`
       this.database
@@ -744,9 +791,7 @@ export class StudioRepository {
     if (!previous) throw new DomainValidationError('订单不存在')
     const timestamp = now()
     this.database.transaction(() => {
-      const customer = input.customer.id
-        ? this.getCustomer(input.customer.id)
-        : this.insertCustomer(input.customer)
+      const customer = this.getCustomer(input.customer.id)
       if (!customer) throw new DomainValidationError('客户不存在')
       const reserveDays = input.reserveDays ?? previous.reserveDays
       const productionDeadline = calculateProductionDeadline(input.expectedShipDate, reserveDays)
@@ -843,7 +888,7 @@ export class StudioRepository {
         name: input.customer.name.trim(),
         contact: input.customer.contact?.trim() || null,
         defaultAddress: input.customer.defaultAddress?.trim() || null,
-        notes: input.customer.notes?.trim() || null
+        notes: null
       }
       this.database
         .prepare(
@@ -2280,6 +2325,35 @@ export class StudioRepository {
       note: (row.note as string | null) ?? null,
       receiptAttachmentId: (row.receipt_attachment_id as string | null) ?? null,
       createdAt: String(row.created_at)
+    }))
+  }
+
+  private queryCustomerOverviews(whereSql: string, parameters: unknown[]): CustomerOverview[] {
+    const rows = this.database
+      .prepare(
+        `SELECT c.id, c.name, c.contact, c.default_address, c.notes, c.created_at, c.updated_at,
+        COUNT(o.id) AS order_count,
+        COALESCE(SUM(CASE WHEN o.production_status = 'pending_shipment' THEN 1 ELSE 0 END), 0) AS pending_shipment_order_count,
+        COALESCE(SUM(o.receivable_cents - COALESCE(payment.received_net_cents, 0)), 0) AS outstanding_cents,
+        MAX(o.created_at) AS latest_order_at
+        FROM customers c
+        LEFT JOIN orders o ON o.customer_id = c.id
+        LEFT JOIN (
+          SELECT order_id,
+          SUM(CASE WHEN type = 'receipt' THEN amount_cents ELSE -amount_cents END) AS received_net_cents
+          FROM payments GROUP BY order_id
+        ) payment ON payment.order_id = o.id
+        ${whereSql}
+        GROUP BY c.id
+        ORDER BY c.updated_at DESC, c.name`
+      )
+      .all(...parameters) as Row[]
+    return rows.map((row) => ({
+      ...customerFromRow(row),
+      orderCount: Number(row.order_count),
+      pendingShipmentOrderCount: Number(row.pending_shipment_order_count),
+      outstandingCents: Number(row.outstanding_cents),
+      latestOrderAt: row.latest_order_at ? String(row.latest_order_at) : null
     }))
   }
 

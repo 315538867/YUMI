@@ -1181,3 +1181,23 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+.customer-management-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.9fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.customer-detail-panel {
+  border: 1px solid var(--gray-a5);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--color-panel-solid);
+}
+
+@media (max-width: 900px) {
+  .customer-management-grid {
+    grid-template-columns: 1fr;
+  }
+}

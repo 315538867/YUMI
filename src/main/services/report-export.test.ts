@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { createDatabase, type StudioDatabase } from '@main/database/connection'
 import { StudioRepository } from '@main/repositories/studio-repository'
 import { StudioService } from './studio-service'
+import { createOrderCustomer } from './test-order-customer'
 
 describe('业务报表 XLSX 导出', () => {
   const databases: StudioDatabase[] = []
@@ -29,7 +30,7 @@ describe('业务报表 XLSX 导出', () => {
       maxBatchesPerDay: 2
     })
     service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(service, { name: '小雨' }),
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 2 }]
     })
