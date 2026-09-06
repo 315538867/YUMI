@@ -81,7 +81,7 @@ const retiredCostSettingsValues = {
 
 const defaultCostSettings: CostSettings = {
   id: 'default',
-  gluePriceCentsPerGram: 0,
+  gluePriceMilliYuanPerGram: 0,
   defaultHourlyWageCents: 0,
   effectiveFrom: '',
   createdAt: ''
@@ -139,7 +139,7 @@ function customerFromRow(row: Row): CustomerProfile {
 function costSettingsFromRow(row: Row): CostSettings {
   return {
     id: String(row.id),
-    gluePriceCentsPerGram: Number(row.glue_price_cents_per_gram),
+    gluePriceMilliYuanPerGram: Number(row.glue_price_milli_yuan_per_gram),
     defaultHourlyWageCents: Number(row.default_hourly_wage_cents ?? 0),
     effectiveFrom: String(row.effective_from),
     createdAt: String(row.created_at)
@@ -187,7 +187,7 @@ function productSnapshot(product: ProductDetail, settings: CostSettings): Produc
     moldCount: product.moldCount,
     outputPerMoldPerBatch: product.outputPerMoldPerBatch,
     maxBatchesPerDay: product.maxBatchesPerDay,
-    gluePriceCentsPerGram: settings.gluePriceCentsPerGram,
+    gluePriceMilliYuanPerGram: settings.gluePriceMilliYuanPerGram,
     defaultHourlyWageCents: settings.defaultHourlyWageCents
   }
 }
@@ -203,7 +203,7 @@ function estimateItemCostCents(
     quantity,
     weightGrams: snapshot.weightGrams,
     lossRate: snapshot.lossRate,
-    gluePricePerGram: snapshot.gluePriceCentsPerGram / 100,
+    gluePricePerGram: snapshot.gluePriceMilliYuanPerGram / 1000,
     packagingCostPerUnit: snapshot.packagingCostCents / 100,
     accessoryCostPerUnit: snapshot.accessoryCostCents / 100,
     replacementBagCostPerUnit: snapshot.replacementBagCostCents / 100,
@@ -353,7 +353,7 @@ export class StudioRepository {
   getCostSettings(): CostSettings {
     const row = this.database
       .prepare(
-        `SELECT id, glue_price_cents_per_gram, default_hourly_wage_cents, effective_from, created_at
+        `SELECT id, glue_price_milli_yuan_per_gram, default_hourly_wage_cents, effective_from, created_at
         FROM cost_settings_history ORDER BY effective_from DESC, created_at DESC LIMIT 1`
       )
       .get() as Row | undefined
@@ -364,7 +364,7 @@ export class StudioRepository {
     return (
       this.database
         .prepare(
-          `SELECT id, glue_price_cents_per_gram, default_hourly_wage_cents, effective_from, created_at
+          `SELECT id, glue_price_milli_yuan_per_gram, default_hourly_wage_cents, effective_from, created_at
           FROM cost_settings_history ORDER BY effective_from DESC, created_at DESC`
         )
         .all() as Row[]
@@ -384,13 +384,13 @@ export class StudioRepository {
       this.database
         .prepare(
           `INSERT INTO cost_settings_history (
-            id, glue_price_cents_per_gram, monthly_fixed_cost_cents, target_effective_minutes,
+            id, glue_price_milli_yuan_per_gram, monthly_fixed_cost_cents, target_effective_minutes,
             fixed_overhead_hourly_rate_cents, default_hourly_wage_cents, effective_from, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           record.id,
-          record.gluePriceCentsPerGram,
+          record.gluePriceMilliYuanPerGram,
           retiredCostSettingsValues.monthlyFixedCostCents,
           retiredCostSettingsValues.targetEffectiveMinutes,
           retiredCostSettingsValues.fixedOverheadHourlyRateCents,
@@ -2163,7 +2163,10 @@ export class StudioRepository {
       productId: String(row.id),
       productName: String(row.name),
       estimatedCostPerUnitCents: Math.round(
-        Number(row.weight_grams) * (1 + Number(row.loss_rate)) * settings.gluePriceCentsPerGram +
+        (Number(row.weight_grams) *
+          (1 + Number(row.loss_rate)) *
+          settings.gluePriceMilliYuanPerGram) /
+          10 +
           Number(row.packaging_cost_cents) +
           Number(row.commission_cents_per_unit)
       ),

@@ -147,4 +147,11 @@ describe('数字字段输入体验', () => {
     expect(appSource).not.toContain('type="number"')
     expect(appSource).not.toMatch(/Number\(event\.target\.value/)
   })
+
+  it('胶水单价以千分位换算，允许输入每克 0.033 元', () => {
+    expect(appSource).toMatch(/const milliYuanFromDraft/)
+    expect(appSource).toMatch(/Math\.round\(numericValue \* 1000\)/)
+    expect(appSource).toMatch(/step="0\.001"/)
+    expect(appSource).toMatch(/gluePriceMilliYuanPerGram \/ 1000/)
+  })
 })

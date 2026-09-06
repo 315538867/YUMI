@@ -36,7 +36,7 @@ describe('订单资金与利润报表', () => {
     const context = createContext()
     databases.push(context.database)
     context.service.updateCostSettings({
-      gluePriceCentsPerGram: 50,
+      gluePriceMilliYuanPerGram: 500,
       effectiveFrom: '2026-09-01'
     })
     const product = context.service.createProduct(productInput)

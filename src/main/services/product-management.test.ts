@@ -74,13 +74,13 @@ describe('商品资料与系统成本设置', () => {
     databases.push(context.database)
 
     const saved = context.service.updateCostSettings({
-      gluePriceCentsPerGram: 50,
+      gluePriceMilliYuanPerGram: 500,
       defaultHourlyWageCents: 3000,
       effectiveFrom: '2026-09-01'
     })
 
     expect(saved).toMatchObject({
-      gluePriceCentsPerGram: 50,
+      gluePriceMilliYuanPerGram: 500,
       defaultHourlyWageCents: 3000,
       effectiveFrom: '2026-09-01'
     })
@@ -97,6 +97,28 @@ describe('商品资料与系统成本设置', () => {
     ])
   })
 
+  it('胶水单价以千分位存储，支持每克 0.033 元', () => {
+    const context = createService()
+    databases.push(context.database)
+
+    context.service.updateCostSettings({
+      gluePriceMilliYuanPerGram: 33,
+      defaultHourlyWageCents: 0,
+      effectiveFrom: '2026-09-01'
+    })
+
+    expect(
+      context.service.previewProductCost({
+        ...productInput,
+        quantity: 10,
+        weightGrams: 1,
+        lossRate: 0,
+        edgeEnabled: false,
+        edgeQuantity: 0
+      })
+    ).toMatchObject({ glueGrams: 10, glueCostCents: 33 })
+  })
+
   it('拒绝无效的损耗率与默认兼职时薪', () => {
     const context = createService()
     databases.push(context.database)
@@ -106,7 +128,7 @@ describe('商品资料与系统成本设置', () => {
     )
     expect(() =>
       context.service.updateCostSettings({
-        gluePriceCentsPerGram: 50,
+        gluePriceMilliYuanPerGram: 500,
         defaultHourlyWageCents: -1,
         effectiveFrom: '2026-09-01'
       })
@@ -125,7 +147,7 @@ describe('商品成本预览', () => {
     const context = createService()
     databases.push(context.database)
     context.service.updateCostSettings({
-      gluePriceCentsPerGram: 50,
+      gluePriceMilliYuanPerGram: 500,
       defaultHourlyWageCents: 3000,
       effectiveFrom: '2026-09-01'
     })
@@ -167,7 +189,7 @@ describe('全局默认兼职时薪', () => {
     const context = createService()
     databases.push(context.database)
     context.service.updateCostSettings({
-      gluePriceCentsPerGram: 50,
+      gluePriceMilliYuanPerGram: 500,
       defaultHourlyWageCents: 3000,
       effectiveFrom: '2026-09-06'
     })
@@ -190,7 +212,7 @@ describe('全局默认兼职时薪', () => {
     const context = createService()
     databases.push(context.database)
     context.service.updateCostSettings({
-      gluePriceCentsPerGram: 0,
+      gluePriceMilliYuanPerGram: 0,
       defaultHourlyWageCents: 3000,
       effectiveFrom: '2026-09-06'
     })
@@ -207,7 +229,7 @@ describe('全局默认兼职时薪', () => {
     })
 
     context.service.updateCostSettings({
-      gluePriceCentsPerGram: 0,
+      gluePriceMilliYuanPerGram: 0,
       defaultHourlyWageCents: 4000,
       effectiveFrom: '2026-09-07'
     })

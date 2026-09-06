@@ -26,14 +26,14 @@ export interface ProductDetail extends ProductSummary {
 
 export interface CostSettings {
   id: string
-  gluePriceCentsPerGram: number
+  gluePriceMilliYuanPerGram: number
   defaultHourlyWageCents: number
   effectiveFrom: string
   createdAt: string
 }
 
 export interface CostSettingsInput {
-  gluePriceCentsPerGram: number
+  gluePriceMilliYuanPerGram: number
   defaultHourlyWageCents?: number
   effectiveFrom: string
 }
@@ -178,7 +178,7 @@ export interface ProductOrderSnapshot {
   moldCount: number
   outputPerMoldPerBatch: number
   maxBatchesPerDay: number
-  gluePriceCentsPerGram: number
+  gluePriceMilliYuanPerGram: number
   defaultHourlyWageCents?: number
 }
 

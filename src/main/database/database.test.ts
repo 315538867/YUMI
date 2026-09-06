@@ -46,7 +46,7 @@ describe('SQLite 数据基础', () => {
     ).toBeTruthy()
     expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual(
       {
-        version: 8
+        version: 9
       }
     )
 
@@ -154,10 +154,20 @@ describe('SQLite 数据基础', () => {
 
     expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual(
       {
-        version: 8
+        version: 9
       }
     )
     expect(column(database, 'shipments', 'manifest_snapshot_json').type).toBe('TEXT')
+    expect(column(database, 'cost_settings_history', 'glue_price_milli_yuan_per_gram').type).toBe(
+      'INTEGER'
+    )
+    expect(
+      database
+        .prepare(
+          "SELECT glue_price_milli_yuan_per_gram FROM cost_settings_history WHERE id = 'cost-legacy'"
+        )
+        .get()
+    ).toEqual({ glue_price_milli_yuan_per_gram: 500 })
     expect(column(database, 'cost_settings_history', 'default_hourly_wage_cents').dflt_value).toBe(
       '0'
     )

@@ -22,7 +22,7 @@ export class DemoDataService {
     const scheduledDate = format(addDays(this.currentDate, 1), 'yyyy-MM-dd')
 
     this.studio.updateCostSettings({
-      gluePriceCentsPerGram: 18,
+      gluePriceMilliYuanPerGram: 180,
       effectiveFrom: today
     })
     this.studio.updateOrderDefaults({ defaultReserveDays: 2 })

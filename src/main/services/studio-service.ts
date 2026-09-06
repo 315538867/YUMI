@@ -76,7 +76,7 @@ const productUpdateSchema = productBaseSchema.extend({
   enabled: z.boolean()
 })
 const costSettingsSchema = z.object({
-  gluePriceCentsPerGram: nonNegativeInteger,
+  gluePriceMilliYuanPerGram: nonNegativeInteger,
   defaultHourlyWageCents: z
     .number()
     .int('默认兼职时薪必须是非负整数')
@@ -281,7 +281,7 @@ export class StudioService {
       quantity: parsed.quantity,
       weightGrams: parsed.weightGrams,
       lossRate: parsed.lossRate,
-      gluePricePerGram: settings.gluePriceCentsPerGram / 100,
+      gluePricePerGram: settings.gluePriceMilliYuanPerGram / 1000,
       packagingCostPerUnit: parsed.packagingCostCents / 100,
       accessoryCostPerUnit: parsed.accessoryCostCents / 100,
       replacementBagCostPerUnit: parsed.replacementBagCostCents / 100,

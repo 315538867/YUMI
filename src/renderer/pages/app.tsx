@@ -88,6 +88,11 @@ const centsFromDraft = (value: string) => {
   return numericValue === null ? null : Math.round(numericValue * 100)
 }
 
+const milliYuanFromDraft = (value: string) => {
+  const numericValue = parseNumericDraft(value)
+  return numericValue === null ? null : Math.round(numericValue * 1000)
+}
+
 const schedulingStatusPresentation: Record<
   ProductionScheduleStatus,
   { label: string; color: 'gray' | 'amber' | 'blue' | 'orange' | 'green' }
@@ -1992,7 +1997,7 @@ function SettingsWorkspace({ onDataChanged }: { onDataChanged(): Promise<void> }
     setError('')
     try {
       await window.yumi.settings.updateCost({
-        gluePriceCentsPerGram: costSettings.gluePriceCentsPerGram,
+        gluePriceMilliYuanPerGram: costSettings.gluePriceMilliYuanPerGram,
         defaultHourlyWageCents: costSettings.defaultHourlyWageCents,
         effectiveFrom: costSettings.effectiveFrom || format(new Date(), 'yyyy-MM-dd')
       })
@@ -2097,11 +2102,12 @@ function SettingsWorkspace({ onDataChanged }: { onDataChanged(): Promise<void> }
                 allowDecimal
                 min="0"
                 onValueChange={(value) => {
-                  const gluePriceCentsPerGram = centsFromDraft(value)
-                  if (gluePriceCentsPerGram !== null) patchCostSettings({ gluePriceCentsPerGram })
+                  const gluePriceMilliYuanPerGram = milliYuanFromDraft(value)
+                  if (gluePriceMilliYuanPerGram !== null)
+                    patchCostSettings({ gluePriceMilliYuanPerGram })
                 }}
-                step="0.01"
-                value={costSettings.gluePriceCentsPerGram / 100}
+                step="0.001"
+                value={costSettings.gluePriceMilliYuanPerGram / 1000}
               />
             </label>
             <label>

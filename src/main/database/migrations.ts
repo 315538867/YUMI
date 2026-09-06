@@ -367,6 +367,19 @@ const shipmentManifestSnapshotSchema = {
   }
 }
 
+const gluePricePrecisionSchema = {
+  version: 9,
+  name: 'glue_price_milli_yuan_precision',
+  run(database: Database.Database): void {
+    database.exec(`
+      ALTER TABLE cost_settings_history
+      RENAME COLUMN glue_price_cents_per_gram TO glue_price_milli_yuan_per_gram;
+      UPDATE cost_settings_history
+      SET glue_price_milli_yuan_per_gram = glue_price_milli_yuan_per_gram * 10;
+    `)
+  }
+}
+
 const migrations = [
   initialSchema,
   productManagementSchema,
@@ -375,7 +388,8 @@ const migrations = [
   scheduleRiskPersistenceSchema,
   operationalWorkflowSchema,
   defaultHourlyWageSchema,
-  shipmentManifestSnapshotSchema
+  shipmentManifestSnapshotSchema,
+  gluePricePrecisionSchema
 ]
 
 export function runMigrations(database: Database.Database): void {

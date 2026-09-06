@@ -55,7 +55,7 @@ describe('客户、订单与收退款管理', () => {
     const context = createService()
     databases.push(context.database)
     context.service.updateCostSettings({
-      gluePriceCentsPerGram: 50,
+      gluePriceMilliYuanPerGram: 500,
       effectiveFrom: '2026-09-01'
     })
     context.service.updateOrderDefaults({ defaultReserveDays: 3 })
@@ -103,7 +103,7 @@ describe('客户、订单与收退款管理', () => {
           basePriceCents: 3900,
           accessoryCostCents: 250,
           replacementBagCostCents: 80,
-          gluePriceCentsPerGram: 50,
+          gluePriceMilliYuanPerGram: 500,
           standardMinutesPerUnit: 30
         })
       }),

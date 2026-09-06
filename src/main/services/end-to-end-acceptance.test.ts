@@ -20,7 +20,7 @@ describe('端到端验收流程', () => {
     const todayText = format(today, 'yyyy-MM-dd')
 
     service.updateCostSettings({
-      gluePriceCentsPerGram: 20,
+      gluePriceMilliYuanPerGram: 200,
       effectiveFrom: todayText
     })
     const product = service.createProduct({
