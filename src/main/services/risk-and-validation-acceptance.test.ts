@@ -49,4 +49,40 @@ describe('风险确认与输入拒绝验收', () => {
     expect(() => service.createOrder({ customer: { name: '数量验收客户' }, expectedShipDate: todayText, items: [{ productId: product.id, quantity: 0 }] })).toThrow('数值必须大于 0')
     expect(() => service.createOrder({ customer: { name: '关联验收客户' }, expectedShipDate: todayText, items: [{ productId: '00000000-0000-4000-8000-000000000001', quantity: 1 }] })).toThrow('商品不存在')
   })
+
+  it('订单数量超排在预览中明确提示，未确认不可保存，确认后留下风险记录', () => {
+    const database = createDatabase(':memory:')
+    databases.push(database)
+    const service = new StudioService(new StudioRepository(database))
+    const product = service.createProduct({
+      name: '超排验收商品', basePriceCents: 3000, edgePriceCents: 0, weightGrams: 20,
+      lossRate: 0, standardMinutesPerUnit: 10, packagingCostCents: 0,
+      commissionCentsPerUnit: 100, moldCount: 20, outputPerMoldPerBatch: 1, maxBatchesPerDay: 2
+    })
+    const worker = service.createWorker({ name: '超排验收人员', hourlyWageCents: 2800 })
+    const order = service.createOrder({
+      customer: { name: '超排验收客户' }, expectedShipDate: '2026-09-20',
+      items: [{ productId: product.id, quantity: 3 }]
+    })
+    const input = {
+      workerId: worker.id,
+      shiftDate: '2026-09-10',
+      tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 4 }]
+    }
+    const preview = service.previewShift(input)
+    expect(preview.risks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'ORDER_QUANTITY_EXCEEDED',
+        orderCode: order.code,
+        orderedQuantity: 3,
+        requestedQuantity: 4,
+        excessQuantity: 1
+      })
+    ]))
+    expect(() => service.saveShift(input)).toThrow('请先确认以下风险：ORDER_QUANTITY_EXCEEDED')
+    expect(service.saveShift({ ...input, confirmedWarningCodes: ['ORDER_QUANTITY_EXCEEDED'] })).toMatchObject({
+      confirmedRisks: ['ORDER_QUANTITY_EXCEEDED']
+    })
+  })
+
 })

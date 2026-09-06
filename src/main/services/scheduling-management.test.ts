@@ -95,11 +95,34 @@ describe('排班时长与完成数量', () => {
       shiftDate: '2026-09-11',
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 3 }]
     }).baseTaskMinutes).toBe(30)
-    expect(() => context.service.previewShift({
+    const overScheduled = context.service.previewShift({
       workerId: worker.id,
       shiftDate: '2026-09-11',
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 4 }]
-    })).toThrow('计划数量不能超过订单商品待制作数量（剩余 3 件）')
+    })
+    expect(overScheduled.risks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'ORDER_QUANTITY_EXCEEDED',
+          orderCode: order.code,
+          orderedQuantity: 6,
+          qualifiedQuantity: 3,
+          requestedQuantity: 4,
+          excessQuantity: 1
+        })
+      ])
+    )
+    expect(() => context.service.saveShift({
+      workerId: worker.id,
+      shiftDate: '2026-09-11',
+      tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 4 }]
+    })).toThrow('请先确认以下风险：ORDER_QUANTITY_EXCEEDED')
+    expect(context.service.saveShift({
+      workerId: worker.id,
+      shiftDate: '2026-09-11',
+      tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 4 }],
+      confirmedWarningCodes: ['ORDER_QUANTITY_EXCEEDED']
+    }).confirmedRisks).toEqual(['ORDER_QUANTITY_EXCEEDED'])
   })
 
   it('不合格数量仅记录实际完成数据，不在完成状态写入工资或提成', () => {

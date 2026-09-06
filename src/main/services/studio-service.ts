@@ -179,7 +179,7 @@ const shiftSchema = z.object({
   shiftDate: dateText,
   extraMinutes: nonNegativeInteger.optional().default(0),
   tasks: z.array(shiftTaskSchema).min(1, '排班至少需要一个订单商品任务'),
-  confirmedWarningCodes: z.array(z.enum(['MOLD_DAILY_CAPACITY_EXCEEDED', 'DEADLINE_RISK'])).optional()
+  confirmedWarningCodes: z.array(z.enum(['MOLD_DAILY_CAPACITY_EXCEEDED', 'DEADLINE_RISK', 'ORDER_QUANTITY_EXCEEDED'])).optional()
 })
 const shiftUpdateSchema = shiftSchema.extend({ id: z.string().uuid('排班 ID 无效') })
 const shiftTaskCompletionSchema = z.object({

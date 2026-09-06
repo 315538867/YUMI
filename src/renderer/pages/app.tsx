@@ -43,6 +43,7 @@ import type {
   ProductSummary,
   ProductUpdateInput,
   ProductionStatus,
+  ProductionScheduleStatus,
   ScheduleRiskCode,
   ShiftDetail,
   ShiftPreviewResult,
@@ -71,6 +72,37 @@ const navigation: Array<{ id: View; label: string; icon: typeof LayoutDashboard 
 
 const money = (cents: number) =>
   new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(cents / 100)
+
+const schedulingStatusPresentation: Record<
+  ProductionScheduleStatus,
+  { label: string; color: 'gray' | 'amber' | 'blue' | 'orange' | 'green' }
+> = {
+  pending_schedule: { label: '待排产', color: 'gray' },
+  partially_scheduled: { label: '部分已排', color: 'blue' },
+  fully_scheduled: { label: '已排满', color: 'green' },
+  pending_replenishment: { label: '待补排', color: 'orange' },
+  production_completed: { label: '制作完成', color: 'green' }
+}
+
+function getSchedulingStatusPresentation(status: ProductionScheduleStatus) {
+  return schedulingStatusPresentation[status]
+}
+
+function ProductionProgressText({
+  qualifiedQuantity,
+  scheduledQuantity,
+  unplannedQuantity
+}: {
+  qualifiedQuantity: number
+  scheduledQuantity: number
+  unplannedQuantity: number
+}) {
+  return (
+    <Text as="div" size="1" color="gray" className="production-progress">
+      合格 {qualifiedQuantity} · 已排 {scheduledQuantity} · 未排 {unplannedQuantity}
+    </Text>
+  )
+}
 
 function Stat({
   label,
@@ -103,6 +135,7 @@ export function App() {
   const [newWorkerOpen, setNewWorkerOpen] = useState(false)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
   const [inspectingOrderId, setInspectingOrderId] = useState<string | null>(null)
+  const [inspectingShiftId, setInspectingShiftId] = useState<string | null>(null)
 
   const reload = async () => {
     setLoading(true)
@@ -219,6 +252,7 @@ export function App() {
               orders={orders}
               workers={workers}
               onInspectOrder={setInspectingOrderId}
+              onInspectShift={setInspectingShiftId}
               onNavigate={setView}
               onDataChanged={reload}
             />
@@ -239,7 +273,19 @@ export function App() {
         onOpenChange={(open) => {
           if (!open) setInspectingOrderId(null)
         }}
+        onInspectShift={(shiftId) => {
+          setInspectingOrderId(null)
+          setInspectingShiftId(shiftId)
+        }}
         onChanged={reload}
+      />
+      <ShiftInspector
+        shiftId={inspectingShiftId}
+        orders={orders}
+        onOpenChange={(open) => {
+          if (!open) setInspectingShiftId(null)
+        }}
+        onDataChanged={reload}
       />
     </main>
   )
@@ -252,6 +298,7 @@ function ViewContent({
   orders,
   workers,
   onInspectOrder,
+  onInspectShift,
   onNavigate,
   onDataChanged
 }: {
@@ -261,6 +308,7 @@ function ViewContent({
   orders: OrderSummary[]
   workers: WorkerSummary[]
   onInspectOrder(orderId: string): void
+  onInspectShift(shiftId: string): void
   onNavigate(view: View): void
   onDataChanged(): Promise<void>
 }) {
@@ -275,7 +323,15 @@ function ViewContent({
     )
   if (view === 'products') return <Products products={products} onDataChanged={onDataChanged} />
   if (view === 'orders') return <Orders orders={orders} onInspectOrder={onInspectOrder} />
-  if (view === 'workers') return <Workers workers={workers} onDataChanged={onDataChanged} />
+  if (view === 'workers')
+    return (
+      <Workers
+        workers={workers}
+        onDataChanged={onDataChanged}
+        onInspectOrder={onInspectOrder}
+        onInspectShift={onInspectShift}
+      />
+    )
   if (view === 'schedule')
     return (
       <Schedule
@@ -519,6 +575,7 @@ function OrdersTable({
           <Table.ColumnHeaderCell>预计发货</Table.ColumnHeaderCell>
           <Table.ColumnHeaderCell>制作截止</Table.ColumnHeaderCell>
           <Table.ColumnHeaderCell>制作状态</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell>排产进度</Table.ColumnHeaderCell>
           <Table.ColumnHeaderCell>待收</Table.ColumnHeaderCell>
         </Table.Row>
       </Table.Header>
@@ -546,6 +603,12 @@ function OrdersTable({
             <Table.Cell>
               <Badge variant="soft">{order.productionStatus}</Badge>
             </Table.Cell>
+            <Table.Cell>
+              <Badge color={getSchedulingStatusPresentation(order.schedulingStatus).color} variant="soft">
+                {getSchedulingStatusPresentation(order.schedulingStatus).label}
+              </Badge>
+              <ProductionProgressText {...order.progress} />
+            </Table.Cell>
             <Table.Cell>{money(order.outstandingCents)}</Table.Cell>
           </Table.Row>
         ))}
@@ -555,10 +618,14 @@ function OrdersTable({
 }
 function Workers({
   workers,
-  onDataChanged
+  onDataChanged,
+  onInspectOrder,
+  onInspectShift
 }: {
   workers: WorkerSummary[]
   onDataChanged(): Promise<void>
+  onInspectOrder(orderId: string): void
+  onInspectShift(shiftId: string): void
 }) {
   const [inspectingWorkerId, setInspectingWorkerId] = useState<string | null>(null)
 
@@ -624,6 +691,8 @@ function Workers({
           if (!open) setInspectingWorkerId(null)
         }}
         onDataChanged={onDataChanged}
+        onInspectOrder={onInspectOrder}
+        onInspectShift={onInspectShift}
       />
     </div>
   )
@@ -639,11 +708,15 @@ function formatWorkerMinutes(minutes: number) {
 function WorkerInspector({
   workerId,
   onOpenChange,
-  onDataChanged
+  onDataChanged,
+  onInspectOrder,
+  onInspectShift
 }: {
   workerId: string | null
   onOpenChange(open: boolean): void
   onDataChanged(): Promise<void>
+  onInspectOrder(orderId: string): void
+  onInspectShift(shiftId: string): void
 }) {
   const [worker, setWorker] = useState<WorkerDetail | null>(null)
   const [draft, setDraft] = useState<WorkerUpdateInput | null>(null)
@@ -869,6 +942,53 @@ function WorkerInspector({
                   ))}
                 </Table.Body>
               </Table.Root>
+            </section>
+
+            <section className="form-section">
+              <div className="section-title">
+                <Text weight="medium">订单任务</Text>
+                <Text size="1" color="gray">可从任务返回查看订单排产进度</Text>
+              </div>
+              {worker.orderTasks.length === 0 ? (
+                <Empty text="还没有关联订单任务。" />
+              ) : (
+                <Table.Root variant="surface">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeaderCell>日期</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>订单 / 商品</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>计划 / 合格</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>不合格 / 未完成</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>班次状态</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>操作</Table.ColumnHeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {worker.orderTasks.map((task) => (
+                      <Table.Row key={`${task.shiftId}-${task.orderItemId}`}>
+                        <Table.Cell>{task.shiftDate}</Table.Cell>
+                        <Table.Cell>
+                          <Text weight="medium">{task.orderCode}</Text>
+                          <Text as="div" size="1" color="gray">{task.productName}</Text>
+                        </Table.Cell>
+                        <Table.Cell>{task.plannedQuantity} / {task.qualifiedQuantity}</Table.Cell>
+                        <Table.Cell>{task.unqualifiedQuantity} / {task.unfinishedQuantity}</Table.Cell>
+                        <Table.Cell>
+                          <Badge color={shiftStatusColor(task.shiftStatus)} variant="soft">
+                            {shiftStatusLabel(task.shiftStatus)}
+                          </Badge>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Flex gap="2">
+                            <Button size="1" variant="soft" onClick={() => { onOpenChange(false); onInspectOrder(task.orderId) }}>查看订单</Button>
+                            <Button size="1" variant="soft" onClick={() => { onOpenChange(false); onInspectShift(task.shiftId) }}>查看班次</Button>
+                          </Flex>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Root>
+              )}
             </section>
 
             <section className="form-section">
@@ -2837,11 +2957,13 @@ function OrderInspector({
   orderId,
   products,
   onOpenChange,
+  onInspectShift,
   onChanged
 }: {
   orderId: string | null
   products: ProductSummary[]
   onOpenChange(value: boolean): void
+  onInspectShift(shiftId: string): void
   onChanged(): Promise<void>
 }) {
   const [order, setOrder] = useState<OrderDetail | null>(null)
@@ -3060,6 +3182,9 @@ function OrderInspector({
                   编辑订单
                 </Button>
                 <Badge variant="soft">{productionStatusLabel[order.productionStatus]}</Badge>
+                <Badge color={getSchedulingStatusPresentation(order.schedulingStatus).color} variant="soft">
+                  {getSchedulingStatusPresentation(order.schedulingStatus).label}
+                </Badge>
                 <Badge color="amber" variant="soft">
                   {financialStatusLabel[order.financial.status]}
                 </Badge>
@@ -3092,9 +3217,17 @@ function OrderInspector({
                   {money(order.estimatedCostCents)} / {money(order.actualCostCents)}
                 </Text>
               </div>
+              <div>
+                <Text size="1" color="gray">
+                  排产：合格 / 已排 / 未排
+                </Text>
+                <Text weight="medium">
+                  {order.progress.qualifiedQuantity} / {order.progress.scheduledQuantity} / {order.progress.unplannedQuantity}
+                </Text>
+              </div>
             </div>
             <section className="inspector-section">
-              <Text weight="medium">商品明细</Text>
+              <Text weight="medium">商品明细与排产进度</Text>
               <div className="detail-list">
                 {order.items.map((item) => (
                   <div className="detail-line" key={item.id}>
@@ -3106,6 +3239,7 @@ function OrderInspector({
                           ? ` · 缝边 ${item.edgeQuantity} 个 × ${money(item.edgePriceCents)}`
                           : ''}
                       </Text>
+                      <ProductionProgressText {...item.progress} />
                     </div>
                     <Text>
                       {money(
@@ -3117,6 +3251,48 @@ function OrderInspector({
                   </div>
                 ))}
               </div>
+            </section>
+            <section className="inspector-section">
+              <div className="section-title">
+                <Text weight="medium">关联排班</Text>
+                <Text size="1" color="gray">共 {order.relatedSchedules.length} 条任务记录</Text>
+              </div>
+              {order.relatedSchedules.length === 0 ? (
+                <Empty text="尚未为该订单安排制作任务。" />
+              ) : (
+                <Table.Root variant="surface">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeaderCell>日期</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>兼职人员</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>商品</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>计划 / 合格</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>不合格 / 未完成</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>操作</Table.ColumnHeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {order.relatedSchedules.map((schedule) => (
+                      <Table.Row key={`${schedule.id}-${schedule.orderItemId}`}>
+                        <Table.Cell>{schedule.shiftDate}</Table.Cell>
+                        <Table.Cell>{schedule.workerName}</Table.Cell>
+                        <Table.Cell>{schedule.productName}</Table.Cell>
+                        <Table.Cell>{schedule.plannedQuantity} / {schedule.qualifiedQuantity}</Table.Cell>
+                        <Table.Cell>{schedule.unqualifiedQuantity} / {schedule.unfinishedQuantity}</Table.Cell>
+                        <Table.Cell>
+                          <Badge color={shiftStatusColor(schedule.status)} variant="soft">
+                            {shiftStatusLabel(schedule.status)}
+                          </Badge>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Button size="1" variant="soft" onClick={() => { onOpenChange(false); onInspectShift(schedule.id) }}>查看班次</Button>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Root>
+              )}
             </section>
             <section className="inspector-section shipment-section">
               <Flex justify="between" align="center">
@@ -3415,7 +3591,7 @@ function ShiftDialog({
           order
             ? order.items.map((item) => ({
                 id: item.id,
-                label: `${order.code} · ${item.productSnapshot.name}（订单 ${item.quantity} 个）`
+                label: `${order.code} · ${item.productSnapshot.name}（合格 ${item.progress.qualifiedQuantity} · 已排 ${item.progress.scheduledQuantity} · 未排 ${item.progress.unplannedQuantity}）`
               }))
             : []
         )
@@ -3563,6 +3739,11 @@ function ShiftDialog({
                 <span>最终总时长 <strong>{preview.totalMinutes} 分钟</strong></span>
               </div>
               {preview.taskBaseMinutes.map((task, index) => <Text as="div" size="1" color="gray" key={task.orderItemId}>任务 {index + 1} 基础时长：{task.baseMinutes} 分钟</Text>)}
+              {preview.taskProgress.map((task) => (
+                <Text as="div" size="1" color="gray" key={`progress-${task.orderItemId}`}>
+                  {task.productName}：当前合格 {task.progress.qualifiedQuantity} · 不合格 {task.progress.unqualifiedQuantity} · 已排 {task.progress.scheduledQuantity} · 未排 {task.progress.unplannedQuantity}
+                </Text>
+              ))}
               {preview.risks.length > 0 && <div className="risk-list">{preview.risks.map((risk) => <Text key={risk.code} size="2">· {risk.message}</Text>)}</div>}
             </section>
           )}

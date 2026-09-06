@@ -114,6 +114,18 @@ describe('兼职人员资料与时薪历史', () => {
           qualifiedQuantity: 3,
           commissionCostCents: 450
         })
+      ],
+      orderTasks: [
+        expect.objectContaining({
+          shiftId: shift.id,
+          orderId: order.id,
+          orderCode: order.code,
+          productName: '云朵',
+          plannedQuantity: 4,
+          qualifiedQuantity: 3,
+          unqualifiedQuantity: 0,
+          unfinishedQuantity: 1
+        })
       ]
     })
   })

@@ -40,3 +40,61 @@ export function calculateActualProductionCost(
     totalActualCostCents: actualLaborCostCents + commissionCostCents
   }
 }
+
+export type ProductionScheduleStatus =
+  | 'pending_schedule'
+  | 'partially_scheduled'
+  | 'fully_scheduled'
+  | 'pending_replenishment'
+  | 'production_completed'
+
+export interface ProductionProgressInput {
+  orderedQuantity: number
+  qualifiedQuantity: number
+  unqualifiedQuantity: number
+  scheduledQuantity: number
+  hasReleasedQuantity: boolean
+}
+
+export interface ProductionProgressResult {
+  orderedQuantity: number
+  qualifiedQuantity: number
+  unqualifiedQuantity: number
+  scheduledQuantity: number
+  coveredQuantity: number
+  unplannedQuantity: number
+  excessQuantity: number
+  status: ProductionScheduleStatus
+}
+
+export function calculateProductionProgress(
+  input: ProductionProgressInput
+): ProductionProgressResult {
+  const orderedQuantity = Math.max(0, input.orderedQuantity)
+  const qualifiedQuantity = Math.max(0, input.qualifiedQuantity)
+  const unqualifiedQuantity = Math.max(0, input.unqualifiedQuantity)
+  const scheduledQuantity = Math.max(0, input.scheduledQuantity)
+  const coveredQuantity = qualifiedQuantity + scheduledQuantity
+  const unplannedQuantity = Math.max(0, orderedQuantity - coveredQuantity)
+  const excessQuantity = Math.max(0, coveredQuantity - orderedQuantity)
+  const status: ProductionScheduleStatus =
+    qualifiedQuantity >= orderedQuantity && orderedQuantity > 0
+      ? 'production_completed'
+      : unplannedQuantity === 0 && coveredQuantity > 0
+        ? 'fully_scheduled'
+        : input.hasReleasedQuantity
+          ? 'pending_replenishment'
+          : coveredQuantity > 0
+            ? 'partially_scheduled'
+            : 'pending_schedule'
+  return {
+    orderedQuantity,
+    qualifiedQuantity,
+    unqualifiedQuantity,
+    scheduledQuantity,
+    coveredQuantity,
+    unplannedQuantity,
+    excessQuantity,
+    status
+  }
+}

@@ -1,11 +1,18 @@
 import { requirePositive } from './errors'
 
-export type ScheduleRiskCode = 'MOLD_DAILY_CAPACITY_EXCEEDED' | 'DEADLINE_RISK'
+export type ScheduleRiskCode = 'MOLD_DAILY_CAPACITY_EXCEEDED' | 'DEADLINE_RISK' | 'ORDER_QUANTITY_EXCEEDED'
 
 export interface ScheduleRisk {
   code: ScheduleRiskCode
   level: 'warning' | 'critical'
   message: string
+  orderItemId?: string
+  orderCode?: string
+  orderedQuantity?: number
+  qualifiedQuantity?: number
+  scheduledQuantity?: number
+  requestedQuantity?: number
+  excessQuantity?: number
 }
 
 export interface SchedulingTaskInput {

@@ -513,6 +513,11 @@ button {
 .shift-task:first-child {
   border-top: 0;
 }
+.production-progress {
+  margin-top: 4px;
+  line-height: 1.45;
+  white-space: nowrap;
+}
 .risk-preview {
   padding: 14px 15px;
   border: 1px solid #c8e0d7;

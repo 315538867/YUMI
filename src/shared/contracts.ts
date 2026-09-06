@@ -128,6 +128,24 @@ export type ProductionStatus =
 
 export type FinancialStatus = 'unpaid' | 'partial' | 'paid' | 'refunding' | 'refunded' | 'overpaid'
 
+export type ProductionScheduleStatus =
+  | 'pending_schedule'
+  | 'partially_scheduled'
+  | 'fully_scheduled'
+  | 'pending_replenishment'
+  | 'production_completed'
+
+export interface ProductionProgressSummary {
+  orderedQuantity: number
+  qualifiedQuantity: number
+  unqualifiedQuantity: number
+  scheduledQuantity: number
+  coveredQuantity: number
+  unplannedQuantity: number
+  excessQuantity: number
+  status: ProductionScheduleStatus
+}
+
 export interface CustomerProfile {
   id: string
   name: string
@@ -202,6 +220,21 @@ export interface OrderItemDetail {
   edgePriceCents: number
   discountCents: number
   estimatedCostCents: number
+  progress: ProductionProgressSummary
+}
+
+export interface OrderScheduleSummary {
+  id: string
+  workerId: string
+  workerName: string
+  shiftDate: string
+  status: ShiftStatus
+  plannedQuantity: number
+  qualifiedQuantity: number
+  unqualifiedQuantity: number
+  unfinishedQuantity: number
+  orderItemId: string
+  productName: string
 }
 
 export interface ShipmentItemInput {
@@ -293,6 +326,8 @@ export interface OrderDetail {
   reserveDays: number
   productionDeadline: string
   productionStatus: ProductionStatus
+  schedulingStatus: ProductionScheduleStatus
+  progress: ProductionProgressSummary
   discountCents: number
   receivableCents: number
   estimatedCostCents: number
@@ -301,6 +336,7 @@ export interface OrderDetail {
   items: OrderItemDetail[]
   payments: PaymentRecord[]
   financial: OrderFinancialSummary
+  relatedSchedules: OrderScheduleSummary[]
   createdAt: string
   updatedAt: string
 }
@@ -310,12 +346,19 @@ export interface OrderProductionStatusInput {
   productionStatus: ProductionStatus
 }
 
-export type ScheduleRiskCode = 'MOLD_DAILY_CAPACITY_EXCEEDED' | 'DEADLINE_RISK'
+export type ScheduleRiskCode = 'MOLD_DAILY_CAPACITY_EXCEEDED' | 'DEADLINE_RISK' | 'ORDER_QUANTITY_EXCEEDED'
 
 export interface ScheduleRisk {
   code: ScheduleRiskCode
   level: 'warning' | 'critical'
   message: string
+  orderItemId?: string
+  orderCode?: string
+  orderedQuantity?: number
+  qualifiedQuantity?: number
+  scheduledQuantity?: number
+  requestedQuantity?: number
+  excessQuantity?: number
 }
 
 export interface ShiftTaskInput {
@@ -335,7 +378,14 @@ export interface ShiftUpdateInput extends ShiftInput {
   id: string
 }
 
+export interface ShiftPreviewTaskProgress {
+  orderItemId: string
+  productName: string
+  progress: ProductionProgressSummary
+}
+
 export interface ShiftPreviewResult {
+  taskProgress: ShiftPreviewTaskProgress[]
   taskBaseMinutes: Array<{ orderItemId: string; baseMinutes: number }>
   baseTaskMinutes: number
   extraMinutes: number
@@ -403,6 +453,8 @@ export interface OrderSummary {
   expectedShipDate: string
   productionDeadline: string
   productionStatus: ProductionStatus
+  schedulingStatus: ProductionScheduleStatus
+  progress: ProductionProgressSummary
   receivableCents: number
   receivedNetCents: number
   outstandingCents: number
@@ -438,10 +490,25 @@ export interface WorkerShiftSummary extends ShiftSummary {
   commissionCostCents: number
 }
 
+export interface WorkerOrderTaskSummary {
+  shiftId: string
+  shiftDate: string
+  shiftStatus: ShiftStatus
+  orderId: string
+  orderCode: string
+  orderItemId: string
+  productName: string
+  plannedQuantity: number
+  qualifiedQuantity: number
+  unqualifiedQuantity: number
+  unfinishedQuantity: number
+}
+
 export interface WorkerDetail extends WorkerSummary {
   phone: string | null
   wageHistory: WorkerWageHistory[]
   shifts: WorkerShiftSummary[]
+  orderTasks: WorkerOrderTaskSummary[]
   totalActualMinutes: number
   totalQualifiedQuantity: number
   totalCommissionCostCents: number

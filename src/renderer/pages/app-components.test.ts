@@ -64,3 +64,24 @@ describe('排班时长、完成登记与月度重量报表交互', () => {
     expect(appSource).toMatch(/完成重量（kg）/)
   })
 })
+
+describe('订单、排班与兼职人员联动展示', () => {
+  it('订单展示独立的排产状态及合格、已排和未排数量', () => {
+    expect(appSource).toMatch(/待排产/)
+    expect(appSource).toMatch(/部分已排/)
+    expect(appSource).toMatch(/待补排/)
+    expect(appSource).toMatch(/合格 \{qualifiedQuantity\} · 已排 \{scheduledQuantity\} · 未排 \{unplannedQuantity\}/)
+    expect(appSource).toMatch(/getSchedulingStatusPresentation\(order\.schedulingStatus\)/)
+    expect(appSource).toMatch(/关联排班/)
+  })
+
+  it('排班预览和兼职人员任务都复用主进程返回的订单进度，并提供订单跳转', () => {
+    expect(appSource).toMatch(/preview\.taskProgress\.map/)
+    expect(appSource).toMatch(/当前合格 \{task\.progress\.qualifiedQuantity\} · 不合格 \{task\.progress\.unqualifiedQuantity\} · 已排 \{task\.progress\.scheduledQuantity\} · 未排 \{task\.progress\.unplannedQuantity\}/)
+    expect(appSource).toMatch(/worker\.orderTasks\.map/)
+    expect(appSource).toMatch(/不合格 \/ 未完成/)
+    expect(appSource).toMatch(/onInspectOrder\(task\.orderId\)/)
+    expect(appSource).toMatch(/onInspectShift\(task\.shiftId\)/)
+    expect(appSource).toMatch(/onInspectShift\(schedule\.id\)/)
+  })
+})

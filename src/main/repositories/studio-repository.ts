@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { StudioDatabase } from '@main/database/connection'
 import { calculateDailyCapacity, calculateProductCost } from '@main/domain/costing'
-import { calculateActualProductionCost } from '@main/domain/production'
+import { calculateActualProductionCost, calculateProductionProgress } from '@main/domain/production'
 import { previewShiftRisks } from '@main/domain/scheduling'
 import { DomainValidationError } from '@main/domain/errors'
 import {
@@ -53,6 +53,7 @@ import type {
   ShiftDetail,
   ShiftInput,
   ShiftUpdateInput,
+  ShiftStatus,
   ShiftStatusInput,
   ShiftSummary,
   ShipmentCreateInput,
@@ -954,6 +955,7 @@ export class StudioRepository {
       Row | undefined
     if (!row) return null
     const customer = JSON.parse(String(row.customer_snapshot_json)) as CustomerProfile
+    const progress = this.getOrderProgress(id)
     const items = (
       this.database
         .prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY sort_order, created_at, id')
@@ -968,7 +970,8 @@ export class StudioRepository {
       edgeQuantity: Number(item.edge_quantity),
       edgePriceCents: Number(item.edge_price_cents),
       discountCents: Number(item.discount_cents),
-      estimatedCostCents: Number(item.estimated_cost_cents)
+      estimatedCostCents: Number(item.estimated_cost_cents),
+      progress: progress.items.get(String(item.id))!
     }))
     const payments = this.listPayments(id)
     return {
@@ -980,6 +983,8 @@ export class StudioRepository {
       reserveDays: Number(row.reserve_days),
       productionDeadline: String(row.production_deadline),
       productionStatus: row.production_status as ProductionStatus,
+      schedulingStatus: progress.summary.status,
+      progress: progress.summary,
       discountCents: Number(row.discount_cents),
       receivableCents: Number(row.receivable_cents),
       estimatedCostCents: Number(row.estimated_cost_cents),
@@ -988,6 +993,7 @@ export class StudioRepository {
       items,
       payments,
       financial: orderFinancial(Number(row.receivable_cents), payments),
+      relatedSchedules: this.listOrderRelatedSchedules(id),
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at)
     }
@@ -1074,25 +1080,91 @@ export class StudioRepository {
        AND (? IS NULL OR s.id != ?) GROUP BY st.product_id`
     ).all(input.shiftDate, excludedShiftId ?? null, excludedShiftId ?? null) as Row[]
     const plannedByProduct = new Map(otherPlannedByProduct.map((row) => [String(row.product_id), Number(row.quantity)]))
+    const requestedByOrderItem = new Map<string, number>()
+    input.tasks.forEach((task) => {
+      requestedByOrderItem.set(
+        task.orderItemId,
+        (requestedByOrderItem.get(task.orderItemId) ?? 0) + task.plannedQuantity
+      )
+    })
     const contexts = input.tasks.map((task) => {
       const row = this.database.prepare(
-        `SELECT oi.id AS order_item_id, oi.product_id, oi.quantity, oi.product_snapshot_json, o.production_deadline,
-         COALESCE(SUM(existing.qualified_quantity), 0) AS completed_quantity
-         FROM order_items oi JOIN orders o ON o.id = oi.order_id
-         LEFT JOIN shift_tasks existing ON existing.order_item_id = oi.id
+        `SELECT oi.id AS order_item_id, oi.product_id, oi.quantity, oi.product_snapshot_json, o.code AS order_code, o.production_deadline,
+         COALESCE(SUM(st.qualified_quantity), 0) AS completed_quantity,
+         COALESCE(SUM(CASE WHEN s.status = 'scheduled' AND (? IS NULL OR s.id != ?) THEN st.planned_quantity ELSE 0 END), 0) AS scheduled_quantity
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         LEFT JOIN shift_tasks st ON st.order_item_id = oi.id
+         LEFT JOIN shifts s ON s.id = st.shift_id
          WHERE oi.id = ? GROUP BY oi.id`
-      ).get(task.orderItemId) as Row | undefined
+      ).get(excludedShiftId ?? null, excludedShiftId ?? null, task.orderItemId) as Row | undefined
       if (!row) throw new DomainValidationError('订单商品明细不存在')
       const snapshot = JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot
       const completedQuantity = Number(row.completed_quantity)
-      const remainingQuantity = Number(row.quantity) - completedQuantity
-      if (task.plannedQuantity > remainingQuantity) throw new DomainValidationError(`计划数量不能超过订单商品待制作数量（剩余 ${remainingQuantity} 件）`)
+      const scheduledQuantity = Number(row.scheduled_quantity)
       const otherQuantity = plannedByProduct.get(String(row.product_id)) ?? 0
       plannedByProduct.set(String(row.product_id), otherQuantity + task.plannedQuantity)
-      return { productId:String(row.product_id), orderItemId:String(row.order_item_id), plannedQuantity:task.plannedQuantity, standardMinutesPerUnit:snapshot.standardMinutesPerUnit, completedQuantity, dueDate:String(row.production_deadline), dailyCapacity:calculateDailyCapacity({ moldCount:snapshot.moldCount, outputPerMoldPerBatch:snapshot.outputPerMoldPerBatch, maxBatchesPerDay:snapshot.maxBatchesPerDay }), otherPlannedQuantityForDay:otherQuantity }
+      return {
+        productId: String(row.product_id),
+        orderItemId: String(row.order_item_id),
+        productName: snapshot.name,
+        orderCode: String(row.order_code),
+        orderedQuantity: Number(row.quantity),
+        plannedQuantity: task.plannedQuantity,
+        requestedQuantity: requestedByOrderItem.get(task.orderItemId) ?? task.plannedQuantity,
+        standardMinutesPerUnit: snapshot.standardMinutesPerUnit,
+        completedQuantity,
+        scheduledQuantity,
+        dueDate: String(row.production_deadline),
+        dailyCapacity: calculateDailyCapacity({ moldCount: snapshot.moldCount, outputPerMoldPerBatch: snapshot.outputPerMoldPerBatch, maxBatchesPerDay: snapshot.maxBatchesPerDay }),
+        otherPlannedQuantityForDay: otherQuantity
+      }
     })
-    try { return previewShiftRisks({ date: input.shiftDate, extraMinutes: input.extraMinutes ?? 0, tasks: contexts }) }
-    catch (error) { throw new DomainValidationError(error instanceof Error ? error.message : '排班风险预览失败') }
+    try {
+      const base = previewShiftRisks({ date: input.shiftDate, extraMinutes: input.extraMinutes ?? 0, tasks: contexts })
+      const exceededOrderItems = new Set<string>()
+      const quantityRisks = contexts.flatMap((task) => {
+        if (exceededOrderItems.has(task.orderItemId)) return []
+        const progress = calculateProductionProgress({
+          orderedQuantity: task.orderedQuantity,
+          qualifiedQuantity: task.completedQuantity,
+          unqualifiedQuantity: 0,
+          scheduledQuantity: task.scheduledQuantity + task.requestedQuantity,
+          hasReleasedQuantity: false
+        })
+        if (progress.excessQuantity === 0) return []
+        exceededOrderItems.add(task.orderItemId)
+        return [{
+          code: 'ORDER_QUANTITY_EXCEEDED' as const,
+          level: 'critical' as const,
+          message: `订单 ${task.orderCode} · ${task.productName} 的计划覆盖 ${progress.coveredQuantity} 件，超过订单合格产品数量 ${progress.orderedQuantity} 件。`,
+          orderItemId: task.orderItemId,
+          orderCode: task.orderCode,
+          orderedQuantity: progress.orderedQuantity,
+          qualifiedQuantity: progress.qualifiedQuantity,
+          scheduledQuantity: task.scheduledQuantity,
+          requestedQuantity: task.requestedQuantity,
+          excessQuantity: progress.excessQuantity
+        }]
+      })
+      return {
+        ...base,
+        taskProgress: contexts.map((task) => ({
+          orderItemId: task.orderItemId,
+          productName: task.productName,
+          progress: calculateProductionProgress({
+            orderedQuantity: task.orderedQuantity,
+            qualifiedQuantity: task.completedQuantity,
+            unqualifiedQuantity: 0,
+            scheduledQuantity: task.scheduledQuantity,
+            hasReleasedQuantity: false
+          })
+        })),
+        risks: [...base.risks, ...quantityRisks]
+      }
+    } catch (error) {
+      throw new DomainValidationError(error instanceof Error ? error.message : '排班风险预览失败')
+    }
   }
 
   saveShift(input: ShiftInput): ShiftSummary {
@@ -1740,11 +1812,39 @@ export class StudioRepository {
       }
       return shift
     })
+    const orderTasks = (
+      this.database
+        .prepare(
+          `SELECT s.id AS shift_id, s.shift_date, s.status AS shift_status,
+          o.id AS order_id, o.code AS order_code, st.order_item_id,
+          oi.product_snapshot_json, st.planned_quantity, st.qualified_quantity, st.unqualified_quantity
+          FROM shift_tasks st
+          JOIN shifts s ON s.id = st.shift_id
+          JOIN order_items oi ON oi.id = st.order_item_id
+          JOIN orders o ON o.id = oi.order_id
+          WHERE s.worker_id = ?
+          ORDER BY s.shift_date DESC, s.created_at DESC, st.created_at DESC`
+        )
+        .all(id) as Row[]
+    ).map((row) => ({
+      shiftId: String(row.shift_id),
+      shiftDate: String(row.shift_date),
+      shiftStatus: row.shift_status as ShiftStatus,
+      orderId: String(row.order_id),
+      orderCode: String(row.order_code),
+      orderItemId: String(row.order_item_id),
+      productName: (JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot).name,
+      plannedQuantity: Number(row.planned_quantity),
+      qualifiedQuantity: Number(row.qualified_quantity),
+      unqualifiedQuantity: Number(row.unqualified_quantity),
+      unfinishedQuantity: Math.max(0, Number(row.planned_quantity) - Number(row.qualified_quantity) - Number(row.unqualified_quantity))
+    }))
     return {
       ...summary,
       phone: (workerRow.phone as string | null) ?? null,
       wageHistory: this.getWorkerWageHistory(id),
       shifts,
+      orderTasks,
       totalActualMinutes: shifts.reduce((sum, shift) => sum + shift.actualMinutes, 0),
       totalQualifiedQuantity: shifts.reduce((sum, shift) => sum + shift.qualifiedQuantity, 0),
       totalCommissionCostCents: shifts.reduce((sum, shift) => sum + shift.commissionCostCents, 0),
@@ -2100,6 +2200,74 @@ export class StudioRepository {
     return this.getCustomer(id)!
   }
 
+  private getOrderProgress(orderId: string) {
+    const rows = this.database
+      .prepare(
+        `SELECT oi.id AS order_item_id, oi.quantity,
+        COALESCE(SUM(CASE WHEN s.status = 'scheduled' THEN st.planned_quantity ELSE 0 END), 0) AS scheduled_quantity,
+        COALESCE(SUM(st.qualified_quantity), 0) AS qualified_quantity,
+        COALESCE(SUM(st.unqualified_quantity), 0) AS unqualified_quantity,
+        MAX(CASE WHEN s.status IN ('leave', 'absent', 'cancelled', 'completed')
+          OR st.qualified_quantity > 0 OR st.rework_quantity > 0 OR st.scrap_quantity > 0
+          THEN 1 ELSE 0 END) AS has_released_quantity
+        FROM order_items oi
+        LEFT JOIN shift_tasks st ON st.order_item_id = oi.id
+        LEFT JOIN shifts s ON s.id = st.shift_id
+        WHERE oi.order_id = ?
+        GROUP BY oi.id`
+      )
+      .all(orderId) as Row[]
+    const items = new Map(
+      rows.map((row) => {
+        const progress = calculateProductionProgress({
+          orderedQuantity: Number(row.quantity),
+          qualifiedQuantity: Number(row.qualified_quantity),
+          unqualifiedQuantity: Number(row.unqualified_quantity),
+          scheduledQuantity: Number(row.scheduled_quantity),
+          hasReleasedQuantity: Number(row.has_released_quantity) === 1
+        })
+        return [String(row.order_item_id), progress] as const
+      })
+    )
+    const summary = calculateProductionProgress({
+      orderedQuantity: [...items.values()].reduce((sum, item) => sum + item.orderedQuantity, 0),
+      qualifiedQuantity: [...items.values()].reduce((sum, item) => sum + item.qualifiedQuantity, 0),
+      unqualifiedQuantity: [...items.values()].reduce((sum, item) => sum + item.unqualifiedQuantity, 0),
+      scheduledQuantity: [...items.values()].reduce((sum, item) => sum + item.scheduledQuantity, 0),
+      hasReleasedQuantity: [...items.values()].some((item) => item.status === 'pending_replenishment')
+    })
+    return { items, summary }
+  }
+
+  private listOrderRelatedSchedules(orderId: string) {
+    return (
+      this.database
+        .prepare(
+          `SELECT s.id, s.worker_id, w.name AS worker_name, s.shift_date, s.status,
+          st.planned_quantity, st.qualified_quantity, st.unqualified_quantity, st.order_item_id, oi.product_snapshot_json
+          FROM shift_tasks st
+          JOIN shifts s ON s.id = st.shift_id
+          JOIN workers w ON w.id = s.worker_id
+          JOIN order_items oi ON oi.id = st.order_item_id
+          WHERE oi.order_id = ?
+          ORDER BY s.shift_date DESC, s.created_at DESC, st.created_at DESC`
+        )
+        .all(orderId) as Row[]
+    ).map((row) => ({
+      id: String(row.id),
+      workerId: String(row.worker_id),
+      workerName: String(row.worker_name),
+      shiftDate: String(row.shift_date),
+      status: row.status as ShiftStatus,
+      plannedQuantity: Number(row.planned_quantity),
+      qualifiedQuantity: Number(row.qualified_quantity),
+      unqualifiedQuantity: Number(row.unqualified_quantity),
+      unfinishedQuantity: Math.max(0, Number(row.planned_quantity) - Number(row.qualified_quantity) - Number(row.unqualified_quantity)),
+      orderItemId: String(row.order_item_id),
+      productName: (JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot).name
+    }))
+  }
+
   private listPayments(orderId: string): PaymentRecord[] {
     return (
       this.database
@@ -2138,6 +2306,7 @@ export class StudioRepository {
         { type: 'receipt', amountCents: Number(row.received_cents) },
         { type: 'refund', amountCents: Number(row.refunded_cents) }
       ])
+      const progress = this.getOrderProgress(String(row.id)).summary
       return {
         id: String(row.id),
         code: String(row.code),
@@ -2145,6 +2314,8 @@ export class StudioRepository {
         expectedShipDate: String(row.expected_ship_date),
         productionDeadline: String(row.production_deadline),
         productionStatus: row.production_status as ProductionStatus,
+        schedulingStatus: progress.status,
+        progress,
         receivableCents: Number(row.receivable_cents),
         receivedNetCents: financial.receivedNetCents,
         outstandingCents: financial.outstandingCents,
