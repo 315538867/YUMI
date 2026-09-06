@@ -39,7 +39,7 @@ jobs:
         run: npm test
 
       - name: 构建 Windows x64 NSIS 安装包
-        run: npm run package -- --win nsis --x64
+        run: npm run package -- --win nsis --x64 --publish never
 
       - name: 上传 Windows 安装包构件
         uses: actions/upload-artifact@v4
