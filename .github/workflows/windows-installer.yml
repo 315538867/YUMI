@@ -1,0 +1,74 @@
+name: Windows 安装包构建与发布
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-windows:
+    name: 构建 Windows x64 安装包
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 代码检查
+        run: npm run lint
+
+      - name: 自动化测试
+        run: npm test
+
+      - name: 构建 Windows x64 NSIS 安装包
+        run: npm run package -- --win nsis --x64
+
+      - name: 上传 Windows 安装包构件
+        uses: actions/upload-artifact@v4
+        with:
+          name: YUMI-Studio-Windows-x64
+          path: |
+            release/YUMI Studio Setup *.exe
+            release/YUMI Studio Setup *.exe.blockmap
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 发布 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem 'release/YUMI Studio Setup *.exe' |
+            Where-Object { $_.Name -notlike '*.blockmap' } |
+            Select-Object -First 1
+          $blockmap = Get-ChildItem 'release/YUMI Studio Setup *.exe.blockmap' |
+            Select-Object -First 1
+
+          if (-not $installer -or -not $blockmap) {
+            throw '未找到 Windows 安装包或 blockmap 文件。'
+          }
+
+          gh release create "${{ github.ref_name }}" `
+            --title "YUMI Studio ${{ github.ref_name }}" `
+            --generate-notes `
+            $installer.FullName `
+            $blockmap.FullName
