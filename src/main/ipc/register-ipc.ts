@@ -112,14 +112,30 @@ export function registerIpc(
   ipcMain.handle('orders:shipments:list', (_event, orderId) => service.listShipments(orderId))
   ipcMain.handle('orders:shipments:create', (_event, input) => service.createShipment(input))
   ipcMain.handle('orders:shipments:update', (_event, input) => service.updateShipment(input))
-  ipcMain.handle('orders:export-workbook', async (_event, input) => {
+  ipcMain.handle('orders:export-order-sheet', async (_event, input) => {
+    const order = service.getOrderDetail(input.orderId)
+    if (!order) throw new DomainValidationError('订单不存在')
     const result = await dialog.showSaveDialog({
-      title: '导出订单表和发货清单',
-      defaultPath: `yumi-order-${String(input.orderId).slice(0, 8)}.xlsx`,
+      title: '保存订单表',
+      defaultPath: `yumi-order-${order.code}.xlsx`,
       filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
     })
     if (result.canceled || !result.filePath) return { savedPath: null }
-    writeFileSync(result.filePath, service.exportOrderWorkbook(input))
+    writeFileSync(result.filePath, await service.exportOrderSheet(input))
+    return { savedPath: result.filePath }
+  })
+  ipcMain.handle('orders:export-shipment-manifest', async (_event, input) => {
+    const order = service.getOrderDetail(input.orderId)
+    if (!order) throw new DomainValidationError('订单不存在')
+    const shipment = service.listShipments(order.id).find((item) => item.id === input.shipmentId)
+    if (!shipment) throw new DomainValidationError('发货记录不存在或不属于当前订单')
+    const result = await dialog.showSaveDialog({
+      title: '保存发货清单',
+      defaultPath: `yumi-shipment-${order.code}-${shipment.shippedAt}.xlsx`,
+      filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
+    })
+    if (result.canceled || !result.filePath) return { savedPath: null }
+    writeFileSync(result.filePath, await service.exportShipmentManifest(input))
     return { savedPath: result.filePath }
   })
   ipcMain.handle('workers:list', () => repository.listWorkers())

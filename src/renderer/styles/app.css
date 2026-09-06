@@ -1126,9 +1126,6 @@ button {
   gap: 10px;
   align-items: end;
 }
-.shipment-export-choice {
-  max-width: 260px;
-}
 @media (max-width: 760px) {
   .shipment-quantity-grid,
   .shipment-meta-grid {
@@ -1140,7 +1137,6 @@ button {
     flex-direction: column;
   }
 }
-
 
 .shift-extra-minutes {
   display: block;
@@ -1162,10 +1158,26 @@ button {
   color: #625d55;
   font-size: 12px;
 }
-.shift-duration-summary strong { color: #2f4e46; font-size: 14px; }
-.completion-task-list { display: flex; flex-direction: column; gap: 12px; }
-.completion-task { padding: 12px; border: 1px solid #e9e5de; border-radius: 8px; background: #fffdfb; }
-.completion-task .field-grid { margin-top: 10px; }
+.shift-duration-summary strong {
+  color: #2f4e46;
+  font-size: 14px;
+}
+.completion-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.completion-task {
+  padding: 12px;
+  border: 1px solid #e9e5de;
+  border-radius: 8px;
+  background: #fffdfb;
+}
+.completion-task .field-grid {
+  margin-top: 10px;
+}
 @media (max-width: 680px) {
-  .shift-duration-summary { grid-template-columns: 1fr; }
+  .shift-duration-summary {
+    grid-template-columns: 1fr;
+  }
 }

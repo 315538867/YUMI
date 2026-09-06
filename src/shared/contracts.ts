@@ -272,9 +272,13 @@ export interface ShipmentDetail {
   updatedAt: string
 }
 
-export interface OrderWorkbookInput {
+export interface OrderSheetExportInput {
   orderId: string
-  shipmentId?: string
+}
+
+export interface ShipmentManifestExportInput {
+  orderId: string
+  shipmentId: string
 }
 
 export interface MonthlyProductionWeightQuery {
@@ -343,7 +347,8 @@ export interface OrderProductionStatusInput {
   productionStatus: ProductionStatus
 }
 
-export type ScheduleRiskCode = 'MOLD_DAILY_CAPACITY_EXCEEDED' | 'DEADLINE_RISK' | 'ORDER_QUANTITY_EXCEEDED'
+export type ScheduleRiskCode =
+  'MOLD_DAILY_CAPACITY_EXCEEDED' | 'DEADLINE_RISK' | 'ORDER_QUANTITY_EXCEEDED'
 
 export interface ScheduleRisk {
   code: ScheduleRiskCode
@@ -720,7 +725,9 @@ export interface YumiApi {
     orderProfit(query: OrderProfitReportQuery): Promise<OrderProfitReport>
     workerSettlement(query: WorkerSettlementReportQuery): Promise<WorkerSettlementReport>
     capacityRisk(query: CapacityRiskReportQuery): Promise<CapacityRiskReport>
-    monthlyProductionWeight(query: MonthlyProductionWeightQuery): Promise<MonthlyProductionWeightReport>
+    monthlyProductionWeight(
+      query: MonthlyProductionWeightQuery
+    ): Promise<MonthlyProductionWeightReport>
     export(input: ReportExportInput): Promise<{ savedPath: string | null }>
   }
   products: {
@@ -763,7 +770,10 @@ export interface YumiApi {
     listShipments(orderId: string): Promise<ShipmentDetail[]>
     createShipment(input: ShipmentCreateInput): Promise<ShipmentDetail>
     updateShipment(input: ShipmentUpdateInput): Promise<ShipmentDetail>
-    exportWorkbook(input: OrderWorkbookInput): Promise<{ savedPath: string | null }>
+    exportOrderSheet(input: OrderSheetExportInput): Promise<{ savedPath: string | null }>
+    exportShipmentManifest(
+      input: ShipmentManifestExportInput
+    ): Promise<{ savedPath: string | null }>
   }
   workers: {
     list(): Promise<WorkerSummary[]>

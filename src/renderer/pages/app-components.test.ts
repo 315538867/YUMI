@@ -25,7 +25,16 @@ describe('订单发货与收货地址交互', () => {
     expect(appSource).toMatch(/待发/)
     expect(appSource).toMatch(/window\.yumi\.orders\.createShipment/)
     expect(appSource).toMatch(/window\.yumi\.orders\.updateShipment/)
-    expect(appSource).toMatch(/window\.yumi\.orders\.exportWorkbook/)
+    expect(appSource).toMatch(/生成订单表/)
+    expect(appSource).toMatch(/保存发货清单/)
+    expect(appSource).toMatch(/window\.yumi\.orders\.exportOrderSheet/)
+    expect(appSource).toMatch(/window\.yumi\.orders\.exportShipmentManifest/)
+    expect(appSource).toMatch(/disabled=\{exportingShipmentManifestId === shipment\.id\}/)
+    expect(appSource).not.toMatch(/生成订单表和发货清单/)
+    expect(appSource).not.toMatch(/导出累计发货清单/)
+    expect(appSource).not.toMatch(/shipment-export-choice/)
+    expect(appSource).not.toMatch(/window\.yumi\.orders\.exportWorkbook/)
+    expect(appSource).not.toMatch(/setExportShipmentId|exportShipmentId/)
   })
 })
 
@@ -43,7 +52,9 @@ describe('排班时长、完成登记与月度重量报表交互', () => {
     expect(appSource).toMatch(/本次额外增加分钟/)
     expect(appSource).toMatch(/任务基础时长/)
     expect(appSource).toMatch(/最终总时长/)
-    expect(appSource).toMatch(/以任务时长安排本次排班；系统计算任务基础、额外预留和最终总时长，并提示模具日产能与交期风险。/)
+    expect(appSource).toMatch(
+      /以任务时长安排本次排班；系统计算任务基础、额外预留和最终总时长，并提示模具日产能与交期风险。/
+    )
     expect(appSource).toMatch(/还没有兼职人员。创建人员后，可以按任务时长安排本次排班。/)
     expect(appSource).not.toMatch(/最终上班时段/)
     expect(appSource).not.toMatch(/直接为人员创建最终上班时间段/)
@@ -86,14 +97,18 @@ describe('订单、排班与兼职人员联动展示', () => {
     expect(appSource).toMatch(/待排产/)
     expect(appSource).toMatch(/部分已排/)
     expect(appSource).toMatch(/待补排/)
-    expect(appSource).toMatch(/合格 \{qualifiedQuantity\} · 已排 \{scheduledQuantity\} · 未排 \{unplannedQuantity\}/)
+    expect(appSource).toMatch(
+      /合格 \{qualifiedQuantity\} · 已排 \{scheduledQuantity\} · 未排 \{unplannedQuantity\}/
+    )
     expect(appSource).toMatch(/getSchedulingStatusPresentation\(order\.schedulingStatus\)/)
     expect(appSource).toMatch(/关联排班/)
   })
 
   it('排班预览和兼职人员任务都复用主进程返回的订单进度，并提供订单跳转', () => {
     expect(appSource).toMatch(/preview\.taskProgress\.map/)
-    expect(appSource).toMatch(/当前合格 \{task\.progress\.qualifiedQuantity\} · 不合格 \{task\.progress\.unqualifiedQuantity\} · 已排 \{task\.progress\.scheduledQuantity\} · 未排 \{task\.progress\.unplannedQuantity\}/)
+    expect(appSource).toMatch(
+      /当前合格\s*\{task\.progress\.qualifiedQuantity\}\s*·\s*不合格(?:\s*\{\s*' '\s*\})?\s*\{task\.progress\.unqualifiedQuantity\}\s*·\s*已排\s*\{task\.progress\.scheduledQuantity\}\s*·\s*未排\s*\{task\.progress\.unplannedQuantity\}/
+    )
     expect(appSource).toMatch(/worker\.orderTasks\.map/)
     expect(appSource).toMatch(/不合格 \/ 未完成/)
     expect(appSource).toMatch(/onInspectOrder\(task\.orderId\)/)
@@ -113,7 +128,6 @@ describe('全局默认兼职时薪展示', () => {
     expect(appSource).not.toMatch(/previewWage/)
   })
 })
-
 
 describe('成本设置简化', () => {
   it('不再暴露固定成本分摊的设置或预览展示', () => {
