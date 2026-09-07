@@ -3,13 +3,13 @@ title: YUMI V2 核心业务重构方案
 date: 2026-09-07
 last_modified: 2026-09-08
 modifier: Codex
-solution_version: v3.0
+solution_version: v3.1
 status: 已确认，实施中
 branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 B 已完成，下一步建立兼职人员、时薪历史与工资结算数据基线）
+implementation_status: 实施中（阶段 C；C.1 工资结算数据基线已完成，下一步实现工资参考口径与扣款顺延领域规则）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1105,3 +1105,9 @@ npm run build
 - 阶段 B 的完整质量门禁已通过：全量 `npm test` 覆盖 47 个测试文件、127 个用例，另有 `npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 全部成功。
 - 阶段 B 至此形成独立 V2 履约基线：固定制作、捏毛装袋、打包、发货流程，期初在制品，次日质检，不合格后负责人重新排返工，售后补发，按待发货余额约束的分批发货，以及负责人可追溯数量调整均已具备实现和验证证据。
 - 下一步进入阶段 C，从兼职人员、时薪历史、工资结算单与扣款顺延的数据基线开始；负责人最终实发金额和备注仍将作为唯一的工资确认事实。
+
+### 2026-09-08：阶段 C.1 完成
+
+- 新增迁移版本 6：建立 `workers`、`worker_wage_history`、`worker_settlements`、`worker_settlement_tasks`、`worker_deduction_records`、`worker_settlement_deduction_allocations` 与 `worker_deduction_balances`。结算单预留排班/考勤分钟、两套参考金额、提成、当前和历史扣款、实际扣除、顺延、最终实发、付款日期、负责人备注及唯一工资流水关联。
+- 用数据库约束守住后续服务层的关键边界：同一人员同一生效日只能存在一条时薪；同一任务或扣款记录可在草稿中复核，但一旦归属“已确认”结算即不能被其他已确认结算再次纳入；一笔财务工资流水最多关联一张结算单；每条扣款记录最多保留一条待抵扣余额。
+- 验证：迁移测试覆盖表、约束和较早 V2 数据库的增量升级，`src/main/database/v2-storage.test.ts` 6 个用例与 `npm run typecheck` 通过。下一步为 C.2：实现排班/考勤两种工资参考、制作和捏毛不合格扣款及顺延纯领域规则。

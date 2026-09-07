@@ -42,7 +42,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 5 })
+    ).toEqual({ version: 6 })
     database.close()
 
     await expect(readFile(v1DatabasePath, 'utf8')).resolves.toBe('v1-test-data')
@@ -155,7 +155,7 @@ describe('V2 独立数据空间', () => {
       name: 'V2 客户'
     })
     expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 5
+      count: 6
     })
     expect(
       upgraded
@@ -250,6 +250,93 @@ describe('V2 独立数据空间', () => {
       INSERT INTO opening_wip_records (
         id, order_item_id, target_stage, quantity, occurred_on, fulfillment_event_id, created_at
       ) VALUES ('wip-negative', 'item-missing', 'packing', -1, '2026-09-07', 'event-missing', '2026-09-07T00:00:00.000Z')
+    `).run()).toThrow()
+    database.close()
+  })
+
+
+  it('追加兼职工资数据基线，并防止确认任务、扣款和工资流水被重复归属', () => {
+    const database = createV2Database(':memory:')
+    const tableNames = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
+    expect(tableNames.map((row) => row.name)).toEqual(expect.arrayContaining([
+      'workers', 'worker_wage_history', 'worker_settlements', 'worker_settlement_tasks',
+      'worker_deduction_records', 'worker_settlement_deduction_allocations', 'worker_deduction_balances'
+    ]))
+    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 6 })
+
+    database.prepare(`
+      INSERT INTO workers (id, name, enabled, created_at, updated_at)
+      VALUES ('worker-1', '兼职小林', 1, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO worker_wage_history (id, worker_id, effective_on, hourly_wage_cents, created_at)
+      VALUES ('wage-1', 'worker-1', '2026-09-08', 2_000, '2026-09-08T00:00:00.000Z')
+    `).run()
+    expect(() => database.prepare(`
+      INSERT INTO worker_wage_history (id, worker_id, effective_on, hourly_wage_cents, created_at)
+      VALUES ('wage-duplicate', 'worker-1', '2026-09-08', 2_200, '2026-09-08T00:00:00.000Z')
+    `).run()).toThrow()
+
+    database.prepare(`
+      INSERT INTO work_assignments (id, worker_id, assigned_on, process_type, status, created_at, updated_at)
+      VALUES ('assignment-1', 'worker-1', '2026-09-08', 'making', 'completed', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO process_tasks (
+        id, work_assignment_id, process_type, source_type, planned_quantity,
+        planned_minutes, extra_minutes, status, created_at, updated_at
+      ) VALUES ('task-1', 'assignment-1', 'making', 'normal_production', 1, 20, 0, 'confirmed', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO financial_entries (id, direction, business_type, amount_cents, occurred_on, created_at)
+      VALUES ('wage-entry-1', 'expense', 'wage_payment', 2_000, '2026-09-08', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO worker_settlements (
+        id, worker_id, period_start_on, period_end_on, status, financial_entry_id, created_at, updated_at
+      ) VALUES ('settlement-1', 'worker-1', '2026-09-08', '2026-09-08', 'confirmed', 'wage-entry-1', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO worker_settlements (id, worker_id, period_start_on, period_end_on, status, created_at, updated_at)
+      VALUES ('settlement-2', 'worker-1', '2026-09-09', '2026-09-09', 'draft', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    expect(() => database.prepare(`
+      UPDATE worker_settlements SET financial_entry_id = 'wage-entry-1' WHERE id = 'settlement-2'
+    `).run()).toThrow()
+
+    database.prepare(`
+      INSERT INTO worker_settlement_tasks (id, settlement_id, process_task_id, status, created_at)
+      VALUES ('settlement-task-1', 'settlement-1', 'task-1', 'confirmed', '2026-09-08T00:00:00.000Z')
+    `).run()
+    expect(() => database.prepare(`
+      INSERT INTO worker_settlement_tasks (id, settlement_id, process_task_id, status, created_at)
+      VALUES ('settlement-task-2', 'settlement-2', 'task-1', 'confirmed', '2026-09-08T00:00:00.000Z')
+    `).run()).toThrow()
+
+    database.prepare(`
+      INSERT INTO worker_deduction_records (
+        id, worker_id, process_task_id, unqualified_quantity, commission_deduction_cents,
+        wage_deduction_cents, glue_deduction_cents, total_deduction_cents, deducted_cents,
+        remaining_carryover_cents, status, created_at, updated_at
+      ) VALUES ('deduction-1', 'worker-1', 'task-1', 1, 300, 667, 50, 1_017, 0, 1_017, 'pending', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO worker_settlement_deduction_allocations (
+        id, settlement_id, deduction_record_id, allocated_cents, status, created_at
+      ) VALUES ('allocation-1', 'settlement-1', 'deduction-1', 1_017, 'confirmed', '2026-09-08T00:00:00.000Z')
+    `).run()
+    expect(() => database.prepare(`
+      INSERT INTO worker_settlement_deduction_allocations (
+        id, settlement_id, deduction_record_id, allocated_cents, status, created_at
+      ) VALUES ('allocation-2', 'settlement-2', 'deduction-1', 1_017, 'confirmed', '2026-09-08T00:00:00.000Z')
+    `).run()).toThrow()
+    database.prepare(`
+      INSERT INTO worker_deduction_balances (id, worker_id, deduction_record_id, remaining_cents, status, created_at, updated_at)
+      VALUES ('balance-1', 'worker-1', 'deduction-1', 1_017, 'open', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    expect(() => database.prepare(`
+      INSERT INTO worker_deduction_balances (id, worker_id, deduction_record_id, remaining_cents, status, created_at, updated_at)
+      VALUES ('balance-duplicate', 'worker-1', 'deduction-1', 1_017, 'open', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
     `).run()).toThrow()
     database.close()
   })

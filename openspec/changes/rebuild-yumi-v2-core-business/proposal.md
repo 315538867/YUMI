@@ -2,8 +2,8 @@
 
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
-- 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.0）
-- 状态：实施中（阶段 B 已完成；进入阶段 C）
+- 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.1）
+- 状态：实施中（阶段 C；C.1 已完成）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -85,3 +85,5 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 - **2026-09-08 / B.6 已完成**：补强固定履约流转验收：领域测试覆盖固定四工序、计划分钟、期初在制品和阶段余额；服务测试覆盖制作合格、捏毛装袋不合格后按返工任务重新合格，以及打包完成进入待发货；端到端工作流将原有单次发货扩展为同一订单商品的两次分批发货并校验最终已发货余额；页面测试明确覆盖正常生产、返工和售后补发来源。验证：履约领域、履约服务、订单发货服务、V2 工作流和履约页面定向测试共 5 个文件、19 个用例通过，`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 通过。下一步为 B.7：阶段 B 完整质量门禁。
 
 - **2026-09-08 / B.7 已完成**：阶段 B 质量门禁全部通过：全量 `npm test`（47 个测试文件、127 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均退出成功。阶段 B 的固定四工序履约、期初在制品、次日质检、返工、售后补发、打包进入待发货及分批发货可用量规则已形成可验证的 V2 基线。下一步为 C.1：兼职人员、时薪历史与工资结算数据基线。
+
+- **2026-09-08 / C.1 已完成**：新增 V2 迁移版本 6，建立兼职人员、时薪历史、工资结算、结算任务归属、不合格扣款、结算扣款分配和待抵扣余额表。结算任务与扣款分配均以“仅确认记录全局唯一”的部分唯一索引阻止重复归属；结算单以唯一 `financial_entry_id` 为后续工资流水一对一联动预留数据库约束。验证：迁移测试覆盖新表、时薪生效日唯一、已确认任务/扣款不可重复归属、工资流水不可重复关联以及待抵扣余额一对一，`src/main/database/v2-storage.test.ts` 6 个用例、`npm run typecheck`、`git diff --check` 通过。下一步为 C.2：工资参考口径与扣款顺延领域规则。

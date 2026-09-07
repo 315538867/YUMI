@@ -327,12 +327,137 @@ const v2BackfillShipmentFulfillmentEvents: V2Migration = {
   }
 }
 
+
+const v2WorkerSettlementFoundation: V2Migration = {
+  version: 6,
+  name: 'v2_worker_settlement_foundation',
+  run(database) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS workers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL CHECK(length(trim(name)) > 0),
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS worker_wage_history (
+        id TEXT PRIMARY KEY,
+        worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE RESTRICT,
+        effective_on TEXT NOT NULL,
+        hourly_wage_cents INTEGER NOT NULL CHECK(hourly_wage_cents >= 0),
+        created_at TEXT NOT NULL,
+        UNIQUE(worker_id, effective_on)
+      );
+
+      CREATE TABLE IF NOT EXISTS worker_settlements (
+        id TEXT PRIMARY KEY,
+        worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE RESTRICT,
+        period_start_on TEXT NOT NULL,
+        period_end_on TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('draft', 'confirmed', 'adjusted')),
+        scheduled_minutes INTEGER NOT NULL DEFAULT 0 CHECK(scheduled_minutes >= 0),
+        attendance_minutes INTEGER CHECK(attendance_minutes IS NULL OR attendance_minutes >= 0),
+        attendance_note TEXT,
+        scheduled_reference_wage_cents INTEGER NOT NULL DEFAULT 0 CHECK(scheduled_reference_wage_cents >= 0),
+        attendance_reference_wage_cents INTEGER NOT NULL DEFAULT 0 CHECK(attendance_reference_wage_cents >= 0),
+        qualified_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(qualified_commission_cents >= 0),
+        current_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(current_deduction_cents >= 0),
+        carried_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(carried_deduction_cents >= 0),
+        actual_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(actual_deduction_cents >= 0),
+        continuing_carryover_cents INTEGER NOT NULL DEFAULT 0 CHECK(continuing_carryover_cents >= 0),
+        other_adjustment_cents INTEGER NOT NULL DEFAULT 0,
+        final_paid_amount_cents INTEGER CHECK(final_paid_amount_cents IS NULL OR final_paid_amount_cents >= 0),
+        paid_on TEXT,
+        manager_note TEXT,
+        financial_entry_id TEXT UNIQUE REFERENCES financial_entries(id) ON DELETE RESTRICT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK(period_end_on >= period_start_on)
+      );
+
+      CREATE TABLE IF NOT EXISTS worker_settlement_tasks (
+        id TEXT PRIMARY KEY,
+        settlement_id TEXT NOT NULL REFERENCES worker_settlements(id) ON DELETE CASCADE,
+        process_task_id TEXT NOT NULL REFERENCES process_tasks(id) ON DELETE RESTRICT,
+        scheduled_minutes INTEGER NOT NULL DEFAULT 0 CHECK(scheduled_minutes >= 0),
+        qualified_quantity INTEGER NOT NULL DEFAULT 0 CHECK(qualified_quantity >= 0),
+        qualified_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(qualified_commission_cents >= 0),
+        status TEXT NOT NULL CHECK(status IN ('draft', 'confirmed', 'cancelled')),
+        created_at TEXT NOT NULL,
+        UNIQUE(settlement_id, process_task_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS worker_deduction_records (
+        id TEXT PRIMARY KEY,
+        worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE RESTRICT,
+        work_assignment_id TEXT REFERENCES work_assignments(id) ON DELETE RESTRICT,
+        process_task_id TEXT NOT NULL REFERENCES process_tasks(id) ON DELETE RESTRICT,
+        process_result_id TEXT REFERENCES process_results(id) ON DELETE RESTRICT,
+        quality_inspection_id TEXT UNIQUE REFERENCES quality_inspections(id) ON DELETE RESTRICT,
+        order_id TEXT REFERENCES orders(id) ON DELETE RESTRICT,
+        order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
+        unqualified_quantity INTEGER NOT NULL CHECK(unqualified_quantity > 0),
+        commission_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(commission_deduction_cents >= 0),
+        wage_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(wage_deduction_cents >= 0),
+        glue_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(glue_deduction_cents >= 0),
+        total_deduction_cents INTEGER NOT NULL CHECK(total_deduction_cents >= 0),
+        deducted_cents INTEGER NOT NULL DEFAULT 0 CHECK(deducted_cents >= 0),
+        remaining_carryover_cents INTEGER NOT NULL DEFAULT 0 CHECK(remaining_carryover_cents >= 0),
+        status TEXT NOT NULL CHECK(status IN ('pending', 'partially_deducted', 'settled')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK(deducted_cents + remaining_carryover_cents <= total_deduction_cents)
+      );
+
+      CREATE TABLE IF NOT EXISTS worker_settlement_deduction_allocations (
+        id TEXT PRIMARY KEY,
+        settlement_id TEXT NOT NULL REFERENCES worker_settlements(id) ON DELETE CASCADE,
+        deduction_record_id TEXT NOT NULL REFERENCES worker_deduction_records(id) ON DELETE RESTRICT,
+        allocated_cents INTEGER NOT NULL CHECK(allocated_cents > 0),
+        status TEXT NOT NULL CHECK(status IN ('draft', 'confirmed', 'cancelled')),
+        created_at TEXT NOT NULL,
+        UNIQUE(settlement_id, deduction_record_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS worker_deduction_balances (
+        id TEXT PRIMARY KEY,
+        worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE RESTRICT,
+        deduction_record_id TEXT NOT NULL UNIQUE REFERENCES worker_deduction_records(id) ON DELETE RESTRICT,
+        remaining_cents INTEGER NOT NULL CHECK(remaining_cents > 0),
+        status TEXT NOT NULL CHECK(status IN ('open', 'resolved')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_worker_wage_history_lookup
+        ON worker_wage_history(worker_id, effective_on DESC);
+      CREATE INDEX IF NOT EXISTS idx_worker_settlements_worker_period
+        ON worker_settlements(worker_id, period_start_on, period_end_on, status);
+      CREATE INDEX IF NOT EXISTS idx_worker_settlement_tasks_settlement
+        ON worker_settlement_tasks(settlement_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_worker_settlement_tasks_confirmed_task
+        ON worker_settlement_tasks(process_task_id) WHERE status = 'confirmed';
+      CREATE INDEX IF NOT EXISTS idx_worker_deduction_records_worker_status
+        ON worker_deduction_records(worker_id, status, created_at);
+      CREATE INDEX IF NOT EXISTS idx_worker_settlement_deduction_allocations_settlement
+        ON worker_settlement_deduction_allocations(settlement_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_worker_settlement_deductions_confirmed_record
+        ON worker_settlement_deduction_allocations(deduction_record_id) WHERE status = 'confirmed';
+      CREATE INDEX IF NOT EXISTS idx_worker_deduction_balances_worker_status
+        ON worker_deduction_balances(worker_id, status, created_at);
+    `)
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
   v2OrderItemPosition,
   v2FulfillmentFoundation,
-  v2BackfillShipmentFulfillmentEvents
+  v2BackfillShipmentFulfillmentEvents,
+  v2WorkerSettlementFoundation
 ]
 
 /**
