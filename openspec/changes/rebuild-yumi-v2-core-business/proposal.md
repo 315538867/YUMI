@@ -2,8 +2,8 @@
 
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
-- 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v2.9）
-- 状态：实施中（阶段 B；B.6 已完成）
+- 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.0）
+- 状态：实施中（阶段 B 已完成；进入阶段 C）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -83,3 +83,5 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 - **2026-09-07 / B.5 已完成**：新增履约工作区和工作安排页面，负责人可选择订单查看每个订单产品在制作、捏毛装袋、待打包、待发货、已发货各阶段的数量，登记期初在制品，或以必填说明做负责人数量调整。工作安排页支持同一人员/日期/工序下多个任务、正常生产/返工/售后补发来源、完成申报与次日质检；待质检完成结果可经新的只读 V2 IPC 查询在页面重新加载后继续处理，避免仅依赖临时前端状态。页面只通过 composable 调用 `window.yumiV2`，所有失败保留输入草稿。验证：新增页面/IPC/preload/服务定向测试，以及全量 `npm test`（47 个测试文件、125 个用例）、`npm run typecheck`、`npm run lint`、`npm run build` 通过。下一步为 B.6：补强生产、质检、返工、补发和分批发货场景测试。
 
 - **2026-09-08 / B.6 已完成**：补强固定履约流转验收：领域测试覆盖固定四工序、计划分钟、期初在制品和阶段余额；服务测试覆盖制作合格、捏毛装袋不合格后按返工任务重新合格，以及打包完成进入待发货；端到端工作流将原有单次发货扩展为同一订单商品的两次分批发货并校验最终已发货余额；页面测试明确覆盖正常生产、返工和售后补发来源。验证：履约领域、履约服务、订单发货服务、V2 工作流和履约页面定向测试共 5 个文件、19 个用例通过，`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 通过。下一步为 B.7：阶段 B 完整质量门禁。
+
+- **2026-09-08 / B.7 已完成**：阶段 B 质量门禁全部通过：全量 `npm test`（47 个测试文件、127 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均退出成功。阶段 B 的固定四工序履约、期初在制品、次日质检、返工、售后补发、打包进入待发货及分批发货可用量规则已形成可验证的 V2 基线。下一步为 C.1：兼职人员、时薪历史与工资结算数据基线。

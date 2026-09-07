@@ -1,15 +1,15 @@
 ---
 title: YUMI V2 核心业务重构方案
 date: 2026-09-07
-last_modified: 2026-09-07
+last_modified: 2026-09-08
 modifier: Codex
-solution_version: v2.9
+solution_version: v3.0
 status: 已确认，实施中
 branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 B；B.6 履约验收场景已完成，下一步执行阶段 B 质量门禁）
+implementation_status: 实施中（阶段 B 已完成，下一步建立兼职人员、时薪历史与工资结算数据基线）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1099,3 +1099,9 @@ npm run build
 - 补强固定工序与数量流转测试：制作合格后进入捏毛装袋；捏毛不合格品停留在原阶段，由负责人重新安排返工任务，返工合格后进入待打包；打包完成直接转入待发货。该链路同时验证非制作工序按负责人填写计划分钟，且打包任务无需进入质检状态。
 - 将 V2 工作流中的发货验收扩展为同一订单商品的两次分批发货：待发货余额在每次发货后递减，最终已发货数量与已确认数量一致；既有期初在制品、售后补发、负责人调整和来源不足拒绝继续由服务测试覆盖。
 - 页面边界测试明确检查正常生产、返工、售后补发三种任务来源及待发货状态展示。验证：履约领域、履约服务、订单发货服务、V2 工作流和履约页面定向测试共 5 个文件、19 个用例，`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 通过。下一步为 B.7：执行阶段 B 完整质量门禁。
+
+### 2026-09-08：阶段 B.7 完成
+
+- 阶段 B 的完整质量门禁已通过：全量 `npm test` 覆盖 47 个测试文件、127 个用例，另有 `npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 全部成功。
+- 阶段 B 至此形成独立 V2 履约基线：固定制作、捏毛装袋、打包、发货流程，期初在制品，次日质检，不合格后负责人重新排返工，售后补发，按待发货余额约束的分批发货，以及负责人可追溯数量调整均已具备实现和验证证据。
+- 下一步进入阶段 C，从兼职人员、时薪历史、工资结算单与扣款顺延的数据基线开始；负责人最终实发金额和备注仍将作为唯一的工资确认事实。
