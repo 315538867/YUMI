@@ -2,222 +2,54 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const appSource = readFileSync(resolve(process.cwd(), 'src/renderer/pages/app.tsx'), 'utf8')
-const appStyles = readFileSync(resolve(process.cwd(), 'src/renderer/styles/app.css'), 'utf8')
+const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8')
 
-describe('桌面工作区组件声明', () => {
-  it('设置工作区组件不与导航 Settings 图标同名', () => {
-    expect(appSource).not.toMatch(/function\s+Settings\s*\(/)
-    expect(appSource).toMatch(/function\s+SettingsWorkspace\s*\(/)
+const appSource = source('src/renderer/pages/app.tsx')
+const customerPageSource = source('src/renderer/pages/customers/index.tsx')
+const productPageSource = source('src/renderer/pages/products/index.tsx')
+const orderPageSource = source('src/renderer/pages/orders/index.tsx')
+const customerComposableSource = source('src/renderer/composables/use-customers.ts')
+const productComposableSource = source('src/renderer/composables/use-products.ts')
+const orderComposableSource = source('src/renderer/composables/use-orders.ts')
+
+describe('V2 应用壳与页面边界', () => {
+  it('应用壳仅负责导航与页面装配，不直接调用预加载能力', () => {
+    expect(appSource).toContain("from './customers'")
+    expect(appSource).toContain("from './products'")
+    expect(appSource).toContain("from './orders'")
+    expect(appSource).not.toContain('window.yumi')
+    expect(appSource).not.toContain('ipcRenderer')
+  })
+
+  it('页面通过 composable 获取数据，不直接连接 IPC', () => {
+    for (const pageSource of [customerPageSource, productPageSource, orderPageSource]) {
+      expect(pageSource).not.toContain('window.yumi')
+      expect(pageSource).not.toContain('ipcRenderer')
+    }
+    expect(customerComposableSource).toContain('window.yumiV2.customers')
+    expect(productComposableSource).toContain('window.yumiV2.products')
+    expect(orderComposableSource).toContain('window.yumiV2.orders')
   })
 })
 
-describe('订单发货与收货地址交互', () => {
-  it('提供仅修改订单草稿的客户收货地址复制操作', () => {
-    expect(appSource).toMatch(/复制客户收货地址/)
-    expect(appSource).toMatch(/收货地址/)
-    expect(appSource).not.toMatch(/常用地址/)
+describe('V2 订单工作区', () => {
+  it('覆盖多商品订单、内容变更、资金冲正和分批发货操作', () => {
+    expect(orderPageSource).toContain('初始确认金额')
+    expect(orderPageSource).toContain('订单内容变更')
+    expect(orderPageSource).toContain('金额调整')
+    expect(orderPageSource).toContain('收款 / 退款')
+    expect(orderPageSource).toContain('冲正并更正')
+    expect(orderPageSource).toContain('新增发货')
+    expect(orderPageSource).toContain('累计已发')
+    expect(orderPageSource).toContain('待发')
   })
 
-  it('支持用户逐次填写发货数量，并展示系统计算的已发和待发数量', () => {
-    expect(appSource).toMatch(/发货清单/)
-    expect(appSource).toMatch(/本次发货数量/)
-    expect(appSource).toMatch(/累计已发/)
-    expect(appSource).toMatch(/待发/)
-    expect(appSource).toMatch(/window\.yumi\.orders\.createShipment/)
-    expect(appSource).not.toMatch(/window\.yumi\.orders\.updateShipment/)
-    expect(appSource).toMatch(/新增发货/)
-    expect(appSource).toMatch(/shipmentDialogOpen/)
-    expect(appSource).toMatch(/生成订单表/)
-    expect(appSource).toMatch(/保存发货清单/)
-    expect(appSource).toMatch(/window\.yumi\.orders\.exportOrderSheet/)
-    expect(appSource).toMatch(/window\.yumi\.orders\.exportShipmentManifest/)
-    expect(appSource).toMatch(/disabled=\{exportingShipmentManifestId === shipment\.id\}/)
-    expect(appSource).not.toMatch(/生成订单表和发货清单/)
-    expect(appSource).not.toMatch(/导出累计发货清单/)
-    expect(appSource).not.toMatch(/shipment-export-choice/)
-    expect(appSource).not.toMatch(/window\.yumi\.orders\.exportWorkbook/)
-    expect(appSource).not.toMatch(/setExportShipmentId|exportShipmentId/)
-  })
-})
-
-describe('商品单页创建', () => {
-  it('在连续表单中收集费用与制作参数并可预览成本', () => {
-    expect(appSource).toMatch(/配件费（元\/个）/)
-    expect(appSource).toMatch(/替换袋费用（元\/个）/)
-    expect(appSource).toMatch(/捏毛装袋（元\/个）/)
-    expect(appSource).toMatch(/缝边成本（元\/个）/)
-    expect(appSource).toMatch(/预览单件成本/)
-    expect(appSource).not.toMatch(/先建立基础资料；完整成本和模具参数可在商品详情维护。/)
-  })
-})
-
-describe('排班时长、完成登记与月度重量报表交互', () => {
-  it('排班仅在全局填写额外分钟，并展示任务基础、额外和最终总时长', () => {
-    expect(appSource).toMatch(/本次额外增加分钟/)
-    expect(appSource).toMatch(/任务基础时长/)
-    expect(appSource).toMatch(/最终总时长/)
-    expect(appSource).toMatch(
-      /以任务时长安排本次排班；系统计算任务基础、额外预留和最终总时长，并提示模具日产能与交期风险。/
-    )
-    expect(appSource).toMatch(/还没有兼职人员。创建人员后，可以按任务时长安排本次排班。/)
-    expect(appSource).not.toMatch(/最终上班时段/)
-    expect(appSource).not.toMatch(/直接为人员创建最终上班时间段/)
-    expect(appSource).not.toMatch(/保存前检查重叠、工时/)
-  })
-
-  it('状态标记为已完成时逐项收集合格和不合格数量，不展示工资扣费', () => {
-    expect(appSource).toMatch(/填写实际完成数据/)
-    expect(appSource).toMatch(/合格数量/)
-    expect(appSource).toMatch(/不合格数量/)
-    expect(appSource).toMatch(/taskCompletions/)
-    expect(appSource).toMatch(/本期不计算工资与扣费/)
-  })
-
-  it('报表工作区提供按月查询完成制作重量的入口', () => {
-    expect(appSource).toMatch(/月度制作/)
-    expect(appSource).toMatch(/window\.yumi\.reports\.monthlyProductionWeight/)
-    expect(appSource).toMatch(/完成重量（kg）/)
-  })
-})
-
-describe('用户可见状态中文化', () => {
-  it('订单、报表与排班界面统一使用集中状态展示模块', () => {
-    expect(appSource).toMatch(/from '\.\.\/status-display'/)
-    expect(appSource).toMatch(/getProductionStatusPresentation\(order\.productionStatus\)\.label/)
-    expect(appSource).toMatch(/getFinancialStatusPresentation\(row\.financialStatus\)\.label/)
-    expect(appSource).toMatch(/getShiftStatusPresentation\(shift\.status\)\.label/)
-    expect(appSource).toMatch(/knownProductionStatuses\.map/)
-    expect(appSource).toMatch(/knownShiftStatuses\.map/)
-  })
-
-  it('不直接将内部英文状态枚举渲染给用户', () => {
-    expect(appSource).not.toMatch(/>\s*\{order\.productionStatus\}\s*</)
-    expect(appSource).not.toMatch(/productionStatusLabel|financialStatusLabel|shiftStatusLabels/)
-  })
-})
-
-describe('订单、排班与兼职人员联动展示', () => {
-  it('订单展示独立的排产状态及合格、已排和未排数量', () => {
-    expect(appSource).toMatch(/待排产/)
-    expect(appSource).toMatch(/部分已排/)
-    expect(appSource).toMatch(/待补排/)
-    expect(appSource).toMatch(
-      /合格 \{qualifiedQuantity\} · 已排 \{scheduledQuantity\} · 未排 \{unplannedQuantity\}/
-    )
-    expect(appSource).toMatch(/getSchedulingStatusPresentation\(order\.schedulingStatus\)/)
-    expect(appSource).toMatch(/关联排班/)
-  })
-
-  it('排班预览和兼职人员任务都复用主进程返回的订单进度，并提供订单跳转', () => {
-    expect(appSource).toMatch(/preview\.taskProgress\.map/)
-    expect(appSource).toMatch(
-      /当前合格\s*\{task\.progress\.qualifiedQuantity\}\s*·\s*不合格(?:\s*\{\s*' '\s*\})?\s*\{task\.progress\.unqualifiedQuantity\}\s*·\s*已排\s*\{task\.progress\.scheduledQuantity\}\s*·\s*未排\s*\{task\.progress\.unplannedQuantity\}/
-    )
-    expect(appSource).toMatch(/worker\.orderTasks\.map/)
-    expect(appSource).toMatch(/不合格 \/ 未完成/)
-    expect(appSource).toMatch(/onInspectOrder\(task\.orderId\)/)
-    expect(appSource).toMatch(/onInspectShift\(task\.shiftId\)/)
-    expect(appSource).toMatch(/onInspectShift\(schedule\.id\)/)
-  })
-})
-
-describe('全局默认兼职时薪展示', () => {
-  it('设置页面维护默认时薪，商品预览统一使用系统设置而不是临时输入', () => {
-    expect(appSource).toMatch(/默认兼职时薪（元\/小时）/)
-    expect(appSource).toMatch(/window\.yumi\.settings\.getCost\(\)/)
-    expect(appSource).toMatch(/window\.yumi\.settings\.updateCost/)
-    expect(appSource).toMatch(/按全局默认兼职时薪/)
-    expect(appSource).toMatch(/appliedHourlyWageCents/)
-    expect(appSource).not.toMatch(/预估时薪（元）/)
-    expect(appSource).not.toMatch(/previewWage/)
-  })
-})
-
-describe('成本设置简化', () => {
-  it('不再暴露固定成本分摊的设置或预览展示', () => {
-    expect(appSource).not.toContain('月度固定成本（元）')
-    expect(appSource).not.toContain('目标有效工时（分钟）')
-    expect(appSource).not.toContain('房租水电分摊')
-    expect(appSource).not.toContain('monthlyFixedCostCents')
-    expect(appSource).not.toContain('targetEffectiveMinutes')
-    expect(appSource).not.toContain('fixedOverheadCostCents')
-  })
-})
-
-describe('数字字段输入体验', () => {
-  it('所有受控数字字段统一使用字符串草稿组件，避免小数点后的零被提前格式化', () => {
-    expect(appSource).toMatch(/import \{ parseNumericDraft \}/)
-    expect(appSource).toMatch(/<NumericTextField/)
-    expect(appSource).not.toContain('type="number"')
-    expect(appSource).not.toMatch(/Number\(event\.target\.value/)
-  })
-
-  it('胶水单价以千分位换算，允许输入每克 0.033 元', () => {
-    expect(appSource).toMatch(/const milliYuanFromDraft/)
-    expect(appSource).toMatch(/Math\.round\(numericValue \* 1000\)/)
-    expect(appSource).toMatch(/step="0\.001"/)
-    expect(appSource).toMatch(/gluePriceMilliYuanPerGram \/ 1000/)
-  })
-})
-
-describe('订单、人员与排班详情工作区', () => {
-  it('将三类长详情承载为主工作区，并提供返回列表入口', () => {
-    expect(appSource).toMatch(/function\s+OrderDetailWorkspace\s*\(/)
-    expect(appSource).toMatch(/function\s+WorkerDetailWorkspace\s*\(/)
-    expect(appSource).toMatch(/function\s+ShiftDetailWorkspace\s*\(/)
-    expect(appSource).toMatch(/返回订单列表/)
-    expect(appSource).toMatch(/返回兼职人员列表/)
-    expect(appSource).toMatch(/返回排班列表/)
-    expect(appSource).not.toMatch(/<Dialog\.Title>订单检查器<\/Dialog\.Title>/)
-    expect(appSource).not.toMatch(/<Dialog\.Title>兼职人员工作区<\/Dialog\.Title>/)
-    expect(appSource).not.toMatch(/<Dialog\.Title>排班详情<\/Dialog\.Title>/)
-  })
-
-  it('在订单详情中显示非空订单备注，并保留完成登记的短流程弹窗', () => {
-    expect(appSource).toMatch(/订单备注/)
-    expect(appSource).toMatch(/order\.notes/)
-    expect(appSource).toMatch(/<Dialog\.Title>填写实际完成数据<\/Dialog\.Title>/)
-  })
-
-  it('以页面工作区布局展示详情，并保留多行订单备注', () => {
-    expect(appStyles).toMatch(/\.detail-workspace\s*\{[\s\S]*width: min\(100%, 1180px\)/)
-    expect(appStyles).toMatch(/\.order-notes-content\s*\{[\s\S]*white-space: pre-wrap/)
-    expect(appStyles).not.toMatch(/\.schedule-inspector-dialog\s*\{/)
-  })
-})
-
-describe('独立客户管理与订单关联', () => {
-  it('提供客户管理入口，订单仅可关联已建客户且不再显示临时新建选项', () => {
-    expect(appSource).toMatch(/label: '客户管理'/)
-    expect(appSource).toMatch(/CustomerManagementPage/)
-    expect(appSource).toMatch(/请先选择已有客户；如需新建，请前往客户管理。/)
-    expect(appSource).toMatch(/setCustomerName\(customer\.name\)/)
-    expect(appSource).toMatch(/setContact\(customer\.contact \?\? ''\)/)
-    expect(appSource).toMatch(/setAddress\(customer\.defaultAddress \?\? ''\)/)
-    expect(appSource).not.toContain('新建客户')
-  })
-})
-
-describe('全局界面布局约束', () => {
-  it('应用主体可收缩，不用固定最小宽度强制窗口横向溢出', () => {
-    expect(appStyles).not.toMatch(/body\s*\{[\s\S]*min-width:\s*1100px/)
-    expect(appStyles).toMatch(/\.app-shell\s*\{[\s\S]*min-width:\s*0/)
-  })
-
-  it('排班弹窗使用统一内容与底部操作区布局', () => {
-    expect(appSource).toMatch(/className="dialog-content shift-dialog-content"/)
-    expect(appSource).toMatch(/className="dialog-actions"/)
-    expect(appStyles).toMatch(/\.dialog-content\s*\{[\s\S]*max-width:\s*min\(/)
-    expect(appStyles).toMatch(/\.dialog-actions\s*\{[\s\S]*position:\s*sticky/)
-  })
-
-  it('排班任务行在窄窗口下自动降为单列', () => {
-    expect(appStyles).toMatch(
-      /\.shift-task\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) 120px 24px/
-    )
-    expect(appStyles).toMatch(
-      /@media \(max-width: 680px\)\s*\{[\s\S]*\.shift-task[\s\S]*grid-template-columns:\s*1fr/
-    )
+  it('将创建、变更、资金和发货失败保留在页面草稿中', () => {
+    expect(orderPageSource).toContain('setError')
+    expect(orderPageSource).toContain('await createOrder')
+    expect(orderPageSource).toContain('await changeContent')
+    expect(orderPageSource).toContain('await recordFund')
+    expect(orderPageSource).toContain('await correctFund')
+    expect(orderPageSource).toContain('await createShipment')
   })
 })

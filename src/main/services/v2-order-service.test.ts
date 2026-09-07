@@ -119,6 +119,7 @@ describe('V2OrderService', () => {
 
     expect(corrected.reversal.reversalOfEntryId).toBe(payment.id)
     expect(corrected.replacement.amountCents).toBe(7_500)
+    expect(service.listOrderFunds(order.id)).toHaveLength(3)
     expect(service.getOrder(order.id)?.funds).toMatchObject({
       receivedCents: 7_500,
       refundedCents: 0,

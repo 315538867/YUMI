@@ -52,4 +52,7 @@ export class V2BackupService {
     return this.backup.applyRestore(plan)
   }
 
+  recordRestore(result: V2BackupRestoreResult): Promise<void> {
+    return this.backup.recordRestore(result)
+  }
 }

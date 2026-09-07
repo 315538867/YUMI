@@ -40,6 +40,7 @@ export function registerV2Ipc(
   ipc.handle('v2:orders:content-changes:list', (_event, orderId) =>
     service.listContentChanges(orderId as string)
   )
+  ipc.handle('v2:orders:funds:list', (_event, orderId) => service.listOrderFunds(orderId as string))
   ipc.handle('v2:orders:record-fund', (_event, orderId, input) =>
     service.recordOrderFund(orderId as string, input as never)
   )

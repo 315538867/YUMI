@@ -33,6 +33,7 @@ export interface V2YumiApi {
     create(input: V2OrderCreateInput): Promise<V2Order>
     changeContent(orderId: string, input: V2OrderContentChangeInput): Promise<V2Order>
     listContentChanges(orderId: string): Promise<V2OrderContentChange[]>
+    listFunds(orderId: string): Promise<V2OrderFund[]>
     recordFund(orderId: string, input: V2OrderFundInput): Promise<V2OrderFund>
     correctFund(orderId: string, input: V2OrderFundCorrectionInput): Promise<{ reversal: V2OrderFund; replacement: V2OrderFund }>
     listShipments(orderId: string): Promise<V2Shipment[]>

@@ -20,7 +20,7 @@ describe('registerV2Ipc', () => {
       listCustomers: vi.fn(() => []), createCustomer: vi.fn(), updateCustomer: vi.fn(),
       listProducts: vi.fn(() => []), createProduct: vi.fn(), updateProduct: vi.fn(),
       listOrders: vi.fn(() => []), getOrder: vi.fn(), createOrder: vi.fn(),
-      changeOrderContent: vi.fn(), listContentChanges: vi.fn(), recordOrderFund: vi.fn(),
+      changeOrderContent: vi.fn(), listContentChanges: vi.fn(), listOrderFunds: vi.fn(), recordOrderFund: vi.fn(),
       correctOrderFund: vi.fn(), listShipments: vi.fn(), createShipment: vi.fn()
     }
     const backup = { service: { createBackup: vi.fn(), listBackups: vi.fn(), getActivity: vi.fn(), inspectBackup: vi.fn() }, restore: vi.fn() }
@@ -29,13 +29,15 @@ describe('registerV2Ipc', () => {
 
     expect([...handlers.keys()]).toEqual(expect.arrayContaining([
       'v2:customers:list', 'v2:products:create', 'v2:orders:create',
-      'v2:orders:change-content', 'v2:orders:record-fund',
+      'v2:orders:change-content', 'v2:orders:funds:list', 'v2:orders:record-fund',
       'v2:orders:correct-fund', 'v2:orders:shipments:create', 'v2:backup:restore'
     ]))
     await handlers.get('v2:orders:change-content')!(undefined, 'order-1', { description: '加封边' })
+    await handlers.get('v2:orders:funds:list')!(undefined, 'order-1')
     await handlers.get('v2:orders:record-fund')!(undefined, 'order-1', { amountCents: 100 })
     await handlers.get('v2:orders:shipments:create')!(undefined, 'order-1', { items: [] })
     expect(service.changeOrderContent).toHaveBeenCalledWith('order-1', { description: '加封边' })
+    expect(service.listOrderFunds).toHaveBeenCalledWith('order-1')
     expect(service.recordOrderFund).toHaveBeenCalledWith('order-1', { amountCents: 100 })
     expect(service.createShipment).toHaveBeenCalledWith('order-1', { items: [] })
   })

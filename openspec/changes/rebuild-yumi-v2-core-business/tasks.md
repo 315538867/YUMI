@@ -1,4 +1,4 @@
-> 当前执行：A.5（V2 主进程组合与 preload API 切换）。未通过对应验证前不得勾选完成。
+> 当前执行：B.1（多工序履约、质检与期初在制品数据建模）。未通过对应验证前不得勾选完成。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -6,10 +6,10 @@
 - [x] A.2 在 `src/main/domain/order-amounts.ts`、`order-funds.ts`、`shipment-quantities.ts` 实现订单金额/净收/待收计算、订单资金方向与冲正校验、阶段 A 按确认数量的发货上限；完成条件是金额使用整数分，覆盖定金/尾款/退款/减额/超收/超量发货边界测试。
 - [x] A.3 新建 `src/shared/contracts/common.ts`、`customers.ts`、`products.ts`、`orders.ts`、`index.ts`，并将 V1 `src/shared/contracts.ts` 的 V2 使用方切换为新契约；完成条件是 V2 订单 API、输入、输出和领域错误在 renderer/preload/IPC/service 间只使用同一来源类型。
 - [x] A.4 在 `src/main/repositories/`、`src/main/services/`、`src/main/ipc/` 新增客户、商品、订单、资金、发货和 V2 备份领域实现及 `register-v2-ipc.ts`；完成条件是订单创建、内容变更与可选金额调整、资金新增/冲正、发货和审计均在事务内完成，且不调用 V1 `StudioRepository`/`StudioService`。
-- [ ] A.5 修改 `src/main/index.ts` 与 `src/preload/index.ts`，由 V2 存储配置组合 V2 服务、备份与 API；完成条件是应用仅打开 V2 数据空间、恢复后重建 V2 服务引用、V2 renderer 不暴露 V1 写入通道。
-- [ ] A.6 将 `src/renderer/pages/app.tsx` 收敛为应用壳，新增 `pages/customers/`、`pages/products/`、`pages/orders/` 和对应 `composables/use-*.ts`；完成条件是支持客户/商品维护、一单多商品、初始确认金额、内容变更、金额调整、多笔资金、冲正和分批发货，失败保留草稿且组件不直连 IPC。
-- [ ] A.7 为阶段 A 新增 domain、repository/service、IPC/preload、renderer 和端到端测试；完成条件是独立 V2 启动、客户/商品快照、订单金额、收退款、发货、附件/备份与 V1 隔离场景全部自动验证。
-- [ ] A.8 运行阶段 A 定向测试、`npm run typecheck`、`npm run lint` 和 `npm run build`；完成条件是记录命令与结果，在本文件和 `proposal.md` 中写入证据后才进入阶段 B。
+- [x] A.5 修改 `src/main/index.ts` 与 `src/preload/index.ts`，由 V2 存储配置组合 V2 服务、备份与 API；完成条件是应用仅打开 V2 数据空间、恢复后重建 V2 服务引用、V2 renderer 不暴露 V1 写入通道。
+- [x] A.6 将 `src/renderer/pages/app.tsx` 收敛为应用壳，新增 `pages/customers/`、`pages/products/`、`pages/orders/` 和对应 `composables/use-*.ts`；完成条件是支持客户/商品维护、一单多商品、初始确认金额、内容变更、金额调整、多笔资金、冲正和分批发货，失败保留草稿且组件不直连 IPC。
+- [x] A.7 为阶段 A 新增 domain、repository/service、IPC/preload、renderer 和端到端测试；完成条件是独立 V2 启动、客户/商品快照、订单金额、收退款、发货、附件/备份与 V1 隔离场景全部自动验证。
+- [x] A.8 运行阶段 A 定向测试、`npm run typecheck`、`npm run lint` 和 `npm run build`；完成条件是记录命令与结果，在本文件和 `proposal.md` 中写入证据后才进入阶段 B。
 
 ## 阶段 B：多工序履约、质检、期初在制品与售后补发
 
@@ -60,3 +60,11 @@
 - **A.3（2026-09-07）**：建立 `src/shared/contracts/` 的 common、customers、products、orders 和统一入口；V2 领域规则已通过该入口引用金额与订单资金类型，不再为 V2 复制 V1 类型。验证通过：V2 契约测试 1 个用例，订单领域与契约联合测试 4 文件、9 个用例，`npm run typecheck`、`npm run lint`。
 
 - **A.4（2026-09-07）**：新增 `V2OrderRepository`、`V2OrderService`、`V2BackupService` 和独立 `v2:` IPC 命名空间；客户、商品、订单、内容变更与可选金额调整、资金新增/冲正、分批发货均由 V2 服务在 SQLite 事务中编排并写入审计，不依赖 V1 `StudioRepository`/`StudioService`。订单商品新增顺序迁移，冲正与原记录在资金汇总中成对排除。验证通过：新增服务与 IPC 定向测试，`npm test`（42 文件、130 用例）、`npm run typecheck`、`npm run lint`。
+
+- **A.5（2026-09-07）**：应用启动已只组合 `V2ApplicationRuntime`、V2 存储、服务、备份和 `v2:` IPC；恢复前创建安全备份、关闭旧连接、应用恢复、重建 V2 引用并写入恢复审计，随后重启应用。preload 仅暴露 `window.yumiV2`，没有 V1 写入桥接。验证通过：`src/main/application/v2-runtime.test.ts`、`src/preload/v2-api.test.ts`、`tests/preload-sandbox-config.test.ts`，并通过全量测试、类型检查、lint 和构建。
+
+- **A.6（2026-09-07）**：`app.tsx` 已收敛为订单、客户、商品三页的导航壳；新增各领域页面与 `use-customers`、`use-products`、`use-orders` composable。订单页面支持多商品创建、初始确认金额、内容与可选金额调整、收退款、资金冲正以及分批发货；页面只经 composable 调用 V2 API，提交失败不会重置草稿。验证通过：渲染层边界测试、全量 `npm test`（44 文件、114 用例）、`npm run typecheck`、`npm run lint`、`npm run build` 与严格 OpenSpec 校验。
+
+- **A.7（2026-09-07）**：补齐 V2 运行时订单核心链路测试，使用独立临时数据空间自动覆盖客户/商品快照、订单确认金额、收款与退款净额、分批发货、V2 附件备份恢复以及 V1 数据文件和附件隔离；同时补强 V2 IPC 的资金流水查询委托与 renderer/composable 边界测试。
+
+- **A.8（2026-09-07）**：阶段 A 全量验证通过：`npm test`（45 文件、115 用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 均退出码为 0；另以源代码扫描确认 V2 组合根、preload 和新页面不依赖 V1 写入实现。

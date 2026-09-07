@@ -3,13 +3,13 @@ title: YUMI V2 核心业务重构方案
 date: 2026-09-07
 last_modified: 2026-09-07
 modifier: Codex
-solution_version: v2.1
-status: 已确认，已规划，待实施授权
+solution_version: v2.3
+status: 已确认，实施中
 branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 A；A.1 至 A.4 已完成）
+implementation_status: 实施中（阶段 A 已完成，下一步阶段 B 的多工序履约建模）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1045,3 +1045,18 @@ npm run build
 - 所述写入和对应审计记录均在同一 SQLite 事务中完成。为保持商品明细的输入顺序，V2 schema 增加了订单商品行号迁移。
 - V2 备份包装器显式绑定 `yumi-studio-v2.sqlite` 与 `attachments-v2`；恢复生命周期仍由下一项 A.5 的主进程组合负责关闭并重建数据库服务引用。
 - 验证：`npm test`（42 个测试文件、130 个用例通过）、`npm run typecheck`、`npm run lint`。
+
+
+### 2026-09-07：阶段 A.5、A.6 完成
+
+- 应用启动已从 V1 服务切换为 `V2ApplicationRuntime`：只打开 V2 数据库、附件和备份空间；恢复前会创建安全备份，关闭旧连接后恢复数据并重建仓储、订单服务与备份服务引用，写入恢复审计后重启应用。预加载层只暴露 `window.yumiV2`，不再向正式渲染层提供 V1 写入通道。
+- `app.tsx` 已仅承担导航和领域页面装配。客户、商品、订单分别位于独立页面，所有数据读写均通过各自 composable 访问 V2 API，组件不直接连接 IPC。
+- 订单页已覆盖客户关联、多商品行、初始确认金额、订单内容变更、可选正负金额调整、多笔收退款、追加式资金冲正/替代记录和累计数量校验的分批发货。各保存动作仅在成功后重置相应草稿，错误会保留在页面。
+- 验证：`npm test`（44 个测试文件、114 个用例通过）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 全部通过。下一项为 A.7，补齐阶段 A 的 V2 端到端与渲染交互测试。
+
+
+### 2026-09-07：阶段 A.7、A.8 完成
+
+- 新增独立 V2 订单核心链路测试：在临时 V2 数据空间中完成客户、商品、订单、客户/商品快照冻结、收款、退款、分批发货、附件备份与恢复，并确认恢复不修改 V1 数据库和附件。
+- 补强 V2 IPC 资金流水查询委托及 renderer/composable 架构边界测试；V2 组合根、preload 和新订单/客户/商品页面经源代码扫描确认不依赖 V1 写入实现。
+- 阶段 A 完成验证：`npm test`（45 个测试文件、115 个用例通过）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 全部通过。下一步进入阶段 B.1：多工序履约、质检与期初在制品的数据建模。

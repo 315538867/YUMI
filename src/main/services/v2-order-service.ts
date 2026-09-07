@@ -348,6 +348,11 @@ export class V2OrderService {
     return this.repository.listContentChanges(orderId)
   }
 
+  listOrderFunds(orderId: string): V2OrderFund[] {
+    this.requireOrder(orderId)
+    return this.repository.listOrderFunds(orderId)
+  }
+
   listAuditLogs(entityId?: string): V2AuditLog[] {
     return this.repository.listAuditLogs(entityId)
   }
