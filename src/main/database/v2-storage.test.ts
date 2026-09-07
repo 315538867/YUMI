@@ -42,7 +42,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 6 })
+    ).toEqual({ version: 7 })
     database.close()
 
     await expect(readFile(v1DatabasePath, 'utf8')).resolves.toBe('v1-test-data')
@@ -155,7 +155,7 @@ describe('V2 独立数据空间', () => {
       name: 'V2 客户'
     })
     expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 6
+      count: 7
     })
     expect(
       upgraded
@@ -262,7 +262,9 @@ describe('V2 独立数据空间', () => {
       'workers', 'worker_wage_history', 'worker_settlements', 'worker_settlement_tasks',
       'worker_deduction_records', 'worker_settlement_deduction_allocations', 'worker_deduction_balances'
     ]))
-    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 6 })
+    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 7 })
+    expect(database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'financial_entries'").get())
+      .toEqual(expect.objectContaining({ sql: expect.stringContaining('source_type') }))
 
     database.prepare(`
       INSERT INTO workers (id, name, enabled, created_at, updated_at)
@@ -288,9 +290,14 @@ describe('V2 独立数据空间', () => {
       ) VALUES ('task-1', 'assignment-1', 'making', 'normal_production', 1, 20, 0, 'confirmed', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
     `).run()
     database.prepare(`
-      INSERT INTO financial_entries (id, direction, business_type, amount_cents, occurred_on, created_at)
-      VALUES ('wage-entry-1', 'expense', 'wage_payment', 2_000, '2026-09-08', '2026-09-08T00:00:00.000Z')
+      INSERT INTO financial_entries (id, source_type, direction, business_type, amount_cents, occurred_on, created_at)
+      VALUES ('wage-entry-1', 'worker_settlement', 'expense', 'wage_payment', 2_000, '2026-09-08', '2026-09-08T00:00:00.000Z')
     `).run()
+    expect(() => database.prepare(`
+      INSERT INTO financial_entries (id, source_type, direction, business_type, amount_cents, occurred_on, created_at)
+      VALUES ('invalid-source-entry', 'unsupported_source', 'expense', 'wage_payment', 1, '2026-09-08', '2026-09-08T00:00:00.000Z')
+    `).run()).toThrow()
+
     database.prepare(`
       INSERT INTO worker_settlements (
         id, worker_id, period_start_on, period_end_on, status, financial_entry_id, created_at, updated_at

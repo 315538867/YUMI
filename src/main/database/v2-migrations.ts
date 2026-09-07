@@ -451,13 +451,27 @@ const v2WorkerSettlementFoundation: V2Migration = {
   }
 }
 
+const v2WagePaymentFinancialSource: V2Migration = {
+  version: 7,
+  name: 'v2_wage_payment_financial_source',
+  run(database) {
+    database.exec(`
+      ALTER TABLE financial_entries ADD COLUMN source_type TEXT NOT NULL DEFAULT 'order_fund'
+        CHECK(source_type IN ('order_fund', 'worker_settlement'));
+      CREATE INDEX IF NOT EXISTS idx_financial_entries_source_type_occurred_on
+        ON financial_entries(source_type, occurred_on);
+    `)
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
   v2OrderItemPosition,
   v2FulfillmentFoundation,
   v2BackfillShipmentFulfillmentEvents,
-  v2WorkerSettlementFoundation
+  v2WorkerSettlementFoundation,
+  v2WagePaymentFinancialSource
 ]
 
 /**

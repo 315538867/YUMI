@@ -219,8 +219,17 @@ export class SettlementService {
     return this.repository.transaction(() => {
       const settlement = this.requireDraft(id)
       if (settlement.finalPaidAmountCents === null) throw new DomainValidationError('确认结算前必须填写最终实发金额')
+      if (settlement.finalPaidAmountCents <= 0) throw new DomainValidationError('确认结算时最终实发金额必须大于零')
       if (!settlement.paidOn) throw new DomainValidationError('确认结算前必须填写实际付款日期')
-      const confirmed = { ...settlement, status: 'confirmed' as const, updatedAt: this.clock.now() }
+      const now = this.clock.now()
+      const financialEntryId = this.clock.createId()
+      this.repository.insertWagePaymentFinancialEntry({
+        id: financialEntryId, amountCents: settlement.finalPaidAmountCents, occurredOn: settlement.paidOn,
+        note: settlement.managerNote, createdAt: now
+      })
+      const confirmed = {
+        ...settlement, status: 'confirmed' as const, financialEntryId, updatedAt: now
+      }
       this.repository.updateSettlement(confirmed)
       this.repository.confirmSettlementArtifacts(confirmed.id, confirmed.updatedAt)
       return this.requireDetail(confirmed.id)

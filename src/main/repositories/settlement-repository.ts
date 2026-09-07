@@ -9,6 +9,14 @@ import type {
   V2WorkerWageHistory
 } from '@shared/contracts/settlements'
 
+interface WagePaymentFinancialEntry {
+  id: string
+  amountCents: number
+  occurredOn: string
+  note: string | null
+  createdAt: string
+}
+
 interface SettlementTaskSource {
   processTaskId: string
   workAssignmentId: string
@@ -299,6 +307,14 @@ export class SettlementRepository {
       settlement.otherAdjustmentCents, settlement.finalPaidAmountCents, settlement.paidOn, settlement.managerNote,
       settlement.financialEntryId, settlement.createdAt, settlement.updatedAt
     )
+  }
+
+  insertWagePaymentFinancialEntry(entry: WagePaymentFinancialEntry): void {
+    this.database.prepare(
+      `INSERT INTO financial_entries (
+        id, source_type, direction, business_type, amount_cents, occurred_on, note, created_at
+      ) VALUES (?, 'worker_settlement', 'expense', 'wage_payment', ?, ?, ?, ?)`
+    ).run(entry.id, entry.amountCents, entry.occurredOn, entry.note, entry.createdAt)
   }
 
   updateSettlement(settlement: V2WorkerSettlement): void {

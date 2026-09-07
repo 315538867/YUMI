@@ -60,6 +60,12 @@ describe('SettlementService', () => {
     expect(draft.deductions).toHaveLength(1)
     expect(draft.deductions[0]).toMatchObject({ occurredOn: '2026-09-08', totalDeductionCents: 750 })
 
+    settlementService.updateDraft(draft.id, {
+      finalPaidAmountCents: 0, paidOn: '2026-09-09'
+    })
+    expect(() => settlementService.confirm(draft.id)).toThrow('最终实发金额必须大于零')
+    expect(database.prepare('SELECT COUNT(*) AS count FROM financial_entries').get()).toEqual({ count: 0 })
+
     const updated = settlementService.updateDraft(draft.id, {
       attendanceMinutes: 60, attendanceNote: '打卡汇总', actualDeductionCents: 500, finalPaidAmountCents: 1_800,
       paidOn: '2026-09-09', managerNote: '负责人确认'
@@ -70,6 +76,16 @@ describe('SettlementService', () => {
 
     const confirmed = settlementService.confirm(draft.id)
     expect(confirmed).toMatchObject({ status: 'confirmed', finalPaidAmountCents: 1_800, paidOn: '2026-09-09' })
+    expect(confirmed.financialEntryId).toEqual(expect.any(String))
+    expect(database.prepare(`
+      SELECT id, source_type, direction, business_type, amount_cents, occurred_on, order_id, note
+      FROM financial_entries
+    `).all()).toEqual([{
+      id: confirmed.financialEntryId, source_type: 'worker_settlement', direction: 'expense',
+      business_type: 'wage_payment', amount_cents: 1_800, occurred_on: '2026-09-09',
+      order_id: null, note: '负责人确认'
+    }])
+    expect(() => settlementService.confirm(draft.id)).toThrow('只有草稿结算单可以编辑或确认')
     expect(database.prepare('SELECT remaining_cents, status FROM worker_deduction_balances').all()).toEqual([
       { remaining_cents: 250, status: 'open' }
     ])

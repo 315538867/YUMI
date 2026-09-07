@@ -9,7 +9,7 @@ branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 C；C.2 工资参考口径与扣款顺延领域规则已完成，下一步实现工资结算仓储、服务、IPC 与共享契约）
+implementation_status: 实施中（阶段 C；C.4 工资结算自动记账已完成，下一步实现兼职人员与工资结算页面）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1126,3 +1126,10 @@ npm run build
 - 新增 `settlement-ipc.ts` 并挂入 V2 运行时、集中 IPC 注册和 preload 契约，形成兼职人员、时薪历史、草稿创建/读取/更新/确认和结算列表的 `v2:` 调用边界。确认结算暂不写入 `financial_entries`：C.4 将以该已确认结算为唯一来源创建工资支出，防止产生两套财务事实。
 - 完整质量门禁同时发现并修复同一业务日期的履约事件不应由随机 UUID 决定先后顺序：已存在的同日事件按落库顺序处理，新事件排在其后，避免返工合格与同日打包完成发生阶段余额误判。
 - 验证：全量 `npm test` 覆盖 49 个测试文件、135 个用例，另有 `npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 全部通过。下一步为 C.4：在财务流水中建立唯一工资支出。
+
+### 2026-09-07：阶段 C.4 完成
+
+- 追加迁移版本 7，为 `financial_entries` 增加受限 `source_type`：历史和新增订单资金默认使用 `order_fund`，兼职工资结算使用 `worker_settlement`。迁移同时按来源与实际发生日期建立索引，保留阶段 D 扩展日常收入、日常支出和报销来源的空间。
+- `SettlementService.confirm` 现在在同一数据库事务中创建 `expense` 方向、`wage_payment` 业务类型的实际工资支出，并把生成的流水标识唯一写回 `worker_settlements.financial_entry_id`，随后确认任务与扣款分配。已确认单不再满足草稿状态，因此重复确认无法重复记账；任一后续写入失败会使同一事务中的工资流水回滚。
+- 工资流水金额使用负责人已填写的最终实发金额、实际付款日期和备注；排班/考勤两套参考工资不会在确认时回写。确认代表实际发放，因而最终实发为零的草稿不能确认，避免记录无金额的现金事实。
+- 验证：`src/main/services/settlement-service.test.ts` 覆盖唯一工资流水、关联标识、金额/日期/备注、零元确认拒绝及重复确认拒绝；`src/main/database/v2-storage.test.ts` 覆盖迁移版本、来源类型约束与增量升级；全量 `npm test`（49 个测试文件、135 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 均通过。下一步为 C.5：兼职人员与工资结算页面。
