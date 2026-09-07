@@ -12,6 +12,7 @@ import {
 import { Badge, Button, Dialog, Flex, Heading, Table, Text, TextField } from '@radix-ui/themes'
 import {
   ArchiveRestore,
+  ArrowLeft,
   CalendarDays,
   ChevronRight,
   CircleDollarSign,
@@ -69,6 +70,7 @@ import { calculateDraftTotals, getErrorMessage, getWeekDates } from './workspace
 import { getAvailableShiftTaskItems, type ShiftTaskOption } from './shift-task-options'
 
 type View = 'overview' | 'orders' | 'schedule' | 'products' | 'workers' | 'reports' | 'settings'
+type DetailTarget = { kind: 'order' | 'worker' | 'shift'; id: string }
 
 const navigation: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'overview', label: '概览', icon: LayoutDashboard },
@@ -154,8 +156,7 @@ export function App() {
   const [newProductOpen, setNewProductOpen] = useState(false)
   const [newWorkerOpen, setNewWorkerOpen] = useState(false)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
-  const [inspectingOrderId, setInspectingOrderId] = useState<string | null>(null)
-  const [inspectingShiftId, setInspectingShiftId] = useState<string | null>(null)
+  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
 
   const reload = async () => {
     setLoading(true)
@@ -181,9 +182,19 @@ export function App() {
     void reload()
   }, [])
 
-  const title = useMemo(() => navigation.find((item) => item.id === view)?.label ?? '', [view])
-  const addLabel =
-    view === 'products'
+  const title = useMemo(() => {
+    if (detailTarget?.kind === 'order') return '订单详情'
+    if (detailTarget?.kind === 'worker') return '兼职人员详情'
+    if (detailTarget?.kind === 'shift') return '排班详情'
+    return navigation.find((item) => item.id === view)?.label ?? ''
+  }, [detailTarget, view])
+  const openDetail = (kind: DetailTarget['kind'], id: string) => {
+    setView(kind === 'order' ? 'orders' : kind === 'worker' ? 'workers' : 'schedule')
+    setDetailTarget({ kind, id })
+  }
+  const addLabel = detailTarget
+    ? ''
+    : view === 'products'
       ? '新建商品'
       : view === 'workers'
         ? '新增兼职人员'
@@ -211,7 +222,10 @@ export function App() {
               key={id}
               className={view === id ? 'nav-item active' : 'nav-item'}
               aria-current={view === id ? 'page' : undefined}
-              onClick={() => setView(id)}
+              onClick={() => {
+                setView(id)
+                setDetailTarget(null)
+              }}
               type="button"
             >
               <Icon size={17} />
@@ -264,6 +278,29 @@ export function App() {
                 重试读取
               </Button>
             </div>
+          ) : detailTarget?.kind === 'order' ? (
+            <OrderDetailWorkspace
+              orderId={detailTarget.id}
+              products={products}
+              onBack={() => setDetailTarget(null)}
+              onInspectShift={(shiftId) => openDetail('shift', shiftId)}
+              onChanged={reload}
+            />
+          ) : detailTarget?.kind === 'worker' ? (
+            <WorkerDetailWorkspace
+              workerId={detailTarget.id}
+              onBack={() => setDetailTarget(null)}
+              onDataChanged={reload}
+              onInspectOrder={(orderId) => openDetail('order', orderId)}
+              onInspectShift={(shiftId) => openDetail('shift', shiftId)}
+            />
+          ) : detailTarget?.kind === 'shift' ? (
+            <ShiftDetailWorkspace
+              shiftId={detailTarget.id}
+              orders={orders}
+              onBack={() => setDetailTarget(null)}
+              onDataChanged={reload}
+            />
           ) : (
             <ViewContent
               view={view}
@@ -271,8 +308,9 @@ export function App() {
               products={products}
               orders={orders}
               workers={workers}
-              onInspectOrder={setInspectingOrderId}
-              onInspectShift={setInspectingShiftId}
+              onInspectOrder={(orderId) => openDetail('order', orderId)}
+              onInspectWorker={(workerId) => openDetail('worker', workerId)}
+              onInspectShift={(shiftId) => openDetail('shift', shiftId)}
               onNavigate={setView}
               onDataChanged={reload}
             />
@@ -287,26 +325,6 @@ export function App() {
         products={products}
         onDone={reload}
       />
-      <OrderInspector
-        orderId={inspectingOrderId}
-        products={products}
-        onOpenChange={(open) => {
-          if (!open) setInspectingOrderId(null)
-        }}
-        onInspectShift={(shiftId) => {
-          setInspectingOrderId(null)
-          setInspectingShiftId(shiftId)
-        }}
-        onChanged={reload}
-      />
-      <ShiftInspector
-        shiftId={inspectingShiftId}
-        orders={orders}
-        onOpenChange={(open) => {
-          if (!open) setInspectingShiftId(null)
-        }}
-        onDataChanged={reload}
-      />
     </main>
   )
 }
@@ -318,6 +336,7 @@ function ViewContent({
   orders,
   workers,
   onInspectOrder,
+  onInspectWorker,
   onInspectShift,
   onNavigate,
   onDataChanged
@@ -328,6 +347,7 @@ function ViewContent({
   orders: OrderSummary[]
   workers: WorkerSummary[]
   onInspectOrder(orderId: string): void
+  onInspectWorker(workerId: string): void
   onInspectShift(shiftId: string): void
   onNavigate(view: View): void
   onDataChanged(): Promise<void>
@@ -343,15 +363,7 @@ function ViewContent({
     )
   if (view === 'products') return <Products products={products} onDataChanged={onDataChanged} />
   if (view === 'orders') return <Orders orders={orders} onInspectOrder={onInspectOrder} />
-  if (view === 'workers')
-    return (
-      <Workers
-        workers={workers}
-        onDataChanged={onDataChanged}
-        onInspectOrder={onInspectOrder}
-        onInspectShift={onInspectShift}
-      />
-    )
+  if (view === 'workers') return <Workers workers={workers} onInspectWorker={onInspectWorker} />
   if (view === 'schedule')
     return (
       <Schedule
@@ -359,6 +371,7 @@ function ViewContent({
         orders={orders}
         products={products}
         onDataChanged={onDataChanged}
+        onInspectShift={onInspectShift}
       />
     )
   if (view === 'reports') return <Reports dashboard={dashboard} />
@@ -646,17 +659,11 @@ function OrdersTable({
 }
 function Workers({
   workers,
-  onDataChanged,
-  onInspectOrder,
-  onInspectShift
+  onInspectWorker
 }: {
   workers: WorkerSummary[]
-  onDataChanged(): Promise<void>
-  onInspectOrder(orderId: string): void
-  onInspectShift(shiftId: string): void
+  onInspectWorker(workerId: string): void
 }) {
-  const [inspectingWorkerId, setInspectingWorkerId] = useState<string | null>(null)
-
   return (
     <div className="panel">
       <Flex justify="between" mb="4">
@@ -683,11 +690,11 @@ function Workers({
               key={worker.id}
               aria-label={`打开兼职人员 ${worker.name}`}
               className="selectable-row"
-              onClick={() => setInspectingWorkerId(worker.id)}
+              onClick={() => onInspectWorker(worker.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
-                  setInspectingWorkerId(worker.id)
+                  onInspectWorker(worker.id)
                 }
               }}
               tabIndex={0}
@@ -713,15 +720,6 @@ function Workers({
       {workers.length === 0 && (
         <Empty text="还没有兼职人员。创建人员后，可以按任务时长安排本次排班。" />
       )}
-      <WorkerInspector
-        workerId={inspectingWorkerId}
-        onOpenChange={(open) => {
-          if (!open) setInspectingWorkerId(null)
-        }}
-        onDataChanged={onDataChanged}
-        onInspectOrder={onInspectOrder}
-        onInspectShift={onInspectShift}
-      />
     </div>
   )
 }
@@ -733,15 +731,15 @@ function formatWorkerMinutes(minutes: number) {
   return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`
 }
 
-function WorkerInspector({
+function WorkerDetailWorkspace({
   workerId,
-  onOpenChange,
+  onBack,
   onDataChanged,
   onInspectOrder,
   onInspectShift
 }: {
-  workerId: string | null
-  onOpenChange(open: boolean): void
+  workerId: string
+  onBack(): void
   onDataChanged(): Promise<void>
   onInspectOrder(orderId: string): void
   onInspectShift(shiftId: string): void
@@ -826,287 +824,277 @@ function WorkerInspector({
   }
 
   return (
-    <Dialog.Root open={Boolean(workerId)} onOpenChange={onOpenChange}>
-      <Dialog.Content maxWidth="920px" className="wide-dialog worker-inspector-dialog">
-        <Dialog.Title>兼职人员工作区</Dialog.Title>
-        {loading && <Text color="gray">正在读取人员资料…</Text>}
-        {error && (
-          <Text as="div" color="red" size="2" mt="3">
-            {error}
-          </Text>
-        )}
-        {worker && draft && (
-          <div className="inspector-content">
-            <div className="inspector-heading">
-              <div>
-                <Heading size="5">{worker.name}</Heading>
-                <Text as="div" color="gray" size="2" mt="1">
-                  {worker.phone || '未填写联系电话'} · {worker.active ? '当前在岗' : '已停用'}
-                </Text>
-              </div>
-              <Badge color={worker.active ? 'green' : 'gray'} variant="soft">
-                {worker.active ? '在岗' : '停用'}
-              </Badge>
+    <div className="detail-workspace">
+      <div className="detail-workspace-toolbar">
+        <Button variant="ghost" onClick={onBack}>
+          <ArrowLeft size={16} />
+          返回兼职人员列表
+        </Button>
+      </div>
+      {loading && <Text color="gray">正在读取人员资料…</Text>}
+      {error && (
+        <Text as="div" color="red" size="2" mt="3">
+          {error}
+        </Text>
+      )}
+      {worker && draft && (
+        <div className="inspector-content">
+          <div className="inspector-heading">
+            <div>
+              <Heading size="5">{worker.name}</Heading>
+              <Text as="div" color="gray" size="2" mt="1">
+                {worker.phone || '未填写联系电话'} · {worker.active ? '当前在岗' : '已停用'}
+              </Text>
             </div>
+            <Badge color={worker.active ? 'green' : 'gray'} variant="soft">
+              {worker.active ? '在岗' : '停用'}
+            </Badge>
+          </div>
 
-            <section className="form-section">
-              <div className="section-title">
-                <div>
-                  <Text weight="medium">人员资料与工作规则</Text>
-                  <Text as="div" color="gray" size="1">
-                    修改时薪会新增一条生效记录，不会改写历史结算。
-                  </Text>
-                </div>
-                <label className="switch-label">
-                  <input
-                    checked={draft.active}
-                    onChange={(event) => patchDraft({ active: event.target.checked })}
-                    type="checkbox"
-                  />
-                  <span>允许排班</span>
-                </label>
-              </div>
-              <div className="field-grid three">
-                <label>
-                  <Text as="div" size="2" mb="1">
-                    姓名
-                  </Text>
-                  <TextField.Root
-                    value={draft.name}
-                    onChange={(event) => patchDraft({ name: event.target.value })}
-                  />
-                </label>
-                <label>
-                  <Text as="div" size="2" mb="1">
-                    联系电话
-                  </Text>
-                  <TextField.Root
-                    value={draft.phone ?? ''}
-                    onChange={(event) => patchDraft({ phone: event.target.value || null })}
-                  />
-                </label>
-                <label>
-                  <Text as="div" size="2" mb="1">
-                    时薪（元）
-                  </Text>
-                  <NumericTextField
-                    allowDecimal
-                    onValueChange={(value) => {
-                      const hourlyWageCents = centsFromDraft(value)
-                      if (hourlyWageCents !== null) patchDraft({ hourlyWageCents })
-                    }}
-                    value={draft.hourlyWageCents / 100}
-                  />
-                </label>
-                <label>
-                  <Text as="div" size="2" mb="1">
-                    默认上班开始
-                  </Text>
-                  <TextField.Root
-                    type="time"
-                    value={draft.defaultWorkStart ?? ''}
-                    onChange={(event) =>
-                      patchDraft({ defaultWorkStart: event.target.value || null })
-                    }
-                  />
-                </label>
-                <label>
-                  <Text as="div" size="2" mb="1">
-                    默认下班结束
-                  </Text>
-                  <TextField.Root
-                    type="time"
-                    value={draft.defaultWorkEnd ?? ''}
-                    onChange={(event) => patchDraft({ defaultWorkEnd: event.target.value || null })}
-                  />
-                </label>
-                <label>
-                  <Text as="div" size="2" mb="1">
-                    时薪生效日期
-                  </Text>
-                  <TextField.Root
-                    type="date"
-                    value={draft.effectiveFrom}
-                    onChange={(event) => patchDraft({ effectiveFrom: event.target.value })}
-                  />
-                </label>
-              </div>
-            </section>
-
-            <section className="inspector-kpis worker-kpis">
-              <Stat label="实际工时" value={formatWorkerMinutes(worker.totalActualMinutes)} />
-              <Stat label="合格数量" value={`${worker.totalQualifiedQuantity} 个`} />
-              <Stat label="按件提成" value={money(worker.totalCommissionCostCents)} />
-              <Stat
-                label="缺勤 / 请假"
-                value={`${worker.absenceCount} 次`}
-                tone={worker.absenceCount ? 'warning' : 'default'}
-              />
-            </section>
-
-            <section className="form-section">
-              <div className="section-title">
-                <Text weight="medium">时薪历史</Text>
-                <Text size="1" color="gray">
-                  共 {worker.wageHistory.length} 条记录
+          <section className="form-section">
+            <div className="section-title">
+              <div>
+                <Text weight="medium">人员资料与工作规则</Text>
+                <Text as="div" color="gray" size="1">
+                  修改时薪会新增一条生效记录，不会改写历史结算。
                 </Text>
               </div>
+              <label className="switch-label">
+                <input
+                  checked={draft.active}
+                  onChange={(event) => patchDraft({ active: event.target.checked })}
+                  type="checkbox"
+                />
+                <span>允许排班</span>
+              </label>
+            </div>
+            <div className="field-grid three">
+              <label>
+                <Text as="div" size="2" mb="1">
+                  姓名
+                </Text>
+                <TextField.Root
+                  value={draft.name}
+                  onChange={(event) => patchDraft({ name: event.target.value })}
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  联系电话
+                </Text>
+                <TextField.Root
+                  value={draft.phone ?? ''}
+                  onChange={(event) => patchDraft({ phone: event.target.value || null })}
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  时薪（元）
+                </Text>
+                <NumericTextField
+                  allowDecimal
+                  onValueChange={(value) => {
+                    const hourlyWageCents = centsFromDraft(value)
+                    if (hourlyWageCents !== null) patchDraft({ hourlyWageCents })
+                  }}
+                  value={draft.hourlyWageCents / 100}
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  默认上班开始
+                </Text>
+                <TextField.Root
+                  type="time"
+                  value={draft.defaultWorkStart ?? ''}
+                  onChange={(event) => patchDraft({ defaultWorkStart: event.target.value || null })}
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  默认下班结束
+                </Text>
+                <TextField.Root
+                  type="time"
+                  value={draft.defaultWorkEnd ?? ''}
+                  onChange={(event) => patchDraft({ defaultWorkEnd: event.target.value || null })}
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  时薪生效日期
+                </Text>
+                <TextField.Root
+                  type="date"
+                  value={draft.effectiveFrom}
+                  onChange={(event) => patchDraft({ effectiveFrom: event.target.value })}
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="inspector-kpis worker-kpis">
+            <Stat label="实际工时" value={formatWorkerMinutes(worker.totalActualMinutes)} />
+            <Stat label="合格数量" value={`${worker.totalQualifiedQuantity} 个`} />
+            <Stat label="按件提成" value={money(worker.totalCommissionCostCents)} />
+            <Stat
+              label="缺勤 / 请假"
+              value={`${worker.absenceCount} 次`}
+              tone={worker.absenceCount ? 'warning' : 'default'}
+            />
+          </section>
+
+          <section className="form-section">
+            <div className="section-title">
+              <Text weight="medium">时薪历史</Text>
+              <Text size="1" color="gray">
+                共 {worker.wageHistory.length} 条记录
+              </Text>
+            </div>
+            <Table.Root variant="surface">
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeaderCell>生效日期</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>时薪</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>记录时间</Table.ColumnHeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {worker.wageHistory.map((history) => (
+                  <Table.Row key={history.id}>
+                    <Table.Cell>{history.effectiveFrom}</Table.Cell>
+                    <Table.Cell>{money(history.hourlyWageCents)}</Table.Cell>
+                    <Table.Cell>{history.createdAt.slice(0, 16).replace('T', ' ')}</Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Root>
+          </section>
+
+          <section className="form-section">
+            <div className="section-title">
+              <Text weight="medium">订单任务</Text>
+              <Text size="1" color="gray">
+                可从任务返回查看订单排产进度
+              </Text>
+            </div>
+            {worker.orderTasks.length === 0 ? (
+              <Empty text="还没有关联订单任务。" />
+            ) : (
               <Table.Root variant="surface">
                 <Table.Header>
                   <Table.Row>
-                    <Table.ColumnHeaderCell>生效日期</Table.ColumnHeaderCell>
-                    <Table.ColumnHeaderCell>时薪</Table.ColumnHeaderCell>
-                    <Table.ColumnHeaderCell>记录时间</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>日期</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>订单 / 商品</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>计划 / 合格</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>不合格 / 未完成</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>班次状态</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>操作</Table.ColumnHeaderCell>
                   </Table.Row>
                 </Table.Header>
                 <Table.Body>
-                  {worker.wageHistory.map((history) => (
-                    <Table.Row key={history.id}>
-                      <Table.Cell>{history.effectiveFrom}</Table.Cell>
-                      <Table.Cell>{money(history.hourlyWageCents)}</Table.Cell>
-                      <Table.Cell>{history.createdAt.slice(0, 16).replace('T', ' ')}</Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Root>
-            </section>
-
-            <section className="form-section">
-              <div className="section-title">
-                <Text weight="medium">订单任务</Text>
-                <Text size="1" color="gray">
-                  可从任务返回查看订单排产进度
-                </Text>
-              </div>
-              {worker.orderTasks.length === 0 ? (
-                <Empty text="还没有关联订单任务。" />
-              ) : (
-                <Table.Root variant="surface">
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.ColumnHeaderCell>日期</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>订单 / 商品</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>计划 / 合格</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>不合格 / 未完成</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>班次状态</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>操作</Table.ColumnHeaderCell>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {worker.orderTasks.map((task) => (
-                      <Table.Row key={`${task.shiftId}-${task.orderItemId}`}>
-                        <Table.Cell>{task.shiftDate}</Table.Cell>
-                        <Table.Cell>
-                          <Text weight="medium">{task.orderCode}</Text>
-                          <Text as="div" size="1" color="gray">
-                            {task.productName}
-                          </Text>
-                        </Table.Cell>
-                        <Table.Cell>
-                          {task.plannedQuantity} / {task.qualifiedQuantity}
-                        </Table.Cell>
-                        <Table.Cell>
-                          {task.unqualifiedQuantity} / {task.unfinishedQuantity}
-                        </Table.Cell>
-                        <Table.Cell>
-                          <Badge
-                            color={getShiftStatusPresentation(task.shiftStatus).color}
-                            variant="soft"
-                          >
-                            {getShiftStatusPresentation(task.shiftStatus).label}
-                          </Badge>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <Flex gap="2">
-                            <Button
-                              size="1"
-                              variant="soft"
-                              onClick={() => {
-                                onOpenChange(false)
-                                onInspectOrder(task.orderId)
-                              }}
-                            >
-                              查看订单
-                            </Button>
-                            <Button
-                              size="1"
-                              variant="soft"
-                              onClick={() => {
-                                onOpenChange(false)
-                                onInspectShift(task.shiftId)
-                              }}
-                            >
-                              查看班次
-                            </Button>
-                          </Flex>
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Root>
-              )}
-            </section>
-
-            <section className="form-section">
-              <div className="section-title">
-                <Text weight="medium">历史排班与制作结算</Text>
-                <Text size="1" color="gray">
-                  按最近排班日期倒序
-                </Text>
-              </div>
-              <Table.Root variant="surface">
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColumnHeaderCell>日期 / 排班时长</Table.ColumnHeaderCell>
-                    <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
-                    <Table.ColumnHeaderCell>任务</Table.ColumnHeaderCell>
-                    <Table.ColumnHeaderCell>实际工时</Table.ColumnHeaderCell>
-                    <Table.ColumnHeaderCell>合格数量</Table.ColumnHeaderCell>
-                    <Table.ColumnHeaderCell>按件提成</Table.ColumnHeaderCell>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {worker.shifts.map((shift) => (
-                    <Table.Row key={shift.id}>
+                  {worker.orderTasks.map((task) => (
+                    <Table.Row key={`${task.shiftId}-${task.orderItemId}`}>
+                      <Table.Cell>{task.shiftDate}</Table.Cell>
                       <Table.Cell>
-                        <Text weight="medium">{shift.shiftDate}</Text>
+                        <Text weight="medium">{task.orderCode}</Text>
                         <Text as="div" size="1" color="gray">
-                          基础 {shift.baseTaskMinutes} 分钟 · 额外 {shift.extraMinutes} 分钟 · 最终{' '}
-                          {shift.totalMinutes} 分钟
+                          {task.productName}
                         </Text>
                       </Table.Cell>
                       <Table.Cell>
+                        {task.plannedQuantity} / {task.qualifiedQuantity}
+                      </Table.Cell>
+                      <Table.Cell>
+                        {task.unqualifiedQuantity} / {task.unfinishedQuantity}
+                      </Table.Cell>
+                      <Table.Cell>
                         <Badge
-                          color={getShiftStatusPresentation(shift.status).color}
+                          color={getShiftStatusPresentation(task.shiftStatus).color}
                           variant="soft"
                         >
-                          {getShiftStatusPresentation(shift.status).label}
+                          {getShiftStatusPresentation(task.shiftStatus).label}
                         </Badge>
                       </Table.Cell>
-                      <Table.Cell>{shift.taskCount} 项</Table.Cell>
-                      <Table.Cell>{formatWorkerMinutes(shift.actualMinutes)}</Table.Cell>
-                      <Table.Cell>{shift.qualifiedQuantity} 个</Table.Cell>
-                      <Table.Cell>{money(shift.commissionCostCents)}</Table.Cell>
+                      <Table.Cell>
+                        <Flex gap="2">
+                          <Button
+                            size="1"
+                            variant="soft"
+                            onClick={() => onInspectOrder(task.orderId)}
+                          >
+                            查看订单
+                          </Button>
+                          <Button
+                            size="1"
+                            variant="soft"
+                            onClick={() => onInspectShift(task.shiftId)}
+                          >
+                            查看班次
+                          </Button>
+                        </Flex>
+                      </Table.Cell>
                     </Table.Row>
                   ))}
                 </Table.Body>
               </Table.Root>
-              {worker.shifts.length === 0 && <Empty text="还没有历史排班记录。" />}
-            </section>
-          </div>
-        )}
-        <Flex gap="3" justify="end" mt="5">
-          <Dialog.Close>
-            <Button variant="soft" color="gray">
-              关闭
-            </Button>
-          </Dialog.Close>
-          <Button disabled={!draft || saving} onClick={() => void save()}>
-            {saving ? '保存中…' : '保存人员资料'}
-          </Button>
-        </Flex>
-      </Dialog.Content>
-    </Dialog.Root>
+            )}
+          </section>
+
+          <section className="form-section">
+            <div className="section-title">
+              <Text weight="medium">历史排班与制作结算</Text>
+              <Text size="1" color="gray">
+                按最近排班日期倒序
+              </Text>
+            </div>
+            <Table.Root variant="surface">
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeaderCell>日期 / 排班时长</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>任务</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>实际工时</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>合格数量</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>按件提成</Table.ColumnHeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {worker.shifts.map((shift) => (
+                  <Table.Row key={shift.id}>
+                    <Table.Cell>
+                      <Text weight="medium">{shift.shiftDate}</Text>
+                      <Text as="div" size="1" color="gray">
+                        基础 {shift.baseTaskMinutes} 分钟 · 额外 {shift.extraMinutes} 分钟 · 最终{' '}
+                        {shift.totalMinutes} 分钟
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Badge color={getShiftStatusPresentation(shift.status).color} variant="soft">
+                        {getShiftStatusPresentation(shift.status).label}
+                      </Badge>
+                    </Table.Cell>
+                    <Table.Cell>{shift.taskCount} 项</Table.Cell>
+                    <Table.Cell>{formatWorkerMinutes(shift.actualMinutes)}</Table.Cell>
+                    <Table.Cell>{shift.qualifiedQuantity} 个</Table.Cell>
+                    <Table.Cell>{money(shift.commissionCostCents)}</Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Root>
+            {worker.shifts.length === 0 && <Empty text="还没有历史排班记录。" />}
+          </section>
+        </div>
+      )}
+      <Flex gap="3" justify="end" mt="5">
+        <Button variant="soft" color="gray" onClick={onBack}>
+          返回兼职人员列表
+        </Button>
+        <Button disabled={!draft || saving} onClick={() => void save()}>
+          {saving ? '保存中…' : '保存人员资料'}
+        </Button>
+      </Flex>
+    </div>
   )
 }
 
@@ -1114,12 +1102,14 @@ function Schedule({
   workers,
   orders,
   products,
-  onDataChanged
+  onDataChanged,
+  onInspectShift
 }: {
   workers: WorkerSummary[]
   orders: OrderSummary[]
   products: ProductSummary[]
   onDataChanged(): Promise<void>
+  onInspectShift(shiftId: string): void
 }) {
   const [anchorDate, setAnchorDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
@@ -1128,7 +1118,6 @@ function Schedule({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [target, setTarget] = useState<{ worker: WorkerSummary; date: string } | null>(null)
-  const [inspectingShiftId, setInspectingShiftId] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
   const weekDates = useMemo(() => getWeekDates(anchorDate), [anchorDate])
   const monthDates = useMemo(() => {
@@ -1285,7 +1274,7 @@ function Schedule({
                         <button
                           className={`shift-block ${shift.status}`}
                           key={shift.id}
-                          onClick={() => setInspectingShiftId(shift.id)}
+                          onClick={() => onInspectShift(shift.id)}
                           title="打开排班详情"
                           type="button"
                         >
@@ -1343,17 +1332,6 @@ function Schedule({
           if (!open) setTarget(null)
         }}
         onDone={async () => {
-          setReloadToken((current) => current + 1)
-          await onDataChanged()
-        }}
-      />
-      <ShiftInspector
-        shiftId={inspectingShiftId}
-        orders={orders}
-        onOpenChange={(open) => {
-          if (!open) setInspectingShiftId(null)
-        }}
-        onDataChanged={async () => {
           setReloadToken((current) => current + 1)
           await onDataChanged()
         }}
@@ -3246,16 +3224,16 @@ function OrderDialog({
   )
 }
 
-function OrderInspector({
+function OrderDetailWorkspace({
   orderId,
   products,
-  onOpenChange,
+  onBack,
   onInspectShift,
   onChanged
 }: {
-  orderId: string | null
+  orderId: string
   products: ProductSummary[]
-  onOpenChange(value: boolean): void
+  onBack(): void
   onInspectShift(shiftId: string): void
   onChanged(): Promise<void>
 }) {
@@ -3363,11 +3341,6 @@ function OrderInspector({
     }
   }
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) void clearPendingReceipt()
-    onOpenChange(open)
-  }
-
   const reloadShipmentData = async (activeOrderId: string) => {
     const [summary, records] = await Promise.all([
       window.yumi.orders.shipmentSummary(activeOrderId),
@@ -3473,393 +3446,408 @@ function OrderInspector({
   }
 
   return (
-    <Dialog.Root open={Boolean(orderId)} onOpenChange={handleOpenChange}>
-      <Dialog.Content maxWidth="760px" className="wide-dialog">
-        <Dialog.Title>订单检查器</Dialog.Title>
-        {loading && <Text color="gray">正在读取订单详情…</Text>}
-        {!loading && order && (
-          <div className="inspector-content">
-            <div className="inspector-heading">
-              <div>
-                <Heading size="5">{order.code}</Heading>
-                <Text size="2" color="gray">
-                  {order.customer.name} · 预计 {order.expectedShipDate} 发货 · 制作截止{' '}
-                  {order.productionDeadline}
-                </Text>
-              </div>
-              <Flex gap="2" align="center">
-                <Button size="1" variant="soft" onClick={() => setEditing(true)}>
-                  编辑订单
-                </Button>
-                <Badge
-                  color={getProductionStatusPresentation(order.productionStatus).color}
-                  variant="soft"
-                >
-                  {getProductionStatusPresentation(order.productionStatus).label}
-                </Badge>
-                <Badge
-                  color={getSchedulingStatusPresentation(order.schedulingStatus).color}
-                  variant="soft"
-                >
-                  {getSchedulingStatusPresentation(order.schedulingStatus).label}
-                </Badge>
-                <Badge color="amber" variant="soft">
-                  {getFinancialStatusPresentation(order.financial.status).label}
-                </Badge>
-              </Flex>
+    <div className="detail-workspace">
+      <div className="detail-workspace-toolbar">
+        <Button
+          variant="ghost"
+          onClick={() => {
+            void clearPendingReceipt()
+            onBack()
+          }}
+        >
+          <ArrowLeft size={16} />
+          返回订单列表
+        </Button>
+      </div>
+      {loading && <Text color="gray">正在读取订单详情…</Text>}
+      {!loading && order && (
+        <div className="inspector-content">
+          <div className="inspector-heading">
+            <div>
+              <Heading size="5">{order.code}</Heading>
+              <Text size="2" color="gray">
+                {order.customer.name} · 预计 {order.expectedShipDate} 发货 · 制作截止{' '}
+                {order.productionDeadline}
+              </Text>
             </div>
-            <div className="inspector-kpis">
-              <div>
-                <Text size="1" color="gray">
-                  应收
-                </Text>
-                <Text weight="medium">{money(order.financial.receivableCents)}</Text>
-              </div>
-              <div>
-                <Text size="1" color="gray">
-                  已收净额
-                </Text>
-                <Text weight="medium">{money(order.financial.receivedNetCents)}</Text>
-              </div>
-              <div>
-                <Text size="1" color="gray">
-                  待收
-                </Text>
-                <Text weight="medium">{money(order.financial.outstandingCents)}</Text>
-              </div>
-              <div>
-                <Text size="1" color="gray">
-                  排产：合格 / 已排 / 未排
-                </Text>
-                <Text weight="medium">
-                  {order.progress.qualifiedQuantity} / {order.progress.scheduledQuantity} /{' '}
-                  {order.progress.unplannedQuantity}
-                </Text>
-              </div>
-              <div>
-                <Text size="1" color="gray">
-                  预计 / 实际成本
-                </Text>
-                <Text weight="medium">
-                  {money(order.estimatedCostCents)} / {money(order.actualCostCents)}
-                </Text>
-              </div>
+            <Flex gap="2" align="center">
+              <Button size="1" variant="soft" onClick={() => setEditing(true)}>
+                编辑订单
+              </Button>
+              <Badge
+                color={getProductionStatusPresentation(order.productionStatus).color}
+                variant="soft"
+              >
+                {getProductionStatusPresentation(order.productionStatus).label}
+              </Badge>
+              <Badge
+                color={getSchedulingStatusPresentation(order.schedulingStatus).color}
+                variant="soft"
+              >
+                {getSchedulingStatusPresentation(order.schedulingStatus).label}
+              </Badge>
+              <Badge color="amber" variant="soft">
+                {getFinancialStatusPresentation(order.financial.status).label}
+              </Badge>
+            </Flex>
+          </div>
+          {order.notes?.trim() && (
+            <section className="inspector-section order-notes">
+              <Text weight="medium">订单备注</Text>
+              <Text as="div" size="2" className="order-notes-content">
+                {order.notes}
+              </Text>
+            </section>
+          )}
+          <div className="inspector-kpis">
+            <div>
+              <Text size="1" color="gray">
+                应收
+              </Text>
+              <Text weight="medium">{money(order.financial.receivableCents)}</Text>
             </div>
-            <section className="inspector-section">
-              <Text weight="medium">商品明细与排产进度</Text>
-              <div className="detail-list">
+            <div>
+              <Text size="1" color="gray">
+                已收净额
+              </Text>
+              <Text weight="medium">{money(order.financial.receivedNetCents)}</Text>
+            </div>
+            <div>
+              <Text size="1" color="gray">
+                待收
+              </Text>
+              <Text weight="medium">{money(order.financial.outstandingCents)}</Text>
+            </div>
+            <div>
+              <Text size="1" color="gray">
+                排产：合格 / 已排 / 未排
+              </Text>
+              <Text weight="medium">
+                {order.progress.qualifiedQuantity} / {order.progress.scheduledQuantity} /{' '}
+                {order.progress.unplannedQuantity}
+              </Text>
+            </div>
+            <div>
+              <Text size="1" color="gray">
+                预计 / 实际成本
+              </Text>
+              <Text weight="medium">
+                {money(order.estimatedCostCents)} / {money(order.actualCostCents)}
+              </Text>
+            </div>
+          </div>
+          <section className="inspector-section">
+            <Text weight="medium">商品明细与排产进度</Text>
+            <div className="detail-list">
+              {order.items.map((item) => (
+                <div className="detail-line" key={item.id}>
+                  <div>
+                    <Text weight="medium">{item.productSnapshot.name}</Text>
+                    <Text as="div" size="1" color="gray">
+                      {item.quantity} 个 × {money(item.unitPriceCents)}
+                      {item.edgeEnabled
+                        ? ` · 缝边 ${item.edgeQuantity} 个 × ${money(item.edgePriceCents)}`
+                        : ''}
+                    </Text>
+                    <ProductionProgressText {...item.progress} />
+                  </div>
+                  <Text>
+                    {money(
+                      item.unitPriceCents * item.quantity +
+                        item.edgePriceCents * item.edgeQuantity -
+                        item.discountCents
+                    )}
+                  </Text>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="inspector-section">
+            <div className="section-title">
+              <Text weight="medium">关联排班</Text>
+              <Text size="1" color="gray">
+                共 {order.relatedSchedules.length} 条任务记录
+              </Text>
+            </div>
+            {order.relatedSchedules.length === 0 ? (
+              <Empty text="尚未为该订单安排制作任务。" />
+            ) : (
+              <Table.Root variant="surface">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeaderCell>日期</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>兼职人员</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>商品</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>计划 / 合格</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>不合格 / 未完成</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>操作</Table.ColumnHeaderCell>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {order.relatedSchedules.map((schedule) => (
+                    <Table.Row key={`${schedule.id}-${schedule.orderItemId}`}>
+                      <Table.Cell>{schedule.shiftDate}</Table.Cell>
+                      <Table.Cell>{schedule.workerName}</Table.Cell>
+                      <Table.Cell>{schedule.productName}</Table.Cell>
+                      <Table.Cell>
+                        {schedule.plannedQuantity} / {schedule.qualifiedQuantity}
+                      </Table.Cell>
+                      <Table.Cell>
+                        {schedule.unqualifiedQuantity} / {schedule.unfinishedQuantity}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Badge
+                          color={getShiftStatusPresentation(schedule.status).color}
+                          variant="soft"
+                        >
+                          {getShiftStatusPresentation(schedule.status).label}
+                        </Badge>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Button size="1" variant="soft" onClick={() => onInspectShift(schedule.id)}>
+                          查看班次
+                        </Button>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            )}
+          </section>
+          <section className="inspector-section shipment-section">
+            <Flex justify="between" align="center">
+              <div>
+                <Text weight="medium">发货清单</Text>
+                <Text as="div" size="1" color="gray">
+                  每次发货由用户填写本次数量；系统自动汇总累计已发和待发数量。
+                </Text>
+              </div>
+              <Badge variant="soft">{shipments.length} 批</Badge>
+            </Flex>
+            <div className="shipment-summary-list">
+              {order.items.map((item) => {
+                const summary = shipmentSummary.find((entry) => entry.orderItemId === item.id)
+                return (
+                  <div className="shipment-summary-row" key={item.id}>
+                    <Text weight="medium">{item.productSnapshot.name}</Text>
+                    <Text size="2" color="gray">
+                      订购 {summary?.orderedQuantity ?? item.quantity} · 累计已发{' '}
+                      {summary?.shippedQuantity ?? 0} · 待发{' '}
+                      {summary?.pendingQuantity ?? item.quantity}
+                    </Text>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="shipment-entry-form">
+              <div className="shipment-quantity-grid">
                 {order.items.map((item) => (
-                  <div className="detail-line" key={item.id}>
+                  <label key={item.id}>
+                    <Text as="div" size="1" color="gray" mb="1">
+                      {item.productSnapshot.name} · 本次发货数量
+                    </Text>
+                    <NumericTextField
+                      min="0"
+                      step="1"
+                      value={shipmentQuantities[item.id] ?? ''}
+                      onValueChange={(value) =>
+                        setShipmentQuantities((current) => ({
+                          ...current,
+                          [item.id]: value
+                        }))
+                      }
+                      placeholder="0"
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="shipment-meta-grid">
+                <label>
+                  <Text as="div" size="1" color="gray" mb="1">
+                    发货日期
+                  </Text>
+                  <TextField.Root
+                    type="date"
+                    value={shipmentDate}
+                    onChange={(event) => setShipmentDate(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="1" color="gray" mb="1">
+                    发货备注
+                  </Text>
+                  <TextField.Root
+                    value={shipmentNotes}
+                    onChange={(event) => setShipmentNotes(event.target.value)}
+                    placeholder="可选"
+                  />
+                </label>
+                <Flex gap="2" align="end" justify="end">
+                  {editingShipmentId && (
+                    <Button size="1" variant="soft" color="gray" onClick={resetShipmentDraft}>
+                      取消编辑
+                    </Button>
+                  )}
+                  <Button size="1" disabled={savingShipment} onClick={() => void saveShipment()}>
+                    {savingShipment
+                      ? '保存中…'
+                      : editingShipmentId
+                        ? '保存发货修正'
+                        : '保存本次发货'}
+                  </Button>
+                </Flex>
+              </div>
+            </div>
+            {shipments.length > 0 && (
+              <div className="shipment-records">
+                {shipments.map((shipment) => (
+                  <div className="shipment-record" key={shipment.id}>
                     <div>
-                      <Text weight="medium">{item.productSnapshot.name}</Text>
+                      <Text weight="medium">{shipment.shippedAt}</Text>
                       <Text as="div" size="1" color="gray">
-                        {item.quantity} 个 × {money(item.unitPriceCents)}
-                        {item.edgeEnabled
-                          ? ` · 缝边 ${item.edgeQuantity} 个 × ${money(item.edgePriceCents)}`
-                          : ''}
+                        {shipment.items
+                          .map((item) => `${item.productName} ${item.shipmentQuantity} 件`)
+                          .join('；')}
+                        {shipment.notes ? ` · ${shipment.notes}` : ''}
                       </Text>
-                      <ProductionProgressText {...item.progress} />
                     </div>
-                    <Text>
-                      {money(
-                        item.unitPriceCents * item.quantity +
-                          item.edgePriceCents * item.edgeQuantity -
-                          item.discountCents
-                      )}
+                    <Flex gap="2">
+                      <Button size="1" variant="soft" onClick={() => editShipment(shipment)}>
+                        编辑
+                      </Button>
+                      <Button
+                        size="1"
+                        variant="soft"
+                        disabled={exportingShipmentManifestId === shipment.id}
+                        onClick={() => void exportShipmentManifest(shipment)}
+                      >
+                        {exportingShipmentManifestId === shipment.id ? '保存中…' : '保存发货清单'}
+                      </Button>
+                    </Flex>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Flex gap="2" align="center" justify="end">
+              <Button
+                size="1"
+                variant="soft"
+                disabled={exportingOrderSheet}
+                onClick={() => void exportOrderSheet()}
+              >
+                {exportingOrderSheet ? '生成中…' : '生成订单表'}
+              </Button>
+            </Flex>
+          </section>
+          <section className="inspector-section payment-section">
+            <Flex justify="between" align="center">
+              <div>
+                <Text weight="medium">收退款时间线</Text>
+                <Text as="div" size="1" color="gray">
+                  每次到账或退款都会单独保留记录。
+                </Text>
+              </div>
+              <Badge variant="soft">{order.payments.length} 条</Badge>
+            </Flex>
+            <div className="payment-entry">
+              <select
+                className="desktop-select"
+                value={paymentType}
+                onChange={(event) => setPaymentType(event.target.value as 'receipt' | 'refund')}
+              >
+                <option value="receipt">收款</option>
+                <option value="refund">退款</option>
+              </select>
+              <NumericTextField
+                allowDecimal
+                min="0.01"
+                step="0.01"
+                value={paymentAmount}
+                onValueChange={(value) => setPaymentAmount(value)}
+                placeholder="金额（元）"
+              />
+              <TextField.Root
+                value={paymentMethod}
+                onChange={(event) => setPaymentMethod(event.target.value)}
+                placeholder="方式"
+              />
+              <TextField.Root
+                type="date"
+                value={paymentDate}
+                onChange={(event) => setPaymentDate(event.target.value)}
+              />
+              <Button
+                disabled={savingPayment || selectingReceipt}
+                onClick={() => void chooseReceipt()}
+                variant="soft"
+              >
+                {selectingReceipt
+                  ? '导入中…'
+                  : receiptAttachment
+                    ? `凭证：${receiptAttachment.originalName}`
+                    : '添加凭证'}
+              </Button>
+              {receiptAttachment && (
+                <Button
+                  color="gray"
+                  disabled={savingPayment || selectingReceipt}
+                  onClick={() => void clearPendingReceipt()}
+                  variant="soft"
+                >
+                  移除
+                </Button>
+              )}
+              <Button disabled={savingPayment} onClick={() => void recordPayment()}>
+                {savingPayment ? '保存中…' : '追加记录'}
+              </Button>
+            </div>
+            {order.payments.length === 0 ? (
+              <Empty text="尚未记录收款或退款。" />
+            ) : (
+              <div className="payment-timeline">
+                {order.payments.map((payment) => (
+                  <div className="payment-row" key={payment.id}>
+                    <Badge color={payment.type === 'receipt' ? 'green' : 'red'} variant="soft">
+                      {payment.type === 'receipt' ? '收款' : '退款'}
+                    </Badge>
+                    <Text>{payment.paidAt}</Text>
+                    <Text>{payment.paymentMethod}</Text>
+                    <Text weight="medium">{money(payment.amountCents)}</Text>
+                    <Text color="gray" size="1">
+                      {payment.note || '—'}
+                      {payment.receiptAttachmentId ? ' · 已附凭证' : ''}
                     </Text>
                   </div>
                 ))}
               </div>
-            </section>
-            <section className="inspector-section">
-              <div className="section-title">
-                <Text weight="medium">关联排班</Text>
-                <Text size="1" color="gray">
-                  共 {order.relatedSchedules.length} 条任务记录
-                </Text>
-              </div>
-              {order.relatedSchedules.length === 0 ? (
-                <Empty text="尚未为该订单安排制作任务。" />
-              ) : (
-                <Table.Root variant="surface">
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.ColumnHeaderCell>日期</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>兼职人员</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>商品</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>计划 / 合格</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>不合格 / 未完成</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>操作</Table.ColumnHeaderCell>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {order.relatedSchedules.map((schedule) => (
-                      <Table.Row key={`${schedule.id}-${schedule.orderItemId}`}>
-                        <Table.Cell>{schedule.shiftDate}</Table.Cell>
-                        <Table.Cell>{schedule.workerName}</Table.Cell>
-                        <Table.Cell>{schedule.productName}</Table.Cell>
-                        <Table.Cell>
-                          {schedule.plannedQuantity} / {schedule.qualifiedQuantity}
-                        </Table.Cell>
-                        <Table.Cell>
-                          {schedule.unqualifiedQuantity} / {schedule.unfinishedQuantity}
-                        </Table.Cell>
-                        <Table.Cell>
-                          <Badge
-                            color={getShiftStatusPresentation(schedule.status).color}
-                            variant="soft"
-                          >
-                            {getShiftStatusPresentation(schedule.status).label}
-                          </Badge>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <Button
-                            size="1"
-                            variant="soft"
-                            onClick={() => {
-                              onOpenChange(false)
-                              onInspectShift(schedule.id)
-                            }}
-                          >
-                            查看班次
-                          </Button>
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Root>
-              )}
-            </section>
-            <section className="inspector-section shipment-section">
-              <Flex justify="between" align="center">
-                <div>
-                  <Text weight="medium">发货清单</Text>
-                  <Text as="div" size="1" color="gray">
-                    每次发货由用户填写本次数量；系统自动汇总累计已发和待发数量。
-                  </Text>
-                </div>
-                <Badge variant="soft">{shipments.length} 批</Badge>
-              </Flex>
-              <div className="shipment-summary-list">
-                {order.items.map((item) => {
-                  const summary = shipmentSummary.find((entry) => entry.orderItemId === item.id)
-                  return (
-                    <div className="shipment-summary-row" key={item.id}>
-                      <Text weight="medium">{item.productSnapshot.name}</Text>
-                      <Text size="2" color="gray">
-                        订购 {summary?.orderedQuantity ?? item.quantity} · 累计已发{' '}
-                        {summary?.shippedQuantity ?? 0} · 待发{' '}
-                        {summary?.pendingQuantity ?? item.quantity}
-                      </Text>
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="shipment-entry-form">
-                <div className="shipment-quantity-grid">
-                  {order.items.map((item) => (
-                    <label key={item.id}>
-                      <Text as="div" size="1" color="gray" mb="1">
-                        {item.productSnapshot.name} · 本次发货数量
-                      </Text>
-                      <NumericTextField
-                        min="0"
-                        step="1"
-                        value={shipmentQuantities[item.id] ?? ''}
-                        onValueChange={(value) =>
-                          setShipmentQuantities((current) => ({
-                            ...current,
-                            [item.id]: value
-                          }))
-                        }
-                        placeholder="0"
-                      />
-                    </label>
-                  ))}
-                </div>
-                <div className="shipment-meta-grid">
-                  <label>
-                    <Text as="div" size="1" color="gray" mb="1">
-                      发货日期
-                    </Text>
-                    <TextField.Root
-                      type="date"
-                      value={shipmentDate}
-                      onChange={(event) => setShipmentDate(event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    <Text as="div" size="1" color="gray" mb="1">
-                      发货备注
-                    </Text>
-                    <TextField.Root
-                      value={shipmentNotes}
-                      onChange={(event) => setShipmentNotes(event.target.value)}
-                      placeholder="可选"
-                    />
-                  </label>
-                  <Flex gap="2" align="end" justify="end">
-                    {editingShipmentId && (
-                      <Button size="1" variant="soft" color="gray" onClick={resetShipmentDraft}>
-                        取消编辑
-                      </Button>
-                    )}
-                    <Button size="1" disabled={savingShipment} onClick={() => void saveShipment()}>
-                      {savingShipment
-                        ? '保存中…'
-                        : editingShipmentId
-                          ? '保存发货修正'
-                          : '保存本次发货'}
-                    </Button>
-                  </Flex>
-                </div>
-              </div>
-              {shipments.length > 0 && (
-                <div className="shipment-records">
-                  {shipments.map((shipment) => (
-                    <div className="shipment-record" key={shipment.id}>
-                      <div>
-                        <Text weight="medium">{shipment.shippedAt}</Text>
-                        <Text as="div" size="1" color="gray">
-                          {shipment.items
-                            .map((item) => `${item.productName} ${item.shipmentQuantity} 件`)
-                            .join('；')}
-                          {shipment.notes ? ` · ${shipment.notes}` : ''}
-                        </Text>
-                      </div>
-                      <Flex gap="2">
-                        <Button size="1" variant="soft" onClick={() => editShipment(shipment)}>
-                          编辑
-                        </Button>
-                        <Button
-                          size="1"
-                          variant="soft"
-                          disabled={exportingShipmentManifestId === shipment.id}
-                          onClick={() => void exportShipmentManifest(shipment)}
-                        >
-                          {exportingShipmentManifestId === shipment.id ? '保存中…' : '保存发货清单'}
-                        </Button>
-                      </Flex>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Flex gap="2" align="center" justify="end">
-                <Button
-                  size="1"
-                  variant="soft"
-                  disabled={exportingOrderSheet}
-                  onClick={() => void exportOrderSheet()}
-                >
-                  {exportingOrderSheet ? '生成中…' : '生成订单表'}
-                </Button>
-              </Flex>
-            </section>
-            <section className="inspector-section payment-section">
-              <Flex justify="between" align="center">
-                <div>
-                  <Text weight="medium">收退款时间线</Text>
-                  <Text as="div" size="1" color="gray">
-                    每次到账或退款都会单独保留记录。
-                  </Text>
-                </div>
-                <Badge variant="soft">{order.payments.length} 条</Badge>
-              </Flex>
-              <div className="payment-entry">
-                <select
-                  className="desktop-select"
-                  value={paymentType}
-                  onChange={(event) => setPaymentType(event.target.value as 'receipt' | 'refund')}
-                >
-                  <option value="receipt">收款</option>
-                  <option value="refund">退款</option>
-                </select>
-                <NumericTextField
-                  allowDecimal
-                  min="0.01"
-                  step="0.01"
-                  value={paymentAmount}
-                  onValueChange={(value) => setPaymentAmount(value)}
-                  placeholder="金额（元）"
-                />
-                <TextField.Root
-                  value={paymentMethod}
-                  onChange={(event) => setPaymentMethod(event.target.value)}
-                  placeholder="方式"
-                />
-                <TextField.Root
-                  type="date"
-                  value={paymentDate}
-                  onChange={(event) => setPaymentDate(event.target.value)}
-                />
-                <Button
-                  disabled={savingPayment || selectingReceipt}
-                  onClick={() => void chooseReceipt()}
-                  variant="soft"
-                >
-                  {selectingReceipt
-                    ? '导入中…'
-                    : receiptAttachment
-                      ? `凭证：${receiptAttachment.originalName}`
-                      : '添加凭证'}
-                </Button>
-                {receiptAttachment && (
-                  <Button
-                    color="gray"
-                    disabled={savingPayment || selectingReceipt}
-                    onClick={() => void clearPendingReceipt()}
-                    variant="soft"
-                  >
-                    移除
-                  </Button>
-                )}
-                <Button disabled={savingPayment} onClick={() => void recordPayment()}>
-                  {savingPayment ? '保存中…' : '追加记录'}
-                </Button>
-              </div>
-              {order.payments.length === 0 ? (
-                <Empty text="尚未记录收款或退款。" />
-              ) : (
-                <div className="payment-timeline">
-                  {order.payments.map((payment) => (
-                    <div className="payment-row" key={payment.id}>
-                      <Badge color={payment.type === 'receipt' ? 'green' : 'red'} variant="soft">
-                        {payment.type === 'receipt' ? '收款' : '退款'}
-                      </Badge>
-                      <Text>{payment.paidAt}</Text>
-                      <Text>{payment.paymentMethod}</Text>
-                      <Text weight="medium">{money(payment.amountCents)}</Text>
-                      <Text color="gray" size="1">
-                        {payment.note || '—'}
-                        {payment.receiptAttachmentId ? ' · 已附凭证' : ''}
-                      </Text>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <TextField.Root
-                mt="2"
-                value={paymentNote}
-                onChange={(event) => setPaymentNote(event.target.value)}
-                placeholder="本次收退款备注（可选）"
-              />
-            </section>
-          </div>
-        )}
-        {error && (
-          <Text as="div" size="2" color="red" mt="4">
-            {error}
-          </Text>
-        )}
-        <Flex mt="5" justify="end">
-          <Dialog.Close>
-            <Button variant="soft" color="gray">
-              关闭
-            </Button>
-          </Dialog.Close>
-        </Flex>
-      </Dialog.Content>
+            )}
+            <TextField.Root
+              mt="2"
+              value={paymentNote}
+              onChange={(event) => setPaymentNote(event.target.value)}
+              placeholder="本次收退款备注（可选）"
+            />
+          </section>
+        </div>
+      )}
+      {error && (
+        <Text as="div" size="2" color="red" mt="4">
+          {error}
+        </Text>
+      )}
+      <Flex mt="5" justify="end">
+        <Button
+          variant="soft"
+          color="gray"
+          onClick={() => {
+            void clearPendingReceipt()
+            onBack()
+          }}
+        >
+          返回订单列表
+        </Button>
+      </Flex>
       {order && (
         <OrderDialog
           open={editing}
@@ -3873,7 +3861,7 @@ function OrderInspector({
           }}
         />
       )}
-    </Dialog.Root>
+    </div>
   )
 }
 
@@ -4193,15 +4181,15 @@ function ShiftDialog({
   )
 }
 
-function ShiftInspector({
+function ShiftDetailWorkspace({
   shiftId,
   orders,
-  onOpenChange,
+  onBack,
   onDataChanged
 }: {
-  shiftId: string | null
+  shiftId: string
   orders: OrderSummary[]
-  onOpenChange(value: boolean): void
+  onBack(): void
   onDataChanged(): Promise<void>
 }) {
   const [shift, setShift] = useState<ShiftDetail | null>(null)
@@ -4322,136 +4310,134 @@ function ShiftInspector({
 
   return (
     <>
-      <Dialog.Root open={Boolean(shiftId)} onOpenChange={onOpenChange}>
-        <Dialog.Content maxWidth="860px" className="wide-dialog schedule-inspector-dialog">
-          <Dialog.Title>排班详情</Dialog.Title>
-          {loading && <Text color="gray">正在读取排班详情…</Text>}
-          {error && (
-            <Text as="div" color="red" size="2" mt="3">
-              {error}
-            </Text>
-          )}
-          {shift && (
-            <div className="inspector-content">
-              <div className="inspector-heading">
+      <div className="detail-workspace">
+        <div className="detail-workspace-toolbar">
+          <Button variant="ghost" onClick={onBack}>
+            <ArrowLeft size={16} />
+            返回排班列表
+          </Button>
+        </div>
+        {loading && <Text color="gray">正在读取排班详情…</Text>}
+        {error && (
+          <Text as="div" color="red" size="2" mt="3">
+            {error}
+          </Text>
+        )}
+        {shift && (
+          <div className="inspector-content">
+            <div className="inspector-heading">
+              <div>
+                <Heading size="4">
+                  {shift.workerName} · {shift.shiftDate}
+                </Heading>
+                <Text as="div" color="gray" size="2" mt="1">
+                  基础 {shift.baseTaskMinutes} 分钟 · 额外 {shift.extraMinutes} 分钟 · 最终{' '}
+                  {shift.totalMinutes} 分钟 · {shift.tasks.length} 项制作任务
+                </Text>
+              </div>
+              <Flex gap="2" align="center">
+                {shift.status === 'scheduled' && (
+                  <Button size="1" variant="soft" onClick={() => setEditing(true)}>
+                    编辑排班
+                  </Button>
+                )}
+                <Badge color={getShiftStatusPresentation(shift.status).color} variant="soft">
+                  {getShiftStatusPresentation(shift.status).label}
+                </Badge>
+              </Flex>
+            </div>
+            <section className="form-section shift-status-panel">
+              <Flex justify="between" align="center" gap="4" wrap="wrap">
                 <div>
-                  <Heading size="4">
-                    {shift.workerName} · {shift.shiftDate}
-                  </Heading>
-                  <Text as="div" color="gray" size="2" mt="1">
-                    基础 {shift.baseTaskMinutes} 分钟 · 额外 {shift.extraMinutes} 分钟 · 最终{' '}
-                    {shift.totalMinutes} 分钟 · {shift.tasks.length} 项制作任务
+                  <Text weight="medium">排班状态</Text>
+                  <Text as="div" color="gray" size="1">
+                    选择“已完成”后，需要为每项任务填写合格和不合格数量；工资结算与扣费暂不在此处理。
                   </Text>
                 </div>
-                <Flex gap="2" align="center">
-                  {shift.status === 'scheduled' && (
-                    <Button size="1" variant="soft" onClick={() => setEditing(true)}>
-                      编辑排班
-                    </Button>
-                  )}
-                  <Badge color={getShiftStatusPresentation(shift.status).color} variant="soft">
-                    {getShiftStatusPresentation(shift.status).label}
-                  </Badge>
-                </Flex>
-              </div>
-              <section className="form-section shift-status-panel">
-                <Flex justify="between" align="center" gap="4" wrap="wrap">
-                  <div>
-                    <Text weight="medium">排班状态</Text>
-                    <Text as="div" color="gray" size="1">
-                      选择“已完成”后，需要为每项任务填写合格和不合格数量；工资结算与扣费暂不在此处理。
+                <select
+                  aria-label="更新排班状态"
+                  className="desktop-select shift-status-select"
+                  disabled={Boolean(savingStatus)}
+                  onChange={(event) => void updateStatus(event.target.value as ShiftStatus)}
+                  value={shift.status}
+                >
+                  {knownShiftStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      标记为：{getShiftStatusPresentation(status).label}
+                    </option>
+                  ))}
+                </select>
+              </Flex>
+            </section>
+            {shift.confirmedRisks.length > 0 && (
+              <section className="risk-preview has-risk">
+                <Text weight="medium">保存时已确认的风险</Text>
+                <div className="risk-list">
+                  {shift.confirmedRisks.map((risk) => (
+                    <Text key={risk} size="2">
+                      · {risk}
                     </Text>
-                  </div>
-                  <select
-                    aria-label="更新排班状态"
-                    className="desktop-select shift-status-select"
-                    disabled={Boolean(savingStatus)}
-                    onChange={(event) => void updateStatus(event.target.value as ShiftStatus)}
-                    value={shift.status}
-                  >
-                    {knownShiftStatuses.map((status) => (
-                      <option key={status} value={status}>
-                        标记为：{getShiftStatusPresentation(status).label}
-                      </option>
-                    ))}
-                  </select>
-                </Flex>
-              </section>
-              {shift.confirmedRisks.length > 0 && (
-                <section className="risk-preview has-risk">
-                  <Text weight="medium">保存时已确认的风险</Text>
-                  <div className="risk-list">
-                    {shift.confirmedRisks.map((risk) => (
-                      <Text key={risk} size="2">
-                        · {risk}
-                      </Text>
-                    ))}
-                  </div>
-                </section>
-              )}
-              <section className="inspector-section">
-                <Flex justify="between" align="center">
-                  <div>
-                    <Text weight="medium">制作任务与实际结果</Text>
-                    <Text as="div" color="gray" size="1">
-                      实际完成数量包含合格与不合格数量；本期不展示工资或不合格扣费结算。
-                    </Text>
-                  </div>
-                  <Badge variant="soft">{shift.tasks.length} 项</Badge>
-                </Flex>
-                <div className="shift-inspector-tasks">
-                  {shift.tasks.map((task) => (
-                    <article className="shift-inspector-task" key={task.id}>
-                      <Text weight="medium">{task.productName}</Text>
-                      <Text as="div" color="gray" size="1">
-                        {task.orderCode} · 计划 {task.plannedQuantity} 个 · 基础 {task.baseMinutes}{' '}
-                        分钟
-                      </Text>
-                      <div className="task-metrics">
-                        <div>
-                          <Text as="div" color="gray" size="1">
-                            实际完成
-                          </Text>
-                          <Text weight="medium">
-                            {task.completedQuantity === null
-                              ? '未填写'
-                              : `${task.completedQuantity} 个`}
-                          </Text>
-                        </div>
-                        <div>
-                          <Text as="div" color="gray" size="1">
-                            合格 / 不合格
-                          </Text>
-                          <Text weight="medium">
-                            {task.qualifiedQuantity} / {task.unqualifiedQuantity ?? 0}
-                          </Text>
-                        </div>
-                        <div>
-                          <Text as="div" color="gray" size="1">
-                            待补排
-                          </Text>
-                          <Badge
-                            color={task.unfinishedQuantity > 0 ? 'red' : 'green'}
-                            variant="soft"
-                          >
-                            {task.unfinishedQuantity} 个
-                          </Badge>
-                        </div>
-                      </div>
-                    </article>
                   ))}
                 </div>
               </section>
-            </div>
-          )}
-          <Flex gap="3" justify="end" mt="5">
-            <Dialog.Close>
-              <Button variant="soft" color="gray">
-                关闭
-              </Button>
-            </Dialog.Close>
-          </Flex>
-        </Dialog.Content>
+            )}
+            <section className="inspector-section">
+              <Flex justify="between" align="center">
+                <div>
+                  <Text weight="medium">制作任务与实际结果</Text>
+                  <Text as="div" color="gray" size="1">
+                    实际完成数量包含合格与不合格数量；本期不展示工资或不合格扣费结算。
+                  </Text>
+                </div>
+                <Badge variant="soft">{shift.tasks.length} 项</Badge>
+              </Flex>
+              <div className="shift-inspector-tasks">
+                {shift.tasks.map((task) => (
+                  <article className="shift-inspector-task" key={task.id}>
+                    <Text weight="medium">{task.productName}</Text>
+                    <Text as="div" color="gray" size="1">
+                      {task.orderCode} · 计划 {task.plannedQuantity} 个 · 基础 {task.baseMinutes}{' '}
+                      分钟
+                    </Text>
+                    <div className="task-metrics">
+                      <div>
+                        <Text as="div" color="gray" size="1">
+                          实际完成
+                        </Text>
+                        <Text weight="medium">
+                          {task.completedQuantity === null
+                            ? '未填写'
+                            : `${task.completedQuantity} 个`}
+                        </Text>
+                      </div>
+                      <div>
+                        <Text as="div" color="gray" size="1">
+                          合格 / 不合格
+                        </Text>
+                        <Text weight="medium">
+                          {task.qualifiedQuantity} / {task.unqualifiedQuantity ?? 0}
+                        </Text>
+                      </div>
+                      <div>
+                        <Text as="div" color="gray" size="1">
+                          待补排
+                        </Text>
+                        <Badge color={task.unfinishedQuantity > 0 ? 'red' : 'green'} variant="soft">
+                          {task.unfinishedQuantity} 个
+                        </Badge>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
+        <Flex gap="3" justify="end" mt="5">
+          <Button variant="soft" color="gray" onClick={onBack}>
+            返回排班列表
+          </Button>
+        </Flex>
         {shift && (
           <ShiftDialog
             target={null}
@@ -4464,7 +4450,7 @@ function ShiftInspector({
             }}
           />
         )}
-      </Dialog.Root>
+      </div>
       <Dialog.Root open={completionOpen} onOpenChange={setCompletionOpen}>
         <Dialog.Content maxWidth="680px">
           <Dialog.Title>填写实际完成数据</Dialog.Title>

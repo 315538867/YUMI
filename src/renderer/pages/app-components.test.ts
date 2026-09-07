@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const appSource = readFileSync(resolve(process.cwd(), 'src/renderer/pages/app.tsx'), 'utf8')
+const appStyles = readFileSync(resolve(process.cwd(), 'src/renderer/styles/app.css'), 'utf8')
 
 describe('桌面工作区组件声明', () => {
   it('设置工作区组件不与导航 Settings 图标同名', () => {
@@ -153,5 +154,31 @@ describe('数字字段输入体验', () => {
     expect(appSource).toMatch(/Math\.round\(numericValue \* 1000\)/)
     expect(appSource).toMatch(/step="0\.001"/)
     expect(appSource).toMatch(/gluePriceMilliYuanPerGram \/ 1000/)
+  })
+})
+
+describe('订单、人员与排班详情工作区', () => {
+  it('将三类长详情承载为主工作区，并提供返回列表入口', () => {
+    expect(appSource).toMatch(/function\s+OrderDetailWorkspace\s*\(/)
+    expect(appSource).toMatch(/function\s+WorkerDetailWorkspace\s*\(/)
+    expect(appSource).toMatch(/function\s+ShiftDetailWorkspace\s*\(/)
+    expect(appSource).toMatch(/返回订单列表/)
+    expect(appSource).toMatch(/返回兼职人员列表/)
+    expect(appSource).toMatch(/返回排班列表/)
+    expect(appSource).not.toMatch(/<Dialog\.Title>订单检查器<\/Dialog\.Title>/)
+    expect(appSource).not.toMatch(/<Dialog\.Title>兼职人员工作区<\/Dialog\.Title>/)
+    expect(appSource).not.toMatch(/<Dialog\.Title>排班详情<\/Dialog\.Title>/)
+  })
+
+  it('在订单详情中显示非空订单备注，并保留完成登记的短流程弹窗', () => {
+    expect(appSource).toMatch(/订单备注/)
+    expect(appSource).toMatch(/order\.notes/)
+    expect(appSource).toMatch(/<Dialog\.Title>填写实际完成数据<\/Dialog\.Title>/)
+  })
+
+  it('以页面工作区布局展示详情，并保留多行订单备注', () => {
+    expect(appStyles).toMatch(/\.detail-workspace\s*\{[\s\S]*width: min\(100%, 1180px\)/)
+    expect(appStyles).toMatch(/\.order-notes-content\s*\{[\s\S]*white-space: pre-wrap/)
+    expect(appStyles).not.toMatch(/\.schedule-inspector-dialog\s*\{/)
   })
 })
