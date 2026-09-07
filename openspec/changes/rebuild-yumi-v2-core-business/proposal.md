@@ -3,7 +3,7 @@
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
 - 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.1）
-- 状态：实施中（阶段 C；C.1 已完成）
+- 状态：实施中（阶段 C；C.2 已完成）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -87,3 +87,5 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 - **2026-09-08 / B.7 已完成**：阶段 B 质量门禁全部通过：全量 `npm test`（47 个测试文件、127 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均退出成功。阶段 B 的固定四工序履约、期初在制品、次日质检、返工、售后补发、打包进入待发货及分批发货可用量规则已形成可验证的 V2 基线。下一步为 C.1：兼职人员、时薪历史与工资结算数据基线。
 
 - **2026-09-08 / C.1 已完成**：新增 V2 迁移版本 6，建立兼职人员、时薪历史、工资结算、结算任务归属、不合格扣款、结算扣款分配和待抵扣余额表。结算任务与扣款分配均以“仅确认记录全局唯一”的部分唯一索引阻止重复归属；结算单以唯一 `financial_entry_id` 为后续工资流水一对一联动预留数据库约束。验证：迁移测试覆盖新表、时薪生效日唯一、已确认任务/扣款不可重复归属、工资流水不可重复关联以及待抵扣余额一对一，`src/main/database/v2-storage.test.ts` 6 个用例、`npm run typecheck`、`git diff --check` 通过。下一步为 C.2：工资参考口径与扣款顺延领域规则。
+
+- **2026-09-08 / C.2 已完成**：新增纯领域结算规则，统一按整数分和分级四舍五入计算排班/考勤两套时薪参考、合格制作/捏毛装袋提成、制作不合格的提成/标准分钟时薪/胶水扣款，以及捏毛装袋不合格的计划分钟比例扣款。扣款默认以上排班口径扣前应发为上限，按发生时间顺序分配并输出待顺延余额；两套参考工资及负责人最终实发均禁止负数。验证：新增 `src/main/domain/settlement.test.ts` 6 个用例，`npm run typecheck`、`npm run lint`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 通过。下一步为 C.3：工资结算仓储、服务、IPC 与共享契约。

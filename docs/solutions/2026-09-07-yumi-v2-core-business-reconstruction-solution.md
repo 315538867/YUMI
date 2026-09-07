@@ -9,7 +9,7 @@ branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 C；C.1 工资结算数据基线已完成，下一步实现工资参考口径与扣款顺延领域规则）
+implementation_status: 实施中（阶段 C；C.2 工资参考口径与扣款顺延领域规则已完成，下一步实现工资结算仓储、服务、IPC 与共享契约）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1111,3 +1111,10 @@ npm run build
 - 新增迁移版本 6：建立 `workers`、`worker_wage_history`、`worker_settlements`、`worker_settlement_tasks`、`worker_deduction_records`、`worker_settlement_deduction_allocations` 与 `worker_deduction_balances`。结算单预留排班/考勤分钟、两套参考金额、提成、当前和历史扣款、实际扣除、顺延、最终实发、付款日期、负责人备注及唯一工资流水关联。
 - 用数据库约束守住后续服务层的关键边界：同一人员同一生效日只能存在一条时薪；同一任务或扣款记录可在草稿中复核，但一旦归属“已确认”结算即不能被其他已确认结算再次纳入；一笔财务工资流水最多关联一张结算单；每条扣款记录最多保留一条待抵扣余额。
 - 验证：迁移测试覆盖表、约束和较早 V2 数据库的增量升级，`src/main/database/v2-storage.test.ts` 6 个用例与 `npm run typecheck` 通过。下一步为 C.2：实现排班/考勤两种工资参考、制作和捏毛不合格扣款及顺延纯领域规则。
+
+### 2026-09-08：阶段 C.2 完成
+
+- 新增 `src/main/domain/settlement.ts` 作为不依赖数据库和界面的工资纯领域层：排班、考勤两种口径共同使用合格提成、扣款和其他调整，仅分别以工作总分钟计算时薪；排班口径的扣前应发作为默认抵扣上限，因此在不自动替负责人决定最终实发的前提下，两个参考结果都不会小于零。
+- 制作不合格扣除该任务快照中的制作提成、产品标准分钟对应时薪和单位胶水成本；捏毛装袋不合格按任务计划分钟与计划数量比例扣除时薪和提成，不扣胶水。返工或售后补发只要作为新任务形成合格结果，均按制作/捏毛装袋正常规则计提成；打包、发货始终不计件。
+- 扣款分配按发生时间稳定排序，优先抵扣较早扣款并输出每条已扣与顺延金额，后续 C.3 服务只需事务化持久化该分配与余额。负责人最终实发金额保留独立校验，只要求为非负整数分。
+- 验证：新增领域测试 6 个用例，覆盖两种分钟口径、制作/捏毛装袋不合格、返工/补发合格计提成、打包/发货无提成、顺延扣款及非负工资；`npm run typecheck`、`npm run lint`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均通过。下一步为 C.3：工资结算仓储、服务、IPC 与共享契约。
