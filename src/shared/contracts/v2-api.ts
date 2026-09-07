@@ -48,6 +48,7 @@ export interface V2YumiApi {
     createWorkAssignment(input: V2WorkAssignmentCreateInput): Promise<V2WorkAssignment>
     getWorkAssignment(id: string): Promise<V2WorkAssignment | null>
     listWorkAssignments(query?: V2WorkAssignmentQuery): Promise<V2WorkAssignment[]>
+    getProcessResultForTask(taskId: string): Promise<V2ProcessResult | null>
     submitProcessResult(taskId: string, input: V2ProcessResultInput): Promise<V2ProcessResult>
     confirmQualityInspection(resultId: string, input: V2QualityInspectionInput): Promise<V2QualityInspection>
     recordOpeningWip(input: V2OpeningWipInput): Promise<V2OrderItemFulfillment>

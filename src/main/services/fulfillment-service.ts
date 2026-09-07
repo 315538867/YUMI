@@ -116,6 +116,11 @@ export class FulfillmentService {
     return this.repository.listWorkAssignments(query)
   }
 
+  getProcessResultForTask(processTaskId: string): V2ProcessResult | null {
+    const task = this.requireTask(requireText(processTaskId, '工序任务标识'))
+    return this.repository.getProcessResultForTask(task.id)
+  }
+
   submitProcessResult(processTaskId: string, input: V2ProcessResultInput): V2ProcessResult {
     validateProcessResult({ completedQuantity: input.completedQuantity, actualMinutes: input.actualMinutes })
     const submittedOn = requireBusinessDate(input.submittedOn, '完成提交日期')

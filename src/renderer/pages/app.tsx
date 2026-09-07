@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { Badge, Button, Text } from '@radix-ui/themes'
-import { CircleDollarSign, Package, Users } from 'lucide-react'
+import { CircleDollarSign, ClipboardList, Package, Users } from 'lucide-react'
 import { CustomersPage } from './customers'
+import { FulfillmentPage } from './fulfillment'
 import { OrdersPage } from './orders'
 import { ProductsPage } from './products'
 
-type View = 'orders' | 'customers' | 'products'
+type View = 'orders' | 'fulfillment' | 'customers' | 'products'
 
 const navigation: Array<{ id: View; label: string; icon: typeof CircleDollarSign }> = [
   { id: 'orders', label: '订单', icon: CircleDollarSign },
+  { id: 'fulfillment', label: '履约', icon: ClipboardList },
   { id: 'customers', label: '客户', icon: Users },
   { id: 'products', label: '商品', icon: Package }
 ]
@@ -34,6 +36,7 @@ export function App() {
         <header className="command-bar"><Text color="gray" size="2">YUMI 捏捏工作室管理系统</Text><Badge color="green">本地数据已隔离</Badge></header>
         <div className="content">
           {view === 'orders' && <OrdersPage />}
+          {view === 'fulfillment' && <FulfillmentPage />}
           {view === 'customers' && <CustomersPage />}
           {view === 'products' && <ProductsPage />}
         </div>

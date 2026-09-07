@@ -57,6 +57,7 @@ export function registerV2Ipc(
   ipc.handle('v2:fulfillment:assignments:create', (_event, input) => fulfillment.createWorkAssignment(input as never))
   ipc.handle('v2:fulfillment:assignments:get', (_event, assignmentId) => fulfillment.getWorkAssignment(assignmentId as string))
   ipc.handle('v2:fulfillment:assignments:list', (_event, query) => fulfillment.listWorkAssignments(query as never))
+  ipc.handle('v2:fulfillment:tasks:result:get', (_event, taskId) => fulfillment.getProcessResultForTask(taskId as string))
   ipc.handle('v2:fulfillment:results:submit', (_event, taskId, input) =>
     fulfillment.submitProcessResult(taskId as string, input as never)
   )

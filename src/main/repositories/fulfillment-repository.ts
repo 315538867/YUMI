@@ -264,6 +264,13 @@ export class V2FulfillmentRepository {
     return row ? mapResult(row) : null
   }
 
+  getProcessResultForTask(processTaskId: string): V2ProcessResult | null {
+    const row = this.database.prepare(
+      'SELECT * FROM process_results WHERE process_task_id = ? ORDER BY created_at DESC, id DESC LIMIT 1'
+    ).get(processTaskId) as ProcessResultRow | undefined
+    return row ? mapResult(row) : null
+  }
+
   getQualityInspectionByResult(processResultId: string): V2QualityInspection | null {
     const row = this.database.prepare('SELECT * FROM quality_inspections WHERE process_result_id = ?').get(processResultId) as QualityInspectionRow | undefined
     return row ? mapInspection(row) : null

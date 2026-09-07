@@ -10,6 +10,7 @@ describe('V2 preload API', () => {
     expect(source).toContain("ipcRenderer.invoke('v2:orders:create'")
     expect(source).toContain("ipcRenderer.invoke('v2:orders:record-fund'")
     expect(source).toContain("ipcRenderer.invoke('v2:fulfillment:assignments:create'")
+    expect(source).toContain("ipcRenderer.invoke('v2:fulfillment:tasks:result:get'")
     expect(source).toContain("ipcRenderer.invoke('v2:fulfillment:inspections:confirm'")
     expect(source).not.toContain("exposeInMainWorld('yumi',")
     expect(source).not.toContain("ipcRenderer.invoke('orders:create'")

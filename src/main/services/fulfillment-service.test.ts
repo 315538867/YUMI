@@ -50,6 +50,7 @@ describe('FulfillmentService', () => {
       completedQuantity: 10, actualMinutes: 118, submittedOn: '2026-09-08'
     })
     expect(result.completedQuantity).toBe(10)
+    expect(service.getProcessResultForTask(assignment.tasks[0].id)?.id).toBe(result.id)
     expect(service.getWorkAssignment(assignment.id)?.tasks[0].status).toBe('pending_inspection')
 
     service.confirmQualityInspection(result.id, {
