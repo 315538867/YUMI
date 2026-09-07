@@ -52,13 +52,17 @@ describe('V2 订单核心链路', () => {
     runtime.fulfillmentService.recordOpeningWip({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
-      quantity: 2,
+      quantity: 3,
       occurredOn: '2026-09-07',
       note: '上线前已打包库存'
     })
     service.createShipment(order.id, {
       shippedOn: '2026-09-09',
       items: [{ orderItemId: order.items[0].id, quantity: 2 }]
+    })
+    service.createShipment(order.id, {
+      shippedOn: '2026-09-10',
+      items: [{ orderItemId: order.items[0].id, quantity: 1 }]
     })
 
     const persisted = service.getOrder(order.id)
@@ -68,7 +72,14 @@ describe('V2 订单核心链路', () => {
       amount: { currentAmountCents: 24_000 },
       funds: { receivedCents: 15_000, refundedCents: 1_000, netReceivedCents: 14_000, outstandingCents: 10_000 }
     })
-    expect(service.listShipments(order.id)[0].items).toMatchObject([{ orderItemId: order.items[0].id, quantity: 2 }])
+    expect(service.listShipments(order.id).map((shipment) => shipment.items)).toEqual([
+      [expect.objectContaining({ orderItemId: order.items[0].id, quantity: 2 })],
+      [expect.objectContaining({ orderItemId: order.items[0].id, quantity: 1 })]
+    ])
+    expect(runtime.fulfillmentService.getOrderItemFulfillment(order.items[0].id).stages).toMatchObject({
+      readyToShip: 0,
+      shipped: 3
+    })
 
     await mkdir(runtime.storage.attachmentDirectory)
     await writeFile(join(runtime.storage.attachmentDirectory, 'order-note.txt'), 'V2 attachment')

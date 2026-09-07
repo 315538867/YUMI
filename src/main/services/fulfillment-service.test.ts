@@ -76,6 +76,60 @@ describe('FulfillmentService', () => {
     expect(service.getOrderItemFulfillment(orderItemId).stages).toMatchObject({ making: 0, fluffingBagging: 10 })
   })
 
+
+  it('按固定工序处理捏毛不合格返工，并将打包完成数量推进到待发货', () => {
+    const { orderService, service } = createFixture()
+    const order = createOrder(orderService)
+    const orderItemId = order.items[0].id
+
+    const making = service.createWorkAssignment({
+      workerId: 'worker-making', assignedOn: '2026-09-07', processType: 'making',
+      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 10 }]
+    })
+    const makingResult = service.submitProcessResult(making.tasks[0].id, {
+      completedQuantity: 10, submittedOn: '2026-09-07'
+    })
+    service.confirmQualityInspection(makingResult.id, {
+      qualifiedQuantity: 10, unqualifiedQuantity: 0, inspectedOn: '2026-09-08'
+    })
+
+    const fluffing = service.createWorkAssignment({
+      workerId: 'worker-fluffing', assignedOn: '2026-09-08', processType: 'fluffing_bagging',
+      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 10, plannedMinutes: 80 }]
+    })
+    const fluffingResult = service.submitProcessResult(fluffing.tasks[0].id, {
+      completedQuantity: 10, submittedOn: '2026-09-08'
+    })
+    service.confirmQualityInspection(fluffingResult.id, {
+      qualifiedQuantity: 7, unqualifiedQuantity: 3, inspectedOn: '2026-09-09', requiresRework: true
+    })
+    expect(service.getOrderItemFulfillment(orderItemId).stages).toMatchObject({ fluffingBagging: 3, packing: 7 })
+
+    const rework = service.createWorkAssignment({
+      workerId: 'worker-rework', assignedOn: '2026-09-09', processType: 'fluffing_bagging',
+      tasks: [{ orderItemId, sourceType: 'rework', plannedQuantity: 3, plannedMinutes: 30 }]
+    })
+    const reworkResult = service.submitProcessResult(rework.tasks[0].id, {
+      completedQuantity: 3, submittedOn: '2026-09-09'
+    })
+    service.confirmQualityInspection(reworkResult.id, {
+      qualifiedQuantity: 3, unqualifiedQuantity: 0, inspectedOn: '2026-09-10'
+    })
+
+    const packing = service.createWorkAssignment({
+      workerId: 'worker-packing', assignedOn: '2026-09-10', processType: 'packing',
+      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 10, plannedMinutes: 45 }]
+    })
+    service.submitProcessResult(packing.tasks[0].id, {
+      completedQuantity: 10, actualMinutes: 42, submittedOn: '2026-09-10'
+    })
+
+    expect(service.getWorkAssignment(packing.id)?.tasks[0]).toMatchObject({ status: 'confirmed', scheduledMinutes: 45 })
+    expect(service.getOrderItemFulfillment(orderItemId).stages).toEqual({
+      making: 0, fluffingBagging: 0, packing: 0, readyToShip: 10, shipped: 0
+    })
+  })
+
   it('支持期初在制品、售后补发和负责人带原因的数量调整，并拒绝来源数量不足', () => {
     const { orderService, service } = createFixture()
     const order = createOrder(orderService)

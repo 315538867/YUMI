@@ -73,6 +73,13 @@ describe('V2 履约工作区', () => {
     expect(workAssignmentsPageSource).toContain('次日质检')
   })
 
+  it('工作安排页面明确暴露正常生产、返工与售后补发来源', () => {
+    expect(workAssignmentsPageSource).toContain('正常生产')
+    expect(workAssignmentsPageSource).toContain('返工')
+    expect(workAssignmentsPageSource).toContain('售后补发')
+    expect(fulfillmentPageSource).toContain('待发货')
+  })
+
   it('通过 composable 完成履约写入并在失败时保留页面草稿', () => {
     expect(fulfillmentPageSource).toContain('setError')
     expect(fulfillmentPageSource).toContain('await recordOpeningWip')
