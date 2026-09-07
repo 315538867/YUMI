@@ -58,6 +58,8 @@ export interface BackupServiceOptions {
   backupDirectory: string
   applicationVersion: string
   createDatabaseSnapshot(destinationPath: string): Promise<void>
+  databaseFileName?: string
+  attachmentDirectoryName?: string
 }
 
 function formatBackupTimestamp(date: Date): string {
@@ -118,7 +120,11 @@ async function collectFiles(root: string, baseDirectory = root): Promise<BackupF
   return files.sort((left, right) => left.path.localeCompare(right.path))
 }
 
-function assertManifest(value: unknown): asserts value is BackupManifest {
+function assertManifest(
+  value: unknown,
+  databaseFileName: string,
+  attachmentDirectoryName: string
+): asserts value is BackupManifest {
   if (!value || typeof value !== 'object') throw new DomainValidationError('备份元数据无效')
   const manifest = value as Partial<BackupManifest>
   if (typeof manifest.id !== 'string' || !manifest.id)
@@ -133,7 +139,7 @@ function assertManifest(value: unknown): asserts value is BackupManifest {
     throw new DomainValidationError('备份类型无效')
   if (
     !manifest.database ||
-    manifest.database.path !== DATABASE_FILE_NAME ||
+    manifest.database.path !== databaseFileName ||
     typeof manifest.database.sha256 !== 'string' ||
     typeof manifest.database.sizeBytes !== 'number'
   ) {
@@ -141,7 +147,7 @@ function assertManifest(value: unknown): asserts value is BackupManifest {
   }
   if (
     !manifest.attachments ||
-    manifest.attachments.directory !== ATTACHMENTS_DIRECTORY_NAME ||
+    manifest.attachments.directory !== attachmentDirectoryName ||
     !Array.isArray(manifest.attachments.files)
   ) {
     throw new DomainValidationError('备份附件校验信息无效')
@@ -162,11 +168,21 @@ export class BackupService {
   private readonly databasePath: string
   private readonly attachmentDirectory: string
   private readonly backupDirectory: string
+  private readonly databaseFileName: string
+  private readonly attachmentDirectoryName: string
 
   constructor(private readonly options: BackupServiceOptions) {
     this.databasePath = resolve(options.databasePath)
     this.attachmentDirectory = resolve(options.attachmentDirectory)
     this.backupDirectory = resolve(options.backupDirectory)
+    this.databaseFileName = this.assertBackupEntryName(
+      options.databaseFileName ?? DATABASE_FILE_NAME,
+      '数据库文件名'
+    )
+    this.attachmentDirectoryName = this.assertBackupEntryName(
+      options.attachmentDirectoryName ?? ATTACHMENTS_DIRECTORY_NAME,
+      '附件目录名'
+    )
   }
 
   async createBackup(reason: BackupReason = 'manual'): Promise<BackupSummary> {
@@ -177,8 +193,8 @@ export class BackupService {
       this.backupDirectory,
       `yumi-backup-${formatBackupTimestamp(new Date())}-${id}`
     )
-    const backupDatabasePath = join(backupPath, DATABASE_FILE_NAME)
-    const backupAttachmentsPath = join(backupPath, ATTACHMENTS_DIRECTORY_NAME)
+    const backupDatabasePath = join(backupPath, this.databaseFileName)
+    const backupAttachmentsPath = join(backupPath, this.attachmentDirectoryName)
     await mkdir(backupPath, { recursive: true })
 
     try {
@@ -196,12 +212,12 @@ export class BackupService {
         createdAt,
         reason,
         database: {
-          path: DATABASE_FILE_NAME,
+          path: this.databaseFileName,
           sizeBytes: databaseStat.size,
           sha256: await hashFile(backupDatabasePath)
         },
         attachments: {
-          directory: ATTACHMENTS_DIRECTORY_NAME,
+          directory: this.attachmentDirectoryName,
           files: attachmentFiles
         }
       }
@@ -270,7 +286,7 @@ export class BackupService {
     } catch {
       throw new DomainValidationError('备份包不存在或元数据无法读取')
     }
-    assertManifest(manifest)
+    assertManifest(manifest, this.databaseFileName, this.attachmentDirectoryName)
     const databasePath = join(resolvedBackupPath, manifest.database.path)
     if (!(await exists(databasePath))) throw new DomainValidationError('备份数据库文件不存在')
     const databaseStat = await stat(databasePath)
@@ -299,8 +315,8 @@ export class BackupService {
 
   async applyRestore(plan: BackupRestorePlan): Promise<void> {
     const sourceBackup = await this.inspectBackup(plan.sourceBackup.backupPath)
-    const sourceDatabasePath = join(sourceBackup.backupPath, DATABASE_FILE_NAME)
-    const sourceAttachmentsPath = join(sourceBackup.backupPath, ATTACHMENTS_DIRECTORY_NAME)
+    const sourceDatabasePath = join(sourceBackup.backupPath, this.databaseFileName)
+    const sourceAttachmentsPath = join(sourceBackup.backupPath, this.attachmentDirectoryName)
     const restoreId = randomUUID()
     const stagedDatabasePath = join(
       dirname(this.databasePath),
@@ -353,6 +369,13 @@ export class BackupService {
       await rm(previousDatabasePath, { force: true })
       await rm(previousAttachmentsPath, { recursive: true, force: true })
     }
+  }
+
+  private assertBackupEntryName(value: string, label: string): string {
+    if (!value || basename(value) !== value || value === '.' || value === '..') {
+      throw new DomainValidationError(`${label}无效`)
+    }
+    return value
   }
 
   private async readActivity(): Promise<{
