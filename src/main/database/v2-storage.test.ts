@@ -38,7 +38,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 3 })
+    ).toEqual({ version: 4 })
     database.close()
 
     await expect(readFile(v1DatabasePath, 'utf8')).resolves.toBe('v1-test-data')
@@ -151,7 +151,7 @@ describe('V2 独立数据空间', () => {
       name: 'V2 客户'
     })
     expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 3
+      count: 4
     })
     expect(
       upgraded
@@ -160,4 +160,42 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     upgraded.close()
   })
+
+  it('追加履约基础表并拒绝负数量和负计划分钟', async () => {
+    const userDataDirectory = await mkdtemp(join(tmpdir(), 'yumi-v2-fulfillment-schema-'))
+    const database = createV2Database(resolveV2StoragePaths(userDataDirectory).databasePath)
+    const tableNames = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
+    expect(tableNames.map((row) => row.name)).toEqual(expect.arrayContaining([
+      'work_assignments', 'process_tasks', 'process_results', 'quality_inspections',
+      'fulfillment_events', 'opening_wip_records'
+    ]))
+    expect(() => database.prepare(`
+      INSERT INTO process_tasks (
+        id, work_assignment_id, process_type, source_type, planned_quantity,
+        planned_minutes, extra_minutes, status, created_at, updated_at
+      ) VALUES ('task-negative', 'assignment-missing', 'making', 'normal_production', -1, 0, 0, 'pending', '2026-09-07T00:00:00.000Z', '2026-09-07T00:00:00.000Z')
+    `).run()).toThrow()
+    expect(() => database.prepare(`
+      INSERT INTO process_results (id, process_task_id, completed_quantity, submitted_on, created_at)
+      VALUES ('result-negative', 'task-missing', -1, '2026-09-07', '2026-09-07T00:00:00.000Z')
+    `).run()).toThrow()
+    expect(() => database.prepare(`
+      INSERT INTO quality_inspections (
+        id, process_result_id, process_task_id, qualified_quantity, unqualified_quantity,
+        inspected_on, requires_rework, created_at
+      ) VALUES ('inspection-negative', 'result-missing', 'task-missing', -1, 0, '2026-09-08', 0, '2026-09-08T00:00:00.000Z')
+    `).run()).toThrow()
+    expect(() => database.prepare(`
+      INSERT INTO fulfillment_events (
+        id, order_item_id, event_type, quantity, occurred_on, created_at
+      ) VALUES ('event-negative', 'item-missing', 'opening_wip', -1, '2026-09-07', '2026-09-07T00:00:00.000Z')
+    `).run()).toThrow()
+    expect(() => database.prepare(`
+      INSERT INTO opening_wip_records (
+        id, order_item_id, target_stage, quantity, occurred_on, fulfillment_event_id, created_at
+      ) VALUES ('wip-negative', 'item-missing', 'packing', -1, '2026-09-07', 'event-missing', '2026-09-07T00:00:00.000Z')
+    `).run()).toThrow()
+    database.close()
+  })
+
 })

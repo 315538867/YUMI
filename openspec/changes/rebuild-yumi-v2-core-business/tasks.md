@@ -1,4 +1,4 @@
-> 当前执行：B.1（多工序履约、质检与期初在制品数据建模）。未通过对应验证前不得勾选完成。
+> 当前执行：B.2（固定工序数量流转与履约领域规则）。未通过对应验证前不得勾选完成。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -13,7 +13,7 @@
 
 ## 阶段 B：多工序履约、质检、期初在制品与售后补发
 
-- [ ] B.1 在 `src/main/database/v2-migrations.ts` 追加 `work_assignments`、`process_tasks`、`process_results`、`quality_inspections`、`fulfillment_events` 与期初在制品所需表、索引和约束；完成条件是订单商品、工作安排、任务、完成、质检和事件均可追溯，且数量不能为负。
+- [x] B.1 在 `src/main/database/v2-migrations.ts` 追加 `work_assignments`、`process_tasks`、`process_results`、`quality_inspections`、`fulfillment_events` 与期初在制品所需表、索引和约束；完成条件是订单商品、工作安排、任务、完成、质检和事件均可追溯，且数量不能为负。
 - [ ] B.2 新增 `src/main/domain/fulfillment.ts`，实现固定四工序、任务来源、制作计划分钟公式、阶段转换、合格/不合格校验、期初在制品和发货可用量计算；完成条件是任何完成申报只能质检一次，合格数加不合格数等于提交数，不能绕过事件直接修改阶段数量。
 - [ ] B.3 新增 `src/main/repositories/fulfillment-repository.ts`、`src/main/services/fulfillment-service.ts`、`src/main/ipc/fulfillment-ipc.ts` 和 `src/shared/contracts/fulfillment.ts`；完成条件是完成、质检、返工、补发、负责人数量调整和发货可用量校验在事务中编排并写入审计。
 - [ ] B.4 将订单发货服务从阶段 A 的确认数量上限升级为待发货可用量上限；完成条件是未打包合格产品不能发货，阶段 A 已存在发货记录保持可读且不产生负可用量。
@@ -68,3 +68,5 @@
 - **A.7（2026-09-07）**：补齐 V2 运行时订单核心链路测试，使用独立临时数据空间自动覆盖客户/商品快照、订单确认金额、收款与退款净额、分批发货、V2 附件备份恢复以及 V1 数据文件和附件隔离；同时补强 V2 IPC 的资金流水查询委托与 renderer/composable 边界测试。
 
 - **A.8（2026-09-07）**：阶段 A 全量验证通过：`npm test`（45 文件、115 用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 均退出码为 0；另以源代码扫描确认 V2 组合根、preload 和新页面不依赖 V1 写入实现。
+
+- **B.1（2026-09-07）**：追加 V2 迁移版本 4，建立工作安排、工序任务、完成申报、质检、履约事件和期初在制品记录表；各表通过外键、唯一性、工序/状态枚举、正数量与非负分钟/费率约束保持可追溯性。兼职人员主数据将在阶段 C 建立，工作安排先保存 `worker_id` 引用值，由后续服务统一校验。验证通过：迁移定向测试（4 用例）、全量 `npm test`（45 文件、116 用例）、`npm run typecheck`、`npm run lint`、`git diff --check`。

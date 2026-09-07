@@ -190,7 +190,116 @@ const v2OrderItemPosition: V2Migration = {
   }
 }
 
-const migrations: readonly V2Migration[] = [v2MasterData, v2OrderFoundation, v2OrderItemPosition]
+const v2FulfillmentFoundation: V2Migration = {
+  version: 4,
+  name: 'v2_fulfillment_foundation',
+  run(database) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS work_assignments (
+        id TEXT PRIMARY KEY,
+        worker_id TEXT NOT NULL,
+        assigned_on TEXT NOT NULL,
+        process_type TEXT NOT NULL CHECK(process_type IN ('making', 'fluffing_bagging', 'packing', 'shipping')),
+        status TEXT NOT NULL CHECK(status IN ('draft', 'scheduled', 'cancelled', 'completed')),
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS process_tasks (
+        id TEXT PRIMARY KEY,
+        work_assignment_id TEXT NOT NULL REFERENCES work_assignments(id) ON DELETE CASCADE,
+        order_item_id TEXT REFERENCES order_items(id),
+        process_type TEXT NOT NULL CHECK(process_type IN ('making', 'fluffing_bagging', 'packing', 'shipping')),
+        source_type TEXT NOT NULL CHECK(source_type IN ('normal_production', 'rework', 'after_sales_replacement', 'manager_arrangement')),
+        planned_quantity INTEGER CHECK(planned_quantity IS NULL OR planned_quantity >= 0),
+        planned_minutes INTEGER NOT NULL CHECK(planned_minutes >= 0),
+        extra_minutes INTEGER NOT NULL DEFAULT 0 CHECK(extra_minutes >= 0),
+        status TEXT NOT NULL CHECK(status IN ('pending', 'pending_inspection', 'confirmed', 'cancelled')),
+        hourly_wage_cents INTEGER CHECK(hourly_wage_cents IS NULL OR hourly_wage_cents >= 0),
+        piece_rate_cents INTEGER CHECK(piece_rate_cents IS NULL OR piece_rate_cents >= 0),
+        glue_cost_cents INTEGER CHECK(glue_cost_cents IS NULL OR glue_cost_cents >= 0),
+        rate_snapshot_json TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS process_results (
+        id TEXT PRIMARY KEY,
+        process_task_id TEXT NOT NULL REFERENCES process_tasks(id) ON DELETE CASCADE,
+        completed_quantity INTEGER NOT NULL CHECK(completed_quantity > 0),
+        actual_minutes INTEGER CHECK(actual_minutes IS NULL OR actual_minutes >= 0),
+        submitted_on TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS quality_inspections (
+        id TEXT PRIMARY KEY,
+        process_result_id TEXT NOT NULL UNIQUE REFERENCES process_results(id) ON DELETE RESTRICT,
+        process_task_id TEXT NOT NULL REFERENCES process_tasks(id) ON DELETE RESTRICT,
+        qualified_quantity INTEGER NOT NULL CHECK(qualified_quantity >= 0),
+        unqualified_quantity INTEGER NOT NULL CHECK(unqualified_quantity >= 0),
+        inspected_on TEXT NOT NULL,
+        reason_note TEXT,
+        requires_rework INTEGER NOT NULL DEFAULT 0 CHECK(requires_rework IN (0, 1)),
+        note TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS fulfillment_events (
+        id TEXT PRIMARY KEY,
+        order_item_id TEXT NOT NULL REFERENCES order_items(id) ON DELETE RESTRICT,
+        event_type TEXT NOT NULL CHECK(event_type IN (
+          'opening_wip', 'making_qualified', 'fluffing_bagging_qualified', 'packing_completed',
+          'shipment', 'manager_adjustment', 'after_sales_return', 'after_sales_replacement'
+        )),
+        quantity INTEGER NOT NULL CHECK(quantity > 0),
+        source_stage TEXT CHECK(source_stage IS NULL OR source_stage IN ('making', 'fluffing_bagging', 'packing', 'ready_to_ship', 'shipped')),
+        target_stage TEXT CHECK(target_stage IS NULL OR target_stage IN ('making', 'fluffing_bagging', 'packing', 'ready_to_ship', 'shipped')),
+        source_record_type TEXT,
+        source_record_id TEXT,
+        occurred_on TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS opening_wip_records (
+        id TEXT PRIMARY KEY,
+        order_item_id TEXT NOT NULL REFERENCES order_items(id) ON DELETE RESTRICT,
+        target_stage TEXT NOT NULL CHECK(target_stage IN ('fluffing_bagging', 'packing', 'ready_to_ship')),
+        quantity INTEGER NOT NULL CHECK(quantity > 0),
+        occurred_on TEXT NOT NULL,
+        note TEXT,
+        fulfillment_event_id TEXT NOT NULL UNIQUE REFERENCES fulfillment_events(id) ON DELETE RESTRICT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_work_assignments_worker_day
+        ON work_assignments(worker_id, assigned_on, process_type);
+      CREATE INDEX IF NOT EXISTS idx_process_tasks_assignment
+        ON process_tasks(work_assignment_id, process_type, status);
+      CREATE INDEX IF NOT EXISTS idx_process_tasks_order_item
+        ON process_tasks(order_item_id, process_type, status);
+      CREATE INDEX IF NOT EXISTS idx_process_results_task
+        ON process_results(process_task_id, submitted_on);
+      CREATE INDEX IF NOT EXISTS idx_quality_inspections_task
+        ON quality_inspections(process_task_id, inspected_on);
+      CREATE INDEX IF NOT EXISTS idx_fulfillment_events_order_item
+        ON fulfillment_events(order_item_id, occurred_on, event_type);
+      CREATE INDEX IF NOT EXISTS idx_opening_wip_order_item
+        ON opening_wip_records(order_item_id, target_stage, occurred_on);
+    `)
+  }
+}
+
+const migrations: readonly V2Migration[] = [
+  v2MasterData,
+  v2OrderFoundation,
+  v2OrderItemPosition,
+  v2FulfillmentFoundation
+]
 
 /**
  * V2 使用独立的迁移表，不会把 V1 的 schema_migrations 当成已初始化状态。

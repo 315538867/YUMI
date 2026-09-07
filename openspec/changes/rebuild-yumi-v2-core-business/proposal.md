@@ -3,7 +3,7 @@
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
 - 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v2.2）
-- 状态：实施中（阶段 A 已完成，下一步阶段 B）
+- 状态：实施中（阶段 B；B.1 已完成）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -71,3 +71,5 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 - **2026-09-07 / A.5、A.6 已完成**：应用启动与预加载层已切换到独立 V2 运行时和 `window.yumiV2`；恢复会安全备份、关闭旧连接、应用恢复、重建服务引用、记录审计并重启。渲染层已拆为应用壳、客户/商品/订单页面及 composable，支持客户和商品维护、多商品订单、初始确认金额、内容变更与可选金额调整、资金收退款/冲正、分批发货；页面组件不直接调用 IPC，失败不会清空草稿。验证：全量 `npm test`（44 文件、114 用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 均通过。
 
 - **2026-09-07 / A.7、A.8 已完成**：新增独立 V2 订单核心链路测试，覆盖启动、客户/商品快照、订单金额、收退款、分批发货、附件备份恢复和 V1 数据隔离，并补强资金流水查询 IPC 委托和 renderer/composable 边界测试。阶段 A 质量门禁已全部通过：`npm test`（45 文件、115 用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与差异空白检查。
+
+- **2026-09-07 / B.1 已完成**：V2 迁移版本 4 已建立工作安排、工序任务、完成申报、质检、履约事件与期初在制品记录；数据库层保证数量和分钟不为负、质检结果一对一且核心事实可按订单商品和来源记录追溯。验证：迁移定向测试及全量 `npm test`（45 文件、116 用例）、`npm run typecheck`、`npm run lint`、`git diff --check` 通过。

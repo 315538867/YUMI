@@ -3,13 +3,13 @@ title: YUMI V2 核心业务重构方案
 date: 2026-09-07
 last_modified: 2026-09-07
 modifier: Codex
-solution_version: v2.3
+solution_version: v2.4
 status: 已确认，实施中
 branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 A 已完成，下一步阶段 B 的多工序履约建模）
+implementation_status: 实施中（阶段 B；B.1 履约事实表已完成，下一步履约领域规则）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1060,3 +1060,10 @@ npm run build
 - 新增独立 V2 订单核心链路测试：在临时 V2 数据空间中完成客户、商品、订单、客户/商品快照冻结、收款、退款、分批发货、附件备份与恢复，并确认恢复不修改 V1 数据库和附件。
 - 补强 V2 IPC 资金流水查询委托及 renderer/composable 架构边界测试；V2 组合根、preload 和新订单/客户/商品页面经源代码扫描确认不依赖 V1 写入实现。
 - 阶段 A 完成验证：`npm test`（45 个测试文件、115 个用例通过）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 全部通过。下一步进入阶段 B.1：多工序履约、质检与期初在制品的数据建模。
+
+
+### 2026-09-07：阶段 B.1 完成
+
+- V2 迁移版本 4 建立 `work_assignments`、`process_tasks`、`process_results`、`quality_inspections`、`fulfillment_events` 与 `opening_wip_records`。数量、计划分钟、费率均有非负或正数约束；质检对每条完成申报唯一；事件和期初在制品均关联订单商品及来源记录。
+- 兼职人员主数据由阶段 C 统一建立，因此工作安排当前存储必填 `worker_id` 引用值，不提前创建与阶段 C 重复的人员表；阶段 B 服务会在人员领域开放后统一校验。
+- 验证：迁移定向测试 4 个用例、全量 `npm test`（45 个测试文件、116 个用例通过）、`npm run typecheck`、`npm run lint`、`git diff --check`。下一步为 B.2：固定工序数量流转与履约领域规则。
