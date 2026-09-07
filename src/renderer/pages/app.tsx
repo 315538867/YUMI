@@ -254,7 +254,7 @@ export function App() {
               YUMI 捏捏工作室 · 本地管理工作台
             </Text>
           </div>
-          <Flex gap="3" align="center">
+          <Flex className="command-actions" gap="3" align="center">
             <div aria-label="搜索功能暂未启用" className="search" role="search">
               <Search size={16} />
               <Text size="2" color="gray">
@@ -4076,7 +4076,7 @@ function ShiftDialog({
 
   return (
     <Dialog.Root open={Boolean(target || shift)} onOpenChange={onOpenChange}>
-      <Dialog.Content maxWidth="760px" className="wide-dialog">
+      <Dialog.Content maxWidth="760px" className="dialog-content shift-dialog-content">
         <Dialog.Title>{shift ? '编辑排班' : '创建排班'}</Dialog.Title>
         {(target || shift) && (
           <Dialog.Description size="2" mb="4">
@@ -4185,7 +4185,7 @@ function ShiftDialog({
               {error}
             </Text>
           )}
-          <Flex justify="end" gap="3" mt="4">
+          <Flex className="dialog-actions" justify="end" gap="3" mt="4">
             <Dialog.Close>
               <Button variant="soft" color="gray">
                 取消

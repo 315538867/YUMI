@@ -8,8 +8,9 @@
 }
 body {
   margin: 0;
-  min-width: 1100px;
+  min-width: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   background: #f6f5f2;
 }
 button {
@@ -17,6 +18,7 @@ button {
 }
 .app-shell {
   display: flex;
+  min-width: 0;
   min-height: 100vh;
 }
 .sidebar {
@@ -123,6 +125,7 @@ button {
   color: #98938b;
 }
 .content {
+  min-width: 0;
   padding: 30px 34px 42px;
 }
 .stat-grid {
@@ -147,6 +150,7 @@ button {
   border-top: 2px solid #cd6254;
 }
 .panel {
+  min-width: 0;
   padding: 22px;
   border: 1px solid #e5e1da;
   border-radius: 11px;
@@ -223,9 +227,29 @@ button {
 .selectable-row:hover .rt-TableCell {
   background: #f5f1eb;
 }
-.wide-dialog {
-  max-height: calc(100vh - 72px);
+.dialog-content {
+  width: min(100%, 760px);
+  max-width: min(100%, 760px);
+  max-height: calc(100vh - 48px);
   overflow-y: auto;
+}
+.wide-dialog {
+  width: min(100%, 920px);
+  max-width: min(100%, 920px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.dialog-actions {
+  position: sticky;
+  bottom: calc(var(--dialog-content-padding) * -1);
+  z-index: 1;
+  margin-right: calc(var(--dialog-content-padding) * -1);
+  margin-bottom: calc(var(--dialog-content-padding) * -1);
+  margin-left: calc(var(--dialog-content-padding) * -1);
+  padding: 12px var(--dialog-content-padding) var(--dialog-content-padding);
+  border-top: 1px solid #eeeae4;
+  background: color-mix(in srgb, var(--color-panel-solid) 94%, transparent);
+  backdrop-filter: blur(8px);
 }
 .detail-workspace {
   display: flex;
@@ -333,6 +357,7 @@ button {
 }
 .order-summary-bar {
   display: flex;
+  min-width: 0;
   align-items: end;
   justify-content: space-between;
   gap: 20px;
@@ -352,6 +377,7 @@ button {
 }
 .inspector-heading {
   display: flex;
+  min-width: 0;
   align-items: start;
   justify-content: space-between;
   gap: 18px;
@@ -397,6 +423,7 @@ button {
 }
 .detail-line {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -412,6 +439,7 @@ button {
 }
 .payment-entry {
   display: grid;
+  min-width: 0;
   grid-template-columns: 92px minmax(96px, 1fr) minmax(96px, 1fr) 145px auto auto auto;
   gap: 8px;
   align-items: center;
@@ -423,6 +451,7 @@ button {
 }
 .payment-row {
   display: grid;
+  min-width: 0;
   grid-template-columns: 76px 92px 90px 1fr minmax(110px, 1.4fr);
   align-items: center;
   gap: 10px;
@@ -526,7 +555,7 @@ button {
 }
 .shift-task {
   display: grid;
-  grid-template-columns: 25px minmax(0, 1fr) 130px auto;
+  grid-template-columns: minmax(0, 1fr) 120px 24px;
   align-items: center;
   gap: 8px;
   padding: 9px 0;
@@ -568,6 +597,12 @@ button {
   .edge-toggle,
   .order-line > label:nth-of-type(n + 4) {
     margin-top: 4px;
+  }
+  .inspector-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .payment-entry {
+    grid-template-columns: 92px repeat(2, minmax(96px, 1fr)) 145px auto;
   }
 }
 
@@ -1101,6 +1136,28 @@ button {
     align-items: flex-start;
     flex-direction: column;
   }
+  .stat-grid,
+  .report-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .order-summary-bar,
+  .inspector-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .order-summary-bar label {
+    width: min(100%, 240px);
+  }
+  .detail-line {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .payment-entry,
+  .payment-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
 }
 .shipment-section {
   padding-top: 15px;
@@ -1196,8 +1253,42 @@ button {
   margin-top: 10px;
 }
 @media (max-width: 680px) {
+  .shift-task {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .shift-task > .rt-Text {
+    justify-self: end;
+  }
   .shift-duration-summary {
     grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .sidebar {
+    flex-basis: 184px;
+  }
+  .command-bar,
+  .content {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+  .command-bar {
+    height: auto;
+    min-height: 76px;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  .command-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .search {
+    flex: 1;
+    width: auto;
   }
 }
 

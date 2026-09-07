@@ -198,3 +198,26 @@ describe('独立客户管理与订单关联', () => {
     expect(appSource).not.toContain('新建客户')
   })
 })
+
+describe('全局界面布局约束', () => {
+  it('应用主体可收缩，不用固定最小宽度强制窗口横向溢出', () => {
+    expect(appStyles).not.toMatch(/body\s*\{[\s\S]*min-width:\s*1100px/)
+    expect(appStyles).toMatch(/\.app-shell\s*\{[\s\S]*min-width:\s*0/)
+  })
+
+  it('排班弹窗使用统一内容与底部操作区布局', () => {
+    expect(appSource).toMatch(/className="dialog-content shift-dialog-content"/)
+    expect(appSource).toMatch(/className="dialog-actions"/)
+    expect(appStyles).toMatch(/\.dialog-content\s*\{[\s\S]*max-width:\s*min\(/)
+    expect(appStyles).toMatch(/\.dialog-actions\s*\{[\s\S]*position:\s*sticky/)
+  })
+
+  it('排班任务行在窄窗口下自动降为单列', () => {
+    expect(appStyles).toMatch(
+      /\.shift-task\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) 120px 24px/
+    )
+    expect(appStyles).toMatch(
+      /@media \(max-width: 680px\)\s*\{[\s\S]*\.shift-task[\s\S]*grid-template-columns:\s*1fr/
+    )
+  })
+})
