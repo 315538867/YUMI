@@ -7,6 +7,7 @@ import { V2FulfillmentRepository } from '@main/repositories/fulfillment-reposito
 import { V2BackupService } from '@main/services/v2-backup-service'
 import { V2OrderService } from '@main/services/v2-order-service'
 import { FulfillmentService } from '@main/services/fulfillment-service'
+import { SettlementService } from '@main/services/settlement-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts'
 
 interface V2RuntimeReferences {
@@ -14,6 +15,7 @@ interface V2RuntimeReferences {
   repository: V2OrderRepository
   orderService: V2OrderService
   fulfillmentService: FulfillmentService
+  settlementService: SettlementService
   backupService: V2BackupService
 }
 
@@ -49,6 +51,10 @@ export class V2ApplicationRuntime {
 
   get fulfillmentService(): FulfillmentService {
     return this.requireReferences().fulfillmentService
+  }
+
+  get settlementService(): SettlementService {
+    return this.requireReferences().settlementService
   }
 
   get backupService(): V2BackupService {
@@ -100,6 +106,7 @@ export class V2ApplicationRuntime {
       repository,
       orderService: new V2OrderService(repository),
       fulfillmentService: new FulfillmentService(new V2FulfillmentRepository(database)),
+      settlementService: new SettlementService(database),
       backupService: new V2BackupService(this.storage, this.applicationVersion, database)
     }
   }

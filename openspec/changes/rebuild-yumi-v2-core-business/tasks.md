@@ -1,4 +1,4 @@
-> 当前执行：C.3（工资结算仓储、服务、IPC 与共享契约）。未通过对应验证前不得勾选完成。
+> 当前执行：C.4（工资财务流水唯一化）。未通过对应验证前不得勾选完成。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -25,7 +25,7 @@
 
 - [x] C.1 在 `src/main/database/v2-migrations.ts` 追加兼职人员、时薪历史、结算单、结算任务归属、扣款记录、扣款分配和待抵扣余额表；完成条件是已确认任务/扣款不能被重复纳入结算，结算与工资流水具有一对一约束。
 - [x] C.2 新增 `src/main/domain/settlement.ts`，实现排班与考勤两种分钟/工资参考、制作与捏毛提成、制作胶水扣款、捏毛计划分钟扣款、抵扣上限和顺延；完成条件是时薪差异只来自工作分钟，任何口径及最终实发均不产生负工资。
-- [ ] C.3 新增 `src/main/repositories/settlement-repository.ts`、`src/main/services/settlement-service.ts`、`src/main/ipc/settlement-ipc.ts` 与 `src/shared/contracts/settlements.ts`；完成条件是创建草稿、输入考勤总分钟、分配扣款、填写最终实发、确认结算与工资流水写入均可追溯且事务化。
+- [x] C.3 新增 `src/main/repositories/settlement-repository.ts`、`src/main/services/settlement-service.ts`、`src/main/ipc/settlement-ipc.ts` 与 `src/shared/contracts/settlements.ts`；完成条件是创建草稿、输入考勤总分钟、分配扣款、填写最终实发及确认结算的任务/扣款归属均可追溯且事务化；实际 `financial_entries` 工资流水由 C.4 统一写入。
 - [ ] C.4 在 `financial_entries` 扩展工资来源类型，并实现确认结算时自动生成唯一工资支出；完成条件是重复确认被拒绝，工资调整和最终实发金额/备注不回写两套参考工资。
 - [ ] C.5 新增 `src/renderer/pages/workers/`、`pages/settlements/`、`composables/use-settlements.ts` 及结算明细组件；完成条件是负责人能选择任意日期范围、查看两种参考结果、逐项查看任务/扣款来源、填写最终金额/日期/备注并确认。
 - [ ] C.6 为制作和捏毛不合格公式、返工正常计薪、扣款顺延、两种口径、最终实发和唯一工资流水新增测试；完成条件是工资验收场景完整自动覆盖。

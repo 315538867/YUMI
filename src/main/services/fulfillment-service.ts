@@ -304,8 +304,11 @@ export class FulfillmentService {
 
   private assertEventCanApply(event: V2FulfillmentEvent): void {
     const item = this.requireOrderItem(event.orderItemId)
-    const events = [...this.repository.listFulfillmentEvents(item.id), event]
-      .sort((left, right) => left.occurredOn.localeCompare(right.occurredOn) || left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
+    const events = this.repository.listFulfillmentEvents(item.id)
+    const firstFutureEvent = events.findIndex((existing) => existing.occurredOn > event.occurredOn)
+    // 同一天的事件按落库先后处理；待写入事件必须排在已存在的同日事件之后，
+    // 不能以随机 UUID 作为时间并列时的顺序依据。
+    events.splice(firstFutureEvent === -1 ? events.length : firstFutureEvent, 0, event)
     events.reduce<FulfillmentState>((current, currentEvent) => applyFulfillmentEvent(current, currentEvent), createFulfillmentState(item.quantity))
   }
 

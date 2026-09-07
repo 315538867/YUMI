@@ -36,6 +36,19 @@ const yumiV2: V2YumiApi = {
     adjustStageQuantity: (input) => ipcRenderer.invoke('v2:fulfillment:adjustments:create', input),
     getOrderItem: (orderItemId) => ipcRenderer.invoke('v2:fulfillment:order-item:get', orderItemId)
   },
+  workers: {
+    list: () => ipcRenderer.invoke('v2:workers:list'),
+    create: (input) => ipcRenderer.invoke('v2:workers:create', input),
+    listWageHistory: (workerId) => ipcRenderer.invoke('v2:workers:wages:list', workerId),
+    recordWageHistory: (input) => ipcRenderer.invoke('v2:workers:wages:record', input)
+  },
+  settlements: {
+    list: (query) => ipcRenderer.invoke('v2:settlements:list', query),
+    createDraft: (input) => ipcRenderer.invoke('v2:settlements:drafts:create', input),
+    get: (id) => ipcRenderer.invoke('v2:settlements:get', id),
+    updateDraft: (id, input) => ipcRenderer.invoke('v2:settlements:drafts:update', id, input),
+    confirm: (id) => ipcRenderer.invoke('v2:settlements:confirm', id)
+  },
   backup: {
     create: () => ipcRenderer.invoke('v2:backup:create'),
     list: () => ipcRenderer.invoke('v2:backup:list'),

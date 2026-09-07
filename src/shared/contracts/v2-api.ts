@@ -18,6 +18,11 @@ import type {
   V2ProcessResultInput, V2QualityInspection, V2QualityInspectionInput, V2WorkAssignment,
   V2WorkAssignmentCreateInput, V2WorkAssignmentQuery
 } from './fulfillment'
+import type {
+  V2Worker, V2WorkerCreateInput, V2WorkerSettlementDetail, V2WorkerSettlementCreateInput,
+  V2WorkerSettlementDraftUpdateInput, V2WorkerSettlementQuery, V2WorkerWageHistory,
+  V2WorkerWageHistoryInput
+} from './settlements'
 
 /** V2 预加载层唯一向渲染进程暴露的能力边界。 */
 export interface V2YumiApi {
@@ -54,6 +59,19 @@ export interface V2YumiApi {
     recordOpeningWip(input: V2OpeningWipInput): Promise<V2OrderItemFulfillment>
     adjustStageQuantity(input: V2FulfillmentAdjustmentInput): Promise<V2OrderItemFulfillment>
     getOrderItem(orderItemId: string): Promise<V2OrderItemFulfillment>
+  }
+  workers: {
+    list(): Promise<V2Worker[]>
+    create(input: V2WorkerCreateInput): Promise<V2Worker>
+    listWageHistory(workerId: string): Promise<V2WorkerWageHistory[]>
+    recordWageHistory(input: V2WorkerWageHistoryInput): Promise<V2WorkerWageHistory>
+  }
+  settlements: {
+    list(query?: V2WorkerSettlementQuery): Promise<V2WorkerSettlementDetail[]>
+    createDraft(input: V2WorkerSettlementCreateInput): Promise<V2WorkerSettlementDetail>
+    get(id: string): Promise<V2WorkerSettlementDetail | null>
+    updateDraft(id: string, input: V2WorkerSettlementDraftUpdateInput): Promise<V2WorkerSettlementDetail>
+    confirm(id: string): Promise<V2WorkerSettlementDetail>
   }
   backup: {
     create(): Promise<V2BackupSummary>

@@ -68,3 +68,20 @@ export type {
 } from './fulfillment'
 
 export type { V2YumiApi } from './v2-api'
+
+export type {
+  V2Worker,
+  V2WorkerCreateInput,
+  V2WorkerDeductionRecord,
+  V2WorkerDeductionStatus,
+  V2WorkerSettlement,
+  V2WorkerSettlementCreateInput,
+  V2WorkerSettlementDeductionAllocation,
+  V2WorkerSettlementDetail,
+  V2WorkerSettlementQuery,
+  V2WorkerSettlementDraftUpdateInput,
+  V2WorkerSettlementStatus,
+  V2WorkerSettlementTask,
+  V2WorkerWageHistory,
+  V2WorkerWageHistoryInput
+} from './settlements'

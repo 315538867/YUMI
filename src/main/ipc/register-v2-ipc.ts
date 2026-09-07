@@ -3,6 +3,8 @@ import type { V2BackupService } from '@main/services/v2-backup-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts'
 import type { V2OrderService } from '@main/services/v2-order-service'
 import type { FulfillmentService } from '@main/services/fulfillment-service'
+import type { SettlementService } from '@main/services/settlement-service'
+import { registerSettlementIpc } from './settlement-ipc'
 
 export interface V2IpcMain {
   handle(channel: string, handler: (...args: unknown[]) => unknown): void
@@ -20,6 +22,7 @@ export interface V2BackupIpcOptions {
 export function registerV2Ipc(
   service: V2OrderService,
   fulfillment: FulfillmentService,
+  settlement: SettlementService,
   backup: V2BackupIpcOptions,
   ipc: V2IpcMain = electronIpcMain
 ): void {
@@ -67,6 +70,8 @@ export function registerV2Ipc(
   ipc.handle('v2:fulfillment:opening-wip:record', (_event, input) => fulfillment.recordOpeningWip(input as never))
   ipc.handle('v2:fulfillment:adjustments:create', (_event, input) => fulfillment.adjustStageQuantity(input as never))
   ipc.handle('v2:fulfillment:order-item:get', (_event, orderItemId) => fulfillment.getOrderItemFulfillment(orderItemId as string))
+
+  registerSettlementIpc(ipc, settlement)
 
   ipc.handle('v2:backup:create', () => backup.service.createBackup())
   ipc.handle('v2:backup:list', () => backup.service.listBackups())

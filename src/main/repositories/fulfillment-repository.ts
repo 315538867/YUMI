@@ -303,7 +303,7 @@ export class V2FulfillmentRepository {
 
   listFulfillmentEvents(orderItemId: string): V2FulfillmentEvent[] {
     return (this.database.prepare(
-      'SELECT * FROM fulfillment_events WHERE order_item_id = ? ORDER BY occurred_on ASC, created_at ASC, id ASC'
+      'SELECT * FROM fulfillment_events WHERE order_item_id = ? ORDER BY occurred_on ASC, created_at ASC, rowid ASC'
     ).all(orderItemId) as FulfillmentEventRow[]).map(mapEvent)
   }
 
