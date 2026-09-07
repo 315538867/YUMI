@@ -3518,7 +3518,15 @@ function OrderDetailWorkspace({
               </Badge>
             </Flex>
           </div>
-          <Flex justify="end">
+          <Flex gap="2" justify="end">
+            <Button
+              size="1"
+              variant="soft"
+              disabled={exportingOrderSheet}
+              onClick={() => void exportOrderSheet()}
+            >
+              {exportingOrderSheet ? '生成中…' : '生成订单表'}
+            </Button>
             <Button size="1" variant="soft" onClick={() => void openCostDetail()}>
               查看成本详情
             </Button>
@@ -3751,16 +3759,6 @@ function OrderDetailWorkspace({
                 ))}
               </div>
             )}
-            <Flex gap="2" align="center" justify="end">
-              <Button
-                size="1"
-                variant="soft"
-                disabled={exportingOrderSheet}
-                onClick={() => void exportOrderSheet()}
-              >
-                {exportingOrderSheet ? '生成中…' : '生成订单表'}
-              </Button>
-            </Flex>
           </section>
           <section className="inspector-section payment-section">
             <Flex justify="between" align="center">

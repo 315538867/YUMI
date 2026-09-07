@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { StudioDatabase } from '@main/database/connection'
-import { calculateDailyCapacity, calculateProductCost } from '@main/domain/costing'
+import {
+  calculateDailyCapacity,
+  calculateProductCost,
+  type ProductCostInput
+} from '@main/domain/costing'
 import { calculateActualProductionCost, calculateProductionProgress } from '@main/domain/production'
 import { previewShiftRisks } from '@main/domain/scheduling'
 import { DomainValidationError } from '@main/domain/errors'
@@ -90,6 +94,44 @@ const defaultCostSettings: CostSettings = {
 }
 
 type Row = Record<string, unknown>
+
+type LegacyProductOrderSnapshot = Partial<ProductOrderSnapshot> & {
+  gluePriceCentsPerGram?: unknown
+}
+
+function snapshotCostNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function productCostInputFromSnapshot(
+  snapshot: LegacyProductOrderSnapshot,
+  quantity: number,
+  edgeEnabled: boolean,
+  edgeQuantity: number,
+  edgePriceCents: number
+): ProductCostInput {
+  // 旧订单快照可能没有后来新增的成本字段；更早版本的胶水单价以“分/克”保存。
+  const legacyGluePriceMilliYuanPerGram = snapshotCostNumber(snapshot.gluePriceCentsPerGram) * 10
+  return {
+    quantity,
+    weightGrams: snapshotCostNumber(snapshot.weightGrams),
+    lossRate: snapshotCostNumber(snapshot.lossRate),
+    gluePricePerGram:
+      snapshotCostNumber(snapshot.gluePriceMilliYuanPerGram, legacyGluePriceMilliYuanPerGram) /
+      1000,
+    packagingCostPerUnit: snapshotCostNumber(snapshot.packagingCostCents) / 100,
+    accessoryCostPerUnit: snapshotCostNumber(snapshot.accessoryCostCents) / 100,
+    replacementBagCostPerUnit: snapshotCostNumber(snapshot.replacementBagCostCents) / 100,
+    fluffPackingCostPerUnit: snapshotCostNumber(snapshot.fluffPackingCostCents) / 100,
+    edgeCostPerUnit: snapshotCostNumber(snapshot.edgeCostCents) / 100,
+    standardMinutesPerUnit: snapshotCostNumber(snapshot.standardMinutesPerUnit),
+    hourlyLaborCost: snapshotCostNumber(snapshot.defaultHourlyWageCents) / 100,
+    commissionPerUnit: snapshotCostNumber(snapshot.commissionCentsPerUnit) / 100,
+    edgeEnabled,
+    edgeQuantity,
+    edgePricePerUnit: edgePriceCents / 100
+  }
+}
 
 function productSummaryFromRow(row: Row): ProductSummary {
   return {
@@ -205,25 +247,9 @@ function estimateItemCostCents(
   edgeQuantity: number,
   edgePriceCents: number
 ): number {
-  const result = calculateProductCost({
-    quantity,
-    weightGrams: snapshot.weightGrams,
-    lossRate: snapshot.lossRate,
-    gluePricePerGram: snapshot.gluePriceMilliYuanPerGram / 1000,
-    packagingCostPerUnit: snapshot.packagingCostCents / 100,
-    accessoryCostPerUnit: snapshot.accessoryCostCents / 100,
-    replacementBagCostPerUnit: snapshot.replacementBagCostCents / 100,
-    fluffPackingCostPerUnit: snapshot.fluffPackingCostCents / 100,
-    edgeCostPerUnit: snapshot.edgeCostCents / 100,
-    standardMinutesPerUnit: snapshot.standardMinutesPerUnit,
-    // 订单创建时尚未分配具体兼职人员；预计人工成本采用当时的全局默认时薪。
-    // 实际人工成本会在排班完成后按排班日期的人员时薪和完整预留工时汇总。
-    hourlyLaborCost: (snapshot.defaultHourlyWageCents ?? 0) / 100,
-    commissionPerUnit: snapshot.commissionCentsPerUnit / 100,
-    edgeEnabled,
-    edgeQuantity,
-    edgePricePerUnit: edgePriceCents / 100
-  })
+  const result = calculateProductCost(
+    productCostInputFromSnapshot(snapshot, quantity, edgeEnabled, edgeQuantity, edgePriceCents)
+  )
   return Math.round(result.totalCost * 100)
 }
 
@@ -237,23 +263,9 @@ function calculateOrderCostItem(
   actualLaborMinutes: number,
   actualLaborCostCents: number
 ): OrderCostItemDetail {
-  const expected = calculateProductCost({
-    quantity,
-    weightGrams: snapshot.weightGrams,
-    lossRate: snapshot.lossRate,
-    gluePricePerGram: snapshot.gluePriceMilliYuanPerGram / 1000,
-    packagingCostPerUnit: snapshot.packagingCostCents / 100,
-    accessoryCostPerUnit: snapshot.accessoryCostCents / 100,
-    replacementBagCostPerUnit: snapshot.replacementBagCostCents / 100,
-    fluffPackingCostPerUnit: snapshot.fluffPackingCostCents / 100,
-    edgeCostPerUnit: snapshot.edgeCostCents / 100,
-    standardMinutesPerUnit: snapshot.standardMinutesPerUnit,
-    hourlyLaborCost: (snapshot.defaultHourlyWageCents ?? 0) / 100,
-    commissionPerUnit: snapshot.commissionCentsPerUnit / 100,
-    edgeEnabled,
-    edgeQuantity,
-    edgePricePerUnit: edgePriceCents / 100
-  })
+  const expected = calculateProductCost(
+    productCostInputFromSnapshot(snapshot, quantity, edgeEnabled, edgeQuantity, edgePriceCents)
+  )
   const directCostCents = Math.round((expected.totalCost - expected.laborCost) * 100)
   return {
     orderItemId,

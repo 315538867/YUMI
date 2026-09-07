@@ -128,6 +128,40 @@ describe('客户、订单与收退款管理', () => {
     ])
   })
 
+  it('兼容缺少新成本字段的历史订单快照，并转换旧版胶水单价', () => {
+    const context = createService()
+    databases.push(context.database)
+    const bear = context.service.createProduct(bearInput)
+    const order = context.service.createOrder({
+      customer: { name: '小雨', contact: '13800000000' },
+      expectedShipDate: '2026-09-15',
+      items: [{ productId: bear.id, quantity: 1 }]
+    })
+    const historicalSnapshot = {
+      ...order.items[0]!.productSnapshot,
+      gluePriceCentsPerGram: 5
+    } as Record<string, unknown>
+    delete historicalSnapshot.gluePriceMilliYuanPerGram
+    delete historicalSnapshot.defaultHourlyWageCents
+    delete historicalSnapshot.fluffPackingCostCents
+    delete historicalSnapshot.edgeCostCents
+    context.database
+      .prepare('UPDATE order_items SET product_snapshot_json = ? WHERE id = ?')
+      .run(JSON.stringify(historicalSnapshot), order.items[0]!.id)
+
+    expect(context.service.getOrderCostDetail(order.id)).toMatchObject({
+      estimatedCostCents: 740,
+      actualCostCents: 740,
+      items: [
+        expect.objectContaining({
+          glueCostCents: 110,
+          fluffPackingCostCents: 0,
+          edgeCostCents: 0
+        })
+      ]
+    })
+  })
+
   it('支持编辑多商品订单并刷新售价、缝边、优惠、交期与成本快照', () => {
     const context = createService()
     databases.push(context.database)
