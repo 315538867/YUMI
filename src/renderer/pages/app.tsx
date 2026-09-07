@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { Badge, Button, Text } from '@radix-ui/themes'
-import { CircleDollarSign, ClipboardList, Package, Users } from 'lucide-react'
+import { CircleDollarSign, ClipboardList, Package, Users, WalletCards } from 'lucide-react'
 import { CustomersPage } from './customers'
 import { FulfillmentPage } from './fulfillment'
 import { OrdersPage } from './orders'
 import { ProductsPage } from './products'
+import { SettlementsPage } from './settlements'
 
-type View = 'orders' | 'fulfillment' | 'customers' | 'products'
+type View = 'orders' | 'fulfillment' | 'settlements' | 'customers' | 'products'
 
 const navigation: Array<{ id: View; label: string; icon: typeof CircleDollarSign }> = [
   { id: 'orders', label: '订单', icon: CircleDollarSign },
   { id: 'fulfillment', label: '履约', icon: ClipboardList },
+  { id: 'settlements', label: '工资', icon: WalletCards },
   { id: 'customers', label: '客户', icon: Users },
   { id: 'products', label: '商品', icon: Package }
 ]
@@ -37,6 +39,7 @@ export function App() {
         <div className="content">
           {view === 'orders' && <OrdersPage />}
           {view === 'fulfillment' && <FulfillmentPage />}
+          {view === 'settlements' && <SettlementsPage />}
           {view === 'customers' && <CustomersPage />}
           {view === 'products' && <ProductsPage />}
         </div>

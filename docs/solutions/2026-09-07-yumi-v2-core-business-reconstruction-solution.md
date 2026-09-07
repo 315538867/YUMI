@@ -9,7 +9,7 @@ branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 C；C.4 工资结算自动记账已完成，下一步实现兼职人员与工资结算页面）
+implementation_status: 实施中（阶段 C；C.5 兼职人员与工资结算页面已完成，下一步补强工资验收场景）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1133,3 +1133,10 @@ npm run build
 - `SettlementService.confirm` 现在在同一数据库事务中创建 `expense` 方向、`wage_payment` 业务类型的实际工资支出，并把生成的流水标识唯一写回 `worker_settlements.financial_entry_id`，随后确认任务与扣款分配。已确认单不再满足草稿状态，因此重复确认无法重复记账；任一后续写入失败会使同一事务中的工资流水回滚。
 - 工资流水金额使用负责人已填写的最终实发金额、实际付款日期和备注；排班/考勤两套参考工资不会在确认时回写。确认代表实际发放，因而最终实发为零的草稿不能确认，避免记录无金额的现金事实。
 - 验证：`src/main/services/settlement-service.test.ts` 覆盖唯一工资流水、关联标识、金额/日期/备注、零元确认拒绝及重复确认拒绝；`src/main/database/v2-storage.test.ts` 覆盖迁移版本、来源类型约束与增量升级；全量 `npm test`（49 个测试文件、135 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 均通过。下一步为 C.5：兼职人员与工资结算页面。
+
+### 2026-09-07：阶段 C.5 完成
+
+- 新增“工资”导航和 `use-settlements` composable：集中读取兼职人员与结算单，封装人员创建、时薪历史、结算草稿、草稿更新和确认结算调用；页面和结算明细组件均不直接访问预加载 API。
+- `WorkersPage` 支持新建兼职人员时同步录入首条时薪，并按选择的人员查看或新增生效日时薪历史。`SettlementsPage` 允许负责人任选人员与任意起止日期建立草稿，并在结算列表中切换已存在结算。
+- 独立 `SettlementDetail` 组件展示排班/考勤两套参考工资、任务来源、扣款来源与本期抵扣；草稿状态下可填写考勤分钟、实际扣款、其他调整、最终实发、实际付款日期和负责人备注，保存后再执行“确认并记账”。任一失败均保留当前页面草稿和错误信息。
+- 验证：页面边界测试扩展工资工作区，覆盖分层边界、任意日期范围、双口径、来源明细与确认入口；`npm run lint`、`npm run build`、全量 `npm test`（49 个测试文件、137 个用例）、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 均通过。下一步为 C.6：补强工资结算验收场景。

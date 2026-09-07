@@ -10,11 +10,15 @@ const productPageSource = source('src/renderer/pages/products/index.tsx')
 const orderPageSource = source('src/renderer/pages/orders/index.tsx')
 const fulfillmentPageSource = source('src/renderer/pages/fulfillment/index.tsx')
 const workAssignmentsPageSource = source('src/renderer/pages/work-assignments/index.tsx')
+const workersPageSource = source('src/renderer/pages/workers/index.tsx')
+const settlementsPageSource = source('src/renderer/pages/settlements/index.tsx')
+const settlementDetailSource = source('src/renderer/components/settlement/settlement-detail.tsx')
 const customerComposableSource = source('src/renderer/composables/use-customers.ts')
 const productComposableSource = source('src/renderer/composables/use-products.ts')
 const orderComposableSource = source('src/renderer/composables/use-orders.ts')
 const fulfillmentComposableSource = source('src/renderer/composables/use-fulfillment.ts')
 const workAssignmentsComposableSource = source('src/renderer/composables/use-work-assignments.ts')
+const settlementsComposableSource = source('src/renderer/composables/use-settlements.ts')
 
 describe('V2 应用壳与页面边界', () => {
   it('应用壳仅负责导航与页面装配，不直接调用预加载能力', () => {
@@ -22,12 +26,13 @@ describe('V2 应用壳与页面边界', () => {
     expect(appSource).toContain("from './products'")
     expect(appSource).toContain("from './orders'")
     expect(appSource).toContain("from './fulfillment'")
+    expect(appSource).toContain("from './settlements'")
     expect(appSource).not.toContain('window.yumi')
     expect(appSource).not.toContain('ipcRenderer')
   })
 
   it('页面通过 composable 获取数据，不直接连接 IPC', () => {
-    for (const pageSource of [customerPageSource, productPageSource, orderPageSource, fulfillmentPageSource, workAssignmentsPageSource]) {
+    for (const pageSource of [customerPageSource, productPageSource, orderPageSource, fulfillmentPageSource, workAssignmentsPageSource, workersPageSource, settlementsPageSource, settlementDetailSource]) {
       expect(pageSource).not.toContain('window.yumi')
       expect(pageSource).not.toContain('ipcRenderer')
     }
@@ -36,6 +41,8 @@ describe('V2 应用壳与页面边界', () => {
     expect(orderComposableSource).toContain('window.yumiV2.orders')
     expect(fulfillmentComposableSource).toContain('window.yumiV2.fulfillment')
     expect(workAssignmentsComposableSource).toContain('window.yumiV2.fulfillment')
+    expect(settlementsComposableSource).toContain('window.yumiV2.workers')
+    expect(settlementsComposableSource).toContain('window.yumiV2.settlements')
   })
 })
 
@@ -88,5 +95,30 @@ describe('V2 履约工作区', () => {
     expect(workAssignmentsPageSource).toContain('await createWorkAssignment')
     expect(workAssignmentsPageSource).toContain('await submitProcessResult')
     expect(workAssignmentsPageSource).toContain('await confirmQualityInspection')
+  })
+})
+
+
+describe('V2 兼职工资结算工作区', () => {
+  it('提供兼职人员、任意日期范围结算、双口径参考和确认入口', () => {
+    expect(workersPageSource).toContain('新增兼职人员')
+    expect(workersPageSource).toContain('时薪历史')
+    expect(settlementsPageSource).toContain('新建结算草稿')
+    expect(settlementsPageSource).toContain('结算日期范围')
+    expect(settlementDetailSource).toContain('排班口径')
+    expect(settlementDetailSource).toContain('考勤口径')
+    expect(settlementDetailSource).toContain('任务来源')
+    expect(settlementDetailSource).toContain('扣款来源')
+    expect(settlementDetailSource).toContain('确认并记账')
+  })
+
+  it('页面通过 composable 和纯展示组件提交草稿、更新和确认，失败保留页面草稿', () => {
+    expect(settlementsPageSource).toContain('setError')
+    expect(settlementsPageSource).toContain('await createDraft')
+    expect(workersPageSource).toContain('setError')
+    expect(workersPageSource).toContain('await createWorker')
+    expect(settlementDetailSource).toContain('setError')
+    expect(settlementDetailSource).toContain('await props.updateDraft')
+    expect(settlementDetailSource).toContain('await props.confirmSettlement')
   })
 })
