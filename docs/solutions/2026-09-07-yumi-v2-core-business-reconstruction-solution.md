@@ -3,13 +3,13 @@ title: YUMI V2 核心业务重构方案
 date: 2026-09-07
 last_modified: 2026-09-07
 modifier: Codex
-solution_version: v2.4
+solution_version: v2.5
 status: 已确认，实施中
 branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 B；B.1 履约事实表已完成，下一步履约领域规则）
+implementation_status: 实施中（阶段 B；B.2 履约领域规则已完成，下一步履约仓储、服务、IPC 与共享契约）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1067,3 +1067,10 @@ npm run build
 - V2 迁移版本 4 建立 `work_assignments`、`process_tasks`、`process_results`、`quality_inspections`、`fulfillment_events` 与 `opening_wip_records`。数量、计划分钟、费率均有非负或正数约束；质检对每条完成申报唯一；事件和期初在制品均关联订单商品及来源记录。
 - 兼职人员主数据由阶段 C 统一建立，因此工作安排当前存储必填 `worker_id` 引用值，不提前创建与阶段 C 重复的人员表；阶段 B 服务会在人员领域开放后统一校验。
 - 验证：迁移定向测试 4 个用例、全量 `npm test`（45 个测试文件、116 个用例通过）、`npm run typecheck`、`npm run lint`、`git diff --check`。下一步为 B.2：固定工序数量流转与履约领域规则。
+
+
+### 2026-09-07：阶段 B.2 完成
+
+- 新增 `fulfillment` 纯领域模块，固定制作、捏毛装袋、打包、发货四道工序，并声明正常生产、返工、售后补发、负责人安排四类任务来源。制作计划分钟严格按“计划数量 × 商品标准制作分钟 + 负责人额外预留分钟”计算；捏毛装袋、打包、发货由负责人填写计划分钟，避免把制作额外预留错误套用到其他工序。
+- 完成申报要求正数；质检必须仅确认一次，合格数量与不合格数量之和必须等于本次完成申报。制作、捏毛装袋的合格数量与打包完成分别生成固定阶段转换事件；期初在制品也用事件从未完成数量转入目标阶段，阶段余额仅由事件推演，来源阶段不足会被拒绝，发货可用量等于待发货阶段余额。
+- 验证：`src/main/domain/fulfillment.test.ts` 4 个用例、全量 `npm test`（46 个测试文件、120 个用例）、`npm run typecheck`、`npm run lint`、`git diff --check` 通过。下一步为 B.3：履约仓储、服务、IPC 与共享契约。
