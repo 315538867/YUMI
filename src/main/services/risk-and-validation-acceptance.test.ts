@@ -3,6 +3,7 @@ import { addDays, format } from 'date-fns'
 import { createDatabase, type StudioDatabase } from '@main/database/connection'
 import { StudioRepository } from '@main/repositories/studio-repository'
 import { StudioService } from './studio-service'
+import { createOrderCustomer } from './test-order-customer'
 
 describe('风险确认与输入拒绝验收', () => {
   const databases: StudioDatabase[] = []
@@ -22,7 +23,7 @@ describe('风险确认与输入拒绝验收', () => {
     })
     const worker = service.createWorker({ name: '风险验收人员', hourlyWageCents: 2800 })
     const order = service.createOrder({
-      customer: { name: '风险验收客户' }, expectedShipDate: todayText, reserveDays: 0,
+      customer: createOrderCustomer(service, { name: '风险验收客户' }), expectedShipDate: todayText, reserveDays: 0,
       items: [{ productId: product.id, quantity: 8 }]
     })
     const input = { workerId: worker.id, shiftDate: tomorrowText, tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 3 }] }
@@ -43,11 +44,11 @@ describe('风险确认与输入拒绝验收', () => {
       commissionCentsPerUnit: 200, moldCount: 5, outputPerMoldPerBatch: 1, maxBatchesPerDay: 1
     })
     const worker = service.createWorker({ name: '输入验收人员', hourlyWageCents: 2800 })
-    const order = service.createOrder({ customer: { name: '输入验收客户' }, expectedShipDate: format(addDays(new Date(), 5), 'yyyy-MM-dd'), items: [{ productId: product.id, quantity: 2 }] })
+    const order = service.createOrder({ customer: createOrderCustomer(service, { name: '输入验收客户' }), expectedShipDate: format(addDays(new Date(), 5), 'yyyy-MM-dd'), items: [{ productId: product.id, quantity: 2 }] })
     expect(() => service.saveShift({ workerId: worker.id, shiftDate: todayText, extraMinutes: -1, tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 1 }] })).toThrow('金额或数量不能为负数')
     expect(() => service.recordPayment({ orderId: order.id, type: 'receipt', amountCents: 0, paymentMethod: '微信', paidAt: todayText })).toThrow('数值必须大于 0')
-    expect(() => service.createOrder({ customer: { name: '数量验收客户' }, expectedShipDate: todayText, items: [{ productId: product.id, quantity: 0 }] })).toThrow('数值必须大于 0')
-    expect(() => service.createOrder({ customer: { name: '关联验收客户' }, expectedShipDate: todayText, items: [{ productId: '00000000-0000-4000-8000-000000000001', quantity: 1 }] })).toThrow('商品不存在')
+    expect(() => service.createOrder({ customer: createOrderCustomer(service, { name: '数量验收客户' }), expectedShipDate: todayText, items: [{ productId: product.id, quantity: 0 }] })).toThrow('数值必须大于 0')
+    expect(() => service.createOrder({ customer: createOrderCustomer(service, { name: '关联验收客户' }), expectedShipDate: todayText, items: [{ productId: '00000000-0000-4000-8000-000000000001', quantity: 1 }] })).toThrow('商品不存在')
   })
 
   it('订单数量超排在预览中明确提示，未确认不可保存，确认后留下风险记录', () => {
@@ -61,7 +62,7 @@ describe('风险确认与输入拒绝验收', () => {
     })
     const worker = service.createWorker({ name: '超排验收人员', hourlyWageCents: 2800 })
     const order = service.createOrder({
-      customer: { name: '超排验收客户' }, expectedShipDate: '2026-09-20',
+      customer: createOrderCustomer(service, { name: '超排验收客户' }), expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 3 }]
     })
     const input = {

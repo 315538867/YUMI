@@ -67,15 +67,18 @@ import {
 } from '../status-display'
 import { parseNumericDraft } from './numeric-draft'
 import { NumericTextField } from './numeric-text-field'
+import { CustomerManagementPage } from './customer-management-page'
 import { calculateDraftTotals, getErrorMessage, getWeekDates } from './workspace-utils'
 import { getAvailableShiftTaskItems, type ShiftTaskOption } from './shift-task-options'
 
-type View = 'overview' | 'orders' | 'schedule' | 'products' | 'workers' | 'reports' | 'settings'
+type View =
+  'overview' | 'orders' | 'customers' | 'schedule' | 'products' | 'workers' | 'reports' | 'settings'
 type DetailTarget = { kind: 'order' | 'worker' | 'shift'; id: string }
 
 const navigation: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'overview', label: '概览', icon: LayoutDashboard },
   { id: 'orders', label: '订单', icon: CircleDollarSign },
+  { id: 'customers', label: '客户管理', icon: Users },
   { id: 'schedule', label: '排班', icon: CalendarDays },
   { id: 'products', label: '商品', icon: Package },
   { id: 'workers', label: '兼职人员', icon: Users },
@@ -364,6 +367,7 @@ function ViewContent({
     )
   if (view === 'products') return <Products products={products} onDataChanged={onDataChanged} />
   if (view === 'orders') return <Orders orders={orders} onInspectOrder={onInspectOrder} />
+  if (view === 'customers') return <CustomerManagementPage onInspectOrder={onInspectOrder} />
   if (view === 'workers') return <Workers workers={workers} onInspectWorker={onInspectWorker} />
   if (view === 'schedule')
     return (
@@ -2941,8 +2945,12 @@ function OrderDialog({
   }
 
   const submit = async () => {
+    if (!customerId) {
+      setError('请先选择已有客户；如需新建，请前往客户管理。')
+      return
+    }
     if (!customerName.trim()) {
-      setError('请填写客户名称或先选择已有客户。')
+      setError('请填写客户名称。')
       return
     }
     if (!expectedShipDate) {
@@ -2957,7 +2965,7 @@ function OrderDialog({
     setError('')
     const input: OrderCreateInput = {
       customer: {
-        id: customerId || undefined,
+        id: customerId,
         name: customerName.trim(),
         contact: contact.trim() || null,
         defaultAddress: address.trim() || null
@@ -3011,7 +3019,7 @@ function OrderDialog({
             <div className="section-title">
               <Text weight="medium">客户与交期</Text>
               <Text size="1" color="gray">
-                可以直接选择已有客户，也可快速建立新客户。
+                请选择已有客户；名称、联系方式和地址可按本订单需要调整。
               </Text>
             </div>
             <div className="field-grid three">
@@ -3024,7 +3032,7 @@ function OrderDialog({
                   value={customerId}
                   onChange={(event) => chooseCustomer(event.target.value)}
                 >
-                  <option value="">新建客户</option>
+                  <option value="">请选择已有客户</option>
                   {customers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
                       {customer.name}

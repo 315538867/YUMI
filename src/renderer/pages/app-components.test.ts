@@ -186,3 +186,15 @@ describe('订单、人员与排班详情工作区', () => {
     expect(appStyles).not.toMatch(/\.schedule-inspector-dialog\s*\{/)
   })
 })
+
+describe('独立客户管理与订单关联', () => {
+  it('提供客户管理入口，订单仅可关联已建客户且不再显示临时新建选项', () => {
+    expect(appSource).toMatch(/label: '客户管理'/)
+    expect(appSource).toMatch(/CustomerManagementPage/)
+    expect(appSource).toMatch(/请先选择已有客户；如需新建，请前往客户管理。/)
+    expect(appSource).toMatch(/setCustomerName\(customer\.name\)/)
+    expect(appSource).toMatch(/setContact\(customer\.contact \?\? ''\)/)
+    expect(appSource).toMatch(/setAddress\(customer\.defaultAddress \?\? ''\)/)
+    expect(appSource).not.toContain('新建客户')
+  })
+})

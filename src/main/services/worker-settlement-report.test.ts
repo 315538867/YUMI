@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createDatabase, type StudioDatabase } from '@main/database/connection'
 import { StudioRepository } from '@main/repositories/studio-repository'
 import { StudioService } from './studio-service'
+import { createOrderCustomer } from './test-order-customer'
 
 describe('兼职人员结算报表', () => {
   const databases: StudioDatabase[] = []
@@ -30,7 +31,7 @@ describe('兼职人员结算报表', () => {
     })
     const worker = service.createWorker({ name: '小林', hourlyWageCents: 2800 })
     const order = service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(service, { name: '小雨' }),
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 6 }]
     })
@@ -50,7 +51,7 @@ describe('兼职人员结算报表', () => {
       scrapQuantity: 1
     })
     const absentOrder = service.createOrder({
-      customer: { name: '小雪' },
+      customer: createOrderCustomer(service, { name: '小雪' }),
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 6 }]
     })

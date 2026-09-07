@@ -43,8 +43,12 @@ describe('演示数据', () => {
       expect.objectContaining({ orderedQuantity: 8, shippedQuantity: 3, pendingQuantity: 5 }),
       expect.objectContaining({ orderedQuantity: 3, shippedQuantity: 2, pendingQuantity: 1 })
     ])
-    expect(multiProductOrderDetail.items.map((item) => item.productSnapshot.accessoryCostCents)).toEqual([80, 120])
-    expect(multiProductOrderDetail.items.map((item) => item.productSnapshot.replacementBagCostCents)).toEqual([30, 40])
+    expect(
+      multiProductOrderDetail.items.map((item) => item.productSnapshot.accessoryCostCents)
+    ).toEqual([80, 120])
+    expect(
+      multiProductOrderDetail.items.map((item) => item.productSnapshot.replacementBagCostCents)
+    ).toEqual([30, 40])
 
     const shifts = repository.listShifts('2000-01-01', '2100-01-01')
     expect(shifts.some((shift) => shift.status === 'absent')).toBe(true)

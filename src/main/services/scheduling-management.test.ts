@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createDatabase, type StudioDatabase } from '@main/database/connection'
 import { StudioRepository } from '@main/repositories/studio-repository'
 import { StudioService } from './studio-service'
+import { createOrderCustomer } from './test-order-customer'
 
 const productInput = {
   name: '奶油小熊',
@@ -37,7 +38,7 @@ describe('排班时长与完成数量', () => {
     const product = context.service.createProduct(productInput)
     const worker = context.service.createWorker({ name: '小林', hourlyWageCents: 2800 })
     const order = context.service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(context.service, { name: '小雨' }),
       expectedShipDate: '2026-09-15',
       reserveDays: 2,
       items: [{ productId: product.id, quantity: 8 }]
@@ -78,7 +79,7 @@ describe('排班时长与完成数量', () => {
     const product = context.service.createProduct({ ...productInput, standardMinutesPerUnit: 10 })
     const worker = context.service.createWorker({ name: '小林', hourlyWageCents: 2800 })
     const order = context.service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(context.service, { name: '小雨' }),
       expectedShipDate: '2026-09-15',
       items: [{ productId: product.id, quantity: 6 }]
     })
@@ -164,7 +165,7 @@ describe('排班时长与完成数量', () => {
     const product = context.service.createProduct({ ...productInput, standardMinutesPerUnit: 10 })
     const worker = context.service.createWorker({ name: '小林', hourlyWageCents: 2800 })
     const order = context.service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(context.service, { name: '小雨' }),
       expectedShipDate: '2026-09-15',
       items: [
         { productId: product.id, quantity: 2 },
@@ -189,7 +190,7 @@ describe('排班时长与完成数量', () => {
     const product = context.service.createProduct({ ...productInput, standardMinutesPerUnit: 10 })
     const worker = context.service.createWorker({ name: '小林', hourlyWageCents: 2800 })
     const order = context.service.createOrder({
-      customer: { name: '小雨' },
+      customer: createOrderCustomer(context.service, { name: '小雨' }),
       expectedShipDate: '2026-09-15',
       items: [{ productId: product.id, quantity: 2 }]
     })

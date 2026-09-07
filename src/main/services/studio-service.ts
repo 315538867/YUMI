@@ -12,6 +12,8 @@ import { StudioRepository } from '@main/repositories/studio-repository'
 import type {
   CostSettingsInput,
   CustomerInput,
+  CustomerManagementQuery,
+  CustomerUpdateInput,
   OrderCreateInput,
   OrderDefaults,
   OrderProductionStatusInput,
@@ -88,8 +90,7 @@ const costSettingsSchema = z.object({
   effectiveFrom: dateText
 })
 const orderDefaultsSchema = z.object({ defaultReserveDays: nonNegativeInteger })
-const customerSchema = z.object({
-  id: z.string().uuid('客户 ID 无效').optional(),
+const customerInputSchema = z.object({
   name: z
     .string()
     .trim()
@@ -99,6 +100,11 @@ const customerSchema = z.object({
   defaultAddress: optionalText,
   notes: optionalText
 })
+const customerUpdateSchema = customerInputSchema.extend({ id: z.string().uuid('客户 ID 无效') })
+const orderCustomerSchema = customerInputSchema
+  .omit({ notes: true })
+  .extend({ id: z.string({ required_error: '请先选择已有客户' }).uuid('客户 ID 无效') })
+const customerManagementQuerySchema = z.object({ keyword: z.string().trim().max(100).optional() })
 const orderItemSchema = z.object({
   id: z.string().uuid('订单商品明细 ID 无效').optional(),
   productId: z.string().uuid('商品 ID 无效'),
@@ -110,7 +116,7 @@ const orderItemSchema = z.object({
   discountCents: nonNegativeInteger.optional()
 })
 const orderCreateSchema = z.object({
-  customer: customerSchema,
+  customer: orderCustomerSchema,
   expectedShipDate: dateText,
   reserveDays: nonNegativeInteger.optional(),
   discountCents: nonNegativeInteger.optional(),
@@ -327,7 +333,30 @@ export class StudioService {
   }
 
   createCustomer(input: CustomerInput) {
-    return this.repository.createCustomer(validate(customerSchema, input))
+    return this.repository.createCustomer(validate(customerInputSchema, input))
+  }
+
+  updateCustomer(input: CustomerUpdateInput) {
+    const customer = this.repository.updateCustomer(validate(customerUpdateSchema, input))
+    if (!customer) throw new DomainValidationError('客户不存在或已被删除')
+    return customer
+  }
+
+  deleteCustomer(customerId: string) {
+    if (!z.string().uuid().safeParse(customerId).success)
+      throw new DomainValidationError('客户 ID 无效')
+    if (!this.repository.deleteCustomer(customerId))
+      throw new DomainValidationError('客户不存在或已被删除')
+  }
+
+  listCustomerManagement(input: CustomerManagementQuery = {}) {
+    return this.repository.listCustomerManagement(validate(customerManagementQuerySchema, input))
+  }
+
+  getCustomerDetail(customerId: string) {
+    if (!z.string().uuid().safeParse(customerId).success)
+      throw new DomainValidationError('客户 ID 无效')
+    return this.repository.getCustomerDetail(customerId)
   }
 
   listCustomerOrderHistory(customerId: string) {
@@ -587,6 +616,8 @@ export class StudioService {
 
   createOrder(input: OrderCreateInput) {
     const parsed = validate(orderCreateSchema, input)
+    if (!this.repository.getCustomer(parsed.customer.id))
+      throw new DomainValidationError('客户不存在')
     if (parsed.reserveDays !== undefined)
       calculateProductionDeadline(parsed.expectedShipDate, parsed.reserveDays)
     for (const item of parsed.items) {
@@ -603,6 +634,8 @@ export class StudioService {
 
   updateOrder(input: OrderUpdateInput) {
     const parsed = validate(orderUpdateSchema, input)
+    if (!this.repository.getCustomer(parsed.customer.id))
+      throw new DomainValidationError('客户不存在')
     if (parsed.reserveDays !== undefined)
       calculateProductionDeadline(parsed.expectedShipDate, parsed.reserveDays)
     for (const item of parsed.items) {

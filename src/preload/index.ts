@@ -40,6 +40,11 @@ const yumi: YumiApi = {
   },
   customers: {
     list: () => ipcRenderer.invoke('customers:list'),
+    listManagement: (input) => ipcRenderer.invoke('customers:management:list', input),
+    getDetail: (customerId) => ipcRenderer.invoke('customers:detail', customerId),
+    create: (input) => ipcRenderer.invoke('customers:create', input),
+    update: (input) => ipcRenderer.invoke('customers:update', input),
+    delete: (customerId) => ipcRenderer.invoke('customers:delete', customerId),
     history: (customerId) => ipcRenderer.invoke('customers:history', customerId)
   },
   orders: {

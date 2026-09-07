@@ -79,11 +79,19 @@ export class DemoDataService {
       defaultWorkEnd: '20:00'
     })
 
+    const linCustomer = this.studio.createCustomer({
+      name: '林小姐',
+      contact: '微信：lin-demo',
+      defaultAddress: '演示地址，请勿发货'
+    })
+    const zhouCustomer = this.studio.createCustomer({ name: '周同学', contact: '微信：zhou-demo' })
+
     const multiProductOrder = this.studio.createOrder({
       customer: {
-        name: '林小姐',
-        contact: '微信：lin-demo',
-        defaultAddress: '演示地址，请勿发货'
+        id: linCustomer.id,
+        name: linCustomer.name,
+        contact: linCustomer.contact,
+        defaultAddress: linCustomer.defaultAddress
       },
       expectedShipDate: format(addDays(this.currentDate, 6), 'yyyy-MM-dd'),
       reserveDays: 2,
@@ -138,7 +146,7 @@ export class DemoDataService {
     })
 
     const capacityOrder = this.studio.createOrder({
-      customer: { name: '周同学', contact: '微信：zhou-demo' },
+      customer: { id: zhouCustomer.id, name: zhouCustomer.name, contact: zhouCustomer.contact },
       expectedShipDate: format(addDays(this.currentDate, 4), 'yyyy-MM-dd'),
       reserveDays: 1,
       notes: '演示：同日计划量超过云朵吐司模具日产能。',
@@ -155,7 +163,9 @@ export class DemoDataService {
     this.studio.updateShiftStatus({
       shiftId: completedShift.id,
       status: 'completed',
-      taskCompletions: [{ shiftTaskId: completedTask.id, qualifiedQuantity: 3, unqualifiedQuantity: 1 }]
+      taskCompletions: [
+        { shiftTaskId: completedTask.id, qualifiedQuantity: 3, unqualifiedQuantity: 1 }
+      ]
     })
 
     const absentShift = this.saveShiftWithAllRisks({
@@ -194,7 +204,8 @@ export class DemoDataService {
     if (
       this.repository.listProducts().length > 0 ||
       this.repository.listOrders().length > 0 ||
-      this.repository.listWorkers().length > 0
+      this.repository.listWorkers().length > 0 ||
+      this.repository.listCustomers().length > 0
     ) {
       throw new DomainValidationError('已有业务数据，不能加载演示数据')
     }

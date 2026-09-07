@@ -156,11 +156,32 @@ export interface CustomerProfile {
 }
 
 export interface CustomerInput {
-  id?: string
   name: string
   contact?: string | null
   defaultAddress?: string | null
   notes?: string | null
+}
+
+export interface CustomerUpdateInput extends CustomerInput {
+  id: string
+}
+
+export interface OrderCustomerInput {
+  id: string
+  name: string
+  contact?: string | null
+  defaultAddress?: string | null
+}
+
+export interface CustomerManagementQuery {
+  keyword?: string
+}
+
+export interface CustomerOverview extends CustomerProfile {
+  orderCount: number
+  pendingShipmentOrderCount: number
+  outstandingCents: number
+  latestOrderAt: string | null
 }
 
 export interface ProductOrderSnapshot {
@@ -198,7 +219,7 @@ export interface OrderItemInput {
 }
 
 export interface OrderCreateInput {
-  customer: CustomerInput
+  customer: OrderCustomerInput
   expectedShipDate: string
   reserveDays?: number
   discountCents?: number
@@ -363,6 +384,10 @@ export interface OrderFinancialSummary {
   receivedNetCents: number
   outstandingCents: number
   status: FinancialStatus
+}
+
+export interface CustomerDetail extends CustomerOverview {
+  orders: OrderSummary[]
 }
 
 export interface OrderDetail {
@@ -808,6 +833,11 @@ export interface YumiApi {
   }
   customers: {
     list(): Promise<CustomerProfile[]>
+    listManagement(input?: CustomerManagementQuery): Promise<CustomerOverview[]>
+    getDetail(customerId: string): Promise<CustomerDetail | null>
+    create(input: CustomerInput): Promise<CustomerProfile>
+    update(input: CustomerUpdateInput): Promise<CustomerProfile>
+    delete(customerId: string): Promise<void>
     history(customerId: string): Promise<OrderSummary[]>
   }
   orders: {

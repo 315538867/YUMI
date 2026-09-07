@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createDatabase, type StudioDatabase } from '@main/database/connection'
 import { StudioRepository } from '@main/repositories/studio-repository'
 import { StudioService } from './studio-service'
+import { createOrderCustomer } from './test-order-customer'
 
 describe('审计日志写入器', () => {
   const databases: StudioDatabase[] = []
@@ -37,7 +38,7 @@ describe('审计日志写入器', () => {
     expect(productUpdate?.dailyCapacity).toBe(8)
 
     const order = service.createOrder({
-      customer: { name: '审计客户' },
+      customer: createOrderCustomer(service, { name: '审计客户' }),
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 2, unitPriceCents: 3000 }]
     })

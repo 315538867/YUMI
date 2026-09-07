@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createDatabase, type StudioDatabase } from '@main/database/connection'
 import { StudioRepository } from '@main/repositories/studio-repository'
 import { StudioService } from './studio-service'
+import { createOrderCustomer } from './test-order-customer'
 
 describe('关键写操作事务边界', () => {
   const databases: StudioDatabase[] = []
@@ -10,7 +11,7 @@ describe('关键写操作事务边界', () => {
     databases.splice(0).forEach((database) => database.close())
   })
 
-  it('订单写入失败时回滚自动创建的客户和订单明细', () => {
+  it('订单写入失败时不留下订单明细，已建客户主档保持独立', () => {
     const database = createDatabase(':memory:')
     databases.push(database)
     const repository = new StudioRepository(database)
@@ -31,7 +32,7 @@ describe('关键写操作事务边界', () => {
 
     expect(() =>
       service.createOrder({
-        customer: { name: '不应留下的客户', contact: '000' },
+        customer: createOrderCustomer(service, { name: '不应留下的客户', contact: '000' }),
         expectedShipDate: '2026-09-20',
         items: [
           { productId: product.id, quantity: 1 },
@@ -40,7 +41,7 @@ describe('关键写操作事务边界', () => {
       })
     ).toThrow('商品不存在')
 
-    expect(repository.listCustomers()).toHaveLength(0)
+    expect(repository.listCustomers()).toHaveLength(1)
     expect(repository.listOrders()).toHaveLength(0)
   })
 
@@ -63,7 +64,7 @@ describe('关键写操作事务边界', () => {
       maxBatchesPerDay: 2
     })
     const order = service.createOrder({
-      customer: { name: '收款客户' },
+      customer: createOrderCustomer(service, { name: '收款客户' }),
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 1 }]
     })
@@ -102,7 +103,7 @@ describe('关键写操作事务边界', () => {
     })
     const worker = service.createWorker({ name: '排班人员', hourlyWageCents: 2800 })
     service.createOrder({
-      customer: { name: '排班事务客户' },
+      customer: createOrderCustomer(service, { name: '排班事务客户' }),
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 2 }]
     })

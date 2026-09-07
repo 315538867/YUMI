@@ -77,6 +77,13 @@ export function registerIpc(
   )
   ipcMain.handle('settings:audit-logs', () => repository.listAuditLogs())
   ipcMain.handle('customers:list', () => repository.listCustomers())
+  ipcMain.handle('customers:management:list', (_event, input) =>
+    service.listCustomerManagement(input)
+  )
+  ipcMain.handle('customers:detail', (_event, customerId) => service.getCustomerDetail(customerId))
+  ipcMain.handle('customers:create', (_event, input) => service.createCustomer(input))
+  ipcMain.handle('customers:update', (_event, input) => service.updateCustomer(input))
+  ipcMain.handle('customers:delete', (_event, customerId) => service.deleteCustomer(customerId))
   ipcMain.handle('customers:history', (_event, customerId) =>
     service.listCustomerOrderHistory(customerId)
   )
