@@ -75,7 +75,11 @@ describe('SettlementService', () => {
     expect(updated.deductionAllocations[0].allocatedCents).toBe(500)
 
     const confirmed = settlementService.confirm(draft.id)
-    expect(confirmed).toMatchObject({ status: 'confirmed', finalPaidAmountCents: 1_800, paidOn: '2026-09-09' })
+    expect(confirmed).toMatchObject({
+      status: 'confirmed', finalPaidAmountCents: 1_800, paidOn: '2026-09-09',
+      scheduledReferenceWageCents: 1_300, attendanceReferenceWageCents: 2_100,
+      actualDeductionCents: 500, continuingCarryoverCents: 250
+    })
     expect(confirmed.financialEntryId).toEqual(expect.any(String))
     expect(database.prepare(`
       SELECT id, source_type, direction, business_type, amount_cents, occurred_on, order_id, note

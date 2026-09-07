@@ -1,4 +1,4 @@
-> 当前执行：C.6（工资结算验收补强）。未通过对应验证前不得勾选完成。
+> 当前执行：D.1（日常财务与售后数据基线）。未通过对应验证前不得勾选完成。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -28,8 +28,8 @@
 - [x] C.3 新增 `src/main/repositories/settlement-repository.ts`、`src/main/services/settlement-service.ts`、`src/main/ipc/settlement-ipc.ts` 与 `src/shared/contracts/settlements.ts`；完成条件是创建草稿、输入考勤总分钟、分配扣款、填写最终实发及确认结算的任务/扣款归属均可追溯且事务化；实际 `financial_entries` 工资流水由 C.4 统一写入。
 - [x] C.4 在 `financial_entries` 扩展工资来源类型，并实现确认结算时自动生成唯一工资支出；完成条件是重复确认被拒绝，工资调整和最终实发金额/备注不回写两套参考工资。
 - [x] C.5 新增 `src/renderer/pages/workers/`、`pages/settlements/`、`composables/use-settlements.ts` 及结算明细组件；完成条件是负责人能选择任意日期范围、查看两种参考结果、逐项查看任务/扣款来源、填写最终金额/日期/备注并确认。
-- [ ] C.6 为制作和捏毛不合格公式、返工正常计薪、扣款顺延、两种口径、最终实发和唯一工资流水新增测试；完成条件是工资验收场景完整自动覆盖。
-- [ ] C.7 运行阶段 C 定向测试、`npm run typecheck`、`npm run lint` 和 `npm run build`；完成条件是记录验证证据后才进入阶段 D。
+- [x] C.6 为制作和捏毛不合格公式、返工正常计薪、扣款顺延、两种口径、最终实发和唯一工资流水新增测试；完成条件是工资验收场景完整自动覆盖。
+- [x] C.7 运行阶段 C 定向测试、`npm run typecheck`、`npm run lint` 和 `npm run build`；完成条件是记录验证证据后才进入阶段 D。
 
 ## 阶段 D：日常财务、垫付报销、财务首页与售后单
 
