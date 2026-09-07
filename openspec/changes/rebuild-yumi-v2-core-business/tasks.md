@@ -1,4 +1,4 @@
-> 当前执行：B.4（将订单发货上限切换为待发货可用量）。未通过对应验证前不得勾选完成。
+> 当前执行：B.5（履约与工作安排页面）。未通过对应验证前不得勾选完成。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -16,7 +16,7 @@
 - [x] B.1 在 `src/main/database/v2-migrations.ts` 追加 `work_assignments`、`process_tasks`、`process_results`、`quality_inspections`、`fulfillment_events` 与期初在制品所需表、索引和约束；完成条件是订单商品、工作安排、任务、完成、质检和事件均可追溯，且数量不能为负。
 - [x] B.2 新增 `src/main/domain/fulfillment.ts`，实现固定四工序、任务来源、制作计划分钟公式、阶段转换、合格/不合格校验、期初在制品和发货可用量计算；完成条件是任何完成申报只能质检一次，合格数加不合格数等于提交数，不能绕过事件直接修改阶段数量。
 - [x] B.3 新增 `src/main/repositories/fulfillment-repository.ts`、`src/main/services/fulfillment-service.ts`、`src/main/ipc/fulfillment-ipc.ts` 和 `src/shared/contracts/fulfillment.ts`；完成条件是完成、质检、返工、补发、负责人数量调整和发货可用量校验在事务中编排并写入审计。
-- [ ] B.4 将订单发货服务从阶段 A 的确认数量上限升级为待发货可用量上限；完成条件是未打包合格产品不能发货，阶段 A 已存在发货记录保持可读且不产生负可用量。
+- [x] B.4 将订单发货服务从阶段 A 的确认数量上限升级为待发货可用量上限；完成条件是未打包合格产品不能发货，阶段 A 已存在发货记录保持可读且不产生负可用量。
 - [ ] B.5 新增 `src/renderer/pages/fulfillment/`、`pages/work-assignments/`、`composables/use-fulfillment.ts`、`use-work-assignments.ts` 和相关组件；完成条件是负责人能查看订单产品阶段数量、录入期初在制品、安排任务、登记完成、次日质检、创建返工/补发，且错误不丢草稿。
 - [ ] B.6 为固定工序、数量流转、期初在制品、制作/捏毛不合格、返工合格、补发和分批发货可用量新增测试；完成条件是方案验收矩阵中的生产与发货场景均有领域/服务/页面测试。
 - [ ] B.7 运行阶段 B 定向测试、`npm run typecheck`、`npm run lint` 和 `npm run build`；完成条件是记录验证证据后才进入阶段 C。

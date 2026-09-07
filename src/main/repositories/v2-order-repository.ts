@@ -184,6 +184,10 @@ function mapFund(row: FundRow): V2OrderFund {
 export class V2OrderRepository {
   constructor(private readonly database: V2Database) {}
 
+  get connection(): V2Database {
+    return this.database
+  }
+
   transaction<T>(operation: () => T): T {
     return this.database.transaction(operation)()
   }

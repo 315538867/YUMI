@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createV2Database, type V2Database } from '@main/database/v2-connection'
+import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
 import { V2OrderRepository } from '@main/repositories/v2-order-repository'
+import { FulfillmentService } from '@main/services/fulfillment-service'
 import { V2OrderService } from '@main/services/v2-order-service'
 
 describe('V2OrderService', () => {
@@ -11,13 +13,21 @@ describe('V2OrderService', () => {
     databases.splice(0).forEach((database) => database.close())
   })
 
-  function createService(): V2OrderService {
+  function createServices(): { orderService: V2OrderService; fulfillmentService: FulfillmentService } {
     const database = createV2Database(':memory:')
     databases.push(database)
-    return new V2OrderService(new V2OrderRepository(database), {
+    const clock = {
       createId: () => randomUUID(),
       now: () => '2026-09-07T08:00:00.000Z'
-    })
+    }
+    return {
+      orderService: new V2OrderService(new V2OrderRepository(database), clock),
+      fulfillmentService: new FulfillmentService(new V2FulfillmentRepository(database), clock)
+    }
+  }
+
+  function createService(): V2OrderService {
+    return createServices().orderService
   }
 
   function createProduct(service: V2OrderService, name: string) {
@@ -135,8 +145,8 @@ describe('V2OrderService', () => {
     })).toThrow('已被冲正')
   })
 
-  it('按订单行累计校验分批发货，失败时不写入半条发货或审计记录', () => {
-    const service = createService()
+  it('仅允许从待发货可用量分批发货，失败时不写入半条发货或审计记录', () => {
+    const { orderService: service, fulfillmentService } = createServices()
     const product = createProduct(service, '葡萄')
     const order = service.createOrder({
       customer: { name: '小苏' },
@@ -144,17 +154,33 @@ describe('V2OrderService', () => {
       initialConfirmedAmountCents: 20_000
     })
 
+    expect(() => service.createShipment(order.id, {
+      shippedOn: '2026-09-07',
+      items: [{ orderItemId: order.items[0].id, quantity: 1 }]
+    })).toThrow('待发货可用数量')
+
+    fulfillmentService.recordOpeningWip({
+      orderItemId: order.items[0].id,
+      targetStage: 'ready_to_ship',
+      quantity: 10,
+      occurredOn: '2026-09-07',
+      note: 'V2 上线时已完成打包'
+    })
     const firstShipment = service.createShipment(order.id, {
-      shippedOn: '2026-09-09',
+      shippedOn: '2026-09-07',
       items: [{ orderItemId: order.items[0].id, quantity: 6 }],
       carrier: '顺丰'
     })
     expect(firstShipment.items).toEqual([expect.objectContaining({ orderItemId: order.items[0].id, quantity: 6 })])
+    expect(fulfillmentService.getOrderItemFulfillment(order.items[0].id).stages).toMatchObject({
+      readyToShip: 4,
+      shipped: 6
+    })
 
     expect(() => service.createShipment(order.id, {
-      shippedOn: '2026-09-10',
+      shippedOn: '2026-09-07',
       items: [{ orderItemId: order.items[0].id, quantity: 5 }]
-    })).toThrow('累计发货数量不能超过订单确认数量')
+    })).toThrow('本次发货数量超过待发货可用数量')
 
     expect(service.listShipments(order.id)).toHaveLength(1)
     expect(service.listAuditLogs(order.id).map((log) => log.action)).toEqual([

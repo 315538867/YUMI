@@ -49,6 +49,13 @@ describe('V2 订单核心链路', () => {
     })
     service.recordOrderFund(order.id, { businessType: 'payment', amountCents: 15_000, occurredOn: '2026-09-07' })
     service.recordOrderFund(order.id, { businessType: 'refund', amountCents: 1_000, occurredOn: '2026-09-08' })
+    runtime.fulfillmentService.recordOpeningWip({
+      orderItemId: order.items[0].id,
+      targetStage: 'ready_to_ship',
+      quantity: 2,
+      occurredOn: '2026-09-07',
+      note: '上线前已打包库存'
+    })
     service.createShipment(order.id, {
       shippedOn: '2026-09-09',
       items: [{ orderItemId: order.items[0].id, quantity: 2 }]

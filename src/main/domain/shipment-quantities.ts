@@ -18,11 +18,14 @@ export function validateShipmentQuantity(input: ShipmentQuantityInput): void {
       throw new DomainValidationError(`${label}必须是非负整数`)
     }
   }
-  const nextShippedQuantity = input.shippedQuantity + input.addingQuantity
-  if (nextShippedQuantity > input.confirmedQuantity) {
-    throw new DomainValidationError('累计发货数量不能超过订单确认数量')
+  if (input.availableQuantity === undefined) {
+    const nextShippedQuantity = input.shippedQuantity + input.addingQuantity
+    if (nextShippedQuantity > input.confirmedQuantity) {
+      throw new DomainValidationError('累计发货数量不能超过订单确认数量')
+    }
+    return
   }
-  if (input.availableQuantity !== undefined && input.addingQuantity > input.availableQuantity) {
+  if (input.addingQuantity > input.availableQuantity) {
     throw new DomainValidationError('本次发货数量超过待发货可用数量')
   }
 }

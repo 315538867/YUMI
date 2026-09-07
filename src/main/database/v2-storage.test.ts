@@ -4,6 +4,10 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { createV2Database } from './v2-connection'
+import { runV2Migrations } from './v2-migrations'
+import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
+import { V2OrderRepository } from '@main/repositories/v2-order-repository'
+import { FulfillmentService } from '@main/services/fulfillment-service'
 import {
   V2_ATTACHMENT_DIRECTORY_NAME,
   V2_BACKUP_DIRECTORY_NAME,
@@ -38,7 +42,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 4 })
+    ).toEqual({ version: 5 })
     database.close()
 
     await expect(readFile(v1DatabasePath, 'utf8')).resolves.toBe('v1-test-data')
@@ -151,7 +155,7 @@ describe('V2 独立数据空间', () => {
       name: 'V2 客户'
     })
     expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 4
+      count: 5
     })
     expect(
       upgraded
@@ -159,6 +163,58 @@ describe('V2 独立数据空间', () => {
         .get()
     ).toBeTruthy()
     upgraded.close()
+  })
+
+  it('将阶段 A 已发货记录回填为履约事实，且不会形成负的待发货数量', () => {
+    const database = createV2Database(':memory:')
+    database.prepare(`
+      INSERT INTO orders (
+        id, code, customer_snapshot_json, initial_confirmed_amount_cents, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      'legacy-order', 'LEGACY-001', '{"name":"历史客户"}', 10_000,
+      '2026-09-06T08:00:00.000Z', '2026-09-06T08:00:00.000Z'
+    )
+    database.prepare(`
+      INSERT INTO order_items (
+        id, order_id, product_snapshot_json, quantity, unit_price_cents, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'legacy-order-item', 'legacy-order', '{}', 10, 1_000,
+      '2026-09-06T08:00:00.000Z', '2026-09-06T08:00:00.000Z'
+    )
+    database.prepare(`
+      INSERT INTO shipments (id, order_id, shipped_on, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      'legacy-shipment', 'legacy-order', '2026-09-07',
+      '2026-09-07T08:00:00.000Z', '2026-09-07T08:00:00.000Z'
+    )
+    database.prepare(`
+      INSERT INTO shipment_items (id, shipment_id, order_item_id, quantity, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run('legacy-shipment-item', 'legacy-shipment', 'legacy-order-item', 4, '2026-09-07T08:00:00.000Z')
+
+    database.prepare('DELETE FROM v2_schema_migrations WHERE version = ?').run(5)
+    runV2Migrations(database)
+
+    expect(database.prepare(`
+      SELECT event_type, source_stage, target_stage, quantity, source_record_type, source_record_id
+      FROM fulfillment_events WHERE id = ?
+    `).get('legacy-shipment:legacy-shipment-item')).toEqual({
+      event_type: 'shipment', source_stage: 'making', target_stage: 'shipped', quantity: 4,
+      source_record_type: 'shipment_item', source_record_id: 'legacy-shipment-item'
+    })
+    expect(new V2OrderRepository(database).listShipments('legacy-order')).toEqual([
+      expect.objectContaining({
+        id: 'legacy-shipment',
+        items: [{ orderItemId: 'legacy-order-item', quantity: 4 }]
+      })
+    ])
+    expect(new FulfillmentService(new V2FulfillmentRepository(database)).getOrderItemFulfillment('legacy-order-item').stages)
+      .toMatchObject({ making: 6, readyToShip: 0, shipped: 4 })
+    expect(database.prepare('SELECT COUNT(*) AS count FROM fulfillment_events').get()).toEqual({ count: 1 })
+    database.close()
   })
 
   it('追加履约基础表并拒绝负数量和负计划分钟', async () => {

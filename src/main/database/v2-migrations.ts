@@ -294,11 +294,45 @@ const v2FulfillmentFoundation: V2Migration = {
   }
 }
 
+const v2BackfillShipmentFulfillmentEvents: V2Migration = {
+  version: 5,
+  name: 'v2_backfill_shipment_fulfillment_events',
+  run(database) {
+    database.exec(`
+      INSERT INTO fulfillment_events (
+        id, order_item_id, event_type, quantity, source_stage, target_stage,
+        source_record_type, source_record_id, occurred_on, note, created_at
+      )
+      SELECT
+        'legacy-shipment:' || shipment_items.id,
+        shipment_items.order_item_id,
+        'shipment',
+        shipment_items.quantity,
+        'making',
+        'shipped',
+        'shipment_item',
+        shipment_items.id,
+        shipments.shipped_on,
+        '阶段 A 历史发货回填',
+        shipments.created_at
+      FROM shipment_items
+      JOIN shipments ON shipments.id = shipment_items.shipment_id
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM fulfillment_events
+        WHERE fulfillment_events.source_record_type = 'shipment_item'
+          AND fulfillment_events.source_record_id = shipment_items.id
+      );
+    `)
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
   v2OrderItemPosition,
-  v2FulfillmentFoundation
+  v2FulfillmentFoundation,
+  v2BackfillShipmentFulfillmentEvents
 ]
 
 /**

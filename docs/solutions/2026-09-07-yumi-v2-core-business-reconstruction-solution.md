@@ -3,13 +3,13 @@ title: YUMI V2 核心业务重构方案
 date: 2026-09-07
 last_modified: 2026-09-07
 modifier: Codex
-solution_version: v2.6
+solution_version: v2.7
 status: 已确认，实施中
 branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 B；B.3 履约仓储、服务、IPC 与共享契约已完成，下一步收紧订单发货上限）
+implementation_status: 实施中（阶段 B；B.4 发货可用量校验与历史发货回填已完成，下一步实现履约与工作安排页面）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1081,3 +1081,9 @@ npm run build
 - 新增 `V2FulfillmentRepository` 与 `FulfillmentService`，并接入 V2 运行时、共享契约、preload 和 `v2:fulfillment:*` IPC 命名空间。工作安排以“兼职人员 + 日期 + 固定工序”为主，支持同一安排下多个任务；任务保存订单商品、来源、计划数量、基础计划分钟、制作额外预留、费率/成本快照和状态。
 - 完成申报、制作/捏毛装袋质检、打包直接完成、期初在制品、售后补发、返工和负责人数量调整均在 SQLite 事务中写入来源记录、履约事件和审计。售后补发从制作合格后直接增加待捏毛装袋数量；返工仍消耗原不合格品停留的来源阶段数量。阶段余额只由事件推演，待发货阶段余额已通过订单产品履约查询暴露给下一项发货服务收紧使用。
 - 验证：履约服务、IPC 与 preload 定向测试 4 个用例、全量 `npm test`（47 个测试文件、122 个用例）、`npm run typecheck`、`npm run lint`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 通过。下一步为 B.4：将订单发货上限切换为待发货可用量。
+
+### 2026-09-07：阶段 B.4 完成
+
+- 订单发货不再以订单确认数量作为新的上限，而是读取订单产品的履约事件并以待发货阶段余额校验。未进入待发货阶段的产品不能发货；发货成功后会与每条 `shipment_item` 同事务写入一条从待发货到已发货的 `shipment` 事件，因此后续分批发货始终基于同一数量事实。
+- V2 迁移版本 5 会把阶段 A 已存在的发货明细回填为可追溯履约事件。回填从制作阶段减少、已发货阶段增加，既保留原发货记录可读，也保持历史订单的阶段余额非负；同日已有履约事件与新发货事件时间相同时，新事件会顺延毫秒以稳定阶段推演顺序。
+- 验证：发货数量领域、订单服务、V2 存储迁移和订单端到端定向测试共 4 个文件、13 个用例，以及全量 `npm test`（47 个测试文件、123 个用例）、`npm run typecheck`、`npm run lint` 通过。下一步为 B.5：负责人履约与工作安排页面。

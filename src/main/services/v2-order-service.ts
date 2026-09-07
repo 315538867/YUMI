@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { validateOrderFundInput, validateOrderFundReversal } from '@main/domain/order-funds'
 import { DomainValidationError } from '@main/domain/errors'
+import { applyFulfillmentEvent, createFulfillmentState } from '@main/domain/fulfillment'
 import { validateShipmentQuantity } from '@main/domain/shipment-quantities'
+import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
 import { V2OrderRepository, type V2AuditLog } from '@main/repositories/v2-order-repository'
 import type {
   V2Customer,
@@ -75,6 +77,22 @@ function requireBusinessDate(value: string, label: string): string {
   return value
 }
 
+function createFulfillmentEventTimestamp(
+  fallback: string,
+  occurredOn: string,
+  existingEvents: ReadonlyArray<{ occurredOn: string; createdAt: string }>
+): string {
+  const latestCreatedAt = existingEvents
+    .filter((event) => event.occurredOn === occurredOn)
+    .map((event) => event.createdAt)
+    .sort()
+    .at(-1)
+  if (!latestCreatedAt || fallback > latestCreatedAt) return fallback
+  const latestMilliseconds = Date.parse(latestCreatedAt)
+  if (Number.isNaN(latestMilliseconds)) return fallback
+  return new Date(latestMilliseconds + 1).toISOString()
+}
+
 function createProductSnapshot(product: V2Product): V2ProductOrderSnapshot {
   return {
     productId: product.id,
@@ -94,10 +112,14 @@ function createProductSnapshot(product: V2Product): V2ProductOrderSnapshot {
 }
 
 export class V2OrderService {
+  private readonly fulfillmentRepository: V2FulfillmentRepository
+
   constructor(
     private readonly repository: V2OrderRepository,
     private readonly clock: V2Clock = defaultClock
-  ) {}
+  ) {
+    this.fulfillmentRepository = new V2FulfillmentRepository(repository.connection)
+  }
 
   listCustomers(query?: V2CustomerQuery): V2Customer[] {
     return this.repository.listCustomers(query)
@@ -317,12 +339,20 @@ export class V2OrderService {
         if (!itemById.has(item.orderItemId)) throw new DomainValidationError('发货订单行不属于当前订单')
         quantities.set(item.orderItemId, (quantities.get(item.orderItemId) ?? 0) + item.quantity)
       }
-      const shippedQuantities = this.repository.listShippedQuantities(orderId)
+      const states = new Map<string, ReturnType<typeof createFulfillmentState>>()
+      const existingEventsByOrderItem = new Map<string, ReturnType<V2FulfillmentRepository['listFulfillmentEvents']>>()
       for (const [orderItemId, addingQuantity] of quantities) {
+        const item = itemById.get(orderItemId)!
+        const existingEvents = this.fulfillmentRepository.listFulfillmentEvents(orderItemId)
+        const state = existingEvents
+          .reduce((current, event) => applyFulfillmentEvent(current, event), createFulfillmentState(item.quantity))
+        existingEventsByOrderItem.set(orderItemId, existingEvents)
+        states.set(orderItemId, state)
         validateShipmentQuantity({
-          confirmedQuantity: itemById.get(orderItemId)!.quantity,
-          shippedQuantity: shippedQuantities.get(orderItemId) ?? 0,
-          addingQuantity
+          confirmedQuantity: item.quantity,
+          shippedQuantity: state.shipped,
+          addingQuantity,
+          availableQuantity: state.readyToShip
         })
       }
       const now = this.clock.now()
@@ -332,7 +362,25 @@ export class V2OrderService {
         carrier: nullableText(input.carrier), trackingNumber: nullableText(input.trackingNumber),
         note: nullableText(input.note), createdAt: now, updatedAt: now
       }
+      const shipmentEvents = shipment.items.map((item) => ({
+        id: this.clock.createId(), orderItemId: item.orderItemId, eventType: 'shipment' as const,
+        quantity: item.quantity, sourceStage: 'ready_to_ship' as const, targetStage: 'shipped' as const,
+        sourceRecordType: 'shipment_item', sourceRecordId: item.id, occurredOn: shipment.shippedOn,
+        note: shipment.note,
+        createdAt: createFulfillmentEventTimestamp(
+          now,
+          shipment.shippedOn,
+          existingEventsByOrderItem.get(item.orderItemId) ?? []
+        )
+      }))
+      for (const [orderItemId, state] of states) {
+        shipmentEvents
+          .filter((event) => event.orderItemId === orderItemId)
+          .sort((left, right) => left.id.localeCompare(right.id))
+          .reduce((current, event) => applyFulfillmentEvent(current, event), state)
+      }
       this.repository.insertShipment(shipment)
+      shipmentEvents.forEach((event) => this.fulfillmentRepository.insertFulfillmentEvent(event))
       this.recordAudit('shipment.created', 'order', orderId, undefined, shipment, now, { shipmentId: shipment.id })
       return shipment
     })
