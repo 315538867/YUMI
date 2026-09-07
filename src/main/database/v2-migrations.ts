@@ -179,7 +179,18 @@ const v2OrderFoundation: V2Migration = {
   }
 }
 
-const migrations: readonly V2Migration[] = [v2MasterData, v2OrderFoundation]
+const v2OrderItemPosition: V2Migration = {
+  version: 3,
+  name: 'v2_order_item_position',
+  run(database) {
+    database.exec(`
+      ALTER TABLE order_items ADD COLUMN line_no INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX IF NOT EXISTS idx_order_items_order_line ON order_items(order_id, line_no, id);
+    `)
+  }
+}
+
+const migrations: readonly V2Migration[] = [v2MasterData, v2OrderFoundation, v2OrderItemPosition]
 
 /**
  * V2 使用独立的迁移表，不会把 V1 的 schema_migrations 当成已初始化状态。

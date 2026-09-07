@@ -9,7 +9,7 @@ branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 A；A.1 至 A.3 已完成）
+implementation_status: 实施中（阶段 A；A.1 至 A.4 已完成）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1034,3 +1034,14 @@ npm run build
 - 系统计算参考，负责人对售后、例外和最终工资实发拥有最终决定权；
 - 实施前先在本 OpenSpec 提案内确认阶段任务计划，未经实施授权不得修改业务代码。
 
+
+
+## 21. 实施记录
+
+### 2026-09-07：阶段 A.4 完成
+
+- 新增独立 V2 仓储、服务、备份包装器与 `v2:` IPC 命名空间；V2 服务没有调用 V1 `StudioRepository` 或 `StudioService`。
+- 订单创建会冻结客户/商品快照；订单内容变更保存变更前后快照并可同时记录金额调整；订单资金以追加流水保存，冲正与替代记录不覆盖原记录；发货按订单商品累计数量校验。
+- 所述写入和对应审计记录均在同一 SQLite 事务中完成。为保持商品明细的输入顺序，V2 schema 增加了订单商品行号迁移。
+- V2 备份包装器显式绑定 `yumi-studio-v2.sqlite` 与 `attachments-v2`；恢复生命周期仍由下一项 A.5 的主进程组合负责关闭并重建数据库服务引用。
+- 验证：`npm test`（42 个测试文件、130 个用例通过）、`npm run typecheck`、`npm run lint`。

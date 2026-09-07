@@ -13,7 +13,7 @@ export interface OrderFundInput {
 
 export interface OrderFundSummaryInput {
   currentAmountCents: Cents
-  entries: Array<Pick<OrderFundInput, 'direction' | 'businessType' | 'amountCents'>>
+  entries: Array<Pick<OrderFundInput, 'direction' | 'businessType' | 'amountCents'> & { id?: string; reversalOfEntryId?: string | null }>
 }
 
 export interface OrderFundSummary {
@@ -56,8 +56,13 @@ export function calculateOrderFundSummary(input: OrderFundSummaryInput): OrderFu
   }
   let receivedCents = 0
   let refundedCents = 0
+  const reversedIds = new Set(
+    input.entries.flatMap((entry) => entry.reversalOfEntryId ? [entry.reversalOfEntryId] : [])
+  )
   for (const entry of input.entries) {
-    validateOrderFundInput({ ...entry, occurredOn: '2026-01-01' })
+    assertIntegerCents(entry.amountCents)
+    if (entry.id && reversedIds.has(entry.id)) continue
+    if (entry.reversalOfEntryId) continue
     if (entry.direction === 'income') receivedCents += entry.amountCents
     else refundedCents += entry.amountCents
   }

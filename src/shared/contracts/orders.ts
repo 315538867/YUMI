@@ -99,9 +99,14 @@ export interface V2ShipmentInput {
   note?: string | null
 }
 
-export interface V2Shipment extends V2ShipmentInput {
+export interface V2ShipmentItem extends V2ShipmentItemInput {
+  id: string
+}
+
+export interface V2Shipment extends Omit<V2ShipmentInput, 'items'> {
   id: string
   orderId: string
+  items: V2ShipmentItem[]
   createdAt: IsoDateTime
   updatedAt: IsoDateTime
 }

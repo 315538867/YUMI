@@ -38,7 +38,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 2 })
+    ).toEqual({ version: 3 })
     database.close()
 
     await expect(readFile(v1DatabasePath, 'utf8')).resolves.toBe('v1-test-data')
@@ -151,7 +151,7 @@ describe('V2 独立数据空间', () => {
       name: 'V2 客户'
     })
     expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 2
+      count: 3
     })
     expect(
       upgraded

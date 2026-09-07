@@ -3,7 +3,7 @@
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
 - 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v2.1）
-- 状态：实施中（阶段 A；A.1 至 A.3 已完成）
+- 状态：实施中（阶段 A；A.1 至 A.4 已完成）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案

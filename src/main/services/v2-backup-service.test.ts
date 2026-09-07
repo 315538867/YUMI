@@ -8,7 +8,7 @@ import {
   V2_DATABASE_FILE_NAME,
   resolveV2StoragePaths
 } from '@main/database/v2-storage'
-import { BackupService } from './backup-service'
+import { V2BackupService } from './v2-backup-service'
 
 describe('V2 备份与恢复', () => {
   it('备份和恢复始终使用 V2 数据库与附件目录，且不影响 V1 文件', async () => {
@@ -30,17 +30,7 @@ describe('V2 备份与恢复', () => {
     await mkdir(storage.attachmentDirectory)
     await writeFile(join(storage.attachmentDirectory, 'receipt.txt'), 'v2-original-attachment')
 
-    const backup = new BackupService({
-      databasePath: storage.databasePath,
-      attachmentDirectory: storage.attachmentDirectory,
-      backupDirectory: storage.backupDirectory,
-      applicationVersion: '2.0.0',
-      databaseFileName: V2_DATABASE_FILE_NAME,
-      attachmentDirectoryName: V2_ATTACHMENT_DIRECTORY_NAME,
-      createDatabaseSnapshot: async (destinationPath) => {
-        await database.backup(destinationPath)
-      }
-    })
+    const backup = new V2BackupService(storage, '2.0.0', database)
     const sourceBackup = await backup.createBackup()
     expect(await readFile(join(sourceBackup.backupPath, 'manifest.json'), 'utf8')).toContain(
       V2_DATABASE_FILE_NAME
@@ -59,7 +49,7 @@ describe('V2 备份与恢复', () => {
       )
     await writeFile(join(storage.attachmentDirectory, 'later.txt'), 'v2-later-attachment')
     // prepareRestore 会先创建当前状态的安全备份，因此连接仍需保持打开。
-    const restorePlan = await backup.prepareRestore(sourceBackup.backupPath, true)
+    const restorePlan = await backup.prepareRestore({ backupPath: sourceBackup.backupPath, confirmed: true })
     database.close()
     await backup.applyRestore(restorePlan)
 

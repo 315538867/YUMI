@@ -39,6 +39,9 @@ export type {
   V2OrderItemInput,
   V2OrderSummary,
   V2Shipment,
+  V2ShipmentItem,
   V2ShipmentInput,
   V2ShipmentItemInput
 } from './orders'
+
+export type { V2YumiApi } from './v2-api'
