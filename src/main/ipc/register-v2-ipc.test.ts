@@ -23,22 +23,37 @@ describe('registerV2Ipc', () => {
       changeOrderContent: vi.fn(), listContentChanges: vi.fn(), listOrderFunds: vi.fn(), recordOrderFund: vi.fn(),
       correctOrderFund: vi.fn(), listShipments: vi.fn(), createShipment: vi.fn()
     }
+    const fulfillment = {
+      createWorkAssignment: vi.fn(), getWorkAssignment: vi.fn(), listWorkAssignments: vi.fn(),
+      submitProcessResult: vi.fn(), confirmQualityInspection: vi.fn(), recordOpeningWip: vi.fn(),
+      adjustStageQuantity: vi.fn(), getOrderItemFulfillment: vi.fn()
+    }
     const backup = { service: { createBackup: vi.fn(), listBackups: vi.fn(), getActivity: vi.fn(), inspectBackup: vi.fn() }, restore: vi.fn() }
 
-    registerV2Ipc(service as never, backup as never, ipcMain)
+    registerV2Ipc(service as never, fulfillment as never, backup as never, ipcMain)
 
     expect([...handlers.keys()]).toEqual(expect.arrayContaining([
       'v2:customers:list', 'v2:products:create', 'v2:orders:create',
       'v2:orders:change-content', 'v2:orders:funds:list', 'v2:orders:record-fund',
-      'v2:orders:correct-fund', 'v2:orders:shipments:create', 'v2:backup:restore'
+      'v2:orders:correct-fund', 'v2:orders:shipments:create',
+      'v2:fulfillment:assignments:create', 'v2:fulfillment:results:submit',
+      'v2:fulfillment:inspections:confirm', 'v2:fulfillment:order-item:get', 'v2:backup:restore'
     ]))
     await handlers.get('v2:orders:change-content')!(undefined, 'order-1', { description: '加封边' })
     await handlers.get('v2:orders:funds:list')!(undefined, 'order-1')
     await handlers.get('v2:orders:record-fund')!(undefined, 'order-1', { amountCents: 100 })
     await handlers.get('v2:orders:shipments:create')!(undefined, 'order-1', { items: [] })
+    await handlers.get('v2:fulfillment:assignments:create')!(undefined, { workerId: 'worker-1' })
+    await handlers.get('v2:fulfillment:results:submit')!(undefined, 'task-1', { completedQuantity: 3 })
+    await handlers.get('v2:fulfillment:inspections:confirm')!(undefined, 'result-1', { qualifiedQuantity: 3 })
+    await handlers.get('v2:fulfillment:order-item:get')!(undefined, 'item-1')
     expect(service.changeOrderContent).toHaveBeenCalledWith('order-1', { description: '加封边' })
     expect(service.listOrderFunds).toHaveBeenCalledWith('order-1')
     expect(service.recordOrderFund).toHaveBeenCalledWith('order-1', { amountCents: 100 })
     expect(service.createShipment).toHaveBeenCalledWith('order-1', { items: [] })
+    expect(fulfillment.createWorkAssignment).toHaveBeenCalledWith({ workerId: 'worker-1' })
+    expect(fulfillment.submitProcessResult).toHaveBeenCalledWith('task-1', { completedQuantity: 3 })
+    expect(fulfillment.confirmQualityInspection).toHaveBeenCalledWith('result-1', { qualifiedQuantity: 3 })
+    expect(fulfillment.getOrderItemFulfillment).toHaveBeenCalledWith('item-1')
   })
 })

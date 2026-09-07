@@ -25,6 +25,16 @@ const yumiV2: V2YumiApi = {
     listShipments: (orderId) => ipcRenderer.invoke('v2:orders:shipments:list', orderId),
     createShipment: (orderId, input) => ipcRenderer.invoke('v2:orders:shipments:create', orderId, input)
   },
+  fulfillment: {
+    createWorkAssignment: (input) => ipcRenderer.invoke('v2:fulfillment:assignments:create', input),
+    getWorkAssignment: (id) => ipcRenderer.invoke('v2:fulfillment:assignments:get', id),
+    listWorkAssignments: (query) => ipcRenderer.invoke('v2:fulfillment:assignments:list', query),
+    submitProcessResult: (taskId, input) => ipcRenderer.invoke('v2:fulfillment:results:submit', taskId, input),
+    confirmQualityInspection: (resultId, input) => ipcRenderer.invoke('v2:fulfillment:inspections:confirm', resultId, input),
+    recordOpeningWip: (input) => ipcRenderer.invoke('v2:fulfillment:opening-wip:record', input),
+    adjustStageQuantity: (input) => ipcRenderer.invoke('v2:fulfillment:adjustments:create', input),
+    getOrderItem: (orderItemId) => ipcRenderer.invoke('v2:fulfillment:order-item:get', orderItemId)
+  },
   backup: {
     create: () => ipcRenderer.invoke('v2:backup:create'),
     list: () => ipcRenderer.invoke('v2:backup:list'),

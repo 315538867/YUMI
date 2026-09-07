@@ -13,6 +13,11 @@ import type {
   V2ShipmentInput
 } from './orders'
 import type { V2Product, V2ProductInput, V2ProductUpdateInput } from './products'
+import type {
+  V2FulfillmentAdjustmentInput, V2OpeningWipInput, V2OrderItemFulfillment, V2ProcessResult,
+  V2ProcessResultInput, V2QualityInspection, V2QualityInspectionInput, V2WorkAssignment,
+  V2WorkAssignmentCreateInput, V2WorkAssignmentQuery
+} from './fulfillment'
 
 /** V2 预加载层唯一向渲染进程暴露的能力边界。 */
 export interface V2YumiApi {
@@ -38,6 +43,16 @@ export interface V2YumiApi {
     correctFund(orderId: string, input: V2OrderFundCorrectionInput): Promise<{ reversal: V2OrderFund; replacement: V2OrderFund }>
     listShipments(orderId: string): Promise<V2Shipment[]>
     createShipment(orderId: string, input: V2ShipmentInput): Promise<V2Shipment>
+  }
+  fulfillment: {
+    createWorkAssignment(input: V2WorkAssignmentCreateInput): Promise<V2WorkAssignment>
+    getWorkAssignment(id: string): Promise<V2WorkAssignment | null>
+    listWorkAssignments(query?: V2WorkAssignmentQuery): Promise<V2WorkAssignment[]>
+    submitProcessResult(taskId: string, input: V2ProcessResultInput): Promise<V2ProcessResult>
+    confirmQualityInspection(resultId: string, input: V2QualityInspectionInput): Promise<V2QualityInspection>
+    recordOpeningWip(input: V2OpeningWipInput): Promise<V2OrderItemFulfillment>
+    adjustStageQuantity(input: V2FulfillmentAdjustmentInput): Promise<V2OrderItemFulfillment>
+    getOrderItem(orderItemId: string): Promise<V2OrderItemFulfillment>
   }
   backup: {
     create(): Promise<V2BackupSummary>

@@ -3,14 +3,17 @@ import type { V2Database } from '@main/database/v2-connection'
 import { createV2Database } from '@main/database/v2-connection'
 import { resolveV2StoragePaths, type V2StoragePaths } from '@main/database/v2-storage'
 import { V2OrderRepository } from '@main/repositories/v2-order-repository'
+import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
 import { V2BackupService } from '@main/services/v2-backup-service'
 import { V2OrderService } from '@main/services/v2-order-service'
+import { FulfillmentService } from '@main/services/fulfillment-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts'
 
 interface V2RuntimeReferences {
   database: V2Database
   repository: V2OrderRepository
   orderService: V2OrderService
+  fulfillmentService: FulfillmentService
   backupService: V2BackupService
 }
 
@@ -42,6 +45,10 @@ export class V2ApplicationRuntime {
 
   get orderService(): V2OrderService {
     return this.requireReferences().orderService
+  }
+
+  get fulfillmentService(): FulfillmentService {
+    return this.requireReferences().fulfillmentService
   }
 
   get backupService(): V2BackupService {
@@ -92,6 +99,7 @@ export class V2ApplicationRuntime {
       database,
       repository,
       orderService: new V2OrderService(repository),
+      fulfillmentService: new FulfillmentService(new V2FulfillmentRepository(database)),
       backupService: new V2BackupService(this.storage, this.applicationVersion, database)
     }
   }

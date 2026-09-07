@@ -44,4 +44,27 @@ export type {
   V2ShipmentItemInput
 } from './orders'
 
+export type {
+  V2FulfillmentAdjustmentInput,
+  V2FulfillmentEvent,
+  V2FulfillmentEventType,
+  V2FulfillmentStage,
+  V2FulfillmentStageBalances,
+  V2OpeningWipInput,
+  V2OrderItemFulfillment,
+  V2ProcessResult,
+  V2ProcessResultInput,
+  V2ProcessTask,
+  V2ProcessTaskInput,
+  V2ProcessTaskSource,
+  V2ProcessTaskStatus,
+  V2ProcessType,
+  V2QualityInspection,
+  V2QualityInspectionInput,
+  V2WorkAssignment,
+  V2WorkAssignmentCreateInput,
+  V2WorkAssignmentQuery,
+  V2WorkAssignmentStatus
+} from './fulfillment'
+
 export type { V2YumiApi } from './v2-api'

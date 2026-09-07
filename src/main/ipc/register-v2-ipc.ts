@@ -2,6 +2,7 @@ import { ipcMain as electronIpcMain } from 'electron'
 import type { V2BackupService } from '@main/services/v2-backup-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts'
 import type { V2OrderService } from '@main/services/v2-order-service'
+import type { FulfillmentService } from '@main/services/fulfillment-service'
 
 export interface V2IpcMain {
   handle(channel: string, handler: (...args: unknown[]) => unknown): void
@@ -18,6 +19,7 @@ export interface V2BackupIpcOptions {
  */
 export function registerV2Ipc(
   service: V2OrderService,
+  fulfillment: FulfillmentService,
   backup: V2BackupIpcOptions,
   ipc: V2IpcMain = electronIpcMain
 ): void {
@@ -51,6 +53,19 @@ export function registerV2Ipc(
   ipc.handle('v2:orders:shipments:create', (_event, orderId, input) =>
     service.createShipment(orderId as string, input as never)
   )
+
+  ipc.handle('v2:fulfillment:assignments:create', (_event, input) => fulfillment.createWorkAssignment(input as never))
+  ipc.handle('v2:fulfillment:assignments:get', (_event, assignmentId) => fulfillment.getWorkAssignment(assignmentId as string))
+  ipc.handle('v2:fulfillment:assignments:list', (_event, query) => fulfillment.listWorkAssignments(query as never))
+  ipc.handle('v2:fulfillment:results:submit', (_event, taskId, input) =>
+    fulfillment.submitProcessResult(taskId as string, input as never)
+  )
+  ipc.handle('v2:fulfillment:inspections:confirm', (_event, resultId, input) =>
+    fulfillment.confirmQualityInspection(resultId as string, input as never)
+  )
+  ipc.handle('v2:fulfillment:opening-wip:record', (_event, input) => fulfillment.recordOpeningWip(input as never))
+  ipc.handle('v2:fulfillment:adjustments:create', (_event, input) => fulfillment.adjustStageQuantity(input as never))
+  ipc.handle('v2:fulfillment:order-item:get', (_event, orderItemId) => fulfillment.getOrderItemFulfillment(orderItemId as string))
 
   ipc.handle('v2:backup:create', () => backup.service.createBackup())
   ipc.handle('v2:backup:list', () => backup.service.listBackups())
