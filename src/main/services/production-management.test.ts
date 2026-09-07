@@ -24,7 +24,7 @@ describe('实际制作、人工成本与提成结算', () => {
     databases.splice(0).forEach((database) => database.close())
   })
 
-  it('按排班时薪快照计算实际人工成本，按合格数量计算提成', () => {
+  it('完成排班后按基础工时与预留时长计算订单实际人工成本', () => {
     const database = createDatabase(':memory:')
     databases.push(database)
     const repository = new StudioRepository(database)
@@ -41,6 +41,7 @@ describe('实际制作、人工成本与提成结算', () => {
       shiftDate: '2026-09-10',
       startTime: '09:00',
       endTime: '14:00',
+      extraMinutes: 20,
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 10 }]
     })
 
@@ -61,9 +62,27 @@ describe('实际制作、人工成本与提成结算', () => {
       commissionCostCents: 1600
     })
     expect(repository.getOrderDetail(order.id)).toMatchObject({
-      actualCostCents: 12800,
+      actualCostCents: 3000,
       productionStatus: 'in_production'
     })
+    service.updateShiftStatus({
+      shiftId: shift.id,
+      status: 'completed',
+      taskCompletions: [{ shiftTaskId: result.id, qualifiedQuantity: 8, unqualifiedQuantity: 2 }]
+    })
+    expect(service.getOrderCostDetail(order.id)).toMatchObject({
+      estimatedCostCents: 3000,
+      actualCostCents: 17933,
+      items: [
+        expect.objectContaining({
+          estimatedLaborMinutes: 300,
+          actualLaborMinutes: 320,
+          actualLaborCostCents: 14933,
+          actualCostCents: 17933
+        })
+      ]
+    })
+    expect(repository.getOrderDetail(order.id)).toMatchObject({ actualCostCents: 17933 })
     expect(repository.listAuditLogs('production')).toEqual([
       expect.objectContaining({ action: 'production.recorded', entityId: result.id })
     ])

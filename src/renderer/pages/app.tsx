@@ -32,6 +32,7 @@ import type {
   CostSettings,
   DashboardSummary,
   OrderCreateInput,
+  OrderCostDetail,
   OrderDetail,
   OrderSummary,
   OrderUpdateInput,
@@ -2311,6 +2312,8 @@ function ProductDialog({
     packagingCost: '0',
     accessoryCost: '0',
     replacementBagCost: '0',
+    fluffPackingCost: '0',
+    edgeCost: '0',
     commission: '0',
     moldCount: '1',
     outputPerMoldPerBatch: '1',
@@ -2361,6 +2364,8 @@ function ProductDialog({
       packagingCostCents: cents(form.packagingCost, '包装成本'),
       accessoryCostCents: cents(form.accessoryCost, '配件费'),
       replacementBagCostCents: cents(form.replacementBagCost, '替换袋费用'),
+      fluffPackingCostCents: cents(form.fluffPackingCost, '捏毛装袋费用'),
+      edgeCostCents: cents(form.edgeCost, '缝边成本'),
       commissionCentsPerUnit: cents(form.commission, '固定提成'),
       moldCount: numberValue(form.moldCount, '模具数量', { integer: true, positive: true }),
       outputPerMoldPerBatch: numberValue(form.outputPerMoldPerBatch, '每模每批产出', {
@@ -2553,6 +2558,30 @@ function ProductDialog({
               </label>
               <label>
                 <Text as="div" size="2" mb="1">
+                  捏毛装袋（元/个）
+                </Text>
+                <NumericTextField
+                  allowDecimal
+                  min="0"
+                  step="0.01"
+                  value={form.fluffPackingCost}
+                  onValueChange={(value) => patchForm({ fluffPackingCost: value })}
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
+                  缝边成本（元/个）
+                </Text>
+                <NumericTextField
+                  allowDecimal
+                  min="0"
+                  step="0.01"
+                  value={form.edgeCost}
+                  onValueChange={(value) => patchForm({ edgeCost: value })}
+                />
+              </label>
+              <label>
+                <Text as="div" size="2" mb="1">
                   固定提成（元/合格个）
                 </Text>
                 <NumericTextField
@@ -2691,6 +2720,12 @@ function WorkerDialog({
 }) {
   const [name, setName] = useState('')
   const [wage, setWage] = useState('')
+  useEffect(() => {
+    if (!open) return
+    void window.yumi.settings
+      .getCost()
+      .then((settings) => setWage(String(settings.defaultHourlyWageCents / 100)))
+  }, [open])
   const submit = async () => {
     await window.yumi.workers.create({ name, hourlyWageCents: Math.round(Number(wage) * 100) || 0 })
     await onDone()
@@ -2887,7 +2922,13 @@ function OrderDialog({
   }
 
   const updateLine = (id: string, patch: Partial<OrderDraftLine>) => {
-    setLines((current) => current.map((line) => (line.id === id ? { ...line, ...patch } : line)))
+    setLines((current) =>
+      current.map((line) => {
+        if (line.id !== id) return line
+        const next = { ...line, ...patch }
+        return { ...next, edgeQuantity: next.edgeEnabled ? next.quantity : '0' }
+      })
+    )
   }
 
   const changeProduct = (lineId: string, productId: string) => {
@@ -2931,7 +2972,7 @@ function OrderDialog({
         quantity: Number(line.quantity),
         unitPriceCents: Math.round((Number(line.unitPrice) || 0) * 100),
         edgeEnabled: line.edgeEnabled,
-        edgeQuantity: line.edgeEnabled ? Number(line.edgeQuantity) : 0,
+        edgeQuantity: line.edgeEnabled ? Number(line.quantity) : 0,
         edgePriceCents: Math.round((Number(line.edgePrice) || 0) * 100),
         discountCents: Math.round((Number(line.discount) || 0) * 100)
       }))
@@ -3124,12 +3165,7 @@ function OrderDialog({
                       <Text as="div" size="1" color="gray">
                         缝边数量
                       </Text>
-                      <NumericTextField
-                        min="0"
-                        disabled={!line.edgeEnabled}
-                        value={line.edgeQuantity}
-                        onValueChange={(value) => updateLine(line.id, { edgeQuantity: value })}
-                      />
+                      <TextField.Root readOnly value={line.edgeEnabled ? line.quantity : '0'} />
                     </label>
                     <label>
                       <Text as="div" size="1" color="gray">
@@ -3249,12 +3285,14 @@ function OrderDetailWorkspace({
   const [selectingReceipt, setSelectingReceipt] = useState(false)
   const [savingPayment, setSavingPayment] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [costDialogOpen, setCostDialogOpen] = useState(false)
+  const [costDetail, setCostDetail] = useState<OrderCostDetail | null>(null)
   const [shipmentSummary, setShipmentSummary] = useState<OrderShipmentSummary[]>([])
   const [shipments, setShipments] = useState<ShipmentDetail[]>([])
   const [shipmentDate, setShipmentDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [shipmentNotes, setShipmentNotes] = useState('')
   const [shipmentQuantities, setShipmentQuantities] = useState<Record<string, string>>({})
-  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null)
+  const [shipmentDialogOpen, setShipmentDialogOpen] = useState(false)
   const [savingShipment, setSavingShipment] = useState(false)
   const [exportingOrderSheet, setExportingOrderSheet] = useState(false)
   const [exportingShipmentManifestId, setExportingShipmentManifestId] = useState<string | null>(
@@ -3279,7 +3317,7 @@ function OrderDetailWorkspace({
         setOrder(detail)
         setShipmentSummary(summary)
         setShipments(records)
-        setEditingShipmentId(null)
+        setShipmentDialogOpen(false)
         setShipmentQuantities({})
         setShipmentNotes('')
         setShipmentDate(format(new Date(), 'yyyy-MM-dd'))
@@ -3350,22 +3388,21 @@ function OrderDetailWorkspace({
     setShipments(records)
   }
 
+  const openCostDetail = async () => {
+    if (!order) return
+    try {
+      setCostDetail(await window.yumi.orders.costDetail(order.id))
+      setCostDialogOpen(true)
+    } catch (reason) {
+      setError(getErrorMessage(reason, '订单成本详情读取失败。'))
+    }
+  }
+
   const resetShipmentDraft = () => {
-    setEditingShipmentId(null)
+    setShipmentDialogOpen(false)
     setShipmentDate(format(new Date(), 'yyyy-MM-dd'))
     setShipmentNotes('')
     setShipmentQuantities({})
-  }
-
-  const editShipment = (shipment: ShipmentDetail) => {
-    setEditingShipmentId(shipment.id)
-    setShipmentDate(shipment.shippedAt)
-    setShipmentNotes(shipment.notes ?? '')
-    setShipmentQuantities(
-      Object.fromEntries(
-        shipment.items.map((item) => [item.orderItemId, String(item.shipmentQuantity)])
-      )
-    )
   }
 
   const saveShipment = async () => {
@@ -3388,22 +3425,12 @@ function OrderDetailWorkspace({
     setSavingShipment(true)
     setError('')
     try {
-      if (editingShipmentId) {
-        await window.yumi.orders.updateShipment({
-          id: editingShipmentId,
-          orderId: order.id,
-          shippedAt: shipmentDate,
-          notes: shipmentNotes.trim() || null,
-          items
-        })
-      } else {
-        await window.yumi.orders.createShipment({
-          orderId: order.id,
-          shippedAt: shipmentDate,
-          notes: shipmentNotes.trim() || null,
-          items
-        })
-      }
+      await window.yumi.orders.createShipment({
+        orderId: order.id,
+        shippedAt: shipmentDate,
+        notes: shipmentNotes.trim() || null,
+        items
+      })
       await reloadShipmentData(order.id)
       await onChanged()
       resetShipmentDraft()
@@ -3491,6 +3518,11 @@ function OrderDetailWorkspace({
               </Badge>
             </Flex>
           </div>
+          <Flex justify="end">
+            <Button size="1" variant="soft" onClick={() => void openCostDetail()}>
+              查看成本详情
+            </Button>
+          </Flex>
           {order.notes?.trim() && (
             <section className="inspector-section order-notes">
               <Text weight="medium">订单备注</Text>
@@ -3525,14 +3557,6 @@ function OrderDetailWorkspace({
               <Text weight="medium">
                 {order.progress.qualifiedQuantity} / {order.progress.scheduledQuantity} /{' '}
                 {order.progress.unplannedQuantity}
-              </Text>
-            </div>
-            <div>
-              <Text size="1" color="gray">
-                预计 / 实际成本
-              </Text>
-              <Text weight="medium">
-                {money(order.estimatedCostCents)} / {money(order.actualCostCents)}
               </Text>
             </div>
           </div>
@@ -3640,65 +3664,66 @@ function OrderDetailWorkspace({
                 )
               })}
             </div>
-            <div className="shipment-entry-form">
-              <div className="shipment-quantity-grid">
-                {order.items.map((item) => (
-                  <label key={item.id}>
-                    <Text as="div" size="1" color="gray" mb="1">
-                      {item.productSnapshot.name} · 本次发货数量
-                    </Text>
-                    <NumericTextField
-                      min="0"
-                      step="1"
-                      value={shipmentQuantities[item.id] ?? ''}
-                      onValueChange={(value) =>
-                        setShipmentQuantities((current) => ({
-                          ...current,
-                          [item.id]: value
-                        }))
-                      }
-                      placeholder="0"
-                    />
-                  </label>
-                ))}
-              </div>
-              <div className="shipment-meta-grid">
-                <label>
-                  <Text as="div" size="1" color="gray" mb="1">
-                    发货日期
-                  </Text>
-                  <TextField.Root
-                    type="date"
-                    value={shipmentDate}
-                    onChange={(event) => setShipmentDate(event.target.value)}
-                  />
-                </label>
-                <label>
-                  <Text as="div" size="1" color="gray" mb="1">
-                    发货备注
-                  </Text>
-                  <TextField.Root
-                    value={shipmentNotes}
-                    onChange={(event) => setShipmentNotes(event.target.value)}
-                    placeholder="可选"
-                  />
-                </label>
-                <Flex gap="2" align="end" justify="end">
-                  {editingShipmentId && (
+            <Flex justify="end" mt="3">
+              <Button size="1" onClick={() => setShipmentDialogOpen(true)}>
+                新增发货
+              </Button>
+            </Flex>
+            <Dialog.Root open={shipmentDialogOpen} onOpenChange={setShipmentDialogOpen}>
+              <Dialog.Content maxWidth="680px">
+                <Dialog.Title>新增发货</Dialog.Title>
+                <div className="shipment-entry-form">
+                  <div className="shipment-quantity-grid">
+                    {order.items.map((item) => (
+                      <label key={item.id}>
+                        <Text as="div" size="1" color="gray" mb="1">
+                          {item.productSnapshot.name} · 本次发货数量
+                        </Text>
+                        <NumericTextField
+                          min="0"
+                          step="1"
+                          value={shipmentQuantities[item.id] ?? ''}
+                          onValueChange={(value) =>
+                            setShipmentQuantities((current) => ({ ...current, [item.id]: value }))
+                          }
+                          placeholder="0"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="shipment-meta-grid">
+                    <label>
+                      <Text as="div" size="1" color="gray" mb="1">
+                        发货日期
+                      </Text>
+                      <TextField.Root
+                        type="date"
+                        value={shipmentDate}
+                        onChange={(event) => setShipmentDate(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <Text as="div" size="1" color="gray" mb="1">
+                        发货备注
+                      </Text>
+                      <TextField.Root
+                        value={shipmentNotes}
+                        onChange={(event) => setShipmentNotes(event.target.value)}
+                        placeholder="可选"
+                      />
+                    </label>
+                  </div>
+                  <Flex gap="2" mt="4" justify="end">
                     <Button size="1" variant="soft" color="gray" onClick={resetShipmentDraft}>
-                      取消编辑
+                      取消
                     </Button>
-                  )}
-                  <Button size="1" disabled={savingShipment} onClick={() => void saveShipment()}>
-                    {savingShipment
-                      ? '保存中…'
-                      : editingShipmentId
-                        ? '保存发货修正'
-                        : '保存本次发货'}
-                  </Button>
-                </Flex>
-              </div>
-            </div>
+                    <Button size="1" disabled={savingShipment} onClick={() => void saveShipment()}>
+                      {savingShipment ? '保存中…' : '保存本次发货'}
+                    </Button>
+                  </Flex>
+                </div>
+              </Dialog.Content>
+            </Dialog.Root>
             {shipments.length > 0 && (
               <div className="shipment-records">
                 {shipments.map((shipment) => (
@@ -3713,9 +3738,6 @@ function OrderDetailWorkspace({
                       </Text>
                     </div>
                     <Flex gap="2">
-                      <Button size="1" variant="soft" onClick={() => editShipment(shipment)}>
-                        编辑
-                      </Button>
                       <Button
                         size="1"
                         variant="soft"
@@ -3861,6 +3883,44 @@ function OrderDetailWorkspace({
           }}
         />
       )}
+      <Dialog.Root open={costDialogOpen} onOpenChange={setCostDialogOpen}>
+        <Dialog.Content maxWidth="760px">
+          <Dialog.Title>订单成本详情</Dialog.Title>
+          <Text as="div" size="1" color="gray" mb="3">
+            预计人工按订单创建时默认时薪；实际人工为已完成排班的制作工时与预留时间，按当日兼职时薪计算。
+          </Text>
+          {costDetail?.items.map((item) => (
+            <section className="inspector-section" key={item.orderItemId}>
+              <Flex justify="between" align="center">
+                <Text weight="medium">
+                  {item.productName} × {item.quantity}
+                </Text>
+                <Text>
+                  预计 {money(item.estimatedCostCents)} · 实际 {money(item.actualCostCents)}
+                </Text>
+              </Flex>
+              <Text as="div" size="1" color="gray" mt="2">
+                胶水 {money(item.glueCostCents)} · 包装 {money(item.packagingCostCents)} · 配件{' '}
+                {money(item.accessoryCostCents)} · 替换袋 {money(item.replacementBagCostCents)} ·
+                捏毛装袋 {money(item.fluffPackingCostCents)} · 缝边成本 {money(item.edgeCostCents)}{' '}
+                · 提成 {money(item.commissionCostCents)}
+              </Text>
+              <Text as="div" size="1" color="gray">
+                预计人工 {item.estimatedLaborMinutes} 分钟 {money(item.estimatedLaborCostCents)}
+                ；实际人工 {item.actualLaborMinutes} 分钟 {money(item.actualLaborCostCents)}
+              </Text>
+            </section>
+          ))}
+          {costDetail && (
+            <Flex justify="end" mt="4">
+              <Text weight="bold">
+                合计：预计 {money(costDetail.estimatedCostCents)} · 实际{' '}
+                {money(costDetail.actualCostCents)}
+              </Text>
+            </Flex>
+          )}
+        </Dialog.Content>
+      </Dialog.Root>
     </div>
   )
 }
@@ -3930,7 +3990,7 @@ function ShiftDialog({
         setItems(nextItems)
         setTasks(
           activeShift
-            ? activeShift.tasks.map((task) => ({
+            ? activeShift.tasks.slice(0, 1).map((task) => ({
                 id: crypto.randomUUID(),
                 orderItemId: task.orderItemId,
                 plannedQuantity: String(task.plannedQuantity)
@@ -4040,44 +4100,19 @@ function ShiftDialog({
             </Text>
           </label>
           <section className="form-section">
-            <Flex justify="between" align="center" mb="3">
+            <div className="section-title" style={{ marginBottom: 12 }}>
               <div>
                 <Text weight="medium">本次制作任务</Text>
                 <Text as="div" size="1" color="gray">
-                  同一排班可安排多个订单商品；模具容量按商品和日期合并检查。
+                  一次排班只能安排一个订单内的一种商品；预留时间会计入该商品的实际人工成本。
                 </Text>
               </div>
-              <Button
-                size="1"
-                variant="soft"
-                disabled={getAvailableShiftTaskItems(items, tasks).length === 0}
-                onClick={() =>
-                  setTasks((current) => {
-                    const nextItem = getAvailableShiftTaskItems(items, current)[0]
-                    return nextItem
-                      ? [
-                          ...current,
-                          {
-                            id: crypto.randomUUID(),
-                            orderItemId: nextItem.id,
-                            plannedQuantity: '1'
-                          }
-                        ]
-                      : current
-                  })
-                }
-              >
-                <Plus size={14} /> 添加任务
-              </Button>
-            </Flex>
+            </div>
             {loadingItems && <Text color="gray">正在读取可排班订单…</Text>}
             {!loadingItems && items.length === 0 && <Empty text="没有可排班的未完成订单商品。" />}
             <div className="shift-tasks">
-              {tasks.map((task, index) => (
+              {tasks.slice(0, 1).map((task) => (
                 <div className="shift-task" key={task.id}>
-                  <Text color="gray" size="1">
-                    {String(index + 1).padStart(2, '0')}
-                  </Text>
                   <select
                     className="desktop-select"
                     value={task.orderItemId}
@@ -4098,18 +4133,6 @@ function ShiftDialog({
                   <Text size="2" color="gray">
                     个
                   </Text>
-                  <Button
-                    size="1"
-                    variant="ghost"
-                    color="gray"
-                    disabled={tasks.length === 1}
-                    onClick={() => {
-                      setTasks((current) => current.filter((item) => item.id !== task.id))
-                      setPreview(null)
-                    }}
-                  >
-                    移除
-                  </Button>
                 </div>
               ))}
             </div>
@@ -4531,6 +4554,8 @@ function toProductUpdateInput(product: ProductDetail): ProductUpdateInput {
     packagingCostCents: product.packagingCostCents,
     accessoryCostCents: product.accessoryCostCents,
     replacementBagCostCents: product.replacementBagCostCents,
+    fluffPackingCostCents: product.fluffPackingCostCents,
+    edgeCostCents: product.edgeCostCents,
     commissionCentsPerUnit: product.commissionCentsPerUnit,
     moldCount: product.moldCount,
     outputPerMoldPerBatch: product.outputPerMoldPerBatch,
@@ -4554,7 +4579,6 @@ function ProductInspector({
   const [preview, setPreview] = useState<ProductCostPreview | null>(null)
   const [previewQuantity, setPreviewQuantity] = useState('1')
   const [previewEdgeEnabled, setPreviewEdgeEnabled] = useState(false)
-  const [previewEdgeQuantity, setPreviewEdgeQuantity] = useState('1')
   const [loading, setLoading] = useState(false)
   const [calculating, setCalculating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -4587,7 +4611,6 @@ function ProductInspector({
           setDraft(product)
           setPreviewQuantity('1')
           setPreviewEdgeEnabled(false)
-          setPreviewEdgeQuantity('1')
         }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : '商品详情读取失败。')
@@ -4642,7 +4665,7 @@ function ProductInspector({
         ...toProductUpdateInput(draft),
         quantity: Number(previewQuantity),
         edgeEnabled: previewEdgeEnabled,
-        edgeQuantity: previewEdgeEnabled ? Number(previewEdgeQuantity) : 0
+        edgeQuantity: previewEdgeEnabled ? Number(previewQuantity) : 0
       })
       setPreview(result)
     } catch (reason) {
@@ -4896,6 +4919,34 @@ function ProductInspector({
                 </label>
                 <label>
                   <Text as="div" size="2" mb="1">
+                    捏毛装袋（元/个）
+                  </Text>
+                  <NumericTextField
+                    allowDecimal
+                    min="0"
+                    onValueChange={(value) => {
+                      const fluffPackingCostCents = centsFromDraft(value)
+                      if (fluffPackingCostCents !== null) patchDraft({ fluffPackingCostCents })
+                    }}
+                    value={draft.fluffPackingCostCents / 100}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
+                    缝边成本（元/个）
+                  </Text>
+                  <NumericTextField
+                    allowDecimal
+                    min="0"
+                    onValueChange={(value) => {
+                      const edgeCostCents = centsFromDraft(value)
+                      if (edgeCostCents !== null) patchDraft({ edgeCostCents })
+                    }}
+                    value={draft.edgeCostCents / 100}
+                  />
+                </label>
+                <label>
+                  <Text as="div" size="2" mb="1">
                     固定提成（元/合格个）
                   </Text>
                   <NumericTextField
@@ -5000,11 +5051,7 @@ function ProductInspector({
                     <Text as="div" size="1" color="gray" mb="1">
                       缝边数量
                     </Text>
-                    <NumericTextField
-                      min="0"
-                      onValueChange={(value) => setPreviewEdgeQuantity(value)}
-                      value={previewEdgeQuantity}
-                    />
+                    <TextField.Root readOnly value={previewQuantity} />
                   </label>
                 )}
               </div>
@@ -5034,6 +5081,18 @@ function ProductInspector({
                         替换袋费用
                       </Text>
                       <Text weight="medium">{money(preview.replacementBagCostCents)}</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        捏毛装袋
+                      </Text>
+                      <Text weight="medium">{money(preview.fluffPackingCostCents)}</Text>
+                    </div>
+                    <div>
+                      <Text as="div" color="gray" size="1">
+                        缝边成本
+                      </Text>
+                      <Text weight="medium">{money(preview.edgeCostCents)}</Text>
                     </div>
                     <div>
                       <Text as="div" color="gray" size="1">

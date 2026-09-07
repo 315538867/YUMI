@@ -168,6 +168,8 @@ describe('商品成本预览', () => {
       packagingCostCents: 1000,
       accessoryCostCents: 2500,
       replacementBagCostCents: 800,
+      fluffPackingCostCents: 0,
+      edgeCostCents: 0,
       laborMinutes: 300,
       laborCostCents: 15000,
       commissionCostCents: 2000,

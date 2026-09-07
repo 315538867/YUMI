@@ -56,3 +56,27 @@ describe('商品成本计算', () => {
     ).toBe(40)
   })
 })
+
+it('将捏毛装袋和缝边成本按订单数量计入成本，并仅在启用缝边时计算缝边成本', () => {
+  const result = calculateProductCost({
+    quantity: 10,
+    weightGrams: 0,
+    lossRate: 0,
+    gluePricePerGram: 0,
+    packagingCostPerUnit: 0,
+    accessoryCostPerUnit: 0,
+    replacementBagCostPerUnit: 0,
+    fluffPackingCostPerUnit: 0.5,
+    edgeCostPerUnit: 1,
+    standardMinutesPerUnit: 0,
+    hourlyLaborCost: 0,
+    commissionPerUnit: 0,
+    edgeEnabled: true,
+    edgeQuantity: 10,
+    edgePricePerUnit: 3
+  })
+
+  expect(result.fluffPackingCost).toBe(5)
+  expect(result.edgeCost).toBe(10)
+  expect(result.totalCost).toBe(15)
+})

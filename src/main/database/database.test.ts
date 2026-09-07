@@ -46,12 +46,14 @@ describe('SQLite 数据基础', () => {
     ).toBeTruthy()
     expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual(
       {
-        version: 9
+        version: 10
       }
     )
 
     expect(column(database, 'products', 'accessory_cost_cents').dflt_value).toBe('0')
     expect(column(database, 'products', 'replacement_bag_cost_cents').dflt_value).toBe('0')
+    expect(column(database, 'products', 'fluff_packing_cost_cents').dflt_value).toBe('0')
+    expect(column(database, 'products', 'edge_cost_cents').dflt_value).toBe('0')
     expect(column(database, 'order_items', 'accessory_cost_cents').dflt_value).toBe('0')
     expect(column(database, 'order_items', 'replacement_bag_cost_cents').dflt_value).toBe('0')
     expect(column(database, 'shift_tasks', 'completed_quantity').notnull).toBe(0)
@@ -154,7 +156,7 @@ describe('SQLite 数据基础', () => {
 
     expect(database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual(
       {
-        version: 9
+        version: 10
       }
     )
     expect(column(database, 'shipments', 'manifest_snapshot_json').type).toBe('TEXT')

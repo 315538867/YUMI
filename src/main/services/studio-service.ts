@@ -58,6 +58,8 @@ const productBaseSchema = z.object({
   packagingCostCents: nonNegativeInteger,
   accessoryCostCents: nonNegativeInteger.optional().default(0),
   replacementBagCostCents: nonNegativeInteger.optional().default(0),
+  fluffPackingCostCents: nonNegativeInteger.optional().default(0),
+  edgeCostCents: nonNegativeInteger.optional().default(0),
   commissionCentsPerUnit: nonNegativeInteger,
   moldCount: positiveInteger,
   outputPerMoldPerBatch: positiveInteger,
@@ -285,6 +287,8 @@ export class StudioService {
       packagingCostPerUnit: parsed.packagingCostCents / 100,
       accessoryCostPerUnit: parsed.accessoryCostCents / 100,
       replacementBagCostPerUnit: parsed.replacementBagCostCents / 100,
+      fluffPackingCostPerUnit: parsed.fluffPackingCostCents / 100,
+      edgeCostPerUnit: parsed.edgeCostCents / 100,
       standardMinutesPerUnit: parsed.standardMinutesPerUnit,
       hourlyLaborCost: settings.defaultHourlyWageCents / 100,
       commissionPerUnit: parsed.commissionCentsPerUnit / 100,
@@ -299,6 +303,8 @@ export class StudioService {
       packagingCostCents: Math.round(result.packagingCost * 100),
       accessoryCostCents: Math.round(result.accessoryCost * 100),
       replacementBagCostCents: Math.round(result.replacementBagCost * 100),
+      fluffPackingCostCents: Math.round(result.fluffPackingCost * 100),
+      edgeCostCents: Math.round(result.edgeCost * 100),
       laborMinutes: Math.round(result.laborHours * 60),
       laborCostCents: Math.round(result.laborCost * 100),
       commissionCostCents: Math.round(result.commissionCost * 100),
@@ -617,6 +623,12 @@ export class StudioService {
     return this.repository.getOrderDetail(orderId)
   }
 
+  getOrderCostDetail(orderId: string) {
+    if (!z.string().uuid().safeParse(orderId).success)
+      throw new DomainValidationError('订单 ID 无效')
+    return this.repository.getOrderCostDetail(orderId)
+  }
+
   recordPayment(input: PaymentRecordInput) {
     const parsed = validate(paymentSchema, input)
     calculateProductionDeadline(parsed.paidAt, 0)
@@ -634,6 +646,7 @@ export class StudioService {
   previewShift(input: ShiftInput | ShiftUpdateInput) {
     const parsed = 'id' in input ? validate(shiftUpdateSchema, input) : validate(shiftSchema, input)
     if (!isValid(parseISO(parsed.shiftDate))) throw new DomainValidationError('排班日期无效')
+    this.assertSingleShiftTask(parsed.tasks)
     this.assertUniqueShiftOrderProducts(parsed.tasks)
     return this.repository.previewShift(parsed, 'id' in parsed ? parsed.id : undefined)
   }
@@ -641,6 +654,7 @@ export class StudioService {
   saveShift(input: ShiftInput) {
     const parsed = validate(shiftSchema, input)
     if (!isValid(parseISO(parsed.shiftDate))) throw new DomainValidationError('排班日期无效')
+    this.assertSingleShiftTask(parsed.tasks)
     this.assertUniqueShiftOrderProducts(parsed.tasks)
     const preview = this.repository.previewShift(parsed)
     const confirmed = new Set(parsed.confirmedWarningCodes ?? [])
@@ -656,6 +670,7 @@ export class StudioService {
   updateShift(input: ShiftUpdateInput) {
     const parsed = validate(shiftUpdateSchema, input)
     if (!isValid(parseISO(parsed.shiftDate))) throw new DomainValidationError('排班日期无效')
+    this.assertSingleShiftTask(parsed.tasks)
     this.assertUniqueShiftOrderProducts(parsed.tasks)
     const current = this.repository.getShiftDetail(parsed.id)
     if (!current) throw new DomainValidationError('排班不存在')
@@ -682,6 +697,10 @@ export class StudioService {
     const result = this.repository.updateShift({ ...parsed, confirmedWarningCodes: [...confirmed] })
     if (!result) throw new DomainValidationError('排班不存在')
     return result
+  }
+
+  private assertSingleShiftTask(tasks: ShiftInput['tasks']): void {
+    if (tasks.length !== 1) throw new DomainValidationError('一次排班只能安排一个订单内的一种商品')
   }
 
   private assertUniqueShiftOrderProducts(tasks: ShiftInput['tasks']): void {

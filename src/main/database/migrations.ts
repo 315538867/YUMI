@@ -367,6 +367,19 @@ const shipmentManifestSnapshotSchema = {
   }
 }
 
+const productAdditionalCostSchema = {
+  version: 10,
+  name: 'product_fluff_packing_and_edge_costs',
+  run(database: Database.Database): void {
+    database.exec(`
+      ALTER TABLE products ADD COLUMN fluff_packing_cost_cents INTEGER NOT NULL DEFAULT 0
+        CHECK(fluff_packing_cost_cents >= 0);
+      ALTER TABLE products ADD COLUMN edge_cost_cents INTEGER NOT NULL DEFAULT 0
+        CHECK(edge_cost_cents >= 0);
+    `)
+  }
+}
+
 const gluePricePrecisionSchema = {
   version: 9,
   name: 'glue_price_milli_yuan_precision',
@@ -389,7 +402,8 @@ const migrations = [
   operationalWorkflowSchema,
   defaultHourlyWageSchema,
   shipmentManifestSnapshotSchema,
-  gluePricePrecisionSchema
+  gluePricePrecisionSchema,
+  productAdditionalCostSchema
 ]
 
 export function runMigrations(database: Database.Database): void {

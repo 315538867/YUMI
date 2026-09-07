@@ -45,6 +45,7 @@ const yumi: YumiApi = {
   orders: {
     list: () => ipcRenderer.invoke('orders:list'),
     get: (id) => ipcRenderer.invoke('orders:get', id),
+    costDetail: (orderId) => ipcRenderer.invoke('orders:cost-detail', orderId),
     create: (input) => ipcRenderer.invoke('orders:create', input),
     update: (input) => ipcRenderer.invoke('orders:update', input),
     recordPayment: (input) => ipcRenderer.invoke('orders:record-payment', input),

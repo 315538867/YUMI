@@ -94,7 +94,13 @@ describe('端到端验收流程', () => {
     service.updateShiftStatus({
       shiftId: shift.id,
       status: 'completed',
-      taskCompletions: [{ shiftTaskId: service.getShiftDetail(shift.id)!.tasks[0]!.id, qualifiedQuantity: 4, unqualifiedQuantity: 0 }]
+      taskCompletions: [
+        {
+          shiftTaskId: service.getShiftDetail(shift.id)!.tasks[0]!.id,
+          qualifiedQuantity: 4,
+          unqualifiedQuantity: 0
+        }
+      ]
     })
     expect(service.getOrderDetail(order.id)).toMatchObject({
       schedulingStatus: 'production_completed',
@@ -111,7 +117,7 @@ describe('端到端验收流程', () => {
       }).rows
     ).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: order.id, actualCostCents: 7200, receivedNetCents: 21000 })
+        expect.objectContaining({ id: order.id, actualCostCents: 9912, receivedNetCents: 21000 })
       ])
     )
     expect(
@@ -133,19 +139,36 @@ describe('端到端验收流程', () => {
     const repository = new StudioRepository(database)
     const service = new StudioService(repository)
     const productA = service.createProduct({
-      name: '联动星星', basePriceCents: 3000, edgePriceCents: 0, weightGrams: 10,
-      lossRate: 0, standardMinutesPerUnit: 10, packagingCostCents: 0,
-      commissionCentsPerUnit: 100, moldCount: 10, outputPerMoldPerBatch: 1, maxBatchesPerDay: 2
+      name: '联动星星',
+      basePriceCents: 3000,
+      edgePriceCents: 0,
+      weightGrams: 10,
+      lossRate: 0,
+      standardMinutesPerUnit: 10,
+      packagingCostCents: 0,
+      commissionCentsPerUnit: 100,
+      moldCount: 10,
+      outputPerMoldPerBatch: 1,
+      maxBatchesPerDay: 2
     })
     const productB = service.createProduct({
-      name: '联动月亮', basePriceCents: 3200, edgePriceCents: 0, weightGrams: 12,
-      lossRate: 0, standardMinutesPerUnit: 12, packagingCostCents: 0,
-      commissionCentsPerUnit: 100, moldCount: 10, outputPerMoldPerBatch: 1, maxBatchesPerDay: 2
+      name: '联动月亮',
+      basePriceCents: 3200,
+      edgePriceCents: 0,
+      weightGrams: 12,
+      lossRate: 0,
+      standardMinutesPerUnit: 12,
+      packagingCostCents: 0,
+      commissionCentsPerUnit: 100,
+      moldCount: 10,
+      outputPerMoldPerBatch: 1,
+      maxBatchesPerDay: 2
     })
     const workerA = service.createWorker({ name: '联动小林', hourlyWageCents: 2800 })
     const workerB = service.createWorker({ name: '联动小周', hourlyWageCents: 3000 })
     const order = service.createOrder({
-      customer: { name: '联动客户' }, expectedShipDate: '2026-09-20',
+      customer: { name: '联动客户' },
+      expectedShipDate: '2026-09-20',
       items: [
         { productId: productA.id, quantity: 5 },
         { productId: productB.id, quantity: 3 }
@@ -153,22 +176,27 @@ describe('端到端验收流程', () => {
     })
     const [starItem, moonItem] = order.items
     const completedShift = service.saveShift({
-      workerId: workerA.id, shiftDate: '2026-09-10',
+      workerId: workerA.id,
+      shiftDate: '2026-09-10',
       tasks: [{ orderItemId: starItem!.id, plannedQuantity: 3 }]
     })
     const absentShift = service.saveShift({
-      workerId: workerB.id, shiftDate: '2026-09-11',
+      workerId: workerB.id,
+      shiftDate: '2026-09-11',
       tasks: [{ orderItemId: starItem!.id, plannedQuantity: 2 }]
     })
     const cancelledShift = service.saveShift({
-      workerId: workerB.id, shiftDate: '2026-09-12',
+      workerId: workerB.id,
+      shiftDate: '2026-09-12',
       tasks: [{ orderItemId: moonItem!.id, plannedQuantity: 3 }]
     })
     const completedTask = service.getShiftDetail(completedShift.id)!.tasks[0]!
     service.updateShiftStatus({
       shiftId: completedShift.id,
       status: 'completed',
-      taskCompletions: [{ shiftTaskId: completedTask.id, qualifiedQuantity: 2, unqualifiedQuantity: 1 }]
+      taskCompletions: [
+        { shiftTaskId: completedTask.id, qualifiedQuantity: 2, unqualifiedQuantity: 1 }
+      ]
     })
     service.updateShiftStatus({ shiftId: absentShift.id, status: 'absent' })
     service.updateShiftStatus({ shiftId: cancelledShift.id, status: 'cancelled' })
@@ -183,26 +211,57 @@ describe('端到端验收流程', () => {
         unplannedQuantity: 6
       },
       items: [
-        { progress: { orderedQuantity: 5, qualifiedQuantity: 2, unqualifiedQuantity: 1, unplannedQuantity: 3 } },
+        {
+          progress: {
+            orderedQuantity: 5,
+            qualifiedQuantity: 2,
+            unqualifiedQuantity: 1,
+            unplannedQuantity: 3
+          }
+        },
         { progress: { orderedQuantity: 3, qualifiedQuantity: 0, unplannedQuantity: 3 } }
       ],
       relatedSchedules: expect.arrayContaining([
-        expect.objectContaining({ id: completedShift.id, qualifiedQuantity: 2, unqualifiedQuantity: 1, unfinishedQuantity: 0 }),
+        expect.objectContaining({
+          id: completedShift.id,
+          qualifiedQuantity: 2,
+          unqualifiedQuantity: 1,
+          unfinishedQuantity: 0
+        }),
         expect.objectContaining({ id: absentShift.id, status: 'absent', unfinishedQuantity: 2 }),
-        expect.objectContaining({ id: cancelledShift.id, status: 'cancelled', unfinishedQuantity: 3 })
+        expect.objectContaining({
+          id: cancelledShift.id,
+          status: 'cancelled',
+          unfinishedQuantity: 3
+        })
       ])
     })
     expect(service.getWorkerDetail(workerA.id)?.orderTasks).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ shiftId: completedShift.id, orderId: order.id, qualifiedQuantity: 2, unqualifiedQuantity: 1, unfinishedQuantity: 0 })
+        expect.objectContaining({
+          shiftId: completedShift.id,
+          orderId: order.id,
+          qualifiedQuantity: 2,
+          unqualifiedQuantity: 1,
+          unfinishedQuantity: 0
+        })
       ])
     )
     expect(service.getWorkerDetail(workerB.id)?.orderTasks).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ shiftId: absentShift.id, orderId: order.id, shiftStatus: 'absent', unfinishedQuantity: 2 }),
-        expect.objectContaining({ shiftId: cancelledShift.id, orderId: order.id, shiftStatus: 'cancelled', unfinishedQuantity: 3 })
+        expect.objectContaining({
+          shiftId: absentShift.id,
+          orderId: order.id,
+          shiftStatus: 'absent',
+          unfinishedQuantity: 2
+        }),
+        expect.objectContaining({
+          shiftId: cancelledShift.id,
+          orderId: order.id,
+          shiftStatus: 'cancelled',
+          unfinishedQuantity: 3
+        })
       ])
     )
   })
-
 })

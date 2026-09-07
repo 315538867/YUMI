@@ -73,9 +73,9 @@ describe('订单资金与利润报表', () => {
       receivedNetCents: 3000,
       outstandingCents: 4800,
       estimatedCostCents: 2800,
-      actualCostCents: 0,
+      actualCostCents: 2800,
       estimatedProfitCents: 5000,
-      actualProfitCents: 3000,
+      actualProfitCents: 200,
       financialStatus: 'partial'
     })
     expect(report.totals).toMatchObject({
@@ -83,7 +83,7 @@ describe('订单资金与利润报表', () => {
       receivableCents: 7800,
       outstandingCents: 4800,
       estimatedProfitCents: 5000,
-      actualProfitCents: 3000
+      actualProfitCents: 200
     })
   })
 

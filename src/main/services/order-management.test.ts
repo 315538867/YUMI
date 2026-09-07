@@ -154,7 +154,7 @@ describe('客户、订单与收退款管理', () => {
           quantity: 3,
           unitPriceCents: 4200,
           edgeEnabled: true,
-          edgeQuantity: 1,
+          edgeQuantity: 3,
           edgePriceCents: 350,
           discountCents: 100
         },
@@ -169,7 +169,7 @@ describe('客户、订单与收退款管理', () => {
       productionDeadline: '2026-09-16',
       discountCents: 300,
       notes: '改为周末发货',
-      receivableCents: 16150,
+      receivableCents: 16850,
       customer: { contact: '13900000000' }
     })
     expect(updated.items).toHaveLength(2)
@@ -177,7 +177,7 @@ describe('客户、订单与收退款管理', () => {
       id: order.items[0]!.id,
       quantity: 3,
       unitPriceCents: 4200,
-      edgeQuantity: 1,
+      edgeQuantity: 3,
       edgePriceCents: 350,
       discountCents: 100
     })
@@ -303,21 +303,32 @@ describe('订单排产联动', () => {
     const repository = new StudioRepository(database)
     const service = new StudioService(repository)
     const product = service.createProduct({
-      name: '排产进度商品', basePriceCents: 3000, edgePriceCents: 0, weightGrams: 10,
-      lossRate: 0, standardMinutesPerUnit: 10, packagingCostCents: 0,
-      commissionCentsPerUnit: 100, moldCount: 10, outputPerMoldPerBatch: 1, maxBatchesPerDay: 2
+      name: '排产进度商品',
+      basePriceCents: 3000,
+      edgePriceCents: 0,
+      weightGrams: 10,
+      lossRate: 0,
+      standardMinutesPerUnit: 10,
+      packagingCostCents: 0,
+      commissionCentsPerUnit: 100,
+      moldCount: 10,
+      outputPerMoldPerBatch: 1,
+      maxBatchesPerDay: 2
     })
     const worker = service.createWorker({ name: '排产小林', hourlyWageCents: 2800 })
     const order = service.createOrder({
-      customer: { name: '排产客户' }, expectedShipDate: '2026-09-20',
+      customer: { name: '排产客户' },
+      expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 10 }]
     })
     const first = service.saveShift({
-      workerId: worker.id, shiftDate: '2026-09-10',
+      workerId: worker.id,
+      shiftDate: '2026-09-10',
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 4 }]
     })
     const second = service.saveShift({
-      workerId: worker.id, shiftDate: '2026-09-11',
+      workerId: worker.id,
+      shiftDate: '2026-09-11',
       tasks: [{ orderItemId: order.items[0]!.id, plannedQuantity: 3 }]
     })
     const firstTask = service.getShiftDetail(first.id)!.tasks[0]!
@@ -329,14 +340,37 @@ describe('订单排产联动', () => {
     const detail = service.getOrderDetail(order.id)!
     expect(detail).toMatchObject({
       schedulingStatus: 'pending_replenishment',
-      progress: { orderedQuantity: 10, qualifiedQuantity: 2, unqualifiedQuantity: 2, scheduledQuantity: 3, coveredQuantity: 5, unplannedQuantity: 5 },
-      items: [{ progress: { status: 'pending_replenishment', unqualifiedQuantity: 2, unplannedQuantity: 5 } }]
+      progress: {
+        orderedQuantity: 10,
+        qualifiedQuantity: 2,
+        unqualifiedQuantity: 2,
+        scheduledQuantity: 3,
+        coveredQuantity: 5,
+        unplannedQuantity: 5
+      },
+      items: [
+        {
+          progress: {
+            status: 'pending_replenishment',
+            unqualifiedQuantity: 2,
+            unplannedQuantity: 5
+          }
+        }
+      ]
     })
     expect(detail.relatedSchedules).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: second.id, plannedQuantity: 3, status: 'scheduled' })])
+      expect.arrayContaining([
+        expect.objectContaining({ id: second.id, plannedQuantity: 3, status: 'scheduled' })
+      ])
     )
     expect(repository.listOrders()).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: order.id, progress: expect.objectContaining({ unplannedQuantity: 5 }), schedulingStatus: 'pending_replenishment' })])
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: order.id,
+          progress: expect.objectContaining({ unplannedQuantity: 5 }),
+          schedulingStatus: 'pending_replenishment'
+        })
+      ])
     )
   })
 })

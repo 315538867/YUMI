@@ -16,6 +16,8 @@ export interface ProductDetail extends ProductSummary {
   packagingCostCents: number
   accessoryCostCents: number
   replacementBagCostCents: number
+  fluffPackingCostCents: number
+  edgeCostCents: number
   commissionCentsPerUnit: number
   moldCount: number
   outputPerMoldPerBatch: number
@@ -174,6 +176,8 @@ export interface ProductOrderSnapshot {
   packagingCostCents: number
   accessoryCostCents: number
   replacementBagCostCents: number
+  fluffPackingCostCents: number
+  edgeCostCents: number
   commissionCentsPerUnit: number
   moldCount: number
   outputPerMoldPerBatch: number
@@ -218,6 +222,32 @@ export interface OrderItemDetail {
   discountCents: number
   estimatedCostCents: number
   progress: ProductionProgressSummary
+}
+
+export interface OrderCostItemDetail {
+  orderItemId: string
+  productName: string
+  quantity: number
+  glueCostCents: number
+  packagingCostCents: number
+  accessoryCostCents: number
+  replacementBagCostCents: number
+  fluffPackingCostCents: number
+  edgeCostCents: number
+  commissionCostCents: number
+  estimatedLaborMinutes: number
+  estimatedLaborCostCents: number
+  actualLaborMinutes: number
+  actualLaborCostCents: number
+  estimatedCostCents: number
+  actualCostCents: number
+}
+
+export interface OrderCostDetail {
+  orderId: string
+  items: OrderCostItemDetail[]
+  estimatedCostCents: number
+  actualCostCents: number
 }
 
 export interface OrderScheduleSummary {
@@ -684,6 +714,8 @@ export interface ProductCreateInput {
   packagingCostCents: number
   accessoryCostCents?: number
   replacementBagCostCents?: number
+  fluffPackingCostCents?: number
+  edgeCostCents?: number
   commissionCentsPerUnit: number
   moldCount: number
   outputPerMoldPerBatch: number
@@ -710,6 +742,8 @@ export interface ProductCostPreview {
   packagingCostCents: number
   accessoryCostCents: number
   replacementBagCostCents: number
+  fluffPackingCostCents: number
+  edgeCostCents: number
   laborMinutes: number
   laborCostCents: number
   commissionCostCents: number
@@ -779,6 +813,7 @@ export interface YumiApi {
   orders: {
     list(): Promise<OrderSummary[]>
     get(id: string): Promise<OrderDetail | null>
+    costDetail(orderId: string): Promise<OrderCostDetail>
     create(input: OrderCreateInput): Promise<OrderDetail>
     update(input: OrderUpdateInput): Promise<OrderDetail>
     recordPayment(input: PaymentRecordInput): Promise<OrderDetail>

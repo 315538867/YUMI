@@ -101,6 +101,7 @@ export function registerIpc(
     return { savedPath: result.filePath }
   })
   ipcMain.handle('orders:get', (_event, id) => service.getOrderDetail(id))
+  ipcMain.handle('orders:cost-detail', (_event, orderId) => service.getOrderCostDetail(orderId))
   ipcMain.handle('orders:create', (_event, input) => service.createOrder(input))
   ipcMain.handle('orders:update', (_event, input) => service.updateOrder(input))
   ipcMain.handle('orders:record-payment', (_event, input) => service.recordPayment(input))

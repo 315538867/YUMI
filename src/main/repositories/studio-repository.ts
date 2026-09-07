@@ -20,6 +20,8 @@ import type {
   CustomerProfile,
   DashboardSummary,
   OrderCreateInput,
+  OrderCostDetail,
+  OrderCostItemDetail,
   OrderDefaults,
   OrderDetail,
   OrderFinancialSummary,
@@ -115,6 +117,8 @@ function productDetailFromRow(row: Row): ProductDetail {
     packagingCostCents: Number(row.packaging_cost_cents),
     accessoryCostCents: Number(row.accessory_cost_cents ?? 0),
     replacementBagCostCents: Number(row.replacement_bag_cost_cents ?? 0),
+    fluffPackingCostCents: Number(row.fluff_packing_cost_cents ?? 0),
+    edgeCostCents: Number(row.edge_cost_cents ?? 0),
     commissionCentsPerUnit: Number(row.commission_cents_per_unit),
     moldCount: Number(row.mold_count),
     outputPerMoldPerBatch: Number(row.output_per_mold_per_batch),
@@ -183,6 +187,8 @@ function productSnapshot(product: ProductDetail, settings: CostSettings): Produc
     packagingCostCents: product.packagingCostCents,
     accessoryCostCents: product.accessoryCostCents,
     replacementBagCostCents: product.replacementBagCostCents,
+    fluffPackingCostCents: product.fluffPackingCostCents,
+    edgeCostCents: product.edgeCostCents,
     commissionCentsPerUnit: product.commissionCentsPerUnit,
     moldCount: product.moldCount,
     outputPerMoldPerBatch: product.outputPerMoldPerBatch,
@@ -207,9 +213,11 @@ function estimateItemCostCents(
     packagingCostPerUnit: snapshot.packagingCostCents / 100,
     accessoryCostPerUnit: snapshot.accessoryCostCents / 100,
     replacementBagCostPerUnit: snapshot.replacementBagCostCents / 100,
+    fluffPackingCostPerUnit: snapshot.fluffPackingCostCents / 100,
+    edgeCostPerUnit: snapshot.edgeCostCents / 100,
     standardMinutesPerUnit: snapshot.standardMinutesPerUnit,
     // 订单创建时尚未分配具体兼职人员；预计人工成本采用当时的全局默认时薪。
-    // 实际人工工时成本仍会在完工记录中按兼职人员时薪计算。
+    // 实际人工成本会在排班完成后按排班日期的人员时薪和完整预留工时汇总。
     hourlyLaborCost: (snapshot.defaultHourlyWageCents ?? 0) / 100,
     commissionPerUnit: snapshot.commissionCentsPerUnit / 100,
     edgeEnabled,
@@ -217,6 +225,54 @@ function estimateItemCostCents(
     edgePricePerUnit: edgePriceCents / 100
   })
   return Math.round(result.totalCost * 100)
+}
+
+function calculateOrderCostItem(
+  orderItemId: string,
+  snapshot: ProductOrderSnapshot,
+  quantity: number,
+  edgeEnabled: boolean,
+  edgeQuantity: number,
+  edgePriceCents: number,
+  actualLaborMinutes: number,
+  actualLaborCostCents: number
+): OrderCostItemDetail {
+  const expected = calculateProductCost({
+    quantity,
+    weightGrams: snapshot.weightGrams,
+    lossRate: snapshot.lossRate,
+    gluePricePerGram: snapshot.gluePriceMilliYuanPerGram / 1000,
+    packagingCostPerUnit: snapshot.packagingCostCents / 100,
+    accessoryCostPerUnit: snapshot.accessoryCostCents / 100,
+    replacementBagCostPerUnit: snapshot.replacementBagCostCents / 100,
+    fluffPackingCostPerUnit: snapshot.fluffPackingCostCents / 100,
+    edgeCostPerUnit: snapshot.edgeCostCents / 100,
+    standardMinutesPerUnit: snapshot.standardMinutesPerUnit,
+    hourlyLaborCost: (snapshot.defaultHourlyWageCents ?? 0) / 100,
+    commissionPerUnit: snapshot.commissionCentsPerUnit / 100,
+    edgeEnabled,
+    edgeQuantity,
+    edgePricePerUnit: edgePriceCents / 100
+  })
+  const directCostCents = Math.round((expected.totalCost - expected.laborCost) * 100)
+  return {
+    orderItemId,
+    productName: snapshot.name,
+    quantity,
+    glueCostCents: Math.round(expected.glueCost * 100),
+    packagingCostCents: Math.round(expected.packagingCost * 100),
+    accessoryCostCents: Math.round(expected.accessoryCost * 100),
+    replacementBagCostCents: Math.round(expected.replacementBagCost * 100),
+    fluffPackingCostCents: Math.round(expected.fluffPackingCost * 100),
+    edgeCostCents: Math.round(expected.edgeCost * 100),
+    commissionCostCents: Math.round(expected.commissionCost * 100),
+    estimatedLaborMinutes: Math.round(expected.laborHours * 60),
+    estimatedLaborCostCents: Math.round(expected.laborCost * 100),
+    actualLaborMinutes,
+    actualLaborCostCents,
+    estimatedCostCents: Math.round(expected.totalCost * 100),
+    actualCostCents: directCostCents + actualLaborCostCents
+  }
 }
 
 export class StudioRepository {
@@ -238,7 +294,7 @@ export class StudioRepository {
       .prepare(
         `SELECT id, name, code, category, base_price_cents, edge_price_cents, enabled,
         weight_grams, loss_rate, standard_minutes_per_unit, packaging_cost_cents,
-        accessory_cost_cents, replacement_bag_cost_cents, commission_cents_per_unit, mold_count,
+        accessory_cost_cents, replacement_bag_cost_cents, fluff_packing_cost_cents, edge_cost_cents, commission_cents_per_unit, mold_count,
         output_per_mold_per_batch, max_batches_per_day,
         image_path, notes FROM products WHERE id = ?`
       )
@@ -255,9 +311,9 @@ export class StudioRepository {
           `INSERT INTO products (
             id, name, code, category, base_price_cents, edge_price_cents, weight_grams, loss_rate,
             standard_minutes_per_unit, packaging_cost_cents, accessory_cost_cents,
-            replacement_bag_cost_cents, commission_cents_per_unit, mold_count,
+            replacement_bag_cost_cents, fluff_packing_cost_cents, edge_cost_cents, commission_cents_per_unit, mold_count,
             output_per_mold_per_batch, max_batches_per_day, image_path, notes, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           id,
@@ -272,6 +328,8 @@ export class StudioRepository {
           input.packagingCostCents,
           input.accessoryCostCents ?? 0,
           input.replacementBagCostCents ?? 0,
+          input.fluffPackingCostCents ?? 0,
+          input.edgeCostCents ?? 0,
           input.commissionCentsPerUnit,
           input.moldCount,
           input.outputPerMoldPerBatch,
@@ -305,7 +363,7 @@ export class StudioRepository {
           `UPDATE products SET
             name = ?, code = ?, category = ?, base_price_cents = ?, edge_price_cents = ?,
             weight_grams = ?, loss_rate = ?, standard_minutes_per_unit = ?, packaging_cost_cents = ?,
-            accessory_cost_cents = ?, replacement_bag_cost_cents = ?, commission_cents_per_unit = ?,
+            accessory_cost_cents = ?, replacement_bag_cost_cents = ?, fluff_packing_cost_cents = ?, edge_cost_cents = ?, commission_cents_per_unit = ?,
             mold_count = ?, output_per_mold_per_batch = ?,
             max_batches_per_day = ?, image_path = ?, notes = ?, enabled = ?, updated_at = ?
           WHERE id = ?`
@@ -322,6 +380,8 @@ export class StudioRepository {
           input.packagingCostCents,
           input.accessoryCostCents ?? 0,
           input.replacementBagCostCents ?? 0,
+          input.fluffPackingCostCents ?? 0,
+          input.edgeCostCents ?? 0,
           input.commissionCentsPerUnit,
           input.moldCount,
           input.outputPerMoldPerBatch,
@@ -490,13 +550,11 @@ export class StudioRepository {
         if (!product) throw new DomainValidationError('商品不存在')
         if (!product.enabled) throw new DomainValidationError('商品未启用，不能创建订单')
         const edgeEnabled = item.edgeEnabled ?? false
-        const edgeQuantity = edgeEnabled ? (item.edgeQuantity ?? item.quantity) : 0
+        const edgeQuantity = edgeEnabled ? item.quantity : 0
         const unitPriceCents = item.unitPriceCents ?? product.basePriceCents
         const edgePriceCents = item.edgePriceCents ?? product.edgePriceCents
         const discountCents = item.discountCents ?? 0
         const beforeDiscount = unitPriceCents * item.quantity + edgePriceCents * edgeQuantity
-        if (edgeQuantity > item.quantity)
-          throw new DomainValidationError('缝边数量不能超过商品数量')
         if (discountCents > beforeDiscount)
           throw new DomainValidationError('明细优惠不能超过明细金额')
         const snapshot = productSnapshot(product, costSettings)
@@ -587,6 +645,7 @@ export class StudioRepository {
           timestamp
         )
       })
+      this.refreshOrderActualCost(orderId, timestamp)
       this.writeAudit(
         'order.created',
         'order',
@@ -867,17 +926,13 @@ export class StudioRepository {
             `商品数量不能低于累计已发数量（累计已发 ${shipped.quantity} 件）`
           )
         const edgeEnabled = item.edgeEnabled ?? existing?.edgeEnabled ?? false
-        const edgeQuantity = edgeEnabled
-          ? (item.edgeQuantity ?? existing?.edgeQuantity ?? item.quantity)
-          : 0
+        const edgeQuantity = edgeEnabled ? item.quantity : 0
         const unitPriceCents =
           item.unitPriceCents ?? existing?.unitPriceCents ?? product.basePriceCents
         const edgePriceCents =
           item.edgePriceCents ?? existing?.edgePriceCents ?? product.edgePriceCents
         const discountCents = item.discountCents ?? existing?.discountCents ?? 0
         const beforeDiscount = unitPriceCents * item.quantity + edgePriceCents * edgeQuantity
-        if (edgeQuantity > item.quantity)
-          throw new DomainValidationError('缝边数量不能超过商品数量')
         if (discountCents > beforeDiscount)
           throw new DomainValidationError('明细优惠不能超过明细金额')
         const snapshot = productSnapshot(product, costSettings)
@@ -1006,6 +1061,7 @@ export class StudioRepository {
             .prepare('DELETE FROM order_items WHERE id = ? AND order_id = ?')
             .run(item.id, input.id)
       }
+      this.refreshOrderActualCost(input.id, timestamp)
       this.writeAudit(
         'order.updated',
         'order',
@@ -1029,6 +1085,66 @@ export class StudioRepository {
       )
     })()
     return this.getOrderDetail(input.id)!
+  }
+
+  getOrderCostDetail(orderId: string): OrderCostDetail {
+    const order = this.database.prepare('SELECT id FROM orders WHERE id = ?').get(orderId)
+    if (!order) throw new DomainValidationError('订单不存在')
+    const laborRows = this.database
+      .prepare(
+        `SELECT st.order_item_id,
+          COALESCE(SUM(st.estimated_minutes + s.extra_minutes), 0) AS actual_labor_minutes,
+          COALESCE(SUM(ROUND((st.estimated_minutes + s.extra_minutes) * (
+            SELECT hourly_wage_cents FROM worker_wage_history
+            WHERE worker_id = s.worker_id AND effective_from <= s.shift_date
+            ORDER BY effective_from DESC, created_at DESC LIMIT 1
+          ) / 60.0)), 0) AS actual_labor_cost_cents
+         FROM shift_tasks st
+         JOIN shifts s ON s.id = st.shift_id
+         JOIN order_items oi ON oi.id = st.order_item_id
+         WHERE oi.order_id = ? AND s.status = 'completed'
+         GROUP BY st.order_item_id`
+      )
+      .all(orderId) as Row[]
+    const laborByItem = new Map(
+      laborRows.map((row) => [
+        String(row.order_item_id),
+        {
+          minutes: Number(row.actual_labor_minutes),
+          costCents: Number(row.actual_labor_cost_cents)
+        }
+      ])
+    )
+    const items = (
+      this.database
+        .prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY sort_order, created_at, id')
+        .all(orderId) as Row[]
+    ).map((row) => {
+      const labor = laborByItem.get(String(row.id)) ?? { minutes: 0, costCents: 0 }
+      return calculateOrderCostItem(
+        String(row.id),
+        JSON.parse(String(row.product_snapshot_json)) as ProductOrderSnapshot,
+        Number(row.quantity),
+        Boolean(row.edge_enabled),
+        Number(row.edge_quantity),
+        Number(row.edge_price_cents),
+        labor.minutes,
+        labor.costCents
+      )
+    })
+    return {
+      orderId,
+      items,
+      estimatedCostCents: items.reduce((total, item) => total + item.estimatedCostCents, 0),
+      actualCostCents: items.reduce((total, item) => total + item.actualCostCents, 0)
+    }
+  }
+
+  private refreshOrderActualCost(orderId: string, timestamp = now()): void {
+    const detail = this.getOrderCostDetail(orderId)
+    this.database
+      .prepare('UPDATE orders SET actual_cost_cents = ?, updated_at = ? WHERE id = ?')
+      .run(detail.actualCostCents, timestamp, orderId)
   }
 
   getOrderDetail(id: string): OrderDetail | null {
@@ -1151,6 +1267,9 @@ export class StudioRepository {
   }
 
   previewShift(input: ShiftInput, excludedShiftId?: string) {
+    if (input.tasks.length !== 1) {
+      throw new DomainValidationError('一次排班只能安排一个订单内的一种商品')
+    }
     const worker = this.database
       .prepare('SELECT id, active FROM workers WHERE id = ?')
       .get(input.workerId) as Row | undefined
@@ -1483,15 +1602,12 @@ export class StudioRepository {
           : 'in_production'
       this.database
         .prepare(
-          `UPDATE orders SET actual_cost_cents = (
-            SELECT COALESCE(SUM(st.actual_labor_cost_cents + st.commission_cost_cents), 0)
-            FROM shift_tasks st JOIN order_items oi ON oi.id = st.order_item_id
-            WHERE oi.order_id = orders.id
-          ), production_status = CASE
+          `UPDATE orders SET production_status = CASE
             WHEN production_status IN ('pending_confirmation', 'pending_schedule', 'in_production') THEN ?
             ELSE production_status END, updated_at = ? WHERE id = ?`
         )
         .run(nextStatus, timestamp, task.order_id)
+      this.refreshOrderActualCost(task.order_id, timestamp)
       this.writeAudit(
         'production.recorded',
         'production',
@@ -1550,6 +1666,12 @@ export class StudioRepository {
       this.database
         .prepare('UPDATE shifts SET status = ?, updated_at = ? WHERE id = ?')
         .run(input.status, timestamp, input.shiftId)
+      const orderIds = this.database
+        .prepare(
+          'SELECT DISTINCT oi.order_id FROM shift_tasks st JOIN order_items oi ON oi.id = st.order_item_id WHERE st.shift_id = ?'
+        )
+        .all(input.shiftId) as Row[]
+      orderIds.forEach((row) => this.refreshOrderActualCost(String(row.order_id), timestamp))
       this.writeAudit(
         'shift.status.updated',
         'shift',

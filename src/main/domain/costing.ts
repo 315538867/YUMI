@@ -8,6 +8,8 @@ export interface ProductCostInput {
   packagingCostPerUnit: number
   accessoryCostPerUnit?: number
   replacementBagCostPerUnit?: number
+  fluffPackingCostPerUnit?: number
+  edgeCostPerUnit?: number
   standardMinutesPerUnit: number
   hourlyLaborCost: number
   commissionPerUnit: number
@@ -22,6 +24,8 @@ export interface ProductCostResult {
   packagingCost: number
   accessoryCost: number
   replacementBagCost: number
+  fluffPackingCost: number
+  edgeCost: number
   laborHours: number
   laborCost: number
   commissionCost: number
@@ -40,8 +44,12 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
   requirePositive(input.packagingCostPerUnit, '包装成本', true)
   const accessoryCostPerUnit = input.accessoryCostPerUnit ?? 0
   const replacementBagCostPerUnit = input.replacementBagCostPerUnit ?? 0
+  const fluffPackingCostPerUnit = input.fluffPackingCostPerUnit ?? 0
+  const edgeCostPerUnit = input.edgeCostPerUnit ?? 0
   requirePositive(accessoryCostPerUnit, '配件费', true)
   requirePositive(replacementBagCostPerUnit, '替换袋费用', true)
+  requirePositive(fluffPackingCostPerUnit, '捏毛装袋费用', true)
+  requirePositive(edgeCostPerUnit, '缝边成本', true)
   requirePositive(input.standardMinutesPerUnit, '标准制作时长', true)
   requirePositive(input.hourlyLaborCost, '人工时薪', true)
   requirePositive(input.commissionPerUnit, '单件提成', true)
@@ -60,6 +68,8 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
   const packagingCost = roundMoney(input.quantity * input.packagingCostPerUnit)
   const accessoryCost = roundMoney(input.quantity * accessoryCostPerUnit)
   const replacementBagCost = roundMoney(input.quantity * replacementBagCostPerUnit)
+  const fluffPackingCost = roundMoney(input.quantity * fluffPackingCostPerUnit)
+  const edgeCost = input.edgeEnabled ? roundMoney(input.edgeQuantity * edgeCostPerUnit) : 0
   const laborHours = roundQuantity((input.quantity * input.standardMinutesPerUnit) / 60)
   const laborCost = roundMoney(laborHours * input.hourlyLaborCost)
   const commissionCost = roundMoney(input.quantity * input.commissionPerUnit)
@@ -73,6 +83,8 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
     packagingCost,
     accessoryCost,
     replacementBagCost,
+    fluffPackingCost,
+    edgeCost,
     laborHours,
     laborCost,
     commissionCost,
@@ -82,6 +94,8 @@ export function calculateProductCost(input: ProductCostInput): ProductCostResult
         packagingCost +
         accessoryCost +
         replacementBagCost +
+        fluffPackingCost +
+        edgeCost +
         laborCost +
         commissionCost
     )

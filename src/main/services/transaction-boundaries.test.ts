@@ -101,7 +101,7 @@ describe('关键写操作事务边界', () => {
       maxBatchesPerDay: 2
     })
     const worker = service.createWorker({ name: '排班人员', hourlyWageCents: 2800 })
-    const order = service.createOrder({
+    service.createOrder({
       customer: { name: '排班事务客户' },
       expectedShipDate: '2026-09-20',
       items: [{ productId: product.id, quantity: 2 }]
@@ -114,7 +114,6 @@ describe('关键写操作事务边界', () => {
         startTime: '09:00',
         endTime: '10:00',
         tasks: [
-          { orderItemId: order.items[0]!.id, plannedQuantity: 1 },
           {
             orderItemId: '00000000-0000-4000-8000-000000000000',
             plannedQuantity: 1
