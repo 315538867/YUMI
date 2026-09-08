@@ -3,7 +3,7 @@
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
 - 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.1）
-- 状态：实施中（阶段 D；D.2 已完成）
+- 状态：实施中（阶段 D；D.4 已完成）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -103,3 +103,6 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 - **2026-09-08 / D.2 已完成**：新增纯领域 `finance.ts` 与 `after-sales.ts`。财务规则以实际收付款日期筛选自然月，任何 `reimbursement` 来源只保留现金付款事实而不计入经营支出；订单退款、工资和日常支出仍按实际日期进入经营支出。私人垫付需为启用垫付人的手工日常支出，整笔报销的日期不得早于原垫付、金额必须完全一致且不能重复。待报销按查询截至日判断原垫付和完整报销的先后。售后规则只验证负责人填写的订单、批次、原因、责任、处理、状态与核算成本事实；免费售后成本不会推导现金支出或客户收费，收费只能显式关联同订单的 `after_sales_charge` 订单资金流水。验证：新增 `src/main/domain/finance.test.ts`、`src/main/domain/after-sales.test.ts` 共 6 个用例，`npm run typecheck`、`npm run lint`、`git diff --check` 通过。下一步为 D.3。
 
 - **2026-09-08 / D.3 已完成**：新增财务和售后仓储、服务、IPC 与共享契约。负责人可维护动态收入/支出类目及垫付人（停用保留历史、已引用时拒绝删除），登记不关联订单的日常收入或公账/私人垫付支出；私人垫付可在独立事务内生成一笔等额报销现金流水与一对一关联，月度经营支出仍只按原垫付计算。售后服务只保存负责人输入的事实及核算成本；实际收费仍由订单服务登记 `after_sales_charge` 资金流水，再显式关联售后单。V2 运行时、预加载和 IPC 均新增受控能力边界，订单资金仓储补充显式 `order_fund` 来源写入以适配版本 8 的统一资金表。验证：新增财务/售后服务测试、更新 IPC/preload 边界测试；全量 `npm test`（53 个测试文件、147 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 通过。下一步为 D.4：财务、设置与订单售后页面。
+
+
+- **2026-09-08 / D.4 已完成**：新增财务、设置与订单售后页面，并以 `use-finance.ts` 收敛渲染进程的财务/售后预加载调用。负责人可以维护收入/支出类目及私人垫付人（新建、改名、停用、删除受引用保护），按实际收付款日期登记不关联订单的日常收入或公账/私人垫付支出，查看待报销并发起一次性完整报销。订单详情新增独立售后面板，明确记录原因、客户诉求、负责人责任判断、处理方式、核算成本和状态；实际收费必须先由负责人登记订单 `after_sales_charge` 流水，再显式关联售后单，页面不会自动定责、收费或创建返工/补发任务。验证：新增页面边界覆盖；全量 `npm test`（53 个测试文件、148 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 通过。下一步为 D.5：月度财务首页与流水查看。

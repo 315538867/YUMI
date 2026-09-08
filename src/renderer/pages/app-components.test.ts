@@ -19,6 +19,10 @@ const orderComposableSource = source('src/renderer/composables/use-orders.ts')
 const fulfillmentComposableSource = source('src/renderer/composables/use-fulfillment.ts')
 const workAssignmentsComposableSource = source('src/renderer/composables/use-work-assignments.ts')
 const settlementsComposableSource = source('src/renderer/composables/use-settlements.ts')
+const financePageSource = source('src/renderer/pages/finance/index.tsx')
+const settingsPageSource = source('src/renderer/pages/settings/index.tsx')
+const afterSalesPanelSource = source('src/renderer/components/after-sales/after-sales-panel.tsx')
+const financeComposableSource = source('src/renderer/composables/use-finance.ts')
 
 describe('V2 应用壳与页面边界', () => {
   it('应用壳仅负责导航与页面装配，不直接调用预加载能力', () => {
@@ -120,5 +124,25 @@ describe('V2 兼职工资结算工作区', () => {
     expect(settlementDetailSource).toContain('setError')
     expect(settlementDetailSource).toContain('await props.updateDraft')
     expect(settlementDetailSource).toContain('await props.confirmSettlement')
+  })
+})
+
+describe('V2 财务与售后工作区', () => {
+  it('应用壳装配财务和设置页面，并在订单详情保留售后入口', () => {
+    expect(appSource).toContain("from './finance'")
+    expect(appSource).toContain("from './settings'")
+    expect(appSource).toContain("id: 'finance'")
+    expect(appSource).toContain("id: 'settings'")
+    expect(orderPageSource).toContain('AfterSalesPanel')
+    for (const pageSource of [financePageSource, settingsPageSource, afterSalesPanelSource]) {
+      expect(pageSource).not.toContain('window.yumi')
+      expect(pageSource).not.toContain('ipcRenderer')
+    }
+    expect(financeComposableSource).toContain('window.yumiV2.finance')
+    expect(financeComposableSource).toContain('window.yumiV2.afterSales')
+    expect(financePageSource).toContain('登记日常收支')
+    expect(financePageSource).toContain('完整报销')
+    expect(settingsPageSource).toContain('私人垫付人')
+    expect(afterSalesPanelSource).toContain('系统不会自动定责、收费或创建返工任务')
   })
 })

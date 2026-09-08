@@ -1539,3 +1539,44 @@ button {
 .settlement-editor { border-top: 1px solid #ebe7df; padding-top: 16px; }
 @media (max-width: 980px) { .settlement-reference-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) { .settlement-reference-grid { grid-template-columns: 1fr; } .settlement-list-item { grid-template-columns: 1fr; } }
+
+/* V2 财务与售后：信息保持负责人可判断、可复核，避免系统自动归责。 */
+.finance-list,
+.settings-list,
+.after-sales-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+  border: 1px solid #e9e5de;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.finance-row,
+.settings-row,
+.after-sales-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border-top: 1px solid #eeeae4;
+}
+.finance-row:first-child,
+.settings-row:first-child,
+.after-sales-row:first-child { border-top: 0; }
+.finance-row > div:last-child { display: flex; align-items: center; gap: 9px; }
+.settings-row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr) auto auto; }
+.inline-entry,
+.inline-fields { display: flex; align-items: center; gap: 9px; margin-top: 12px; }
+.inline-entry { max-width: 440px; }
+.inline-entry > *:first-child,
+.inline-fields > input,
+.inline-fields > select { flex: 1; }
+.after-sales-panel { display: flex; flex-direction: column; gap: 14px; }
+.after-sales-link { border-top: 1px solid #e9e5de; padding-top: 13px; }
+@media (max-width: 900px) {
+  .settings-row { grid-template-columns: 1fr 1fr; }
+  .settings-row > :nth-child(3), .settings-row > :nth-child(4) { justify-self: start; }
+  .finance-row, .after-sales-row { align-items: flex-start; flex-direction: column; }
+  .inline-fields { align-items: stretch; flex-direction: column; }
+}

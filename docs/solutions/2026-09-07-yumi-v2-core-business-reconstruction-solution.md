@@ -9,7 +9,7 @@ branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 D.3 已完成；下一步进入财务、设置与订单售后页面）
+implementation_status: 实施中（阶段 D.4 已完成；下一步进入月度财务首页与流水查看）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1168,3 +1168,11 @@ npm run build
 - 报销会在同一事务中写入 `reimbursement` 现金支出、建立一对一关联并记录审计；该流水仍可在现金流水中追溯，但月度经营支出只按原始日常支出统计，避免重复。运行时恢复后会一起重建财务和售后服务引用。
 - `AfterSalesService` 只允许负责人录入、更新售后事实和核算成本，不会创建日常支出、客户收费、返工或补发任务。实际售后收费必须先通过订单资金服务登记同订单的 `after_sales_charge`，再由负责人显式关联到售后单；关联和审计在独立事务中完成。订单资金仓储也明确写入 `order_fund` 来源，适配版本 8 的统一资金表。
 - 验证：新增 `src/main/services/finance-service.test.ts`（私人垫付、整笔报销、经营口径、引用删除保护、停用资料校验）和 `src/main/services/after-sales-service.test.ts`（免费/有成本售后事实及显式收费关联），并扩展 `register-v2-ipc.test.ts`、`v2-api.test.ts`。全量 `npm test`（53 个测试文件、147 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 均通过。下一步为 D.4：财务、设置与订单售后页面。
+
+
+### 2026-09-08：阶段 D.4 完成
+
+- 新增“财务”与“设置”工作区。设置页可维护动态日常收入/支出类目和私人垫付人，支持新增、改名、停用和删除；删除仍由服务层的引用保护决定，已关联财务流水的资料会保留并显示明确错误。财务页可按实际付款或收款日期登记不关联订单的日常收支；支出必须显式区分公账和私人垫付，私人垫付只可选择启用垫付人。
+- 财务页同时展示近期现金流水与待报销私人垫付。负责人可以在页面输入报销日期和支付方式后执行一次性完整报销；报销完成后，原垫付的发生日经营支出事实不被改写，报销付款也不会重复纳入经营费用。
+- 订单详情增加独立售后面板，负责人自行记录问题、客户诉求、责任判断、处理方式、状态、核算成本和收费说明。面板不会推导客户收费、现金支出、返工或补发；如实际收费，负责人须先在订单资金区登记“售后收费”，再选择性关联到相应售后记录。
+- 页面、售后组件均不直接访问 IPC；`use-finance.ts` 统一财务/售后数据加载与写入，页面失败时保留已输入草稿。验证：新增 V2 财务与售后工作区页面边界用例；全量 `npm test` 通过 53 个测试文件、148 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均通过。下一步为 D.5：月度财务首页与流水查看。

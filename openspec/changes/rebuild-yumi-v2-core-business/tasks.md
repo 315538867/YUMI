@@ -1,4 +1,4 @@
-> 当前执行：D.4（财务、设置与订单售后页面）。未通过对应验证前不得勾选完成。
+> 当前执行：D.5（月度财务首页与流水查看）。未通过对应验证前不得勾选完成。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -36,7 +36,7 @@
 - [x] D.1 在 `src/main/database/v2-migrations.ts` 追加财务类目、垫付人、报销和售后处理单表，并为 `financial_entries` 增加手工收入/支出、工资、报销来源、付款来源、类目和垫付关联；完成条件是已引用类目/垫付人无法删除，私人垫付与整笔报销为一对一。
 - [x] D.2 新增 `src/main/domain/finance.ts`、`src/main/domain/after-sales.ts`，实现实际日期月度汇总、经营支出计入规则、待报销、整笔报销和售后客户收费/核算成本分离；完成条件是报销付款不重复计入经营支出，售后核算成本不自动生成日常支出。
 - [x] D.3 新增 `src/main/repositories/finance-repository.ts`、`after-sales-repository.ts`、`src/main/services/finance-service.ts`、`after-sales-service.ts`、对应 IPC 与 `src/shared/contracts/finance.ts`；完成条件是日常收支、类目、垫付、报销、售后、订单售后收费和审计记录均有稳定输入校验与事务边界。验证：新增财务/售后服务测试及 IPC/preload 边界覆盖；2026-09-08 全量 `npm test`（53 个测试文件、147 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
-- [ ] D.4 新增 `src/renderer/pages/finance/`、`pages/settings/`、订单售后组件、`composables/use-finance.ts`；完成条件是负责人可管理类目/垫付人、登记日常收支、查看待报销并完整报销、录入弹性售后，系统不自动定责/收费/建任务。
+- [x] D.4 新增 `src/renderer/pages/finance/`、`pages/settings/`、订单售后组件、`composables/use-finance.ts`；完成条件是负责人可管理类目/垫付人、登记日常收支、查看待报销并完整报销、录入弹性售后，系统不自动定责/收费/建任务。验证：2026-09-08 全量 `npm test`（53 个测试文件、148 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
 - [ ] D.5 实现月度财务首页，默认展示实际收入、经营支出、经营结果和截至查询日待报销金额，并支持查看流水；完成条件是收入不区分账户、支出明确公账/私人垫付、日期归属按实际付款日。
 - [ ] D.6 为动态类目、私人垫付、整笔报销、月度口径、免费售后、有成本售后和售后收费新增测试；完成条件是财务与售后验收场景均可自动验证。
 - [ ] D.7 运行阶段 D 定向测试、`npm run typecheck`、`npm run lint` 和 `npm run build`；完成条件是记录验证证据后才进入阶段 E。

@@ -1,20 +1,24 @@
 import { useState } from 'react'
 import { Badge, Button, Text } from '@radix-ui/themes'
-import { CircleDollarSign, ClipboardList, Package, Users, WalletCards } from 'lucide-react'
+import { CircleDollarSign, ClipboardList, Landmark, Package, Settings, Users, WalletCards } from 'lucide-react'
 import { CustomersPage } from './customers'
+import { FinancePage } from './finance'
 import { FulfillmentPage } from './fulfillment'
 import { OrdersPage } from './orders'
 import { ProductsPage } from './products'
 import { SettlementsPage } from './settlements'
+import { SettingsPage } from './settings'
 
-type View = 'orders' | 'fulfillment' | 'settlements' | 'customers' | 'products'
+type View = 'orders' | 'fulfillment' | 'settlements' | 'finance' | 'customers' | 'products' | 'settings'
 
 const navigation: Array<{ id: View; label: string; icon: typeof CircleDollarSign }> = [
   { id: 'orders', label: '订单', icon: CircleDollarSign },
   { id: 'fulfillment', label: '履约', icon: ClipboardList },
   { id: 'settlements', label: '工资', icon: WalletCards },
+  { id: 'finance', label: '财务', icon: Landmark },
   { id: 'customers', label: '客户', icon: Users },
-  { id: 'products', label: '商品', icon: Package }
+  { id: 'products', label: '商品', icon: Package },
+  { id: 'settings', label: '设置', icon: Settings }
 ]
 
 export function App() {
@@ -40,8 +44,10 @@ export function App() {
           {view === 'orders' && <OrdersPage />}
           {view === 'fulfillment' && <FulfillmentPage />}
           {view === 'settlements' && <SettlementsPage />}
+          {view === 'finance' && <FinancePage />}
           {view === 'customers' && <CustomersPage />}
           {view === 'products' && <ProductsPage />}
+          {view === 'settings' && <SettingsPage />}
         </div>
       </main>
     </div>
