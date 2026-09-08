@@ -113,7 +113,7 @@ describe('YUMI 基础资料按需录入', () => {
 })
 
 describe('YUMI 人员时薪与动态设置', () => {
-  it('人员列表可切换时薪历史，且两个时薪生效日期均使用自定义日期选择', async () => {
+  it('人员默认只展示列表，新增和调整时薪分别在抽屉中完成', async () => {
     const workers = [
       { id: 'worker-1', name: '小林', note: null, enabled: true, createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z' },
       { id: 'worker-2', name: '小夏', note: '可做捏毛', enabled: true, createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z' }
@@ -124,14 +124,21 @@ describe('YUMI 人员时薪与动态设置', () => {
     )
     render(<WorkersPage createWorker={vi.fn()} listWageHistory={listWageHistory} recordWageHistory={vi.fn()} workers={workers} />)
 
-    expect(screen.getByRole('button', { name: '首个时薪生效日期' })).toBeVisible()
-    expect(screen.getByRole('button', { name: '时薪历史生效日期' })).toBeVisible()
-    await waitFor(() => expect(listWageHistory).toHaveBeenCalledWith('worker-1'))
+    expect(screen.getByRole('button', { name: '新增人员' })).toBeVisible()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '首个时薪生效日期' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /小夏/ }))
+    const profile = await screen.findByRole('dialog', { name: '人员资料：小夏' })
     await waitFor(() => expect(listWageHistory).toHaveBeenCalledWith('worker-2'))
-    expect(await screen.findByText('小夏的时薪历史')).toBeVisible()
-    expect(screen.getByText('2026-09-01 · 25.00 / 小时')).toBeVisible()
+    expect(within(profile).getByText('2026-09-01 · 25.00 / 小时')).toBeVisible()
+    fireEvent.click(within(profile).getByRole('button', { name: '调整时薪' }))
+    expect(within(profile).getByRole('button', { name: '时薪生效日期' })).toBeVisible()
+
+    fireEvent.click(within(profile).getByRole('button', { name: '关闭人员资料：小夏' }))
+    fireEvent.click(screen.getByRole('button', { name: '新增人员' }))
+    const createSheet = screen.getByRole('dialog', { name: '新增兼职人员' })
+    expect(within(createSheet).getByRole('button', { name: '首个时薪生效日期' })).toBeVisible()
   })
 
   it('财务设置以互斥资料库切换收入、支出与垫付人，并按当前资料类型新建', async () => {

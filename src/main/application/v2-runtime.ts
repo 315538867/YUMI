@@ -13,12 +13,14 @@ import { AfterSalesService } from '@main/services/after-sales-service'
 import { ReportService } from '@main/services/report-service'
 import { V2ReportExportService } from '@main/services/v2-report-export-service'
 import { WorkbenchService } from '@main/services/workbench-service'
+import { StudioSettingsService } from '@main/services/studio-settings-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts/index'
 
 interface V2RuntimeReferences {
   database: V2Database
   repository: V2OrderRepository
   orderService: V2OrderService
+  studioSettingsService: StudioSettingsService
   workbenchService: WorkbenchService
   fulfillmentService: FulfillmentService
   settlementService: SettlementService
@@ -57,6 +59,10 @@ export class V2ApplicationRuntime {
 
   get orderService(): V2OrderService {
     return this.requireReferences().orderService
+  }
+
+  get studioSettingsService(): StudioSettingsService {
+    return this.requireReferences().studioSettingsService
   }
 
   get workbenchService(): WorkbenchService {
@@ -131,7 +137,8 @@ export class V2ApplicationRuntime {
     const database = createV2Database(this.storage.databasePath)
     const repository = new V2OrderRepository(database)
     const reportService = new ReportService(database)
-    const orderService = new V2OrderService(repository)
+    const studioSettingsService = new StudioSettingsService(database, repository)
+    const orderService = new V2OrderService(repository, undefined, studioSettingsService)
     const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database))
     const settlementService = new SettlementService(database)
     const financeService = new FinanceService(database)
@@ -140,6 +147,7 @@ export class V2ApplicationRuntime {
       database,
       repository,
       orderService,
+      studioSettingsService,
       workbenchService: new WorkbenchService({
         orders: orderService,
         fulfillment: fulfillmentService,

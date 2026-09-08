@@ -143,6 +143,7 @@ function mapProduct(row: Record<string, unknown>): V2Product {
     standardMakingMinutes: Number(row.standard_making_minutes),
     makingCommissionCents: Number(row.making_commission_cents),
     makingGlueCostCents: Number(row.making_glue_cost_cents),
+    glueWeightMilligrams: Number(row.glue_weight_milligrams ?? 0),
     enabled: Boolean(row.enabled),
     imageAttachmentId: (row.image_attachment_id as string | null) ?? null,
     notes: (row.notes as string | null) ?? null,
@@ -257,14 +258,15 @@ export class V2OrderRepository {
         `INSERT INTO products (
           id, name, code, category, base_price_cents, material_cost_cents, packaging_cost_cents,
           accessory_cost_cents, replacement_bag_cost_cents, edge_cost_cents, standard_making_minutes,
-          making_commission_cents, making_glue_cost_cents, enabled, image_attachment_id, notes, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+          making_commission_cents, making_glue_cost_cents, glue_weight_milligrams, enabled, image_attachment_id, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
       )
       .run(
         id, input.name.trim(), nullableText(input.code), nullableText(input.category), input.basePriceCents,
-        input.materialCostCents, input.packagingCostCents, input.accessoryCostCents,
+        input.materialCostCents ?? 0, input.packagingCostCents, input.accessoryCostCents,
         input.replacementBagCostCents, input.edgeCostCents, input.standardMakingMinutes,
-        input.makingCommissionCents, input.makingGlueCostCents, nullableText(input.imageAttachmentId),
+        input.makingCommissionCents, input.makingGlueCostCents ?? 0, input.glueWeightMilligrams ?? 0,
+        nullableText(input.imageAttachmentId),
         nullableText(input.notes), now, now
       )
     return this.getProduct(id)!
@@ -276,14 +278,14 @@ export class V2OrderRepository {
         `UPDATE products SET
           name = ?, code = ?, category = ?, base_price_cents = ?, material_cost_cents = ?, packaging_cost_cents = ?,
           accessory_cost_cents = ?, replacement_bag_cost_cents = ?, edge_cost_cents = ?, standard_making_minutes = ?,
-          making_commission_cents = ?, making_glue_cost_cents = ?, enabled = COALESCE(?, enabled),
+          making_commission_cents = ?, making_glue_cost_cents = ?, glue_weight_milligrams = ?, enabled = COALESCE(?, enabled),
           image_attachment_id = ?, notes = ?, updated_at = ? WHERE id = ?`
       )
       .run(
         input.name.trim(), nullableText(input.code), nullableText(input.category), input.basePriceCents,
         input.materialCostCents, input.packagingCostCents, input.accessoryCostCents,
         input.replacementBagCostCents, input.edgeCostCents, input.standardMakingMinutes,
-        input.makingCommissionCents, input.makingGlueCostCents,
+        input.makingCommissionCents, input.makingGlueCostCents ?? 0, input.glueWeightMilligrams ?? 0,
         input.enabled === undefined ? null : Number(input.enabled), nullableText(input.imageAttachmentId),
         nullableText(input.notes), now, input.id
       )

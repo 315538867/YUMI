@@ -3,6 +3,7 @@ import { summarizeMonthlyFinance } from '@main/domain/finance'
 import { createFulfillmentState, applyFulfillmentEvent } from '@main/domain/fulfillment'
 import { calculateOrderFundSummary } from '@main/domain/order-funds'
 import { ReportRepository } from '@main/repositories/report-repository'
+import { calculateProductSnapshotCostCents } from '@main/domain/product-costing'
 import type { V2Database } from '@main/database/v2-connection'
 import type { V2ProductOrderSnapshot } from '@shared/contracts/products'
 import type {
@@ -18,13 +19,7 @@ function parseJson<T>(value: string): T {
   return JSON.parse(value) as T
 }
 
-function productSnapshotCost(snapshot: V2ProductOrderSnapshot): number {
-  return snapshot.materialCostCents
-    + snapshot.packagingCostCents
-    + snapshot.accessoryCostCents
-    + snapshot.replacementBagCostCents
-    + snapshot.edgeCostCents
-}
+
 
 function toStageBalances(state: ReturnType<typeof createFulfillmentState>) {
   return {
@@ -58,7 +53,7 @@ export class ReportService {
         entries: source.funds
       })
       const productCostCents = source.itemSnapshots.reduce((total, item) => (
-        total + item.quantity * productSnapshotCost(parseJson<V2ProductOrderSnapshot>(item.productSnapshotJson))
+        total + calculateProductSnapshotCostCents(parseJson<V2ProductOrderSnapshot>(item.productSnapshotJson), item.quantity)
       ), 0)
       const knownAccountingCostCents = productCostCents + source.afterSalesCostCents
       return {

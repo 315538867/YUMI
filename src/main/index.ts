@@ -38,7 +38,7 @@ app.whenReady().then(() => {
     return result
   }
   registerV2Ipc(
-    currentRuntime.orderService, currentRuntime.workbenchService, currentRuntime.fulfillmentService, currentRuntime.settlementService,
+    currentRuntime.orderService, currentRuntime.studioSettingsService, currentRuntime.workbenchService, currentRuntime.fulfillmentService, currentRuntime.settlementService,
     currentRuntime.financeService, currentRuntime.afterSalesService, currentRuntime.reportService, {
       exporter: {
         async exportCurrentReport(input) {

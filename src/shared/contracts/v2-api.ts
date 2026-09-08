@@ -13,6 +13,7 @@ import type {
   V2ShipmentInput
 } from './orders'
 import type { V2Product, V2ProductInput, V2ProductUpdateInput } from './products'
+import type { V2StudioSettings, V2StudioSettingsUpdateInput } from './settings'
 import type { V2WorkbenchSnapshot } from './workbench'
 import type {
   V2AdvancePayer, V2AdvancePayerCreateInput, V2AdvancePayerUpdateInput, V2BatchReimbursementInput,
@@ -49,6 +50,10 @@ export interface V2YumiApi {
     list(query?: V2CustomerQuery): Promise<V2Customer[]>
     create(input: V2CustomerInput): Promise<V2Customer>
     update(input: V2CustomerUpdateInput): Promise<V2Customer>
+  }
+  studioSettings: {
+    get(): Promise<V2StudioSettings>
+    update(input: V2StudioSettingsUpdateInput): Promise<V2StudioSettings>
   }
   products: {
     list(includeDisabled?: boolean): Promise<V2Product[]>

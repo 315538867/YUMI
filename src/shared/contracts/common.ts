@@ -1,6 +1,12 @@
 /** V2 所有金额均以整数分表示，禁止在 IPC 契约中传递浮点元。 */
 export type Cents = number
 
+/** 胶水单价以每克的微元保存：1 元 = 1,000,000 微元。 */
+export type GluePriceMicroYuanPerGram = number
+
+/** 商品胶水用量以毫克保存：1 克 = 1,000 毫克。 */
+export type WeightMilligrams = number
+
 /** 业务日期采用本地日历日期 YYYY-MM-DD；审计时间采用 ISO 8601 时间字符串。 */
 export type BusinessDate = string
 export type IsoDateTime = string

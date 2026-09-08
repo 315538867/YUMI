@@ -5,6 +5,7 @@ import { applyFulfillmentEvent, createFulfillmentState } from '@main/domain/fulf
 import { validateShipmentQuantity } from '@main/domain/shipment-quantities'
 import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
 import { V2OrderRepository, type V2AuditLog } from '@main/repositories/v2-order-repository'
+import type { StudioSettingsService } from '@main/services/studio-settings-service'
 import type {
   V2Customer,
   V2CustomerInput,
@@ -93,7 +94,10 @@ function createFulfillmentEventTimestamp(
   return new Date(latestMilliseconds + 1).toISOString()
 }
 
-function createProductSnapshot(product: V2Product): V2ProductOrderSnapshot {
+function createProductSnapshot(
+  product: V2Product,
+  gluePriceMicroYuanPerGram: number
+): V2ProductOrderSnapshot {
   return {
     productId: product.id,
     name: product.name,
@@ -107,7 +111,9 @@ function createProductSnapshot(product: V2Product): V2ProductOrderSnapshot {
     edgeCostCents: product.edgeCostCents,
     standardMakingMinutes: product.standardMakingMinutes,
     makingCommissionCents: product.makingCommissionCents,
-    makingGlueCostCents: product.makingGlueCostCents
+    makingGlueCostCents: product.makingGlueCostCents,
+    glueWeightMilligrams: product.glueWeightMilligrams,
+    gluePriceMicroYuanPerGram
   }
 }
 
@@ -116,7 +122,8 @@ export class V2OrderService {
 
   constructor(
     private readonly repository: V2OrderRepository,
-    private readonly clock: V2Clock = defaultClock
+    private readonly clock: V2Clock = defaultClock,
+    private readonly studioSettings?: Pick<StudioSettingsService, 'get'>
   ) {
     this.fulfillmentRepository = new V2FulfillmentRepository(repository.connection)
   }
@@ -417,14 +424,20 @@ export class V2OrderService {
   private normalizeProduct(input: V2ProductInput): V2ProductInput {
     requireText(input.name, '商品名称')
     for (const [label, value] of [
-      ['商品基础售价', input.basePriceCents], ['原材料成本', input.materialCostCents],
+      ['商品基础售价', input.basePriceCents],
       ['包装成本', input.packagingCostCents], ['配饰成本', input.accessoryCostCents],
       ['替换袋成本', input.replacementBagCostCents], ['封边成本', input.edgeCostCents],
       ['标准制作分钟', input.standardMakingMinutes], ['制作提成', input.makingCommissionCents],
-      ['制作胶水成本', input.makingGlueCostCents]
+      ['胶水用量（毫克）', input.glueWeightMilligrams ?? 0],
+      ['旧版原材料成本', input.materialCostCents ?? 0],
+      ['旧版制作胶水成本', input.makingGlueCostCents ?? 0]
     ] as const) requireNonNegativeInteger(value, label)
     return {
-      ...input, name: input.name.trim(), code: nullableText(input.code), category: nullableText(input.category),
+      ...input,
+      materialCostCents: input.materialCostCents ?? 0,
+      makingGlueCostCents: input.makingGlueCostCents ?? 0,
+      glueWeightMilligrams: input.glueWeightMilligrams ?? 0,
+      name: input.name.trim(), code: nullableText(input.code), category: nullableText(input.category),
       imageAttachmentId: nullableText(input.imageAttachmentId), notes: nullableText(input.notes)
     }
   }
@@ -471,7 +484,7 @@ export class V2OrderService {
       const product = this.requireProduct(item.productId)
       if (!product.enabled) throw new DomainValidationError(`商品「${product.name}」已停用，不能用于新订单内容`)
       return {
-        id: this.clock.createId(), productId: product.id, productSnapshot: createProductSnapshot(product),
+        id: this.clock.createId(), productId: product.id, productSnapshot: createProductSnapshot(product, this.studioSettings?.get().gluePriceMicroYuanPerGram ?? 0),
         quantity: item.quantity, unitPriceCents: item.unitPriceCents, createdAt: now, updatedAt: now
       }
     })

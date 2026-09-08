@@ -2,6 +2,7 @@ import { ipcMain as electronIpcMain } from 'electron'
 import type { V2BackupService } from '@main/services/v2-backup-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts/index'
 import type { V2OrderService } from '@main/services/v2-order-service'
+import type { StudioSettingsService } from '@main/services/studio-settings-service'
 import type { WorkbenchService } from '@main/services/workbench-service'
 import type { FulfillmentService } from '@main/services/fulfillment-service'
 import type { SettlementService } from '@main/services/settlement-service'
@@ -32,6 +33,7 @@ export interface V2BackupIpcOptions {
  */
 export function registerV2Ipc(
   service: V2OrderService,
+  studioSettings: StudioSettingsService,
   workbench: WorkbenchService,
   fulfillment: FulfillmentService,
   settlement: SettlementService,
@@ -48,6 +50,9 @@ export function registerV2Ipc(
   ipc.handle('v2:customers:list', (_event, query) => service.listCustomers(query as never))
   ipc.handle('v2:customers:create', (_event, input) => service.createCustomer(input as never))
   ipc.handle('v2:customers:update', (_event, input) => service.updateCustomer(input as never))
+
+  ipc.handle('v2:studio-settings:get', () => studioSettings.get())
+  ipc.handle('v2:studio-settings:update', (_event, input) => studioSettings.update(input as never))
 
   ipc.handle('v2:products:list', (_event, includeDisabled) => service.listProducts(Boolean(includeDisabled)))
   ipc.handle('v2:products:create', (_event, input) => service.createProduct(input as never))

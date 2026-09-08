@@ -11,6 +11,10 @@ const yumiV2: V2YumiApi = {
     create: (input) => ipcRenderer.invoke('v2:customers:create', input),
     update: (input) => ipcRenderer.invoke('v2:customers:update', input)
   },
+  studioSettings: {
+    get: () => ipcRenderer.invoke('v2:studio-settings:get'),
+    update: (input) => ipcRenderer.invoke('v2:studio-settings:update', input)
+  },
   products: {
     list: (includeDisabled) => ipcRenderer.invoke('v2:products:list', includeDisabled),
     create: (input) => ipcRenderer.invoke('v2:products:create', input),

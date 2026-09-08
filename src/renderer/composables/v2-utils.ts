@@ -1,18 +1,17 @@
-export function formatCents(cents: number): string {
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY'
-  }).format(cents / 100)
-}
+import {
+  formatCents as formatMoneyCents,
+  parseYuanToCents as parseMoneyYuanToCents
+} from '@shared/money'
 
-export function yuanToCents(value: string): number {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return 0
-  return Math.round(parsed * 100)
-}
+/** 所有前端元金额输入统一交给 Decimal 精度内核转换，禁止浮点乘除。 */
+export const yuanToCents = parseMoneyYuanToCents
 
 export function centsToYuan(cents: number): string {
-  return (cents / 100).toFixed(2)
+  return formatMoneyCents(cents)
+}
+
+export function formatCents(cents: number): string {
+  return `¥${formatMoneyCents(cents)}`
 }
 
 export function today(): string {

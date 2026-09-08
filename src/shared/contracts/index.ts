@@ -1,7 +1,9 @@
 export type {
   BusinessDate,
   Cents,
+  GluePriceMicroYuanPerGram,
   IsoDateTime,
+  WeightMilligrams,
   V2AttachmentReference,
   V2BackupRestoreInput,
   V2BackupRestoreResult,
@@ -15,6 +17,10 @@ export type {
   V2CustomerQuery,
   V2CustomerUpdateInput
 } from './customers'
+export type {
+  V2StudioSettings,
+  V2StudioSettingsUpdateInput
+} from './settings'
 export type {
   V2Product,
   V2ProductInput,

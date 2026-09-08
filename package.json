@@ -27,6 +27,7 @@
     "@radix-ui/react-popover": "^1.1.23",
     "@radix-ui/react-select": "^2.3.7",
     "better-sqlite3": "^11.8.1",
+    "decimal.js": "^10.6.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -626,6 +626,21 @@ const v2WorkerSettlementRefunds: V2Migration = {
   }
 }
 
+const v2StudioGlueFormula: V2Migration = {
+  version: 10,
+  name: 'v2_studio_glue_formula',
+  run(database) {
+    database.exec(`
+      ALTER TABLE products
+        ADD COLUMN glue_weight_milligrams INTEGER NOT NULL DEFAULT 0 CHECK(glue_weight_milligrams >= 0);
+      ALTER TABLE process_tasks
+        ADD COLUMN glue_price_micro_yuan_per_gram INTEGER CHECK(glue_price_micro_yuan_per_gram >= 0);
+      ALTER TABLE process_tasks
+        ADD COLUMN glue_weight_milligrams INTEGER CHECK(glue_weight_milligrams >= 0);
+    `)
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
@@ -635,7 +650,8 @@ const migrations: readonly V2Migration[] = [
   v2WorkerSettlementFoundation,
   v2WagePaymentFinancialSource,
   v2FinanceAndAfterSalesFoundation,
-  v2WorkerSettlementRefunds
+  v2WorkerSettlementRefunds,
+  v2StudioGlueFormula
 ]
 
 /**
