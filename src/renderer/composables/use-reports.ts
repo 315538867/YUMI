@@ -9,6 +9,8 @@ export function useReports() {
   const [monthlyOperation, setMonthlyOperation] = useState<Awaited<ReturnType<typeof window.yumiV2.reports.getMonthlyOperation>> | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
 
   const load = useCallback(async (month: string) => {
     setLoading(true)
@@ -32,5 +34,24 @@ export function useReports() {
     }
   }, [])
 
-  return { orderBusiness, fulfillmentProgress, confirmedSettlements, monthlyOperation, loading, loadError, load }
+  const exportCurrentReport = useCallback(async (month: string) => {
+    setExporting(true)
+    setExportMessage(null)
+    try {
+      const result = await window.yumiV2.reports.exportCurrentReport({ month })
+      setExportMessage(result.savedPath ? `已导出：${result.savedPath}` : '已取消导出。')
+      return result
+    } catch (error) {
+      const message = getErrorMessage(error)
+      setExportMessage(message)
+      throw error
+    } finally {
+      setExporting(false)
+    }
+  }, [])
+
+  return {
+    orderBusiness, fulfillmentProgress, confirmedSettlements, monthlyOperation,
+    loading, loadError, exporting, exportMessage, load, exportCurrentReport
+  }
 }

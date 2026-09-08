@@ -76,7 +76,8 @@ const yumiV2: V2YumiApi = {
     getOrderBusiness: () => ipcRenderer.invoke('v2:reports:orders:business'),
     getFulfillmentProgress: () => ipcRenderer.invoke('v2:reports:fulfillment:progress'),
     listConfirmedSettlements: () => ipcRenderer.invoke('v2:reports:settlements:confirmed'),
-    getMonthlyOperation: (month) => ipcRenderer.invoke('v2:reports:monthly-operation:get', month)
+    getMonthlyOperation: (month) => ipcRenderer.invoke('v2:reports:monthly-operation:get', month),
+    exportCurrentReport: (input) => ipcRenderer.invoke('v2:reports:export', input)
   },
   backup: {
     create: () => ipcRenderer.invoke('v2:backup:create'),

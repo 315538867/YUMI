@@ -1199,3 +1199,11 @@ npm run build
 - 订单净收复用可冲正订单资金汇总；商品核算成本使用下单快照的材料、包装、配饰、替换包装与封边成本，并叠加售后核算成本。履约数量只由 V2 履约事件推导；工资报表只列负责人确认且已写入最终实发金额、发放日期的结算单，草稿和未确认结算不进入报表。
 - 尚未定义跨订单工资分摊规则时，订单核算不会伪造归属并将工资硬性计入某一订单；页面对此明确提示，同时在月度经营中单独展示按实际发放日期统计的已确认工资。渲染层统一通过 `use-reports.ts` 和 V2 preload 契约读取数据，不直接访问 IPC。
 - 验证：新增报表服务、IPC 与页面边界测试；全量 `npm test` 通过 56 个测试文件、154 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均通过。下一步为 E.2：V2 报表导出。
+
+
+
+### 2026-09-08：阶段 E.2 完成
+
+- 新增 V2 专用 `V2ReportExportService`，仅消费 `ReportService` 的已确认 V2 报表结果，不读取数据库、不引用 `StudioService`、`StudioRepository` 或旧导出模块。负责人点击报表页“导出当前报表”后，预加载与 V2 IPC 将当前统计月份交给组合根，组合根先生成工作簿，再调用系统保存对话框写入 XLSX。
+- 工作簿固定包含“订单核算”“履约进度”“已确认工资”“月度经营”四张业务表。订单、履约、工资表与页面一样展示当前全量 V2 事实；月度经营表使用页面当前选中的月份。四张表均固定业务表头，空数据不会导出成无列的空工作表，且不泄漏快照 JSON 等数据库内部字段。
+- 验证：新增导出服务测试与 IPC、渲染边界覆盖；全量 `npm test` 通过 57 个测试文件、156 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均通过。下一步为 E.3：清理或隔离 V1 入口与遗留实现。

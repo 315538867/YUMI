@@ -10,10 +10,14 @@ import type { ReportService } from '@main/services/report-service'
 import { registerSettlementIpc } from './settlement-ipc'
 import { registerFinanceIpc } from './finance-ipc'
 import { registerAfterSalesIpc } from './after-sales-ipc'
-import { registerReportIpc } from './report-ipc'
+import { registerReportIpc, type V2ReportFileExporter } from './report-ipc'
 
 export interface V2IpcMain {
   handle(channel: string, handler: (...args: unknown[]) => unknown): void
+}
+
+export interface V2ReportIpcOptions {
+  exporter: V2ReportFileExporter
 }
 
 export interface V2BackupIpcOptions {
@@ -32,6 +36,7 @@ export function registerV2Ipc(
   finance: FinanceService,
   afterSales: AfterSalesService,
   reports: ReportService,
+  reportOptions: V2ReportIpcOptions,
   backup: V2BackupIpcOptions,
   ipc: V2IpcMain = electronIpcMain
 ): void {
@@ -83,7 +88,7 @@ export function registerV2Ipc(
   registerSettlementIpc(ipc, settlement)
   registerFinanceIpc(ipc, finance)
   registerAfterSalesIpc(ipc, afterSales)
-  registerReportIpc(ipc, reports)
+  registerReportIpc(ipc, reports, reportOptions.exporter)
 
   ipc.handle('v2:backup:create', () => backup.service.createBackup())
   ipc.handle('v2:backup:list', () => backup.service.listBackups())

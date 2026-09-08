@@ -69,3 +69,12 @@ export interface V2MonthlyOperationReport {
   operatingResultCents: Cents
   confirmedSettlementPaidCents: Cents
 }
+
+/** 导出按钮沿用页面当前的月度筛选；其他三个工作表均为同一时点的全量 V2 事实。 */
+export interface V2ReportExportInput {
+  month: string
+}
+
+export interface V2ReportExportResult {
+  savedPath: string | null
+}

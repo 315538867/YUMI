@@ -1,4 +1,5 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { V2ApplicationRuntime } from '@main/application/v2-runtime'
 import { registerV2Ipc } from '@main/ipc/register-v2-ipc'
@@ -39,9 +40,23 @@ app.whenReady().then(() => {
   registerV2Ipc(
     currentRuntime.orderService, currentRuntime.fulfillmentService, currentRuntime.settlementService,
     currentRuntime.financeService, currentRuntime.afterSalesService, currentRuntime.reportService, {
-    service: currentRuntime.backupService,
-    restore
-  })
+      exporter: {
+        async exportCurrentReport(input) {
+          const workbook = currentRuntime.reportExportService.exportWorkbook(input)
+          const result = await dialog.showSaveDialog({
+            title: '导出 V2 经营报表',
+            defaultPath: `yumi-v2-经营报表-${input.month}.xlsx`,
+            filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
+          })
+          if (result.canceled || !result.filePath) return { savedPath: null }
+          writeFileSync(result.filePath, workbook)
+          return { savedPath: result.filePath }
+        }
+      }
+    }, {
+      service: currentRuntime.backupService,
+      restore
+    })
   createMainWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()

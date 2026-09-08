@@ -35,7 +35,7 @@ import type {
 } from './settlements'
 import type {
   V2ConfirmedSettlementReport, V2FulfillmentProgressReport, V2MonthlyOperationReport,
-  V2OrderBusinessReport
+  V2OrderBusinessReport, V2ReportExportInput, V2ReportExportResult
 } from './reports'
 
 /** V2 预加载层唯一向渲染进程暴露的能力边界。 */
@@ -115,6 +115,7 @@ export interface V2YumiApi {
     getFulfillmentProgress(): Promise<V2FulfillmentProgressReport>
     listConfirmedSettlements(): Promise<V2ConfirmedSettlementReport>
     getMonthlyOperation(month: string): Promise<V2MonthlyOperationReport>
+    exportCurrentReport(input: V2ReportExportInput): Promise<V2ReportExportResult>
   }
   backup: {
     create(): Promise<V2BackupSummary>

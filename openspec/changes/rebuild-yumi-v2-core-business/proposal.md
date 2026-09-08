@@ -3,7 +3,7 @@
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
 - 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.1）
-- 状态：实施中（阶段 E.1 已完成；下一步 E.2）
+- 状态：实施中（阶段 E.2 已完成；下一步 E.3）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -115,3 +115,6 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 
 
 - **2026-09-08 / E.1 已完成**：新增 `ReportRepository`、`ReportService`、`reports.ts` 契约、V2 IPC/preload、`use-reports.ts` 和独立报表页面，重建订单核算、履约进度、已确认工资结算和月度经营视图。订单净收使用可冲正的订单资金汇总，产品成本来自订单商品冻结快照并叠加售后核算成本；履约只从 V2 履约事件派生；工资只读取负责人已确认、已填写最终实发与发放日期的结算。未定义跨订单工资分摊规则时，系统不强行把工资摊入单订单成本。V2 报表查询只访问 V2 schema，因此 V1 测试数据与草稿工资不会进入结果。验证：全量 `npm test`（56 个测试文件、154 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 通过。下一步为 E.2：V2 报表导出。
+
+
+- **2026-09-08 / E.2 已完成**：新增 V2 专用 `V2ReportExportService` 及“导出当前报表”操作。导出严格复用 `ReportService` 的 V2 事实：订单核算、履约进度、已确认工资和当前统计月份的月度经营分别写入四张 XLSX 工作表；固定业务列保证空数据时仍可读。主进程保存对话框只负责文件选择与写入，导出服务不读取数据库、更不引用 V1 `StudioService` 或旧导出模块，故不会混入 V1 数据。验证：导出测试覆盖业务列、空表表头和 V1 内部字段不泄漏；全量 `npm test`（57 个测试文件、156 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 通过。下一步为 E.3：清理或隔离 V1 入口与遗留实现。

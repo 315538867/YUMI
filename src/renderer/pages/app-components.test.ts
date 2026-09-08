@@ -174,6 +174,8 @@ describe('V2 报表工作区', () => {
     expect(reportsPageSource).toContain('履约进度')
     expect(reportsPageSource).toContain('已确认工资')
     expect(reportsPageSource).toContain('月度经营')
+    expect(reportsPageSource).toContain('导出当前报表')
     expect(reportsPageSource).not.toContain('window.yumi')
     expect(reportsComposableSource).toContain('window.yumiV2.reports')
+    expect(reportsComposableSource).toContain('exportCurrentReport')
   })

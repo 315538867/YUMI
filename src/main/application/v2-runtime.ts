@@ -11,6 +11,7 @@ import { SettlementService } from '@main/services/settlement-service'
 import { FinanceService } from '@main/services/finance-service'
 import { AfterSalesService } from '@main/services/after-sales-service'
 import { ReportService } from '@main/services/report-service'
+import { V2ReportExportService } from '@main/services/v2-report-export-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts'
 
 interface V2RuntimeReferences {
@@ -22,6 +23,7 @@ interface V2RuntimeReferences {
   financeService: FinanceService
   afterSalesService: AfterSalesService
   reportService: ReportService
+  reportExportService: V2ReportExportService
   backupService: V2BackupService
 }
 
@@ -75,6 +77,10 @@ export class V2ApplicationRuntime {
     return this.requireReferences().reportService
   }
 
+  get reportExportService(): V2ReportExportService {
+    return this.requireReferences().reportExportService
+  }
+
   get backupService(): V2BackupService {
     return this.requireReferences().backupService
   }
@@ -119,6 +125,7 @@ export class V2ApplicationRuntime {
   private createReferences(): V2RuntimeReferences {
     const database = createV2Database(this.storage.databasePath)
     const repository = new V2OrderRepository(database)
+    const reportService = new ReportService(database)
     return {
       database,
       repository,
@@ -127,7 +134,8 @@ export class V2ApplicationRuntime {
       settlementService: new SettlementService(database),
       financeService: new FinanceService(database),
       afterSalesService: new AfterSalesService(database),
-      reportService: new ReportService(database),
+      reportService,
+      reportExportService: new V2ReportExportService(reportService),
       backupService: new V2BackupService(this.storage, this.applicationVersion, database)
     }
   }

@@ -1,4 +1,4 @@
-> 当前执行：E.2（V2 报表导出）。未通过对应验证前不得勾选完成。
+> 当前执行：E.3（V1 清理或隔离）。未通过对应验证前不得勾选完成。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -44,7 +44,7 @@
 ## 阶段 E：报告、导出、V1 收敛与整体验证
 
 - [x] E.1 新增 `src/main/services/report-service.ts`、`src/shared/contracts/reports.ts`、`src/main/ipc/report-ipc.ts` 和 `src/renderer/pages/reports/`，基于 V2 事实重建订单资金/核算成本、履约进度、工资结算和月度经营报表；完成条件是未确认工资、非实际资金和 V1 测试数据不进入报表。验证：2026-09-08 新增 V2 报表服务、IPC 与页面边界测试，覆盖订单净收/商品快照成本/售后核算成本、履约事件阶段结余、仅已确认工资结算和月度实际现金口径；全量 `npm test`（56 个测试文件、154 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
-- [ ] E.2 重构 `src/main/services/export-document-workbook.ts`、`report-export.ts` 或其 V2 替代模块，保证订单、履约、工资和财务导出与当前筛选和 V2 页面口径一致；完成条件是导出可重复验证且不混入 V1 数据。
+- [x] E.2 重构 `src/main/services/export-document-workbook.ts`、`report-export.ts` 或其 V2 替代模块，保证订单、履约、工资和财务导出与当前筛选和 V2 页面口径一致；完成条件是导出可重复验证且不混入 V1 数据。验证：2026-09-08 新增 `V2ReportExportService`，由报表页当前统计月份生成订单核算、履约进度、已确认工资和月度经营四张固定业务表；导出测试覆盖业务列、V1 表字段不泄漏和空数据表头。全量 `npm test`（57 个测试文件、156 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
 - [ ] E.3 清理或隔离 V1 `StudioRepository`、`StudioService`、旧 IPC、旧共享契约、`app.tsx` 中旧页面路径、演示数据入口和旧测试；完成条件是 V2 运行时不再依赖 V1 写入实现，删除范围有明确测试替代与代码审查证据。
 - [ ] E.4 将所有阶段的端到端验收串联为完整大订单场景：多产品、分批生产/发货、质检不合格与返工、工资结算、私人垫付、报销、售后、订单资金和月度财务；完成条件是测试使用 V2 空库独立执行。
 - [ ] E.5 运行全量质量门禁：`npm test`、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`；完成条件是所有命令退出码为 0，任何失败保留证据且不勾选未完成任务。
@@ -74,3 +74,5 @@
 - **D.6-D.7（2026-09-08）**：新增独立 V2 空库财务与售后验收，完整覆盖动态类目改名与引用删除保护、收入不区分账户、私人垫付、截至日待报销、一次性报销、月度经营口径、免费/有成本售后及负责人显式售后收费关联；售后不自动创建现金流水或工序任务。阶段 D 全量验证通过：`npm test`（54 文件、150 用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check`。
 
 - **E.1（2026-09-08）**：新增 `ReportRepository`、`ReportService`、V2 报表契约、IPC、预加载桥接、`use-reports.ts` 和“报表”工作区。订单核算只基于 V2 订单、订单资金、商品快照与售后核算成本；履约进度从 V2 履约事件派生；工资报表只读取已确认且填写最终实发及发放日期的结算单；月度经营只按真实资金流水与实际日期汇总。因尚未定义跨订单工资分摊规则，订单核算明确不将工资强行归属到单一订单。V2 独立数据库 schema 及报表查询均不读取 V1 表，草稿工资结算不会进入报表。验证：新增报表服务、IPC 与页面边界测试；全量 `npm test`（56 个测试文件、154 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 均通过。
+
+- **E.2（2026-09-08）**：新增 V2 专用 `V2ReportExportService`，只消费 `ReportService` 已生成的 V2 报表事实，不访问 V1 数据库、`StudioService` 或 V1 报表导出实现。报表页的“导出当前报表”经 V2 preload/IPC 进入组合根的保存对话框，使用当前统计月份生成包含订单核算、履约进度、已确认工资、月度经营四张工作表的 XLSX。四张表都使用固定业务列，空数据时仍保留表头；月度工作表使用页面当前月份，其余三张工作表与页面同样展示当前全部 V2 事实。验证：导出测试覆盖业务列、空表表头和 V1 内部字段不泄漏；全量 `npm test`（57 个测试文件、156 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 均通过。
