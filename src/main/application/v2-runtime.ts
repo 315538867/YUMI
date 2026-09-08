@@ -10,6 +10,7 @@ import { FulfillmentService } from '@main/services/fulfillment-service'
 import { SettlementService } from '@main/services/settlement-service'
 import { FinanceService } from '@main/services/finance-service'
 import { AfterSalesService } from '@main/services/after-sales-service'
+import { ReportService } from '@main/services/report-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts'
 
 interface V2RuntimeReferences {
@@ -20,6 +21,7 @@ interface V2RuntimeReferences {
   settlementService: SettlementService
   financeService: FinanceService
   afterSalesService: AfterSalesService
+  reportService: ReportService
   backupService: V2BackupService
 }
 
@@ -67,6 +69,10 @@ export class V2ApplicationRuntime {
 
   get afterSalesService(): AfterSalesService {
     return this.requireReferences().afterSalesService
+  }
+
+  get reportService(): ReportService {
+    return this.requireReferences().reportService
   }
 
   get backupService(): V2BackupService {
@@ -121,6 +127,7 @@ export class V2ApplicationRuntime {
       settlementService: new SettlementService(database),
       financeService: new FinanceService(database),
       afterSalesService: new AfterSalesService(database),
+      reportService: new ReportService(database),
       backupService: new V2BackupService(this.storage, this.applicationVersion, database)
     }
   }

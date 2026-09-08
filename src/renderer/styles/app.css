@@ -1590,3 +1590,22 @@ button {
 .finance-metric.expense { border-top: 3px solid #d39a3c; }
 .finance-metric.neutral { border-top: 3px solid #8f8d86; }
 @media (max-width: 1050px) { .finance-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+
+.reports-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.report-month-panel,
+.report-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.section-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}

@@ -3,7 +3,7 @@
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
 - 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.1）
-- 状态：实施中（阶段 D 已完成；下一步阶段 E）
+- 状态：实施中（阶段 E.1 已完成；下一步 E.2）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -112,3 +112,6 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 
 
 - **2026-09-08 / D.6-D.7 已完成**：新增独立 V2 空库的财务与售后验收，将动态类目、私人垫付、整笔报销、实际日期月度口径、免费及有成本售后、显式售后收费关联串为一条闭环。验证同时确认免费或有成本售后不会自动生成现金流水或工序任务，收入不区分账户，类目/垫付人一旦被流水引用不能删除。阶段 D 完整质量门禁通过：全量 `npm test`（54 个测试文件、150 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check`。下一步为 E.1：V2 报表事实与页面。
+
+
+- **2026-09-08 / E.1 已完成**：新增 `ReportRepository`、`ReportService`、`reports.ts` 契约、V2 IPC/preload、`use-reports.ts` 和独立报表页面，重建订单核算、履约进度、已确认工资结算和月度经营视图。订单净收使用可冲正的订单资金汇总，产品成本来自订单商品冻结快照并叠加售后核算成本；履约只从 V2 履约事件派生；工资只读取负责人已确认、已填写最终实发与发放日期的结算。未定义跨订单工资分摊规则时，系统不强行把工资摊入单订单成本。V2 报表查询只访问 V2 schema，因此 V1 测试数据与草稿工资不会进入结果。验证：全量 `npm test`（56 个测试文件、154 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 通过。下一步为 E.2：V2 报表导出。

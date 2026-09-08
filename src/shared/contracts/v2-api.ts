@@ -33,6 +33,10 @@ import type {
   V2WorkerSettlementDraftUpdateInput, V2WorkerSettlementQuery, V2WorkerWageHistory,
   V2WorkerWageHistoryInput
 } from './settlements'
+import type {
+  V2ConfirmedSettlementReport, V2FulfillmentProgressReport, V2MonthlyOperationReport,
+  V2OrderBusinessReport
+} from './reports'
 
 /** V2 预加载层唯一向渲染进程暴露的能力边界。 */
 export interface V2YumiApi {
@@ -105,6 +109,12 @@ export interface V2YumiApi {
     createCase(input: V2AfterSalesCaseCreateInput): Promise<V2AfterSalesCase>
     updateCase(id: string, input: V2AfterSalesCaseUpdateInput): Promise<V2AfterSalesCase>
     linkCharge(afterSalesCaseId: string, financialEntryId: string): Promise<V2AfterSalesChargeLink>
+  }
+  reports: {
+    getOrderBusiness(): Promise<V2OrderBusinessReport>
+    getFulfillmentProgress(): Promise<V2FulfillmentProgressReport>
+    listConfirmedSettlements(): Promise<V2ConfirmedSettlementReport>
+    getMonthlyOperation(month: string): Promise<V2MonthlyOperationReport>
   }
   backup: {
     create(): Promise<V2BackupSummary>

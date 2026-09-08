@@ -159,3 +159,21 @@ describe('V2 月度财务首页', () => {
     expect(financeComposableSource).toContain('loadMonthlyOverview')
   })
 })
+
+describe('V2 报表工作区', () => {
+  it('应用壳挂载独立的报表入口', () => {
+    expect(appSource).toContain("from './reports'")
+    expect(appSource).toContain("id: 'reports'")
+  })
+})
+
+  it('报表页面通过独立 composable 展示 V2 经营事实，而不直接调用 IPC', () => {
+    const reportsPageSource = source('src/renderer/pages/reports/index.tsx')
+    const reportsComposableSource = source('src/renderer/composables/use-reports.ts')
+    expect(reportsPageSource).toContain('订单核算')
+    expect(reportsPageSource).toContain('履约进度')
+    expect(reportsPageSource).toContain('已确认工资')
+    expect(reportsPageSource).toContain('月度经营')
+    expect(reportsPageSource).not.toContain('window.yumi')
+    expect(reportsComposableSource).toContain('window.yumiV2.reports')
+  })

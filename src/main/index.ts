@@ -38,7 +38,7 @@ app.whenReady().then(() => {
   }
   registerV2Ipc(
     currentRuntime.orderService, currentRuntime.fulfillmentService, currentRuntime.settlementService,
-    currentRuntime.financeService, currentRuntime.afterSalesService, {
+    currentRuntime.financeService, currentRuntime.afterSalesService, currentRuntime.reportService, {
     service: currentRuntime.backupService,
     restore
   })

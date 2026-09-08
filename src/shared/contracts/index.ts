@@ -95,6 +95,16 @@ export type {
   V2ReimbursementInput
 } from './finance'
 
+export type {
+  V2ConfirmedSettlementReport,
+  V2ConfirmedSettlementReportRow,
+  V2FulfillmentProgressReport,
+  V2FulfillmentProgressReportRow,
+  V2MonthlyOperationReport,
+  V2OrderBusinessReport,
+  V2OrderBusinessReportRow
+} from './reports'
+
 export type { V2YumiApi } from './v2-api'
 
 export type {

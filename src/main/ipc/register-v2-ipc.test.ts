@@ -39,9 +39,10 @@ describe('registerV2Ipc', () => {
       listPendingReimbursements: vi.fn(() => []), reimburse: vi.fn(), getMonthlySummary: vi.fn()
     }
     const afterSales = { listCases: vi.fn(() => []), getCase: vi.fn(), createCase: vi.fn(), updateCase: vi.fn(), linkCharge: vi.fn() }
+    const reports = { getOrderBusiness: vi.fn(), getFulfillmentProgress: vi.fn(), listConfirmedSettlements: vi.fn(), getMonthlyOperation: vi.fn() }
     const backup = { service: { createBackup: vi.fn(), listBackups: vi.fn(), getActivity: vi.fn(), inspectBackup: vi.fn() }, restore: vi.fn() }
 
-    registerV2Ipc(service as never, fulfillment as never, settlement as never, finance as never, afterSales as never, backup as never, ipcMain)
+    registerV2Ipc(service as never, fulfillment as never, settlement as never, finance as never, afterSales as never, reports as never, backup as never, ipcMain)
 
     expect([...handlers.keys()]).toEqual(expect.arrayContaining([
       'v2:customers:list', 'v2:products:create', 'v2:orders:create',
@@ -55,7 +56,9 @@ describe('registerV2Ipc', () => {
       'v2:finance:categories:list', 'v2:finance:categories:create', 'v2:finance:entries:list',
       'v2:finance:manual-income:create', 'v2:finance:manual-expense:create',
       'v2:finance:reimbursements:pending:list', 'v2:finance:reimbursements:create', 'v2:finance:summary:get',
-      'v2:after-sales:cases:list', 'v2:after-sales:cases:create', 'v2:after-sales:charges:link', 'v2:backup:restore'
+      'v2:after-sales:cases:list', 'v2:after-sales:cases:create', 'v2:after-sales:charges:link',
+      'v2:reports:orders:business', 'v2:reports:fulfillment:progress', 'v2:reports:settlements:confirmed',
+      'v2:reports:monthly-operation:get', 'v2:backup:restore'
     ]))
     await handlers.get('v2:orders:change-content')!(undefined, 'order-1', { description: '加封边' })
     await handlers.get('v2:orders:funds:list')!(undefined, 'order-1')
@@ -76,6 +79,7 @@ describe('registerV2Ipc', () => {
     await handlers.get('v2:finance:reimbursements:create')!(undefined, { advanceFinancialEntryId: 'entry-1' })
     await handlers.get('v2:after-sales:cases:create')!(undefined, { orderId: 'order-1' })
     await handlers.get('v2:after-sales:charges:link')!(undefined, 'case-1', 'entry-1')
+    await handlers.get('v2:reports:monthly-operation:get')!(undefined, '2026-09')
     expect(service.changeOrderContent).toHaveBeenCalledWith('order-1', { description: '加封边' })
     expect(service.listOrderFunds).toHaveBeenCalledWith('order-1')
     expect(service.recordOrderFund).toHaveBeenCalledWith('order-1', { amountCents: 100 })
@@ -95,5 +99,6 @@ describe('registerV2Ipc', () => {
     expect(finance.reimburse).toHaveBeenCalledWith({ advanceFinancialEntryId: 'entry-1' })
     expect(afterSales.createCase).toHaveBeenCalledWith({ orderId: 'order-1' })
     expect(afterSales.linkCharge).toHaveBeenCalledWith('case-1', 'entry-1')
+    expect(reports.getMonthlyOperation).toHaveBeenCalledWith('2026-09')
   })
 })
