@@ -3,7 +3,7 @@
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
 - 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.1）
-- 状态：实施中（阶段 D；D.5 已完成）
+- 状态：实施中（阶段 D 已完成；下一步阶段 E）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -109,3 +109,6 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 
 
 - **2026-09-08 / D.5 已完成**：财务页增加按选择月份与截至查询日刷新的经营概览：显示实际收入、经营支出、经营结果和待报销总额；月度计算仅采用实际收付款日期。页面同时显示所选月份的完整现金流水，收入不展示账户归属；支出清楚标注公账支出、私人垫付人与报销付款（后者只保留现金事实，不重复进入经营支出）。验证：新增月度财务页面边界测试；全量 `npm test`（53 个测试文件、149 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 通过。下一步为 D.6：财务与售后验收场景。
+
+
+- **2026-09-08 / D.6-D.7 已完成**：新增独立 V2 空库的财务与售后验收，将动态类目、私人垫付、整笔报销、实际日期月度口径、免费及有成本售后、显式售后收费关联串为一条闭环。验证同时确认免费或有成本售后不会自动生成现金流水或工序任务，收入不区分账户，类目/垫付人一旦被流水引用不能删除。阶段 D 完整质量门禁通过：全量 `npm test`（54 个测试文件、150 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check`。下一步为 E.1：V2 报表事实与页面。

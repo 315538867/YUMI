@@ -1,4 +1,4 @@
-> 当前执行：D.6（财务与售后验收场景）。未通过对应验证前不得勾选完成。
+> 当前执行：E.1（V2 报表事实与页面）。未通过对应验证前不得勾选完成。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -38,8 +38,8 @@
 - [x] D.3 新增 `src/main/repositories/finance-repository.ts`、`after-sales-repository.ts`、`src/main/services/finance-service.ts`、`after-sales-service.ts`、对应 IPC 与 `src/shared/contracts/finance.ts`；完成条件是日常收支、类目、垫付、报销、售后、订单售后收费和审计记录均有稳定输入校验与事务边界。验证：新增财务/售后服务测试及 IPC/preload 边界覆盖；2026-09-08 全量 `npm test`（53 个测试文件、147 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
 - [x] D.4 新增 `src/renderer/pages/finance/`、`pages/settings/`、订单售后组件、`composables/use-finance.ts`；完成条件是负责人可管理类目/垫付人、登记日常收支、查看待报销并完整报销、录入弹性售后，系统不自动定责/收费/建任务。验证：2026-09-08 全量 `npm test`（53 个测试文件、148 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
 - [x] D.5 实现月度财务首页，默认展示实际收入、经营支出、经营结果和截至查询日待报销金额，并支持查看流水；完成条件是收入不区分账户、支出明确公账/私人垫付、日期归属按实际付款日。验证：2026-09-08 页面边界测试覆盖月度概览、截至日待报销和当月现金流水；全量 `npm test`（53 个测试文件、149 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
-- [ ] D.6 为动态类目、私人垫付、整笔报销、月度口径、免费售后、有成本售后和售后收费新增测试；完成条件是财务与售后验收场景均可自动验证。
-- [ ] D.7 运行阶段 D 定向测试、`npm run typecheck`、`npm run lint` 和 `npm run build`；完成条件是记录验证证据后才进入阶段 E。
+- [x] D.6 为动态类目、私人垫付、整笔报销、月度口径、免费售后、有成本售后和售后收费新增测试；完成条件是财务与售后验收场景均可自动验证。验证：新增 `src/main/services/finance-after-sales-acceptance.test.ts`，以独立 V2 空库覆盖上述链路。
+- [x] D.7 运行阶段 D 定向测试、`npm run typecheck`、`npm run lint` 和 `npm run build`；完成条件是记录验证证据后才进入阶段 E。验证：2026-09-08 全量 `npm test`（54 个测试文件、150 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
 
 ## 阶段 E：报告、导出、V1 收敛与整体验证
 
@@ -70,3 +70,5 @@
 - **A.8（2026-09-07）**：阶段 A 全量验证通过：`npm test`（45 文件、115 用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 均退出码为 0；另以源代码扫描确认 V2 组合根、preload 和新页面不依赖 V1 写入实现。
 
 - **B.1（2026-09-07）**：追加 V2 迁移版本 4，建立工作安排、工序任务、完成申报、质检、履约事件和期初在制品记录表；各表通过外键、唯一性、工序/状态枚举、正数量与非负分钟/费率约束保持可追溯性。兼职人员主数据将在阶段 C 建立，工作安排先保存 `worker_id` 引用值，由后续服务统一校验。验证通过：迁移定向测试（4 用例）、全量 `npm test`（45 文件、116 用例）、`npm run typecheck`、`npm run lint`、`git diff --check`。
+
+- **D.6-D.7（2026-09-08）**：新增独立 V2 空库财务与售后验收，完整覆盖动态类目改名与引用删除保护、收入不区分账户、私人垫付、截至日待报销、一次性报销、月度经营口径、免费/有成本售后及负责人显式售后收费关联；售后不自动创建现金流水或工序任务。阶段 D 全量验证通过：`npm test`（54 文件、150 用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check`。

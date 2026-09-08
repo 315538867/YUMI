@@ -9,7 +9,7 @@ branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 D.5 已完成；下一步进入财务与售后验收场景）
+implementation_status: 实施中（阶段 D 已完成；下一步进入阶段 E 的 V2 报表事实与页面）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1183,3 +1183,10 @@ npm run build
 - 财务页升级为月度财务首页：负责人可选择统计月份和待报销截至日期，页面自动按实际收付款日期读取月度实际收入、经营支出和经营结果，并单独汇总截至查询日仍未完整报销的私人垫付。
 - 所选月份的现金流水完整保留订单资金、工资、日常收支和报销付款等事实。收入不区分公账或私人账户；支出明确显示公账支出、私人垫付人或报销付款。报销付款可追溯但不重复进入经营支出，避免经营结果重复扣减。
 - 月份、截至日、流水和四项概览均通过 `use-finance.ts` 的 `loadMonthlyOverview` 从同一预加载契约加载；登记收支或完成报销后会刷新当前查询口径。验证：新增月度财务页面边界用例；全量 `npm test` 通过 53 个测试文件、149 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均通过。下一步为 D.6：财务与售后验收场景。
+
+
+### 2026-09-08：阶段 D.6-D.7 完成
+
+- 新增独立 V2 空库的财务与售后验收测试，串联动态收入/支出类目改名、私人垫付、截至日待报销、一次性整笔报销、实际收付款日期月度经营结果、免费售后、有成本售后和负责人显式售后收费关联。
+- 验收明确免费或有成本售后只保留核算成本与负责人处理事实，不自动生成现金流水，也不自动创建任何工序任务；收入不区分账户，支出/报销仍按公账、私人垫付和现金事实的既定口径追溯。已被财务流水引用的类目或垫付人无法删除。
+- 阶段 D 质量门禁完成：全量 `npm test` 通过 54 个测试文件、150 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均通过。下一步进入阶段 E.1：基于 V2 事实重建报表与报表页面。
