@@ -4,6 +4,7 @@ interface V2Migration {
   version: number
   name: string
   run: (database: Database.Database) => void
+  requiresForeignKeysDisabled?: boolean
 }
 
 function hasTable(database: Database.Database, tableName: string): boolean {
@@ -464,6 +465,128 @@ const v2WagePaymentFinancialSource: V2Migration = {
   }
 }
 
+const v2FinanceAndAfterSalesFoundation: V2Migration = {
+  version: 8,
+  name: 'v2_finance_and_after_sales_foundation',
+  requiresForeignKeysDisabled: true,
+  run(database) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS finance_categories (
+        id TEXT PRIMARY KEY,
+        direction TEXT NOT NULL CHECK(direction IN ('income', 'expense')),
+        name TEXT NOT NULL CHECK(length(trim(name)) > 0),
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(direction, name)
+      );
+
+      CREATE TABLE IF NOT EXISTS advance_payers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE CHECK(length(trim(name)) > 0),
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE financial_entries_next (
+        id TEXT PRIMARY KEY,
+        source_type TEXT NOT NULL CHECK(source_type IN (
+          'order_fund', 'worker_settlement', 'manual_income', 'manual_expense', 'reimbursement'
+        )),
+        direction TEXT NOT NULL CHECK(direction IN ('income', 'expense')),
+        business_type TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+        occurred_on TEXT NOT NULL,
+        payment_method TEXT,
+        payment_source TEXT CHECK(payment_source IN ('business_account', 'private_advance')),
+        category_id TEXT REFERENCES finance_categories(id) ON DELETE RESTRICT,
+        advance_payer_id TEXT REFERENCES advance_payers(id) ON DELETE RESTRICT,
+        order_id TEXT REFERENCES orders(id),
+        attachment_id TEXT REFERENCES attachments(id),
+        reversal_of_entry_id TEXT REFERENCES financial_entries_next(id),
+        note TEXT,
+        created_at TEXT NOT NULL,
+        CHECK(
+          (payment_source IS NULL AND advance_payer_id IS NULL)
+          OR (payment_source = 'business_account' AND advance_payer_id IS NULL)
+          OR (payment_source = 'private_advance' AND advance_payer_id IS NOT NULL)
+        ),
+        CHECK(
+          direction = 'expense'
+          OR (payment_source IS NULL AND advance_payer_id IS NULL)
+        ),
+        UNIQUE(reversal_of_entry_id)
+      );
+
+      INSERT INTO financial_entries_next (
+        id, source_type, direction, business_type, amount_cents, occurred_on,
+        payment_method, order_id, attachment_id, reversal_of_entry_id, note, created_at
+      )
+      SELECT
+        id, source_type, direction, business_type, amount_cents, occurred_on,
+        payment_method, order_id, attachment_id, reversal_of_entry_id, note, created_at
+      FROM financial_entries;
+
+      DROP TABLE financial_entries;
+      ALTER TABLE financial_entries_next RENAME TO financial_entries;
+
+      CREATE TABLE IF NOT EXISTS advance_reimbursements (
+        id TEXT PRIMARY KEY,
+        advance_financial_entry_id TEXT NOT NULL UNIQUE REFERENCES financial_entries(id) ON DELETE RESTRICT,
+        reimbursement_financial_entry_id TEXT NOT NULL UNIQUE REFERENCES financial_entries(id) ON DELETE RESTRICT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS after_sales_cases (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+        shipment_id TEXT REFERENCES shipments(id) ON DELETE SET NULL,
+        occurred_on TEXT NOT NULL,
+        reason_description TEXT NOT NULL CHECK(length(trim(reason_description)) > 0),
+        customer_request TEXT,
+        responsibility_description TEXT NOT NULL CHECK(length(trim(responsibility_description)) > 0),
+        handling_description TEXT NOT NULL CHECK(length(trim(handling_description)) > 0),
+        status TEXT NOT NULL CHECK(status IN ('open', 'processing', 'resolved', 'cancelled')),
+        customer_charge_note TEXT,
+        accounting_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(accounting_cost_cents >= 0),
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS after_sales_charge_links (
+        after_sales_case_id TEXT NOT NULL REFERENCES after_sales_cases(id) ON DELETE RESTRICT,
+        financial_entry_id TEXT NOT NULL UNIQUE REFERENCES financial_entries(id) ON DELETE RESTRICT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(after_sales_case_id, financial_entry_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_financial_entries_order_id ON financial_entries(order_id);
+      CREATE INDEX IF NOT EXISTS idx_financial_entries_occurred_on ON financial_entries(occurred_on);
+      CREATE INDEX IF NOT EXISTS idx_financial_entries_source_type_occurred_on
+        ON financial_entries(source_type, occurred_on);
+      CREATE INDEX IF NOT EXISTS idx_financial_entries_category_occurred_on
+        ON financial_entries(category_id, occurred_on);
+      CREATE INDEX IF NOT EXISTS idx_financial_entries_advance_payer_occurred_on
+        ON financial_entries(advance_payer_id, occurred_on);
+      CREATE INDEX IF NOT EXISTS idx_finance_categories_direction_enabled
+        ON finance_categories(direction, enabled, name);
+      CREATE INDEX IF NOT EXISTS idx_advance_payers_enabled_name
+        ON advance_payers(enabled, name);
+      CREATE INDEX IF NOT EXISTS idx_advance_reimbursements_reimbursement
+        ON advance_reimbursements(reimbursement_financial_entry_id);
+      CREATE INDEX IF NOT EXISTS idx_after_sales_cases_order_occurred_on
+        ON after_sales_cases(order_id, occurred_on DESC);
+      CREATE INDEX IF NOT EXISTS idx_after_sales_cases_shipment_id
+        ON after_sales_cases(shipment_id);
+      CREATE INDEX IF NOT EXISTS idx_after_sales_charge_links_case
+        ON after_sales_charge_links(after_sales_case_id);
+    `)
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
@@ -471,7 +594,8 @@ const migrations: readonly V2Migration[] = [
   v2FulfillmentFoundation,
   v2BackfillShipmentFulfillmentEvents,
   v2WorkerSettlementFoundation,
-  v2WagePaymentFinancialSource
+  v2WagePaymentFinancialSource,
+  v2FinanceAndAfterSalesFoundation
 ]
 
 /**
@@ -498,11 +622,27 @@ export function runV2Migrations(database: Database.Database): void {
 
   for (const migration of migrations) {
     if (appliedVersions.has(migration.version)) continue
-    database.transaction(() => {
-      migration.run(database)
-      database
-        .prepare('INSERT INTO v2_schema_migrations (version, name, applied_at) VALUES (?, ?, ?)')
-        .run(migration.version, migration.name, new Date().toISOString())
-    })()
+
+    const applyMigration = () => {
+      database.transaction(() => {
+        migration.run(database)
+        database
+          .prepare('INSERT INTO v2_schema_migrations (version, name, applied_at) VALUES (?, ?, ?)')
+          .run(migration.version, migration.name, new Date().toISOString())
+      })()
+    }
+
+    if (!migration.requiresForeignKeysDisabled) {
+      applyMigration()
+      continue
+    }
+
+    const foreignKeysEnabled = database.pragma('foreign_keys', { simple: true }) === 1
+    if (foreignKeysEnabled) database.pragma('foreign_keys = OFF')
+    try {
+      applyMigration()
+    } finally {
+      if (foreignKeysEnabled) database.pragma('foreign_keys = ON')
+    }
   }
 }

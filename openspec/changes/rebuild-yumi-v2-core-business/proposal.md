@@ -3,7 +3,7 @@
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
 - 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.1）
-- 状态：实施中（阶段 C；C.2 已完成）
+- 状态：实施中（阶段 D；D.1 已完成）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -97,3 +97,5 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 - **2026-09-07 / C.5 已完成**：新增“工资”导航、`use-settlements` 数据组合层、兼职人员/时薪历史页面、工资结算页面与纯展示的结算明细组件。负责人可建立兼职人员及首条时薪、追加按日期生效的时薪历史，按任意日期范围新建结算草稿，在同一明细中查看排班与考勤参考、任务和扣款来源，填写考勤分钟、实际扣款、调整、最终实发、付款日期和备注后保存或确认记账；页面失败时保留当前草稿。页面不直连预加载 API，所有读取和写入均经 composable。验证：页面边界测试新增工资工作区覆盖，`npm run lint`、`npm run build`、全量 `npm test`（49 个测试文件、137 个用例）、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 通过。下一步为 C.6。
 
 - **2026-09-07 / C.6-C.7 已完成**：工资结算验收现在覆盖制作与捏毛装袋不合格公式、返工/补发作为新合格任务正常计提成、打包/发货不计件、发生顺序抵扣与余额顺延、排班/考勤双口径、最终实发非负限制、零元确认拒绝，以及确认后两套参考工资不被最终实发或备注回写。工资确认测试同时验证只有一笔 `worker_settlement` 来源的实际工资支出，重复确认不重复记账。阶段 C 完整门禁：全量 `npm test`（49 个测试文件、137 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 通过。阶段 C 已完成，下一步为 D.1。
+
+- **2026-09-08 / D.1 已完成**：新增迁移版本 8，建立动态 `finance_categories`、受控 `advance_payers`、一笔私人垫付对应一笔整笔报销的 `advance_reimbursements`、弹性 `after_sales_cases` 以及售后收费与订单资金事实的关联表。统一 `financial_entries` 在迁移中安全重建：保留订单资金、工资流水和反转关联，来源扩展为订单资金、工资结算、手工收入、手工支出和报销；同时增加付款来源、类目和垫付人关联。私人垫付必须关联垫付人，公账付款不得关联垫付人，收入不得填写支出付款来源；已被流水引用的类目或垫付人受外键保护，不能删除。售后单只记录核算成本，不会自动写入经营支出；售后收费采用显式关联订单资金流水，系统不自动定责、收费或创建返工/补发任务。验证：`src/main/database/v2-storage.test.ts` 覆盖迁移升级、旧工资流水外键保留、来源约束、类目/垫付人删除保护、整笔报销双向唯一和售后成本不自动生成现金流水；`npm run typecheck`、`npm run lint`、`git diff --check` 通过。下一步为 D.2。

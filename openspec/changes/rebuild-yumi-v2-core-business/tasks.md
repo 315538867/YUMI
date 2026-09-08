@@ -1,4 +1,4 @@
-> 当前执行：D.1（日常财务与售后数据基线）。未通过对应验证前不得勾选完成。
+> 当前执行：D.2（财务与售后领域规则）。未通过对应验证前不得勾选完成。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -33,7 +33,7 @@
 
 ## 阶段 D：日常财务、垫付报销、财务首页与售后单
 
-- [ ] D.1 在 `src/main/database/v2-migrations.ts` 追加财务类目、垫付人、报销和售后处理单表，并为 `financial_entries` 增加手工收入/支出、工资、报销来源、付款来源、类目和垫付关联；完成条件是已引用类目/垫付人无法删除，私人垫付与整笔报销为一对一。
+- [x] D.1 在 `src/main/database/v2-migrations.ts` 追加财务类目、垫付人、报销和售后处理单表，并为 `financial_entries` 增加手工收入/支出、工资、报销来源、付款来源、类目和垫付关联；完成条件是已引用类目/垫付人无法删除，私人垫付与整笔报销为一对一。
 - [ ] D.2 新增 `src/main/domain/finance.ts`、`src/main/domain/after-sales.ts`，实现实际日期月度汇总、经营支出计入规则、待报销、整笔报销和售后客户收费/核算成本分离；完成条件是报销付款不重复计入经营支出，售后核算成本不自动生成日常支出。
 - [ ] D.3 新增 `src/main/repositories/finance-repository.ts`、`after-sales-repository.ts`、`src/main/services/finance-service.ts`、`after-sales-service.ts`、对应 IPC 与 `src/shared/contracts/finance.ts`；完成条件是日常收支、类目、垫付、报销、售后、订单售后收费和审计记录均有稳定输入校验与事务边界。
 - [ ] D.4 新增 `src/renderer/pages/finance/`、`pages/settings/`、订单售后组件、`composables/use-finance.ts`；完成条件是负责人可管理类目/垫付人、登记日常收支、查看待报销并完整报销、录入弹性售后，系统不自动定责/收费/建任务。

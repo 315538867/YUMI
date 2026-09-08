@@ -42,7 +42,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 7 })
+    ).toEqual({ version: 8 })
     database.close()
 
     await expect(readFile(v1DatabasePath, 'utf8')).resolves.toBe('v1-test-data')
@@ -155,7 +155,7 @@ describe('V2 独立数据空间', () => {
       name: 'V2 客户'
     })
     expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 7
+      count: 8
     })
     expect(
       upgraded
@@ -262,7 +262,7 @@ describe('V2 独立数据空间', () => {
       'workers', 'worker_wage_history', 'worker_settlements', 'worker_settlement_tasks',
       'worker_deduction_records', 'worker_settlement_deduction_allocations', 'worker_deduction_balances'
     ]))
-    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 7 })
+    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 8 })
     expect(database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'financial_entries'").get())
       .toEqual(expect.objectContaining({ sql: expect.stringContaining('source_type') }))
 
@@ -346,6 +346,173 @@ describe('V2 独立数据空间', () => {
       VALUES ('balance-duplicate', 'worker-1', 'deduction-1', 1_017, 'open', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
     `).run()).toThrow()
     database.close()
+  })
+
+
+  it('建立日常财务、垫付报销与售后数据基线，并保留旧工资流水关联', () => {
+    const database = createV2Database(':memory:')
+    const tableNames = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
+    expect(tableNames.map((row) => row.name)).toEqual(expect.arrayContaining([
+      'finance_categories', 'advance_payers', 'advance_reimbursements',
+      'after_sales_cases', 'after_sales_charge_links'
+    ]))
+    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 8 })
+
+    database.prepare(`
+      INSERT INTO finance_categories (id, direction, name, enabled, created_at, updated_at)
+      VALUES ('expense-category-1', 'expense', '日常耗材', 1, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO finance_categories (id, direction, name, enabled, created_at, updated_at)
+      VALUES ('income-category-1', 'income', '其他收入', 1, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO advance_payers (id, name, enabled, created_at, updated_at)
+      VALUES ('payer-1', '小林', 1, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO financial_entries (
+        id, source_type, direction, business_type, amount_cents, occurred_on,
+        category_id, payment_source, advance_payer_id, created_at
+      ) VALUES (
+        'advance-entry-1', 'manual_expense', 'expense', 'daily_expense', 2_000, '2026-09-08',
+        'expense-category-1', 'private_advance', 'payer-1', '2026-09-08T00:00:00.000Z'
+      )
+    `).run()
+    database.prepare(`
+      INSERT INTO financial_entries (
+        id, source_type, direction, business_type, amount_cents, occurred_on, category_id, created_at
+      ) VALUES (
+        'income-entry-1', 'manual_income', 'income', 'daily_income', 500, '2026-09-08',
+        'income-category-1', '2026-09-08T00:00:00.000Z'
+      )
+    `).run()
+    expect(() => database.prepare("DELETE FROM finance_categories WHERE id = 'expense-category-1'").run()).toThrow()
+    expect(() => database.prepare("DELETE FROM advance_payers WHERE id = 'payer-1'").run()).toThrow()
+    expect(() => database.prepare(`
+      INSERT INTO financial_entries (id, source_type, direction, business_type, amount_cents, occurred_on, payment_source, created_at)
+      VALUES ('invalid-private-advance', 'manual_expense', 'expense', 'daily_expense', 100, '2026-09-08', 'private_advance', '2026-09-08T00:00:00.000Z')
+    `).run()).toThrow()
+    expect(() => database.prepare(`
+      INSERT INTO financial_entries (id, source_type, direction, business_type, amount_cents, occurred_on, payment_source, created_at)
+      VALUES ('invalid-income-payer', 'manual_income', 'income', 'daily_income', 100, '2026-09-08', 'business_account', '2026-09-08T00:00:00.000Z')
+    `).run()).toThrow()
+
+    database.prepare(`
+      INSERT INTO financial_entries (id, source_type, direction, business_type, amount_cents, occurred_on, payment_source, created_at)
+      VALUES ('reimbursement-entry-1', 'reimbursement', 'expense', 'advance_reimbursement', 2_000, '2026-09-09', 'business_account', '2026-09-09T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO advance_reimbursements (id, advance_financial_entry_id, reimbursement_financial_entry_id, created_at)
+      VALUES ('reimbursement-1', 'advance-entry-1', 'reimbursement-entry-1', '2026-09-09T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO financial_entries (id, source_type, direction, business_type, amount_cents, occurred_on, payment_source, created_at)
+      VALUES ('reimbursement-entry-2', 'reimbursement', 'expense', 'advance_reimbursement', 2_000, '2026-09-10', 'business_account', '2026-09-10T00:00:00.000Z')
+    `).run()
+    expect(() => database.prepare(`
+      INSERT INTO advance_reimbursements (id, advance_financial_entry_id, reimbursement_financial_entry_id, created_at)
+      VALUES ('reimbursement-duplicate-advance', 'advance-entry-1', 'reimbursement-entry-2', '2026-09-10T00:00:00.000Z')
+    `).run()).toThrow()
+    database.prepare(`
+      INSERT INTO financial_entries (
+        id, source_type, direction, business_type, amount_cents, occurred_on,
+        category_id, payment_source, advance_payer_id, created_at
+      ) VALUES (
+        'advance-entry-2', 'manual_expense', 'expense', 'daily_expense', 2_000, '2026-09-10',
+        'expense-category-1', 'private_advance', 'payer-1', '2026-09-10T00:00:00.000Z'
+      )
+    `).run()
+    expect(() => database.prepare(`
+      INSERT INTO advance_reimbursements (id, advance_financial_entry_id, reimbursement_financial_entry_id, created_at)
+      VALUES ('reimbursement-duplicate-payment', 'advance-entry-2', 'reimbursement-entry-1', '2026-09-10T00:00:00.000Z')
+    `).run()).toThrow()
+
+    database.prepare(`
+      INSERT INTO orders (
+        id, code, customer_snapshot_json, initial_confirmed_amount_cents, created_at, updated_at
+      ) VALUES ('order-1', 'ORDER-001', '{"name":"客户"}', 10_000, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO shipments (id, order_id, shipped_on, created_at, updated_at)
+      VALUES ('shipment-1', 'order-1', '2026-09-08', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO after_sales_cases (
+        id, order_id, shipment_id, occurred_on, reason_description, customer_request,
+        responsibility_description, handling_description, status, customer_charge_note,
+        accounting_cost_cents, note, created_at, updated_at
+      ) VALUES (
+        'after-sales-1', 'order-1', 'shipment-1', '2026-09-08', '客户不满意包装', '换袋并加封边',
+        '待负责人协商', '重新包装并加封边', 'processing', '小额免费处理', 2_000, '不自动生成支出',
+        '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z'
+      )
+    `).run()
+    expect(() => database.prepare(`
+      INSERT INTO after_sales_cases (
+        id, order_id, occurred_on, reason_description, responsibility_description,
+        handling_description, status, accounting_cost_cents, created_at, updated_at
+      ) VALUES ('after-sales-invalid-cost', 'order-1', '2026-09-08', '测试', '待定', '测试', 'open', -1, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()).toThrow()
+    expect(database.prepare('SELECT COUNT(*) AS count FROM financial_entries').get()).toEqual({ count: 5 })
+    database.prepare(`
+      INSERT INTO financial_entries (id, source_type, direction, business_type, amount_cents, occurred_on, order_id, created_at)
+      VALUES ('after-sales-charge-entry-1', 'order_fund', 'income', 'after_sales_charge', 1_000, '2026-09-09', 'order-1', '2026-09-09T00:00:00.000Z')
+    `).run()
+    database.prepare(`
+      INSERT INTO after_sales_charge_links (after_sales_case_id, financial_entry_id, created_at)
+      VALUES ('after-sales-1', 'after-sales-charge-entry-1', '2026-09-09T00:00:00.000Z')
+    `).run()
+    expect(database.prepare(`
+      SELECT COUNT(*) AS count FROM after_sales_charge_links WHERE after_sales_case_id = 'after-sales-1'
+    `).get()).toEqual({ count: 1 })
+    database.close()
+
+    const upgraded = createV2Database(':memory:')
+    upgraded.pragma('foreign_keys = OFF')
+    upgraded.exec(`
+      CREATE TABLE financial_entries_legacy (
+        id TEXT PRIMARY KEY,
+        direction TEXT NOT NULL CHECK(direction IN ('income', 'expense')),
+        business_type TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+        occurred_on TEXT NOT NULL,
+        payment_method TEXT,
+        order_id TEXT REFERENCES orders(id),
+        attachment_id TEXT REFERENCES attachments(id),
+        reversal_of_entry_id TEXT REFERENCES financial_entries_legacy(id),
+        note TEXT,
+        created_at TEXT NOT NULL,
+        source_type TEXT NOT NULL DEFAULT 'order_fund' CHECK(source_type IN ('order_fund', 'worker_settlement')),
+        UNIQUE(reversal_of_entry_id)
+      );
+      DROP TABLE financial_entries;
+      ALTER TABLE financial_entries_legacy RENAME TO financial_entries;
+    `)
+    upgraded.prepare('DELETE FROM v2_schema_migrations WHERE version = ?').run(8)
+    upgraded.pragma('foreign_keys = ON')
+    upgraded.prepare(`
+      INSERT INTO workers (id, name, enabled, created_at, updated_at)
+      VALUES ('legacy-worker-1', '历史兼职', 1, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    upgraded.prepare(`
+      INSERT INTO financial_entries (id, source_type, direction, business_type, amount_cents, occurred_on, created_at)
+      VALUES ('legacy-wage-entry-1', 'worker_settlement', 'expense', 'wage_payment', 1_800, '2026-09-08', '2026-09-08T00:00:00.000Z')
+    `).run()
+    upgraded.prepare(`
+      INSERT INTO worker_settlements (
+        id, worker_id, period_start_on, period_end_on, status, financial_entry_id, created_at, updated_at
+      ) VALUES ('legacy-settlement-1', 'legacy-worker-1', '2026-09-08', '2026-09-08', 'confirmed', 'legacy-wage-entry-1', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `).run()
+    runV2Migrations(upgraded)
+    expect(upgraded.prepare(`
+      SELECT source_type, amount_cents FROM financial_entries WHERE id = 'legacy-wage-entry-1'
+    `).get()).toEqual({ source_type: 'worker_settlement', amount_cents: 1_800 })
+    expect(upgraded.prepare(`
+      SELECT financial_entry_id FROM worker_settlements WHERE id = 'legacy-settlement-1'
+    `).get()).toEqual({ financial_entry_id: 'legacy-wage-entry-1' })
+    expect(upgraded.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    upgraded.close()
   })
 
 })
