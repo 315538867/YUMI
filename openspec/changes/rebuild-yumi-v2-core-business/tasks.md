@@ -1,4 +1,4 @@
-> 当前执行：E.4（V2 大订单端到端验收）。未通过对应验证前不得勾选完成。
+> 全部任务完成：质量门禁和文档回写均已通过；提案保持未归档，等待单独归档授权。
 
 ## 阶段 A：V2 数据基线、基础资料与订单事实
 
@@ -46,9 +46,9 @@
 - [x] E.1 新增 `src/main/services/report-service.ts`、`src/shared/contracts/reports.ts`、`src/main/ipc/report-ipc.ts` 和 `src/renderer/pages/reports/`，基于 V2 事实重建订单资金/核算成本、履约进度、工资结算和月度经营报表；完成条件是未确认工资、非实际资金和 V1 测试数据不进入报表。验证：2026-09-08 新增 V2 报表服务、IPC 与页面边界测试，覆盖订单净收/商品快照成本/售后核算成本、履约事件阶段结余、仅已确认工资结算和月度实际现金口径；全量 `npm test`（56 个测试文件、154 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
 - [x] E.2 重构 `src/main/services/export-document-workbook.ts`、`report-export.ts` 或其 V2 替代模块，保证订单、履约、工资和财务导出与当前筛选和 V2 页面口径一致；完成条件是导出可重复验证且不混入 V1 数据。验证：2026-09-08 新增 `V2ReportExportService`，由报表页当前统计月份生成订单核算、履约进度、已确认工资和月度经营四张固定业务表；导出测试覆盖业务列、V1 表字段不泄漏和空数据表头。全量 `npm test`（57 个测试文件、156 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
 - [x] E.3 清理 V1 `StudioRepository`、`StudioService`、旧数据库/迁移、旧 IPC、旧共享契约、旧页面、演示/附件/单据导出入口及其测试；V2 契约引用统一改为 `@shared/contracts/index`，并将 V2 备份实现从旧 `BackupService` 拆出为 `V2BackupArchiveService`。验证：新增 `v2-v1-isolation.test.ts` 断言旧入口不存在且组合根/preload/应用壳不引用 V1；保留并通过 V2 运行时、备份、订单工作流、履约、结算、财务、售后与报表测试。2026-09-08 全量 `npm test`（34 个测试文件、88 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验、`git diff --check` 与 V1 运行时引用扫描均通过。
-- [ ] E.4 将所有阶段的端到端验收串联为完整大订单场景：多产品、分批生产/发货、质检不合格与返工、工资结算、私人垫付、报销、售后、订单资金和月度财务；完成条件是测试使用 V2 空库独立执行。
-- [ ] E.5 运行全量质量门禁：`npm test`、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`；完成条件是所有命令退出码为 0，任何失败保留证据且不勾选未完成任务。
-- [ ] E.6 全部任务和质量门禁完成后，更新 `proposal.md` 与 `docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md` 的实施记录、实际差异和验证证据；完成条件是仅在所有验证通过后将提案状态改为已完成，并等待单独归档授权。
+- [x] E.4 将所有阶段的端到端验收串联为完整大订单场景：多产品、分批生产/发货、质检不合格与返工、工资结算、私人垫付、报销、售后、订单资金和月度财务；完成条件是测试使用 V2 空库独立执行。验证：2026-09-08 新增 `src/main/application/v2-large-order.e2e.test.ts`，使用临时 V2 数据目录验证完整链路；验收补强月度财务流水标识，并新增同日履约事件按 SQLite 落库顺序重放的报表回归测试。
+- [x] E.5 运行全量质量门禁：`npm test`、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`；完成条件是所有命令退出码为 0，任何失败保留证据且不勾选未完成任务。验证：2026-09-08 全量 `npm test`（35 个测试文件、90 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、严格 OpenSpec 校验与 `git diff --check` 均通过。
+- [x] E.6 全部任务和质量门禁完成后，更新 `proposal.md` 与 `docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md` 的实施记录、实际差异和验证证据；完成条件是仅在所有验证通过后将提案状态改为已完成，并等待单独归档授权。验证：2026-09-08 提案状态已改为已完成，关联方案已升为 v3.2 并记录业务无偏离、两项报表稳定性补强和 E.5 全量门禁证据；未执行归档。
 
 
 ## 实施证据

@@ -88,5 +88,42 @@ describe('V2 报表服务', () => {
       rows: [expect.objectContaining({ id: confirmedDraft.id, workerName: '小林', finalPaidAmountCents: 300, paidOn: '2026-09-08' })]
     })
     expect(reports.listConfirmedSettlements().rows.map((item) => item.id)).not.toContain(draftId)
+    expect(reports.getMonthlyOperation('2026-09')).toMatchObject({
+      incomeCents: 800,
+      operatingExpenseCents: 400,
+      operatingResultCents: 400,
+      confirmedSettlementPaidCents: 300
+    })
+  })
+
+  it('按同日履约事件的落库顺序重放，而不是按随机标识排序', () => {
+    const database = createV2Database(':memory:')
+    databases.push(database)
+    const orders = new V2OrderService(new V2OrderRepository(database))
+    const reports = new ReportService(database)
+    const product = orders.createProduct({
+      name: '同日流转测试产品', basePriceCents: 100, materialCostCents: 10, packagingCostCents: 5,
+      accessoryCostCents: 0, replacementBagCostCents: 0, edgeCostCents: 0,
+      standardMakingMinutes: 10, makingCommissionCents: 10, makingGlueCostCents: 0
+    })
+    const order = orders.createOrder({
+      customer: { name: '客户 B' }, initialConfirmedAmountCents: 100,
+      items: [{ productId: product.id, quantity: 1, unitPriceCents: 100 }]
+    })
+    const itemId = order.items[0].id
+    const insertEvent = database.prepare(`INSERT INTO fulfillment_events (
+      id, order_item_id, event_type, quantity, source_stage, target_stage,
+      source_record_type, source_record_id, occurred_on, note, created_at
+    ) VALUES (?, ?, ?, 1, ?, ?, NULL, NULL, '2026-09-05', NULL, '2026-09-08T00:00:00.000Z')`)
+    insertEvent.run('z-making-first', itemId, 'making_qualified', 'making', 'fluffing_bagging')
+    insertEvent.run('a-fluffing-second', itemId, 'fluffing_bagging_qualified', 'fluffing_bagging', 'packing')
+    insertEvent.run('b-packing-third', itemId, 'packing_completed', 'packing', 'ready_to_ship')
+
+    expect(reports.getFulfillmentProgress().rows).toEqual([
+      expect.objectContaining({
+        orderItemId: itemId,
+        stages: { making: 0, fluffingBagging: 0, packing: 0, readyToShip: 1, shipped: 0 }
+      })
+    ])
   })
 })

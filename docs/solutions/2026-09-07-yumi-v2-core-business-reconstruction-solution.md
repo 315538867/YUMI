@@ -3,13 +3,13 @@ title: YUMI V2 核心业务重构方案
 date: 2026-09-07
 last_modified: 2026-09-08
 modifier: Codex
-solution_version: v3.1
-status: 已确认，实施中
+solution_version: v3.2
+status: 已完成，等待单独归档授权
 branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 D 已完成；下一步进入阶段 E 的 V2 报表事实与页面）
+implementation_status: 已完成（阶段 A 至 E 全部完成；质量门禁已通过，等待单独归档授权）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1213,3 +1213,10 @@ npm run build
 - 清理 V1 数据库连接与迁移、`StudioRepository`、`StudioService`、旧 IPC、旧共享契约、演示/附件/旧单据导出、旧页面及其仅服务于 V1 的测试；`date-fns` 与 `exceljs` 也随 V1 实现一并移除。当前应用不再保留旧 `window.yumi` 类型或页面迁移占位。
 - 所有保留的 V2 主进程、preload、renderer、领域与仓储代码显式从 `@shared/contracts/index` 读取 V2 契约，避免路径解析再次命中已删除的 V1 `contracts.ts`。原先间接复用 V1 `BackupService` 的 V2 备份能力已收敛为 `V2BackupArchiveService`，只使用 V2 存储文件名、附件目录与 V2 备份契约。
 - 新增 `v2-v1-isolation.test.ts`，从文件存在性和组合根/preload/应用壳两个层面防止 V1 入口回流；V2 运行时、备份、订单工作流、履约、工资结算、财务售后和报表测试仍保留。验证：全量 `npm test` 通过 34 个测试文件、88 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 与 V1 运行时引用扫描均通过。下一步为 E.4：在 V2 空库串联大订单验收。
+
+
+### 2026-09-08：阶段 E.4 至 E.6 完成
+
+- 新增 `src/main/application/v2-large-order.e2e.test.ts`，以临时目录创建独立 V2 空库，完整验证一个双商品大订单：制作质检不合格后重新排班返工、捏毛装袋、打包、两次分批发货、售后加封边收费与核算成本、私人垫付与整笔报销、两位兼职的负责人最终实发结算、订单资金结清以及 2026 年 9 月月度经营汇总。
+- 验收发现的实际实现差异不涉及业务规则：`ReportRepository` 的月度财务来源缺少流水标识，导致领域汇总拒绝有效流水；同日且创建时间相同的履约事件曾按随机 UUID 而非落库顺序重放，存在报表阶段余额不稳定的风险。现已补齐流水 ID，并统一按 `occurred_on`、`created_at`、SQLite `rowid` 重放；增加确定性回归测试。
+- 业务方案与已确认规则没有偏离；本方案版本升级为 v3.2，仅用于记录最终实施、上述稳定性补强和验证证据。最终验证通过：`npm test`（35 个测试文件、90 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check`。OpenSpec 提案已标记完成，但未归档，等待单独授权。

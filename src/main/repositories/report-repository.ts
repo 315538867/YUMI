@@ -40,6 +40,7 @@ export interface ConfirmedSettlementSource {
 }
 
 export interface MonthlyFinanceSource {
+  id: string
   sourceType: V2FinanceEntrySourceType
   direction: 'income' | 'expense'
   amountCents: number
@@ -147,7 +148,7 @@ export class ReportRepository {
     const events = this.database.prepare(
       `SELECT id, order_item_id, event_type, quantity, source_stage, target_stage, source_record_type, source_record_id,
               occurred_on, note, created_at
-       FROM fulfillment_events WHERE order_item_id = ? ORDER BY occurred_on ASC, created_at ASC, id ASC`
+       FROM fulfillment_events WHERE order_item_id = ? ORDER BY occurred_on ASC, created_at ASC, rowid ASC`
     )
     return rows.map((row) => ({
       orderId: row.order_id,
@@ -183,10 +184,11 @@ export class ReportRepository {
 
   listMonthlyFinanceSources(): MonthlyFinanceSource[] {
     return this.database.prepare(
-      'SELECT source_type, direction, amount_cents, occurred_on FROM financial_entries ORDER BY occurred_on ASC, created_at ASC, id ASC'
+      'SELECT id, source_type, direction, amount_cents, occurred_on FROM financial_entries ORDER BY occurred_on ASC, created_at ASC, id ASC'
     ).all().map((row) => {
       const source = row as Record<string, unknown>
       return {
+        id: String(source.id),
         sourceType: source.source_type as V2FinanceEntrySourceType,
         direction: source.direction as 'income' | 'expense',
         amountCents: Number(source.amount_cents),
