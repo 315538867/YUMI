@@ -3,7 +3,7 @@
 - 提案名称：YUMI V2 核心业务重构
 - Change ID：`rebuild-yumi-v2-core-business`
 - 关联方案：`docs/solutions/2026-09-07-yumi-v2-core-business-reconstruction-solution.md`（v3.1）
-- 状态：实施中（阶段 E.2 已完成；下一步 E.3）
+- 状态：实施中（阶段 E.3 已完成；下一步 E.4）
 - 创建人：Codex
 - 创建时间：2026-09-07
 - 实施方式：单一提案，内部按阶段 A 至 E 顺序执行；阶段完成不另建提案
@@ -118,3 +118,5 @@ YUMI 当前的 V1 订单、排班、制作、工资报表和成本逻辑围绕�
 
 
 - **2026-09-08 / E.2 已完成**：新增 V2 专用 `V2ReportExportService` 及“导出当前报表”操作。导出严格复用 `ReportService` 的 V2 事实：订单核算、履约进度、已确认工资和当前统计月份的月度经营分别写入四张 XLSX 工作表；固定业务列保证空数据时仍可读。主进程保存对话框只负责文件选择与写入，导出服务不读取数据库、更不引用 V1 `StudioService` 或旧导出模块，故不会混入 V1 数据。验证：导出测试覆盖业务列、空表表头和 V1 内部字段不泄漏；全量 `npm test`（57 个测试文件、156 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 通过。下一步为 E.3：清理或隔离 V1 入口与遗留实现。
+
+- **E.3（2026-09-08）**：移除 V1 数据库连接/迁移、`StudioRepository`、`StudioService`、旧 IPC、旧共享契约、演示/附件/旧单据导出、旧页面及所有只验证上述实现的测试；同时移除仅由 V1 使用的 `date-fns`、`exceljs` 依赖。V2 契约使用方全部改为显式引用 `@shared/contracts/index`，`window` 仅保留 `yumiV2`。原先被 V2 备份包装器复用的旧 `BackupService` 被重建为仅依赖 V2 存储和 V2 契约的 `V2BackupArchiveService`，恢复审计仍由 V2 组合根事务写入。新增隔离测试验证旧入口已删除，且 V2 组合根、preload 与应用壳不再引用 V1。验证：全量 `npm test`（34 个测试文件、88 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 及 V1 运行时引用扫描均通过。下一步为 E.4：V2 空库的大订单端到端验收。

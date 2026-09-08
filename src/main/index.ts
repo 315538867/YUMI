@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { V2ApplicationRuntime } from '@main/application/v2-runtime'
 import { registerV2Ipc } from '@main/ipc/register-v2-ipc'
-import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts'
+import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts/index'
 
 let mainWindow: BrowserWindow | null = null
 let runtime: V2ApplicationRuntime | null = null

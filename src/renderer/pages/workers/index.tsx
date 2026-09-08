@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Badge, Button, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import type { V2Worker, V2WorkerWageHistory } from '@shared/contracts'
+import type { V2Worker, V2WorkerWageHistory } from '@shared/contracts/index'
 import { centsToYuan, getErrorMessage, today, yuanToCents } from '../../composables/v2-utils'
 
 interface WorkersPageProps {

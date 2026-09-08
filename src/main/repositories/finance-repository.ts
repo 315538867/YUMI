@@ -5,7 +5,7 @@ import type {
   V2FinanceDirection,
   V2FinanceEntryQuery,
   V2FinancialEntry
-} from '@shared/contracts'
+} from '@shared/contracts/index'
 
 export interface FinanceAuditInput {
   id: string

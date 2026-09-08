@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { V2Customer, V2CustomerInput, V2CustomerUpdateInput } from '@shared/contracts'
+import type { V2Customer, V2CustomerInput, V2CustomerUpdateInput } from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
 export function useCustomers() {

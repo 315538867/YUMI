@@ -18,7 +18,7 @@ import type {
   V2ProductOrderSnapshot,
   V2ProductUpdateInput,
   V2Shipment
-} from '@shared/contracts'
+} from '@shared/contracts/index'
 
 export interface V2AuditLog {
   id: string

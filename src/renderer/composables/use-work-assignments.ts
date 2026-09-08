@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { V2ProcessResult, V2ProcessResultInput, V2QualityInspectionInput, V2WorkAssignment, V2WorkAssignmentCreateInput } from '@shared/contracts'
+import type { V2ProcessResult, V2ProcessResultInput, V2QualityInspectionInput, V2WorkAssignment, V2WorkAssignmentCreateInput } from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
 export function useWorkAssignments() {

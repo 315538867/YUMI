@@ -23,7 +23,7 @@ import type {
   V2MonthlyFinanceSummary,
   V2PendingReimbursement,
   V2ReimbursementInput
-} from '@shared/contracts'
+} from '@shared/contracts/index'
 
 interface FinanceClock {
   createId(): string

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Badge, Button, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import type { V2Order, V2ProcessTaskInput, V2ProcessType } from '@shared/contracts'
+import type { V2Order, V2ProcessTaskInput, V2ProcessType } from '@shared/contracts/index'
 import { getErrorMessage, today } from '../../composables/v2-utils'
 import { useWorkAssignments } from '../../composables/use-work-assignments'
 

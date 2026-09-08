@@ -12,7 +12,7 @@ import { FinanceService } from '@main/services/finance-service'
 import { AfterSalesService } from '@main/services/after-sales-service'
 import { ReportService } from '@main/services/report-service'
 import { V2ReportExportService } from '@main/services/v2-report-export-service'
-import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts'
+import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts/index'
 
 interface V2RuntimeReferences {
   database: V2Database
@@ -114,7 +114,6 @@ export class V2ApplicationRuntime {
           createdAt: new Date().toISOString()
         })
       })
-      await this.backupService.recordRestore(result)
       return result
     } catch (error) {
       if (!this.references) this.references = this.createReferences()

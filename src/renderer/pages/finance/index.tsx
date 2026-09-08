@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Badge, Button, Flex, Heading, Text, TextArea, TextField } from '@radix-ui/themes'
-import type { V2ExpensePaymentSource, V2FinancialEntry } from '@shared/contracts'
+import type { V2ExpensePaymentSource, V2FinancialEntry } from '@shared/contracts/index'
 import { formatCents, getErrorMessage, today, yuanToCents } from '../../composables/v2-utils'
 import { useFinance } from '../../composables/use-finance'
 

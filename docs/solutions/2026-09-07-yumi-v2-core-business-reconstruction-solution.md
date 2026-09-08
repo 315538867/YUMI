@@ -1207,3 +1207,9 @@ npm run build
 - 新增 V2 专用 `V2ReportExportService`，仅消费 `ReportService` 的已确认 V2 报表结果，不读取数据库、不引用 `StudioService`、`StudioRepository` 或旧导出模块。负责人点击报表页“导出当前报表”后，预加载与 V2 IPC 将当前统计月份交给组合根，组合根先生成工作簿，再调用系统保存对话框写入 XLSX。
 - 工作簿固定包含“订单核算”“履约进度”“已确认工资”“月度经营”四张业务表。订单、履约、工资表与页面一样展示当前全量 V2 事实；月度经营表使用页面当前选中的月份。四张表均固定业务表头，空数据不会导出成无列的空工作表，且不泄漏快照 JSON 等数据库内部字段。
 - 验证：新增导出服务测试与 IPC、渲染边界覆盖；全量 `npm test` 通过 57 个测试文件、156 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均通过。下一步为 E.3：清理或隔离 V1 入口与遗留实现。
+
+### 2026-09-08：阶段 E.3 完成
+
+- 清理 V1 数据库连接与迁移、`StudioRepository`、`StudioService`、旧 IPC、旧共享契约、演示/附件/旧单据导出、旧页面及其仅服务于 V1 的测试；`date-fns` 与 `exceljs` 也随 V1 实现一并移除。当前应用不再保留旧 `window.yumi` 类型或页面迁移占位。
+- 所有保留的 V2 主进程、preload、renderer、领域与仓储代码显式从 `@shared/contracts/index` 读取 V2 契约，避免路径解析再次命中已删除的 V1 `contracts.ts`。原先间接复用 V1 `BackupService` 的 V2 备份能力已收敛为 `V2BackupArchiveService`，只使用 V2 存储文件名、附件目录与 V2 备份契约。
+- 新增 `v2-v1-isolation.test.ts`，从文件存在性和组合根/preload/应用壳两个层面防止 V1 入口回流；V2 运行时、备份、订单工作流、履约、工资结算、财务售后和报表测试仍保留。验证：全量 `npm test` 通过 34 个测试文件、88 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict`、`git diff --check` 与 V1 运行时引用扫描均通过。下一步为 E.4：在 V2 空库串联大订单验收。

@@ -13,7 +13,7 @@ import type {
   V2AfterSalesCaseQuery,
   V2AfterSalesCaseUpdateInput,
   V2AfterSalesChargeLink
-} from '@shared/contracts'
+} from '@shared/contracts/index'
 
 interface AfterSalesClock {
   createId(): string

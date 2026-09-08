@@ -1,4 +1,4 @@
-import type { Cents } from '@shared/contracts'
+import type { Cents } from '@shared/contracts/index'
 import { processTypes, type ProcessType } from './fulfillment'
 import { DomainValidationError } from './errors'
 

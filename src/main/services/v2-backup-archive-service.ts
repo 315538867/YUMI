@@ -12,47 +12,42 @@ import {
 } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { DomainValidationError } from '@main/domain/errors'
-import type {
-  BackupReason,
-  BackupRestoreResult,
-  BackupSummary,
-  LastExportResult,
-  LastRestoreResult,
-  LocalDataActivity,
-  ReportExportKind
-} from '@shared/contracts'
+import {
+  V2_ATTACHMENT_DIRECTORY_NAME,
+  V2_DATABASE_FILE_NAME
+} from '@main/database/v2-storage'
+import type { V2BackupSummary } from '@shared/contracts/index'
 
 const BACKUP_FORMAT_VERSION = 1
-const DATABASE_FILE_NAME = 'yumi-studio.sqlite'
-const ATTACHMENTS_DIRECTORY_NAME = 'attachments'
+const DATABASE_FILE_NAME = V2_DATABASE_FILE_NAME
+const ATTACHMENTS_DIRECTORY_NAME = V2_ATTACHMENT_DIRECTORY_NAME
 const MANIFEST_FILE_NAME = 'manifest.json'
-const ACTIVITY_FILE_NAME = 'activity.json'
 
-export interface BackupFileIntegrity {
+export interface V2BackupFileIntegrity {
   path: string
   sizeBytes: number
   sha256: string
 }
 
-export interface BackupManifest {
+export interface V2BackupManifest {
   id: string
   formatVersion: number
   applicationVersion: string
   createdAt: string
-  reason: BackupReason
-  database: BackupFileIntegrity
+  reason: V2BackupSummary['reason']
+  database: V2BackupFileIntegrity
   attachments: {
     directory: string
-    files: BackupFileIntegrity[]
+    files: V2BackupFileIntegrity[]
   }
 }
 
-export interface BackupRestorePlan {
-  sourceBackup: BackupSummary
-  safetyBackup: BackupSummary
+export interface V2BackupRestorePlan {
+  sourceBackup: V2BackupSummary
+  safetyBackup: V2BackupSummary
 }
 
-export interface BackupServiceOptions {
+export interface V2BackupArchiveServiceOptions {
   databasePath: string
   attachmentDirectory: string
   backupDirectory: string
@@ -99,9 +94,9 @@ function isSafeRelativePath(path: string): boolean {
   return path !== '' && !path.startsWith('/') && !path.includes('..') && !path.includes('\\')
 }
 
-async function collectFiles(root: string, baseDirectory = root): Promise<BackupFileIntegrity[]> {
+async function collectFiles(root: string, baseDirectory = root): Promise<V2BackupFileIntegrity[]> {
   if (!(await exists(root))) return []
-  const files: BackupFileIntegrity[] = []
+  const files: V2BackupFileIntegrity[] = []
   const entries = await readdir(root, { withFileTypes: true })
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     const fullPath = join(root, entry.name)
@@ -124,9 +119,9 @@ function assertManifest(
   value: unknown,
   databaseFileName: string,
   attachmentDirectoryName: string
-): asserts value is BackupManifest {
+): asserts value is V2BackupManifest {
   if (!value || typeof value !== 'object') throw new DomainValidationError('备份元数据无效')
-  const manifest = value as Partial<BackupManifest>
+  const manifest = value as Partial<V2BackupManifest>
   if (typeof manifest.id !== 'string' || !manifest.id)
     throw new DomainValidationError('备份标识无效')
   if (manifest.formatVersion !== BACKUP_FORMAT_VERSION)
@@ -164,14 +159,14 @@ function assertManifest(
   }
 }
 
-export class BackupService {
+export class V2BackupArchiveService {
   private readonly databasePath: string
   private readonly attachmentDirectory: string
   private readonly backupDirectory: string
   private readonly databaseFileName: string
   private readonly attachmentDirectoryName: string
 
-  constructor(private readonly options: BackupServiceOptions) {
+  constructor(private readonly options: V2BackupArchiveServiceOptions) {
     this.databasePath = resolve(options.databasePath)
     this.attachmentDirectory = resolve(options.attachmentDirectory)
     this.backupDirectory = resolve(options.backupDirectory)
@@ -185,7 +180,7 @@ export class BackupService {
     )
   }
 
-  async createBackup(reason: BackupReason = 'manual'): Promise<BackupSummary> {
+  async createBackup(reason: V2BackupSummary['reason'] = 'manual'): Promise<V2BackupSummary> {
     await mkdir(this.backupDirectory, { recursive: true })
     const id = randomUUID()
     const createdAt = new Date().toISOString()
@@ -205,7 +200,7 @@ export class BackupService {
       }
       const databaseStat = await stat(backupDatabasePath)
       const attachmentFiles = await collectFiles(backupAttachmentsPath)
-      const manifest: BackupManifest = {
+      const manifest: V2BackupManifest = {
         id,
         formatVersion: BACKUP_FORMAT_VERSION,
         applicationVersion: this.options.applicationVersion,
@@ -233,33 +228,7 @@ export class BackupService {
     }
   }
 
-  async getActivity(): Promise<LocalDataActivity> {
-    const activity = await this.readActivity()
-    const [lastBackup] = await this.listBackups()
-    return {
-      lastBackup: lastBackup ?? null,
-      lastRestore: activity.lastRestore ?? null,
-      lastExport: activity.lastExport ?? null
-    }
-  }
-
-  async recordExport(input: { kind: ReportExportKind; savedPath: string }): Promise<void> {
-    const activity = await this.readActivity()
-    await this.writeActivity({
-      ...activity,
-      lastExport: { ...input, exportedAt: new Date().toISOString() }
-    })
-  }
-
-  async recordRestore(input: BackupRestoreResult): Promise<void> {
-    const activity = await this.readActivity()
-    await this.writeActivity({
-      ...activity,
-      lastRestore: { ...input, restoredAt: new Date().toISOString() }
-    })
-  }
-
-  async listBackups(): Promise<BackupSummary[]> {
+  async listBackups(): Promise<V2BackupSummary[]> {
     if (!(await exists(this.backupDirectory))) return []
     const entries = await readdir(this.backupDirectory, { withFileTypes: true })
     const backups = await Promise.all(
@@ -274,11 +243,11 @@ export class BackupService {
         })
     )
     return backups
-      .filter((backup): backup is BackupSummary => backup !== null)
+      .filter((backup): backup is V2BackupSummary => backup !== null)
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
   }
 
-  async inspectBackup(backupPath: string): Promise<BackupSummary> {
+  async inspectBackup(backupPath: string): Promise<V2BackupSummary> {
     const resolvedBackupPath = resolve(backupPath)
     let manifest: unknown
     try {
@@ -306,14 +275,14 @@ export class BackupService {
     return this.toSummary(resolvedBackupPath, manifest)
   }
 
-  async prepareRestore(backupPath: string, confirmed: boolean): Promise<BackupRestorePlan> {
+  async prepareRestore(backupPath: string, confirmed: boolean): Promise<V2BackupRestorePlan> {
     if (!confirmed) throw new DomainValidationError('恢复会覆盖当前数据，请完成二次确认后再继续')
     const sourceBackup = await this.inspectBackup(backupPath)
     const safetyBackup = await this.createBackup('pre_restore')
     return { sourceBackup, safetyBackup }
   }
 
-  async applyRestore(plan: BackupRestorePlan): Promise<void> {
+  async applyRestore(plan: V2BackupRestorePlan): Promise<void> {
     const sourceBackup = await this.inspectBackup(plan.sourceBackup.backupPath)
     const sourceDatabasePath = join(sourceBackup.backupPath, this.databaseFileName)
     const sourceAttachmentsPath = join(sourceBackup.backupPath, this.attachmentDirectoryName)
@@ -378,35 +347,7 @@ export class BackupService {
     return value
   }
 
-  private async readActivity(): Promise<{
-    lastRestore?: LastRestoreResult
-    lastExport?: LastExportResult
-  }> {
-    try {
-      const content = await readFile(join(this.backupDirectory, ACTIVITY_FILE_NAME), 'utf8')
-      const activity = JSON.parse(content) as {
-        lastRestore?: LastRestoreResult
-        lastExport?: LastExportResult
-      }
-      return activity && typeof activity === 'object' ? activity : {}
-    } catch {
-      return {}
-    }
-  }
-
-  private async writeActivity(activity: {
-    lastRestore?: LastRestoreResult
-    lastExport?: LastExportResult
-  }): Promise<void> {
-    await mkdir(this.backupDirectory, { recursive: true })
-    await writeFile(
-      join(this.backupDirectory, ACTIVITY_FILE_NAME),
-      JSON.stringify(activity, null, 2),
-      'utf8'
-    )
-  }
-
-  private toSummary(backupPath: string, manifest: BackupManifest): BackupSummary {
+  private toSummary(backupPath: string, manifest: V2BackupManifest): V2BackupSummary {
     return {
       id: manifest.id,
       backupPath,

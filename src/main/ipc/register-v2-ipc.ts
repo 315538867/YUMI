@@ -1,6 +1,6 @@
 import { ipcMain as electronIpcMain } from 'electron'
 import type { V2BackupService } from '@main/services/v2-backup-service'
-import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts'
+import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts/index'
 import type { V2OrderService } from '@main/services/v2-order-service'
 import type { FulfillmentService } from '@main/services/fulfillment-service'
 import type { SettlementService } from '@main/services/settlement-service'

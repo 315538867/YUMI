@@ -8,7 +8,7 @@ import type {
   V2WorkerSettlementQuery,
   V2WorkerWageHistory,
   V2WorkerWageHistoryInput
-} from '@shared/contracts'
+} from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
 export function useSettlements() {

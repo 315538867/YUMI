@@ -3,7 +3,7 @@ import type {
   V2AfterSalesCase,
   V2AfterSalesCaseQuery,
   V2AfterSalesChargeLink
-} from '@shared/contracts'
+} from '@shared/contracts/index'
 import type { FinanceAuditInput } from './finance-repository'
 
 export type AfterSalesCaseWrite = Omit<V2AfterSalesCase, 'chargeFinancialEntryIds'>

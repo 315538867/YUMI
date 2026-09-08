@@ -12,7 +12,7 @@ import type {
   V2ManualIncomeInput,
   V2MonthlyFinanceSummary,
   V2ReimbursementInput
-} from '@shared/contracts'
+} from '@shared/contracts/index'
 import { getErrorMessage, today } from './v2-utils'
 
 /** 财务与售后能力只经预加载契约调用；页面只处理草稿和展示。 */

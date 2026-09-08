@@ -1,4 +1,4 @@
-import type { Cents, V2OrderFundBusinessType, V2OrderFundDirection } from '@shared/contracts'
+import type { Cents, V2OrderFundBusinessType, V2OrderFundDirection } from '@shared/contracts/index'
 import { DomainValidationError } from './errors'
 
 export type OrderFundDirection = V2OrderFundDirection

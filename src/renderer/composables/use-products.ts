@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { V2Product, V2ProductInput, V2ProductUpdateInput } from '@shared/contracts'
+import type { V2Product, V2ProductInput, V2ProductUpdateInput } from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
 export function useProducts() {

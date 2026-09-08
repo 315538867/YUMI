@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Badge, Button, Flex, Heading, Text, TextArea, TextField } from '@radix-ui/themes'
-import type { V2FulfillmentStage, V2OrderItemFulfillment } from '@shared/contracts'
+import type { V2FulfillmentStage, V2OrderItemFulfillment } from '@shared/contracts/index'
 import { getErrorMessage, today } from '../../composables/v2-utils'
 import { useFulfillment } from '../../composables/use-fulfillment'
 import { WorkAssignmentsPage } from '../work-assignments'

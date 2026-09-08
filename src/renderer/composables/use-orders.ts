@@ -12,7 +12,7 @@ import type {
   V2Product,
   V2Shipment,
   V2ShipmentInput
-} from '@shared/contracts'
+} from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
 export function useOrders() {

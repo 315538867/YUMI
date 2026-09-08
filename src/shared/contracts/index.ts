@@ -102,7 +102,9 @@ export type {
   V2FulfillmentProgressReportRow,
   V2MonthlyOperationReport,
   V2OrderBusinessReport,
-  V2OrderBusinessReportRow
+  V2OrderBusinessReportRow,
+  V2ReportExportInput,
+  V2ReportExportResult
 } from './reports'
 
 export type { V2YumiApi } from './v2-api'

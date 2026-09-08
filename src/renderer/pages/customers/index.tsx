@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Badge, Button, Flex, Heading, Text, TextArea, TextField } from '@radix-ui/themes'
-import type { V2Customer, V2CustomerInput } from '@shared/contracts'
+import type { V2Customer, V2CustomerInput } from '@shared/contracts/index'
 import { getErrorMessage } from '../../composables/v2-utils'
 import { useCustomers } from '../../composables/use-customers'
 

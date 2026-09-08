@@ -27,7 +27,7 @@ import type {
   V2ProductUpdateInput,
   V2Shipment,
   V2ShipmentInput
-} from '@shared/contracts'
+} from '@shared/contracts/index'
 
 interface V2Clock {
   createId(): string

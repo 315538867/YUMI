@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { V2YumiApi } from '@shared/contracts'
+import type { V2YumiApi } from '@shared/contracts/index'
 
 const yumiV2: V2YumiApi = {
   health: () => ipcRenderer.invoke('v2:health'),

@@ -1,4 +1,4 @@
-import type { Cents } from '@shared/contracts'
+import type { Cents } from '@shared/contracts/index'
 import { DomainValidationError } from './errors'
 
 export const financeEntrySourceTypes = [

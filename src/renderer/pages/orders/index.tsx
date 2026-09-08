@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Badge, Button, Flex, Heading, Text, TextArea, TextField } from '@radix-ui/themes'
-import type { V2Order, V2OrderFundBusinessType, V2OrderItem, V2Product } from '@shared/contracts'
+import type { V2Order, V2OrderFundBusinessType, V2OrderItem, V2Product } from '@shared/contracts/index'
 import { centsToYuan, formatCents, getErrorMessage, today, yuanToCents } from '../../composables/v2-utils'
 import { useOrders } from '../../composables/use-orders'
 import { useFinance } from '../../composables/use-finance'

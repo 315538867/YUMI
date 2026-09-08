@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { V2FulfillmentAdjustmentInput, V2OpeningWipInput, V2Order, V2OrderItemFulfillment, V2OrderSummary } from '@shared/contracts'
+import type { V2FulfillmentAdjustmentInput, V2OpeningWipInput, V2Order, V2OrderItemFulfillment, V2OrderSummary } from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
 export function useFulfillment() {

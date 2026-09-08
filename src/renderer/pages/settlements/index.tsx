@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Badge, Button, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import type { V2WorkerSettlementDetail } from '@shared/contracts'
+import type { V2WorkerSettlementDetail } from '@shared/contracts/index'
 import { getErrorMessage, today } from '../../composables/v2-utils'
 import { useSettlements } from '../../composables/use-settlements'
 import { SettlementDetail } from '../../components/settlement/settlement-detail'
