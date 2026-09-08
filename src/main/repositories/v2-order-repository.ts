@@ -441,9 +441,9 @@ export class V2OrderRepository {
     this.database
       .prepare(
         `INSERT INTO financial_entries (
-          id, direction, business_type, amount_cents, occurred_on, payment_method, order_id,
+          id, source_type, direction, business_type, amount_cents, occurred_on, payment_method, order_id,
           attachment_id, reversal_of_entry_id, note, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, 'order_fund', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         fund.id, fund.direction, fund.businessType, fund.amountCents, fund.occurredOn,

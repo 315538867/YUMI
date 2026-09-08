@@ -67,6 +67,34 @@ export type {
   V2WorkAssignmentStatus
 } from './fulfillment'
 
+export type {
+  V2AfterSalesCase,
+  V2AfterSalesCaseCreateInput,
+  V2AfterSalesCaseQuery,
+  V2AfterSalesCaseUpdateInput,
+  V2AfterSalesChargeLink,
+  V2AfterSalesStatus
+} from './after-sales'
+
+export type {
+  V2AdvancePayer,
+  V2AdvancePayerCreateInput,
+  V2AdvancePayerUpdateInput,
+  V2ExpensePaymentSource,
+  V2FinanceCategory,
+  V2FinanceCategoryCreateInput,
+  V2FinanceCategoryUpdateInput,
+  V2FinanceDirection,
+  V2FinanceEntryQuery,
+  V2FinanceEntrySourceType,
+  V2FinancialEntry,
+  V2ManualExpenseInput,
+  V2ManualIncomeInput,
+  V2MonthlyFinanceSummary,
+  V2PendingReimbursement,
+  V2ReimbursementInput
+} from './finance'
+
 export type { V2YumiApi } from './v2-api'
 
 export type {

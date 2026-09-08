@@ -36,7 +36,9 @@ app.whenReady().then(() => {
     setImmediate(() => app.exit(0))
     return result
   }
-  registerV2Ipc(currentRuntime.orderService, currentRuntime.fulfillmentService, currentRuntime.settlementService, {
+  registerV2Ipc(
+    currentRuntime.orderService, currentRuntime.fulfillmentService, currentRuntime.settlementService,
+    currentRuntime.financeService, currentRuntime.afterSalesService, {
     service: currentRuntime.backupService,
     restore
   })

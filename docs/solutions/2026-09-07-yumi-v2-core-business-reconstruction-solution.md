@@ -9,7 +9,7 @@ branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 D.2 已完成；下一步进入财务与售后仓储、服务、IPC 与契约）
+implementation_status: 实施中（阶段 D.3 已完成；下一步进入财务、设置与订单售后页面）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1160,3 +1160,11 @@ npm run build
 - 私人垫付规则要求手工日常支出使用已启用垫付人；整笔报销只能针对一笔尚未报销的私人垫付，金额必须全额一致、日期不能早于原垫付。待报销金额按查询截至日计算，因此未来报销不会提前抹去当前余额。
 - `after-sales.ts` 将售后限制在负责人输入和显式动作：处理单可免费但保留核算成本；领域输出明确不会自动创建日常现金支出或客户收费。若实际收费，负责人只能关联同订单、`order_fund` 来源、`after_sales_charge` 类型的既有资金流水。
 - 验证：新增财务和售后领域测试共 6 个用例，覆盖跨月实际付款、报销不重复计入经营支出、待报销截至日、私人垫付约束、免费售后成本及显式收费关联；`npm run typecheck`、`npm run lint` 与 `git diff --check` 通过。下一步为 D.3。
+
+
+### 2026-09-08：阶段 D.3 完成
+
+- 新增财务与售后仓储、服务、IPC 和共享契约：`FinanceService` 以事务管理类目/垫付人维护、日常收入、日常支出、私人垫付及整笔报销；日常收支不允许携带订单标识，类目方向、启用状态、付款来源和垫付人均在写入前校验。已被流水引用的类目或垫付人会得到明确的“不能删除”领域错误，而不是暴露 SQLite 外键错误。
+- 报销会在同一事务中写入 `reimbursement` 现金支出、建立一对一关联并记录审计；该流水仍可在现金流水中追溯，但月度经营支出只按原始日常支出统计，避免重复。运行时恢复后会一起重建财务和售后服务引用。
+- `AfterSalesService` 只允许负责人录入、更新售后事实和核算成本，不会创建日常支出、客户收费、返工或补发任务。实际售后收费必须先通过订单资金服务登记同订单的 `after_sales_charge`，再由负责人显式关联到售后单；关联和审计在独立事务中完成。订单资金仓储也明确写入 `order_fund` 来源，适配版本 8 的统一资金表。
+- 验证：新增 `src/main/services/finance-service.test.ts`（私人垫付、整笔报销、经营口径、引用删除保护、停用资料校验）和 `src/main/services/after-sales-service.test.ts`（免费/有成本售后事实及显式收费关联），并扩展 `register-v2-ipc.test.ts`、`v2-api.test.ts`。全量 `npm test`（53 个测试文件、147 个用例）、`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 和 `git diff --check` 均通过。下一步为 D.4：财务、设置与订单售后页面。

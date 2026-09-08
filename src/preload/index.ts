@@ -49,6 +49,29 @@ const yumiV2: V2YumiApi = {
     updateDraft: (id, input) => ipcRenderer.invoke('v2:settlements:drafts:update', id, input),
     confirm: (id) => ipcRenderer.invoke('v2:settlements:confirm', id)
   },
+  finance: {
+    listCategories: (direction, includeDisabled) => ipcRenderer.invoke('v2:finance:categories:list', direction, includeDisabled),
+    createCategory: (input) => ipcRenderer.invoke('v2:finance:categories:create', input),
+    updateCategory: (id, input) => ipcRenderer.invoke('v2:finance:categories:update', id, input),
+    deleteCategory: (id) => ipcRenderer.invoke('v2:finance:categories:delete', id),
+    listAdvancePayers: (includeDisabled) => ipcRenderer.invoke('v2:finance:advance-payers:list', includeDisabled),
+    createAdvancePayer: (input) => ipcRenderer.invoke('v2:finance:advance-payers:create', input),
+    updateAdvancePayer: (id, input) => ipcRenderer.invoke('v2:finance:advance-payers:update', id, input),
+    deleteAdvancePayer: (id) => ipcRenderer.invoke('v2:finance:advance-payers:delete', id),
+    listEntries: (query) => ipcRenderer.invoke('v2:finance:entries:list', query),
+    createManualIncome: (input) => ipcRenderer.invoke('v2:finance:manual-income:create', input),
+    createManualExpense: (input) => ipcRenderer.invoke('v2:finance:manual-expense:create', input),
+    listPendingReimbursements: (asOf) => ipcRenderer.invoke('v2:finance:reimbursements:pending:list', asOf),
+    reimburse: (input) => ipcRenderer.invoke('v2:finance:reimbursements:create', input),
+    getMonthlySummary: (month) => ipcRenderer.invoke('v2:finance:summary:get', month)
+  },
+  afterSales: {
+    listCases: (query) => ipcRenderer.invoke('v2:after-sales:cases:list', query),
+    getCase: (id) => ipcRenderer.invoke('v2:after-sales:cases:get', id),
+    createCase: (input) => ipcRenderer.invoke('v2:after-sales:cases:create', input),
+    updateCase: (id, input) => ipcRenderer.invoke('v2:after-sales:cases:update', id, input),
+    linkCharge: (afterSalesCaseId, financialEntryId) => ipcRenderer.invoke('v2:after-sales:charges:link', afterSalesCaseId, financialEntryId)
+  },
   backup: {
     create: () => ipcRenderer.invoke('v2:backup:create'),
     list: () => ipcRenderer.invoke('v2:backup:list'),

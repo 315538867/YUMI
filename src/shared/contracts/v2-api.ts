@@ -14,6 +14,16 @@ import type {
 } from './orders'
 import type { V2Product, V2ProductInput, V2ProductUpdateInput } from './products'
 import type {
+  V2AdvancePayer, V2AdvancePayerCreateInput, V2AdvancePayerUpdateInput, V2FinanceCategory,
+  V2FinanceCategoryCreateInput, V2FinanceCategoryUpdateInput, V2FinanceDirection, V2FinanceEntryQuery,
+  V2FinancialEntry, V2ManualExpenseInput, V2ManualIncomeInput, V2MonthlyFinanceSummary,
+  V2PendingReimbursement, V2ReimbursementInput
+} from './finance'
+import type {
+  V2AfterSalesCase, V2AfterSalesCaseCreateInput, V2AfterSalesCaseQuery,
+  V2AfterSalesCaseUpdateInput, V2AfterSalesChargeLink
+} from './after-sales'
+import type {
   V2FulfillmentAdjustmentInput, V2OpeningWipInput, V2OrderItemFulfillment, V2ProcessResult,
   V2ProcessResultInput, V2QualityInspection, V2QualityInspectionInput, V2WorkAssignment,
   V2WorkAssignmentCreateInput, V2WorkAssignmentQuery
@@ -72,6 +82,29 @@ export interface V2YumiApi {
     get(id: string): Promise<V2WorkerSettlementDetail | null>
     updateDraft(id: string, input: V2WorkerSettlementDraftUpdateInput): Promise<V2WorkerSettlementDetail>
     confirm(id: string): Promise<V2WorkerSettlementDetail>
+  }
+  finance: {
+    listCategories(direction?: V2FinanceDirection, includeDisabled?: boolean): Promise<V2FinanceCategory[]>
+    createCategory(input: V2FinanceCategoryCreateInput): Promise<V2FinanceCategory>
+    updateCategory(id: string, input: V2FinanceCategoryUpdateInput): Promise<V2FinanceCategory>
+    deleteCategory(id: string): Promise<void>
+    listAdvancePayers(includeDisabled?: boolean): Promise<V2AdvancePayer[]>
+    createAdvancePayer(input: V2AdvancePayerCreateInput): Promise<V2AdvancePayer>
+    updateAdvancePayer(id: string, input: V2AdvancePayerUpdateInput): Promise<V2AdvancePayer>
+    deleteAdvancePayer(id: string): Promise<void>
+    listEntries(query?: V2FinanceEntryQuery): Promise<V2FinancialEntry[]>
+    createManualIncome(input: V2ManualIncomeInput): Promise<V2FinancialEntry>
+    createManualExpense(input: V2ManualExpenseInput): Promise<V2FinancialEntry>
+    listPendingReimbursements(asOf: string): Promise<V2PendingReimbursement[]>
+    reimburse(input: V2ReimbursementInput): Promise<V2FinancialEntry>
+    getMonthlySummary(month: string): Promise<V2MonthlyFinanceSummary>
+  }
+  afterSales: {
+    listCases(query?: V2AfterSalesCaseQuery): Promise<V2AfterSalesCase[]>
+    getCase(id: string): Promise<V2AfterSalesCase | null>
+    createCase(input: V2AfterSalesCaseCreateInput): Promise<V2AfterSalesCase>
+    updateCase(id: string, input: V2AfterSalesCaseUpdateInput): Promise<V2AfterSalesCase>
+    linkCharge(afterSalesCaseId: string, financialEntryId: string): Promise<V2AfterSalesChargeLink>
   }
   backup: {
     create(): Promise<V2BackupSummary>
