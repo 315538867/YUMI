@@ -1580,3 +1580,13 @@ button {
   .finance-row, .after-sales-row { align-items: flex-start; flex-direction: column; }
   .inline-fields { align-items: stretch; flex-direction: column; }
 }
+.finance-overview { display: flex; flex-direction: column; gap: 16px; margin-bottom: 18px; }
+.finance-filter { margin-top: 0; }
+.finance-filter label { display: flex; flex-direction: column; gap: 4px; color: #77726b; font-size: 11px; }
+.finance-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.finance-metric { display: flex; flex-direction: column; gap: 6px; padding: 13px; border: 1px solid #e9e5de; border-radius: 8px; background: #fffdfb; }
+.finance-metric strong { font-size: 21px; font-variant-numeric: tabular-nums; }
+.finance-metric.income { border-top: 3px solid #5f9c8f; }
+.finance-metric.expense { border-top: 3px solid #d39a3c; }
+.finance-metric.neutral { border-top: 3px solid #8f8d86; }
+@media (max-width: 1050px) { .finance-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

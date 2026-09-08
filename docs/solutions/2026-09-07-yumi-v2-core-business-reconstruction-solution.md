@@ -9,7 +9,7 @@ branch: codex/v2
 scope: 订单履约、多工序生产、兼职工资结算、财务流水与页面架构重构
 platform: Electron 单电脑离线桌面应用
 openspec_change: rebuild-yumi-v2-core-business；单一 OpenSpec 提案内按阶段 A 至 E 顺序实施
-implementation_status: 实施中（阶段 D.4 已完成；下一步进入月度财务首页与流水查看）
+implementation_status: 实施中（阶段 D.5 已完成；下一步进入财务与售后验收场景）
 open_questions: 无阻塞业务规则；任何突破已确认边界的需求须先修订本方案并重新确认
 solution_update_rule: 每个提案内阶段完成并通过验证后，回写本方案的实施记录、实际差异和验证证据；业务规则变化须先修订本方案并重新确认。
 ---
@@ -1176,3 +1176,10 @@ npm run build
 - 财务页同时展示近期现金流水与待报销私人垫付。负责人可以在页面输入报销日期和支付方式后执行一次性完整报销；报销完成后，原垫付的发生日经营支出事实不被改写，报销付款也不会重复纳入经营费用。
 - 订单详情增加独立售后面板，负责人自行记录问题、客户诉求、责任判断、处理方式、状态、核算成本和收费说明。面板不会推导客户收费、现金支出、返工或补发；如实际收费，负责人须先在订单资金区登记“售后收费”，再选择性关联到相应售后记录。
 - 页面、售后组件均不直接访问 IPC；`use-finance.ts` 统一财务/售后数据加载与写入，页面失败时保留已输入草稿。验证：新增 V2 财务与售后工作区页面边界用例；全量 `npm test` 通过 53 个测试文件、148 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均通过。下一步为 D.5：月度财务首页与流水查看。
+
+
+### 2026-09-08：阶段 D.5 完成
+
+- 财务页升级为月度财务首页：负责人可选择统计月份和待报销截至日期，页面自动按实际收付款日期读取月度实际收入、经营支出和经营结果，并单独汇总截至查询日仍未完整报销的私人垫付。
+- 所选月份的现金流水完整保留订单资金、工资、日常收支和报销付款等事实。收入不区分公账或私人账户；支出明确显示公账支出、私人垫付人或报销付款。报销付款可追溯但不重复进入经营支出，避免经营结果重复扣减。
+- 月份、截至日、流水和四项概览均通过 `use-finance.ts` 的 `loadMonthlyOverview` 从同一预加载契约加载；登记收支或完成报销后会刷新当前查询口径。验证：新增月度财务页面边界用例；全量 `npm test` 通过 53 个测试文件、149 个用例，`npm run typecheck`、`npm run lint`、`npm run build`、`openspec validate rebuild-yumi-v2-core-business --strict` 与 `git diff --check` 均通过。下一步为 D.6：财务与售后验收场景。

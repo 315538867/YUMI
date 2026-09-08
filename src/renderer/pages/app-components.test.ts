@@ -146,3 +146,16 @@ describe('V2 财务与售后工作区', () => {
     expect(afterSalesPanelSource).toContain('系统不会自动定责、收费或创建返工任务')
   })
 })
+
+describe('V2 月度财务首页', () => {
+  it('按实际收付款月展示经营结果、截至日待报销与当月流水', () => {
+    expect(financePageSource).toContain('本月经营概览')
+    expect(financePageSource).toContain('实际收入')
+    expect(financePageSource).toContain('经营支出')
+    expect(financePageSource).toContain('经营结果')
+    expect(financePageSource).toContain('截至查询日待报销')
+    expect(financePageSource).toContain('当月现金流水')
+    expect(financeComposableSource).toContain('getMonthlySummary')
+    expect(financeComposableSource).toContain('loadMonthlyOverview')
+  })
+})
