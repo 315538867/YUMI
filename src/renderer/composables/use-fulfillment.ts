@@ -1,9 +1,48 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { V2FulfillmentAdjustmentInput, V2OpeningWipInput, V2Order, V2OrderItemFulfillment, V2OrderSummary } from '@shared/contracts/index'
+import type {
+  V2FulfillmentAdjustmentInput,
+  V2FulfillmentProgressReportRow,
+  V2FulfillmentStageBalances,
+  V2OpeningWipInput,
+  V2Order,
+  V2OrderItemFulfillment,
+  V2OrderSummary
+} from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
+
+export interface FulfillmentQueueItem {
+  orderId: string
+  orderCode: string
+  customerName: string
+  orderItemId: string
+  productName: string
+  confirmedQuantity: number
+  outstandingQuantity: number
+  stages: V2FulfillmentStageBalances
+}
+
+export function buildFulfillmentQueue(
+  rows: V2FulfillmentProgressReportRow[],
+  orders: V2OrderSummary[]
+): FulfillmentQueueItem[] {
+  const customerNames = new Map(orders.map((order) => [order.id, order.customerName]))
+  return rows
+    .map((row) => ({
+      orderId: row.orderId,
+      orderCode: row.orderCode,
+      customerName: customerNames.get(row.orderId) ?? '未命名客户',
+      orderItemId: row.orderItemId,
+      productName: row.productName,
+      confirmedQuantity: row.confirmedQuantity,
+      outstandingQuantity: row.stages.making + row.stages.fluffingBagging + row.stages.packing + row.stages.readyToShip,
+      stages: row.stages
+    }))
+    .filter((item) => item.outstandingQuantity > 0)
+}
 
 export function useFulfillment() {
   const [orders, setOrders] = useState<V2OrderSummary[]>([])
+  const [queueItems, setQueueItems] = useState<FulfillmentQueueItem[]>([])
   const [selectedOrder, setSelectedOrder] = useState<V2Order | null>(null)
   const [items, setItems] = useState<V2OrderItemFulfillment[]>([])
   const [loading, setLoading] = useState(true)
@@ -26,9 +65,14 @@ export function useFulfillment() {
     setLoading(true)
     setLoadError(null)
     try {
-      const nextOrders = await window.yumiV2.orders.list()
+      const [nextOrders, progress] = await Promise.all([
+        window.yumiV2.orders.list(),
+        window.yumiV2.reports.getFulfillmentProgress()
+      ])
       setOrders(nextOrders)
-      const targetId = orderId ?? selectedOrder?.id ?? nextOrders[0]?.id
+      setQueueItems(buildFulfillmentQueue(progress.rows, nextOrders))
+
+      const targetId = orderId ?? selectedOrder?.id
       if (targetId) await loadOrder(targetId)
       else {
         setSelectedOrder(null)
@@ -44,6 +88,11 @@ export function useFulfillment() {
   useEffect(() => { void reload() }, [reload])
 
   const selectOrder = useCallback(async (orderId: string) => {
+    if (!orderId) {
+      setSelectedOrder(null)
+      setItems([])
+      return
+    }
     setLoadError(null)
     try { await loadOrder(orderId) } catch (error) { setLoadError(getErrorMessage(error)) }
   }, [loadOrder])
@@ -60,5 +109,5 @@ export function useFulfillment() {
     return result
   }, [reload])
 
-  return { orders, selectedOrder, items, loading, loadError, reload, selectOrder, recordOpeningWip, adjustStageQuantity }
+  return { orders, queueItems, selectedOrder, items, loading, loadError, reload, selectOrder, recordOpeningWip, adjustStageQuantity }
 }

@@ -12,6 +12,12 @@ interface OrderLineDraft {
   unitPrice: string
 }
 
+type OrderWorkspaceMode = 'list' | 'create' | 'detail'
+
+interface OrdersPageProps {
+  onNavigateToBaseData: (view: 'customers' | 'products') => void
+}
+
 const createLine = (product?: V2Product): OrderLineDraft => ({
   productId: product?.id ?? '',
   quantity: '1',
@@ -23,12 +29,13 @@ const itemToDraft = (item: V2OrderItem): OrderLineDraft => ({
   unitPrice: centsToYuan(item.unitPriceCents)
 })
 
-export function OrdersPage() {
+export function OrdersPage({ onNavigateToBaseData }: OrdersPageProps) {
   const {
     orders, customers, products, selectedOrder, funds, shipments, contentChanges,
     loading, loadError, selectOrder, createOrder, changeContent, recordFund, correctFund, createShipment
   } = useOrders()
   const { listAfterSalesCases, createAfterSalesCase, updateAfterSalesCase, linkAfterSalesCharge } = useFinance()
+  const [workspaceMode, setWorkspaceMode] = useState<OrderWorkspaceMode>('list')
   const [createCustomerId, setCreateCustomerId] = useState('')
   const [createLines, setCreateLines] = useState<OrderLineDraft[]>([createLine()])
   const [initialAmount, setInitialAmount] = useState('0')
@@ -112,6 +119,7 @@ export function OrdersPage() {
       setInitialAmount('0')
       setExpectedShipDate('')
       setCreateNotes('')
+      setWorkspaceMode('detail')
     } catch (submitError) {
       setError(getErrorMessage(submitError))
     } finally {
@@ -193,50 +201,99 @@ export function OrdersPage() {
     } finally { setSubmitting(null) }
   }
 
+  const openOrderDetail = async (orderId: string) => {
+    await selectOrder(orderId)
+    setWorkspaceMode('detail')
+  }
+
+  const openCreateWorkspace = () => {
+    setError(null)
+    setCreateLines([createLine(products[0])])
+    setWorkspaceMode('create')
+  }
+
+  const returnToOrderList = () => {
+    setError(null)
+    setWorkspaceMode('list')
+  }
+
+  const baseDataReady = customers.length > 0 && products.length > 0
+
   return (
-    <section className="v2-page">
-      <Flex justify="between" align="center" gap="4" className="page-title-row">
-        <div><Heading size="6">订单</Heading><Text as="p" color="gray">以订单为核心记录多商品、金额调整、资金流水与分批发货。</Text></div>
-        <Badge color="orange">V2 订单账本</Badge>
-      </Flex>
-      {error && <p className="form-error global-error">{error}</p>}
-      {loadError && <p className="form-error global-error">{loadError}</p>}
-      <div className="orders-layout">
-        <aside className="panel order-list"><Heading size="4">订单列表</Heading>
+    <section className="v2-page order-workspace-page">
+      {workspaceMode === 'list' && <>
+        <Flex justify="between" align="center" gap="4" className="page-title-row">
+          <div><Heading size="6">订单</Heading><Text as="p" color="gray">查看已有订单，并进入订单详情处理资金、分批发货与售后。</Text></div>
+          <Button onClick={openCreateWorkspace}>新建订单</Button>
+        </Flex>
+        {error && <p className="form-error global-error">{error}</p>}
+        {loadError && <p className="form-error global-error">{loadError}</p>}
+        <section className="panel order-list order-list-workspace">
+          <Flex justify="between" align="center" gap="3"><Heading size="4">订单列表</Heading><Text size="2" color="gray">共 {orders.length} 张</Text></Flex>
           {loading ? <p className="empty">正在加载订单…</p> : <div className="data-list">
-            {orders.map((order) => <button type="button" className={`data-list-row ${selectedOrder?.id === order.id ? 'selected' : ''}`} key={order.id} onClick={() => void selectOrder(order.id)}>
+            {orders.map((order) => <button type="button" className="data-list-row" key={order.id} onClick={() => void openOrderDetail(order.id)}>
               <span><strong>{order.code}</strong><small>{order.customerName} · 应收 {formatCents(order.currentAmountCents)}</small></span>
               <Badge color={order.outstandingCents > 0 ? 'orange' : 'green'}>{order.outstandingCents > 0 ? `待收 ${formatCents(order.outstandingCents)}` : '已收齐'}</Badge>
             </button>)}
-            {!orders.length && <p className="empty">还没有订单。</p>}
+            {!orders.length && (baseDataReady
+              ? <p className="empty">还没有订单。点击“新建订单”即可开始录入。</p>
+              : <OrderSetupGuide customersReady={customers.length > 0} productsReady={products.length > 0} onNavigateToBaseData={onNavigateToBaseData} />)}
           </div>}
-        </aside>
-        <div className="orders-workspace">
-          <form className="panel v2-form" onSubmit={handleCreateOrder}>
-            <Heading size="4">新建订单</Heading>
-            <div className="form-grid two"><label>客户<select required value={createCustomerId} onChange={(event) => setCreateCustomerId(event.target.value)}><option value="">请选择已有客户</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label><label>预计发货日期<TextField.Root type="date" value={expectedShipDate} onChange={(event) => setExpectedShipDate(event.target.value)} /></label><label>初始确认金额（元）<TextField.Root required type="number" min="0" step="0.01" value={initialAmount} onChange={(event) => setInitialAmount(event.target.value)} /></label></div>
-            <OrderLines title="订单商品" lines={createLines} products={products} onChange={(index, key, value) => updateLine(createLines, setCreateLines, index, key, value)} onAdd={() => setCreateLines([...createLines, createLine(products[0])])} onRemove={(index) => setCreateLines(createLines.filter((_, lineIndex) => lineIndex !== index))} />
-            <label>订单备注<TextArea value={createNotes} onChange={(event) => setCreateNotes(event.target.value)} /></label>
-            <Flex justify="end"><Button type="submit" disabled={submitting === 'create'}>{submitting === 'create' ? '创建中…' : '创建订单'}</Button></Flex>
-          </form>
-          {selectedOrder ? <OrderDetail
-            order={selectedOrder} funds={funds} shipments={shipments} contentChanges={contentChanges} products={products}
-            contentLines={contentLines} setContentLines={setContentLines} contentDescription={contentDescription} setContentDescription={setContentDescription} contentDate={contentDate} setContentDate={setContentDate}
-            adjustmentAmount={adjustmentAmount} setAdjustmentAmount={setAdjustmentAmount} adjustmentReason={adjustmentReason} setAdjustmentReason={setAdjustmentReason}
-            fundType={fundType} setFundType={setFundType} fundAmount={fundAmount} setFundAmount={setFundAmount} fundDate={fundDate} setFundDate={setFundDate} fundMethod={fundMethod} setFundMethod={setFundMethod} fundNote={fundNote} setFundNote={setFundNote}
-            correctionOriginalId={correctionOriginalId} setCorrectionOriginalId={setCorrectionOriginalId} correctionAmount={correctionAmount} setCorrectionAmount={setCorrectionAmount} correctionDate={correctionDate} setCorrectionDate={setCorrectionDate} correctionType={correctionType} setCorrectionType={setCorrectionType}
-            shipmentDate={shipmentDate} setShipmentDate={setShipmentDate} shipmentLines={shipmentLines} setShipmentLines={setShipmentLines} shipmentCarrier={shipmentCarrier} setShipmentCarrier={setShipmentCarrier} shipmentTrackingNumber={shipmentTrackingNumber} setShipmentTrackingNumber={setShipmentTrackingNumber} shipmentNote={shipmentNote} setShipmentNote={setShipmentNote}
-            shipmentQuantities={shipmentQuantities} submitting={submitting}
-            updateContentLine={(index, key, value) => updateLine(contentLines, setContentLines, index, key, value)}
-            onAddContentLine={() => setContentLines([...contentLines, createLine(products[0])])}
-            onRemoveContentLine={(index) => setContentLines(contentLines.filter((_, lineIndex) => lineIndex !== index))}
-            onContentChange={handleContentChange} onRecordFund={handleRecordFund} onCorrection={handleCorrection} onShipment={handleCreateShipment}
-            listAfterSalesCases={listAfterSalesCases} createAfterSalesCase={createAfterSalesCase} updateAfterSalesCase={updateAfterSalesCase} linkAfterSalesCharge={linkAfterSalesCharge}
-          /> : <div className="panel empty"><Heading size="4">请选择订单</Heading><Text as="p" color="gray">创建订单后，选择它即可登记内容变更、资金与分批发货。</Text></div>}
-        </div>
-      </div>
+        </section>
+      </>}
+
+      {workspaceMode === 'create' && <>
+        <Flex justify="between" align="center" gap="4" className="page-title-row workspace-toolbar">
+          <div><Text size="2" color="gray">订单</Text><Heading size="6">新建订单</Heading><Text as="p" color="gray">录入客户、多个商品行和确认金额；保存后直接进入订单详情。</Text></div>
+          <Button type="button" variant="soft" color="gray" onClick={returnToOrderList}>返回订单列表</Button>
+        </Flex>
+        {error && <p className="form-error global-error">{error}</p>}
+        {loadError && <p className="form-error global-error">{loadError}</p>}
+        {!baseDataReady ? <OrderSetupGuide customersReady={customers.length > 0} productsReady={products.length > 0} onNavigateToBaseData={onNavigateToBaseData} /> : <form className="panel v2-form order-create-form" onSubmit={handleCreateOrder}>
+          <div className="form-grid two"><label>客户<select required value={createCustomerId} onChange={(event) => setCreateCustomerId(event.target.value)}><option value="">请选择已有客户</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label><label>预计发货日期<TextField.Root type="date" value={expectedShipDate} onChange={(event) => setExpectedShipDate(event.target.value)} /></label><label>初始确认金额（元）<TextField.Root required type="number" min="0" step="0.01" value={initialAmount} onChange={(event) => setInitialAmount(event.target.value)} /></label></div>
+          <OrderLines title="订单商品" lines={createLines} products={products} onChange={(index, key, value) => updateLine(createLines, setCreateLines, index, key, value)} onAdd={() => setCreateLines([...createLines, createLine(products[0])])} onRemove={(index) => setCreateLines(createLines.filter((_, lineIndex) => lineIndex !== index))} />
+          <label>订单备注<TextArea value={createNotes} onChange={(event) => setCreateNotes(event.target.value)} /></label>
+          <Flex justify="end"><Button type="submit" disabled={submitting === 'create'}>{submitting === 'create' ? '创建中…' : '创建订单'}</Button></Flex>
+        </form>}
+      </>}
+
+      {workspaceMode === 'detail' && selectedOrder && <>
+        <Flex justify="between" align="center" gap="4" className="page-title-row workspace-toolbar">
+          <div><Text size="2" color="gray">订单详情</Text><Heading size="6">{selectedOrder.code}</Heading><Text as="p" color="gray">处理订单内容、资金、售后和分批发货。</Text></div>
+          <Button type="button" variant="soft" color="gray" onClick={returnToOrderList}>返回订单列表</Button>
+        </Flex>
+        {error && <p className="form-error global-error">{error}</p>}
+        {loadError && <p className="form-error global-error">{loadError}</p>}
+        <OrderDetail
+          order={selectedOrder} funds={funds} shipments={shipments} contentChanges={contentChanges} products={products}
+          contentLines={contentLines} setContentLines={setContentLines} contentDescription={contentDescription} setContentDescription={setContentDescription} contentDate={contentDate} setContentDate={setContentDate}
+          adjustmentAmount={adjustmentAmount} setAdjustmentAmount={setAdjustmentAmount} adjustmentReason={adjustmentReason} setAdjustmentReason={setAdjustmentReason}
+          fundType={fundType} setFundType={setFundType} fundAmount={fundAmount} setFundAmount={setFundAmount} fundDate={fundDate} setFundDate={setFundDate} fundMethod={fundMethod} setFundMethod={setFundMethod} fundNote={fundNote} setFundNote={setFundNote}
+          correctionOriginalId={correctionOriginalId} setCorrectionOriginalId={setCorrectionOriginalId} correctionAmount={correctionAmount} setCorrectionAmount={setCorrectionAmount} correctionDate={correctionDate} setCorrectionDate={setCorrectionDate} correctionType={correctionType} setCorrectionType={setCorrectionType}
+          shipmentDate={shipmentDate} setShipmentDate={setShipmentDate} shipmentLines={shipmentLines} setShipmentLines={setShipmentLines} shipmentCarrier={shipmentCarrier} setShipmentCarrier={setShipmentCarrier} shipmentTrackingNumber={shipmentTrackingNumber} setShipmentTrackingNumber={setShipmentTrackingNumber} shipmentNote={shipmentNote} setShipmentNote={setShipmentNote}
+          shipmentQuantities={shipmentQuantities} submitting={submitting}
+          updateContentLine={(index, key, value) => updateLine(contentLines, setContentLines, index, key, value)}
+          onAddContentLine={() => setContentLines([...contentLines, createLine(products[0])])}
+          onRemoveContentLine={(index) => setContentLines(contentLines.filter((_, lineIndex) => lineIndex !== index))}
+          onContentChange={handleContentChange} onRecordFund={handleRecordFund} onCorrection={handleCorrection} onShipment={handleCreateShipment}
+          listAfterSalesCases={listAfterSalesCases} createAfterSalesCase={createAfterSalesCase} updateCase={updateAfterSalesCase} linkCharge={linkAfterSalesCharge}
+        />
+      </>}
+
+      {workspaceMode === 'detail' && !selectedOrder && <section className="panel empty"><Text color="gray">正在加载订单详情…</Text></section>}
     </section>
   )
+}
+
+function OrderSetupGuide({ customersReady, productsReady, onNavigateToBaseData }: { customersReady: boolean; productsReady: boolean; onNavigateToBaseData: (view: 'customers' | 'products') => void }) {
+  return <section className="order-setup-guide">
+    <Heading size="4">先完成基础资料</Heading>
+    <Text as="p" color="gray">创建订单前，需要至少有一位客户和一个商品。</Text>
+    <Flex gap="3" wrap="wrap">
+      {!customersReady && <Button type="button" onClick={() => onNavigateToBaseData('customers')}>先建立客户</Button>}
+      {!productsReady && <Button type="button" variant="soft" onClick={() => onNavigateToBaseData('products')}>建立商品</Button>}
+    </Flex>
+  </section>
 }
 
 function OrderLines({ title, lines, products, onChange, onAdd, onRemove }: {

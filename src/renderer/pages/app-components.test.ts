@@ -44,6 +44,7 @@ describe('V2 应用壳与页面边界', () => {
     expect(productComposableSource).toContain('window.yumiV2.products')
     expect(orderComposableSource).toContain('window.yumiV2.orders')
     expect(fulfillmentComposableSource).toContain('window.yumiV2.fulfillment')
+    expect(fulfillmentComposableSource).toContain('window.yumiV2.reports.getFulfillmentProgress')
     expect(workAssignmentsComposableSource).toContain('window.yumiV2.fulfillment')
     expect(settlementsComposableSource).toContain('window.yumiV2.workers')
     expect(settlementsComposableSource).toContain('window.yumiV2.settlements')
@@ -75,7 +76,9 @@ describe('V2 订单工作区', () => {
 
 describe('V2 履约工作区', () => {
   it('提供阶段余额、期初在制品、负责人调整和工作安排入口', () => {
-    expect(fulfillmentPageSource).toContain('订单产品履约')
+    expect(fulfillmentPageSource).toContain('履约待办')
+    expect(fulfillmentPageSource).toContain('进入处理')
+    expect(fulfillmentComposableSource).toContain('buildFulfillmentQueue')
     expect(fulfillmentPageSource).toContain('期初在制品')
     expect(fulfillmentPageSource).toContain('负责人数量调整')
     expect(fulfillmentPageSource).toContain('待发货')
@@ -179,3 +182,39 @@ describe('V2 报表工作区', () => {
     expect(reportsComposableSource).toContain('window.yumiV2.reports')
     expect(reportsComposableSource).toContain('exportCurrentReport')
   })
+
+describe('运营界面操作流', () => {
+  it('应用壳按运营、资金分析与基础资料分组，并隐藏内部版本文案', () => {
+    expect(appSource).toContain('const navigationGroups')
+    expect(appSource).toContain('业务运营')
+    expect(appSource).toContain('资金与分析')
+    expect(appSource).toContain('基础资料')
+    expect(appSource).not.toContain('STUDIO V2')
+    expect(appSource).not.toContain('订单与资金先行')
+    expect(appSource).not.toContain('本地数据已隔离')
+  })
+
+  it('订单把列表、新建和详情作为互斥工作状态，并在基础资料缺失时引导建档', () => {
+    expect(orderPageSource).toContain("type OrderWorkspaceMode = 'list' | 'create' | 'detail'")
+    expect(orderPageSource).toContain("useState<OrderWorkspaceMode>('list')")
+    expect(orderPageSource).toContain("workspaceMode === 'create'")
+    expect(orderPageSource).toContain("workspaceMode === 'detail'")
+    expect(orderPageSource).toContain('先建立客户')
+    expect(orderPageSource).toContain('建立商品')
+    expect(orderPageSource).toContain('onNavigateToBaseData')
+  })
+})
+
+describe('运营界面按需录入', () => {
+  it('基础资料、工资和财务只在负责人主动操作时打开录入工作区', () => {
+    expect(customerPageSource).toContain("useState(false)")
+    expect(customerPageSource).toContain('editorOpen &&')
+    expect(productPageSource).toContain("useState(false)")
+    expect(productPageSource).toContain('editorOpen &&')
+    expect(settlementsPageSource).toContain("useState<'settlements' | 'workers'>('settlements')")
+    expect(settlementsPageSource).toContain('showDraftForm &&')
+    expect(financePageSource).toContain("useState(false)")
+    expect(financePageSource).toContain('showEntryForm &&')
+    expect(financePageSource).toContain('登记收支')
+  })
+})

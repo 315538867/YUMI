@@ -1609,3 +1609,37 @@ button {
   justify-content: space-between;
   gap: 16px;
 }
+
+/* 运营工作流：导航分组、全局待办与按需录入 */
+.navigation-group {
+  display: grid;
+  gap: 3px;
+}
+.navigation-group + .navigation-group {
+  margin-top: 16px;
+}
+.navigation-group-label {
+  display: block;
+  padding: 0 11px 5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.fulfillment-queue {
+  display: grid;
+  gap: 12px;
+}
+.fulfillment-queue-row {
+  display: grid;
+  gap: 2px;
+}
+.fulfillment-queue-row .stage-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 820px) {
+  .fulfillment-queue-row .stage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fulfillment-queue-row .rt-Flex {
+    align-items: flex-start;
+  }
+}
