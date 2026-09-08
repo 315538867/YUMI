@@ -68,6 +68,18 @@ export type {
 } from './fulfillment'
 
 export type {
+  V2NavigationTarget,
+  V2WorkbenchBucket,
+  V2WorkbenchFirstUseGuide,
+  V2WorkbenchItem,
+  V2WorkbenchItemKind,
+  V2WorkbenchPriority,
+  V2WorkbenchQuantityOrAmount,
+  V2WorkbenchSnapshot,
+  V2WorkbenchSubject
+} from './workbench'
+
+export type {
   V2AfterSalesCase,
   V2AfterSalesCaseCreateInput,
   V2AfterSalesCaseQuery,
@@ -80,6 +92,8 @@ export type {
   V2AdvancePayer,
   V2AdvancePayerCreateInput,
   V2AdvancePayerUpdateInput,
+  V2BatchReimbursementInput,
+  V2BatchReimbursementResult,
   V2ExpensePaymentSource,
   V2FinanceCategory,
   V2FinanceCategoryCreateInput,
@@ -114,6 +128,10 @@ export type {
   V2WorkerCreateInput,
   V2WorkerDeductionRecord,
   V2WorkerDeductionStatus,
+  V2WorkerRefundQuery,
+  V2WorkerRefundRecord,
+  V2WorkerRefundResolveInput,
+  V2WorkerRefundStatus,
   V2WorkerSettlement,
   V2WorkerSettlementCreateInput,
   V2WorkerSettlementDeductionAllocation,

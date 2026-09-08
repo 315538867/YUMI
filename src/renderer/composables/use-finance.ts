@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type {
   V2AdvancePayerCreateInput,
   V2AdvancePayerUpdateInput,
+  V2BatchReimbursementInput,
   V2AfterSalesCaseCreateInput,
   V2AfterSalesCaseQuery,
   V2AfterSalesCaseUpdateInput,
@@ -116,6 +117,11 @@ export function useFinance() {
     await reload()
     return result
   }, [reload])
+  const reimburseBatch = useCallback(async (input: V2BatchReimbursementInput) => {
+    const result = await window.yumiV2.finance.reimburseBatch(input)
+    await reload()
+    return result
+  }, [reload])
   const listAfterSalesCases = useCallback((query?: V2AfterSalesCaseQuery) => window.yumiV2.afterSales.listCases(query), [])
   const createAfterSalesCase = useCallback(async (input: V2AfterSalesCaseCreateInput) => window.yumiV2.afterSales.createCase(input), [])
   const updateAfterSalesCase = useCallback(async (id: string, input: V2AfterSalesCaseUpdateInput) => window.yumiV2.afterSales.updateCase(id, input), [])
@@ -125,7 +131,7 @@ export function useFinance() {
     categories, advancePayers, entries, pendingReimbursements, monthlySummary, loading, loadError, reload, loadMonthlyOverview,
     createCategory, updateCategory, deleteCategory,
     createAdvancePayer, updateAdvancePayer, deleteAdvancePayer,
-    createManualIncome, createManualExpense, reimburse,
+    createManualIncome, createManualExpense, reimburse, reimburseBatch,
     listAfterSalesCases, createAfterSalesCase, updateAfterSalesCase, linkAfterSalesCharge
   }
 }

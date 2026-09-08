@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Badge, Button, Flex, Heading, Text, TextArea, TextField } from '@radix-ui/themes'
 import type { V2WorkerSettlementDetail, V2WorkerSettlementDraftUpdateInput } from '@shared/contracts/index'
 import { centsToYuan, formatCents, getErrorMessage, yuanToCents } from '../../composables/v2-utils'
+import {
+  YumiButton,
+  YumiDatePicker,
+  YumiField,
+  YumiFieldLabel,
+  YumiNumberField,
+  YumiSection,
+  YumiStatusTag,
+  YumiTextArea,
+  YumiTextField
+} from '../ui'
 
 interface SettlementDetailProps {
   settlement: V2WorkerSettlementDetail
@@ -54,8 +64,20 @@ export function SettlementDetail(props: SettlementDetailProps) {
     try { await props.updateDraft(props.settlement.id, buildUpdate()); setMessage('结算草稿已更新。') } catch (cause) { setError(getErrorMessage(cause)) } finally { setSubmitting(null) }
   }
 
+  const finalPaidAmountCents = yuanToCents(draft.finalPaid)
+  const confirmReady = finalPaidAmountCents > 0 && Boolean(draft.paidOn)
+
   const handleConfirm = async () => {
-    setError(null); setMessage(null); setSubmitting('confirm')
+    setError(null); setMessage(null)
+    if (finalPaidAmountCents <= 0) {
+      setError('确认前请填写大于零的最终实发金额。')
+      return
+    }
+    if (!draft.paidOn) {
+      setError('确认前请选择实际付款日期。')
+      return
+    }
+    setSubmitting('confirm')
     try {
       await props.updateDraft(props.settlement.id, buildUpdate())
       await props.confirmSettlement(props.settlement.id)
@@ -64,32 +86,50 @@ export function SettlementDetail(props: SettlementDetailProps) {
   }
 
   const isDraft = props.settlement.status === 'draft'
-  return <section className="settlement-detail panel">
-    <Flex justify="between" align="start"><div><Text size="2" color="gray">{props.workerName} · {props.settlement.periodStartOn} 至 {props.settlement.periodEndOn}</Text><Heading size="5">工资结算明细</Heading></div><Badge color={isDraft ? 'orange' : 'green'}>{isDraft ? '草稿' : '已确认'}</Badge></Flex>
-    {error && <Text color="red">{error}</Text>}{message && <Text color="green">{message}</Text>}
-    <div className="settlement-reference-grid">
-      <article><Text size="2" color="gray">排班口径</Text><Heading size="5">{props.settlement.scheduledMinutes} 分钟</Heading><Text>{formatCents(props.settlement.scheduledReferenceWageCents)}</Text></article>
-      <article><Text size="2" color="gray">考勤口径</Text><Heading size="5">{props.settlement.attendanceMinutes ?? '未填'} 分钟</Heading><Text>{formatCents(props.settlement.attendanceReferenceWageCents)}</Text></article>
-      <article><Text size="2" color="gray">合格提成 / 实际扣款</Text><Heading size="5">{formatCents(props.settlement.qualifiedCommissionCents)}</Heading><Text>扣 {formatCents(props.settlement.actualDeductionCents)}</Text></article>
-      <article><Text size="2" color="gray">本期后续顺延</Text><Heading size="5">{formatCents(props.settlement.continuingCarryoverCents)}</Heading><Text>其他调整 {formatCents(props.settlement.otherAdjustmentCents)}</Text></article>
-    </div>
-    <div className="two-column settlement-sources">
-      <div><Heading size="4">任务来源</Heading><div className="settlement-source-list">{props.settlement.tasks.map((task) => <Text size="2" key={task.id}>任务 {task.processTaskId} · 排班 {task.scheduledMinutes} 分钟 · 合格 {task.qualifiedQuantity} 件 · 提成 {formatCents(task.qualifiedCommissionCents)}</Text>)}</div></div>
-      <div><Heading size="4">扣款来源</Heading><div className="settlement-source-list">{props.settlement.deductions.length === 0 ? <Text size="2" color="gray">本期无不合格扣款。</Text> : props.settlement.deductions.map((deduction) => <Text size="2" key={deduction.id}>{deduction.occurredOn} · {deduction.processType === 'making' ? '制作' : '捏毛装袋'} 不合格 {deduction.unqualifiedQuantity} 件 · 扣款 {formatCents(deduction.totalDeductionCents)} · 本期抵扣 {formatCents(allocationByDeductionId.get(deduction.id) ?? 0)}</Text>)}</div></div>
-    </div>
-    <form className="editor-form settlement-editor" onSubmit={handleSave}>
-      <Heading size="4">负责人确认</Heading>
-      <div className="form-grid three">
-        <label>考勤总分钟<TextField.Root disabled={!isDraft} type="number" min="0" value={draft.attendanceMinutes} onChange={(event) => update({ attendanceMinutes: event.target.value })} /></label>
-        <label>本期实际扣款（元）<TextField.Root disabled={!isDraft} type="number" min="0" step="0.01" value={draft.actualDeduction} onChange={(event) => update({ actualDeduction: event.target.value })} /></label>
-        <label>其他调整（元）<TextField.Root disabled={!isDraft} type="number" step="0.01" value={draft.otherAdjustment} onChange={(event) => update({ otherAdjustment: event.target.value })} /></label>
-        <label>最终实发（元）<TextField.Root disabled={!isDraft} type="number" min="0" step="0.01" value={draft.finalPaid} onChange={(event) => update({ finalPaid: event.target.value })} /></label>
-        <label>实际付款日期<TextField.Root disabled={!isDraft} type="date" value={draft.paidOn} onChange={(event) => update({ paidOn: event.target.value })} /></label>
-        <label>考勤备注<TextField.Root disabled={!isDraft} value={draft.attendanceNote} onChange={(event) => update({ attendanceNote: event.target.value })} /></label>
+  return <div className="yumi-settlement-detail">
+    <YumiSection title="工资结算明细">
+      <div className="yumi-settlement-detail__header">
+        <div><strong>{props.workerName}</strong><p>{props.settlement.periodStartOn} 至 {props.settlement.periodEndOn}</p></div>
+        <YumiStatusTag tone={isDraft ? 'warning' : 'success'}>{isDraft ? '草稿' : '已确认'}</YumiStatusTag>
       </div>
-      <label>负责人备注<TextArea disabled={!isDraft} value={draft.managerNote} onChange={(event) => update({ managerNote: event.target.value })} /></label>
-      {props.settlement.financialEntryId && <Text size="2" color="gray">实际工资流水：{props.settlement.financialEntryId}</Text>}
-      {isDraft && <Flex gap="2" justify="end"><Button type="submit" variant="soft" disabled={submitting !== null}>保存草稿</Button><Button type="button" color="green" onClick={() => void handleConfirm()} disabled={submitting !== null}>确认并记账</Button></Flex>}
-    </form>
-  </section>
+      {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
+      {message && <p className="yumi-feedback yumi-feedback--success" role="status">{message}</p>}
+      <div className="yumi-settlement-reference-grid">
+        <article><span>排班口径</span><strong>{props.settlement.scheduledMinutes} 分钟</strong><p>{formatCents(props.settlement.scheduledReferenceWageCents)}</p></article>
+        <article><span>考勤口径</span><strong>{props.settlement.attendanceMinutes ?? '未填'} 分钟</strong><p>{formatCents(props.settlement.attendanceReferenceWageCents)}</p></article>
+        <article><span>合格提成 / 实际扣款</span><strong>{formatCents(props.settlement.qualifiedCommissionCents)}</strong><p>扣 {formatCents(props.settlement.actualDeductionCents)}</p></article>
+        <article><span>本期后续顺延</span><strong>{formatCents(props.settlement.continuingCarryoverCents)}</strong><p>其他调整 {formatCents(props.settlement.otherAdjustmentCents)}</p></article>
+      </div>
+    </YumiSection>
+
+    <div className="yumi-settlement-sources">
+      <YumiSection title="任务来源">
+        <div className="yumi-source-list">
+          {props.settlement.tasks.length === 0 ? <p>本期无已完成任务。</p> : props.settlement.tasks.map((task) => <p key={task.id}>任务 {task.processTaskId} · 排班 {task.scheduledMinutes} 分钟 · 合格 {task.qualifiedQuantity} 件 · 提成 {formatCents(task.qualifiedCommissionCents)}</p>)}
+        </div>
+      </YumiSection>
+      <YumiSection title="扣款来源">
+        <div className="yumi-source-list">
+          {props.settlement.deductions.length === 0 ? <p>本期无不合格扣款。</p> : props.settlement.deductions.map((deduction) => <p key={deduction.id}>{deduction.occurredOn} · {deduction.processType === 'making' ? '制作' : '捏毛装袋'} 不合格 {deduction.unqualifiedQuantity} 件 · 扣款 {formatCents(deduction.totalDeductionCents)} · 本期抵扣 {formatCents(allocationByDeductionId.get(deduction.id) ?? 0)}</p>)}
+        </div>
+      </YumiSection>
+    </div>
+
+    <YumiSection description="工资确认后即代表实际发放，并写入实际工资支出。" title="负责人确认">
+      <form className="yumi-form-panel" onSubmit={handleSave}>
+        <div className="yumi-form-grid yumi-form-grid--three">
+          <YumiField><YumiFieldLabel>考勤总分钟</YumiFieldLabel><YumiNumberField aria-label="考勤总分钟" disabled={!isDraft} min="0" onChange={(event) => update({ attendanceMinutes: event.target.value })} value={draft.attendanceMinutes} /></YumiField>
+          <YumiField><YumiFieldLabel>本期实际扣款（元）</YumiFieldLabel><YumiNumberField allowDecimal aria-label="本期实际扣款（元）" disabled={!isDraft} min="0" onChange={(event) => update({ actualDeduction: event.target.value })} value={draft.actualDeduction} /></YumiField>
+          <YumiField><YumiFieldLabel>其他调整（元）</YumiFieldLabel><YumiNumberField allowDecimal aria-label="其他调整（元）" disabled={!isDraft} onChange={(event) => update({ otherAdjustment: event.target.value })} value={draft.otherAdjustment} /></YumiField>
+          <YumiField><YumiFieldLabel required>最终实发（元）</YumiFieldLabel><YumiNumberField allowDecimal aria-label="最终实发（元）" disabled={!isDraft} min="0.01" onChange={(event) => update({ finalPaid: event.target.value })} value={draft.finalPaid} /></YumiField>
+          <YumiField><YumiFieldLabel required>实际付款日期</YumiFieldLabel><YumiDatePicker aria-label="实际付款日期" disabled={!isDraft} onValueChange={(paidOn) => update({ paidOn })} value={draft.paidOn} /></YumiField>
+          <YumiField><YumiFieldLabel>考勤备注</YumiFieldLabel><YumiTextField aria-label="考勤备注" disabled={!isDraft} onChange={(event) => update({ attendanceNote: event.target.value })} value={draft.attendanceNote} /></YumiField>
+        </div>
+        <YumiField><YumiFieldLabel>负责人备注</YumiFieldLabel><YumiTextArea aria-label="负责人备注" disabled={!isDraft} onChange={(event) => update({ managerNote: event.target.value })} value={draft.managerNote} /></YumiField>
+        {isDraft && !confirmReady && <p className="yumi-form-hint">请填写最终实发金额并选择实际付款日期后再确认。</p>}
+        {props.settlement.financialEntryId && <p className="yumi-form-hint">实际工资流水：{props.settlement.financialEntryId}</p>}
+        {isDraft && <div className="yumi-form-actions"><YumiButton disabled={submitting !== null} type="submit" variant="secondary">保存草稿</YumiButton><YumiButton disabled={submitting !== null || !confirmReady} loading={submitting === 'confirm'} onClick={() => void handleConfirm()} variant="primary">确认并记账</YumiButton></div>}
+      </form>
+    </YumiSection>
+  </div>
 }

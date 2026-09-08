@@ -12,6 +12,8 @@ import type {
   V2AdvancePayer,
   V2AdvancePayerCreateInput,
   V2AdvancePayerUpdateInput,
+  V2BatchReimbursementInput,
+  V2BatchReimbursementResult,
   V2FinanceCategory,
   V2FinanceCategoryCreateInput,
   V2FinanceCategoryUpdateInput,
@@ -46,6 +48,15 @@ function nullableText(value: string | null | undefined): string | null {
 
 function requireId(value: string, label: string): string {
   return requireText(value, label)
+}
+
+function requireDistinctAdvanceIds(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new DomainValidationError('至少选择一笔待报销私人垫付')
+  }
+  const ids = value.map((id) => requireId(typeof id === 'string' ? id : '', '原私人垫付标识'))
+  if (new Set(ids).size !== ids.length) throw new DomainValidationError('不能重复选择同一私人垫付')
+  return ids
 }
 
 function requireDirection(value: V2FinanceDirection): V2FinanceDirection {
@@ -186,31 +197,60 @@ export class FinanceService {
   }
 
   reimburse(input: V2ReimbursementInput): V2FinancialEntry {
+    return this.reimburseBatch({
+      advanceFinancialEntryIds: [input.advanceFinancialEntryId],
+      reimbursedOn: input.reimbursedOn,
+      paymentMethod: input.paymentMethod,
+      note: input.note
+    }).entries[0]!
+  }
+
+  reimburseBatch(input: V2BatchReimbursementInput): V2BatchReimbursementResult {
+    const advanceIds = requireDistinctAdvanceIds(input.advanceFinancialEntryIds)
     return this.repository.transaction(() => {
-      const advance = this.repository.getFinancialEntry(requireId(input.advanceFinancialEntryId, '原私人垫付标识'))
-      if (!advance) throw new DomainValidationError('原私人垫付不存在')
-      const existing = this.repository.getReimbursementForAdvance(advance.id)
-      validateReimbursement({
-        advance: {
-          id: advance.id, sourceType: advance.sourceType === 'manual_expense' ? 'manual_expense' : 'manual_expense',
-          direction: advance.direction === 'expense' ? 'expense' : 'expense', amountCents: advance.amountCents,
-          occurredOn: advance.occurredOn, paymentSource: advance.paymentSource === 'private_advance' ? 'private_advance' : 'business_account',
-          advancePayerId: advance.advancePayerId ?? ''
-        },
-        reimbursedOn: input.reimbursedOn, reimbursementAmountCents: advance.amountCents, alreadyReimbursed: existing !== null
+      // 先读取并校验全部对象；后续任一写入前不会留下部分报销。
+      const advances = advanceIds.map((advanceId) => {
+        const advance = this.repository.getFinancialEntry(advanceId)
+        if (!advance) throw new DomainValidationError('原私人垫付不存在')
+        const existing = this.repository.getReimbursementForAdvance(advance.id)
+        validateReimbursement({
+          advance: {
+            id: advance.id,
+            sourceType: advance.sourceType as 'manual_expense',
+            direction: advance.direction as 'expense',
+            amountCents: advance.amountCents,
+            occurredOn: advance.occurredOn,
+            paymentSource: advance.paymentSource as 'private_advance',
+            advancePayerId: advance.advancePayerId ?? ''
+          },
+          reimbursedOn: input.reimbursedOn,
+          reimbursementAmountCents: advance.amountCents,
+          alreadyReimbursed: existing !== null
+        })
+        return advance
       })
+
       const now = this.clock.now()
-      const entryInsert: FinanceEntryInsert = {
-        id: this.clock.createId(), sourceType: 'reimbursement', direction: 'expense', businessType: 'advance_reimbursement',
-        amountCents: advance.amountCents, occurredOn: input.reimbursedOn, paymentMethod: nullableText(input.paymentMethod),
-        paymentSource: 'business_account', categoryId: null, advancePayerId: null, orderId: null, attachmentId: null,
-        reversalOfEntryId: null, note: nullableText(input.note), createdAt: now
+      const entries = advances.map((advance) => {
+        const entryInsert: FinanceEntryInsert = {
+          id: this.clock.createId(), sourceType: 'reimbursement', direction: 'expense', businessType: 'advance_reimbursement',
+          amountCents: advance.amountCents, occurredOn: input.reimbursedOn, paymentMethod: nullableText(input.paymentMethod),
+          paymentSource: 'business_account', categoryId: null, advancePayerId: null, orderId: null, attachmentId: null,
+          reversalOfEntryId: null, note: nullableText(input.note), createdAt: now
+        }
+        this.repository.insertFinancialEntry(entryInsert)
+        this.repository.insertReimbursementLink(this.clock.createId(), advance.id, entryInsert.id, now)
+        const result = toEntry(entryInsert)
+        this.audit('finance.reimbursement_created', 'financial_entry', result.id, undefined, result, now, {
+          advanceFinancialEntryId: advance.id,
+          batchSize: advances.length
+        })
+        return result
+      })
+      return {
+        entries,
+        totalAmountCents: entries.reduce((total, entry) => total + entry.amountCents, 0)
       }
-      this.repository.insertFinancialEntry(entryInsert)
-      this.repository.insertReimbursementLink(this.clock.createId(), advance.id, entryInsert.id, now)
-      const result = toEntry(entryInsert)
-      this.audit('finance.reimbursement_created', 'financial_entry', result.id, undefined, result, now, { advanceFinancialEntryId: advance.id })
-      return result
     })
   }
 

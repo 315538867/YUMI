@@ -2,6 +2,7 @@ import type { BusinessDate, Cents, IsoDateTime } from './common'
 
 export type V2WorkerSettlementStatus = 'draft' | 'confirmed' | 'adjusted'
 export type V2WorkerDeductionStatus = 'pending' | 'partially_deducted' | 'settled'
+export type V2WorkerRefundStatus = 'pending' | 'refunded'
 
 export interface V2Worker {
   id: string
@@ -70,6 +71,39 @@ export interface V2WorkerDeductionRecord {
   occurredOn: BusinessDate
   createdAt: IsoDateTime
   updatedAt: IsoDateTime
+}
+
+export interface V2WorkerRefundRecord {
+  id: string
+  workerId: string
+  originalSettlementId: string
+  processTaskId: string
+  processResultId: string | null
+  qualityInspectionId: string
+  orderId: string | null
+  orderItemId: string | null
+  unqualifiedQuantity: number
+  commissionDeductionCents: Cents
+  wageDeductionCents: Cents
+  glueDeductionCents: Cents
+  requestedRefundCents: Cents
+  actualRefundCents: Cents | null
+  refundedOn: BusinessDate | null
+  managerNote: string | null
+  status: V2WorkerRefundStatus
+  createdAt: IsoDateTime
+  updatedAt: IsoDateTime
+}
+
+export interface V2WorkerRefundQuery {
+  workerId?: string
+  status?: V2WorkerRefundStatus
+}
+
+export interface V2WorkerRefundResolveInput {
+  actualRefundCents: Cents
+  refundedOn: BusinessDate
+  managerNote?: string | null
 }
 
 export interface V2WorkerSettlementDeductionAllocation {

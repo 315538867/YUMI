@@ -14,6 +14,9 @@ import type {
   V2Worker,
   V2WorkerCreateInput,
   V2WorkerDeductionRecord,
+  V2WorkerRefundQuery,
+  V2WorkerRefundRecord,
+  V2WorkerRefundResolveInput,
   V2WorkerSettlement,
   V2WorkerSettlementCreateInput,
   V2WorkerSettlementDetail,
@@ -48,6 +51,11 @@ function requireNonNegativeInteger(value: number, label: string): number {
 
 function requireNonNegativeCents(value: number, label: string): number {
   if (!Number.isInteger(value) || value < 0) throw new DomainValidationError(`${label}必须是非负整数分`)
+  return value
+}
+
+function requirePositiveCents(value: number, label: string): number {
+  if (!Number.isInteger(value) || value <= 0) throw new DomainValidationError(`${label}必须是正整数分`)
   return value
 }
 
@@ -178,6 +186,35 @@ export class SettlementService {
     return settlement ? this.toDetail(settlement) : null
   }
 
+  listRefunds(query: V2WorkerRefundQuery = {}): V2WorkerRefundRecord[] {
+    if (query.workerId) this.requireWorker(requireText(query.workerId, '兼职人员标识'))
+    return this.repository.listRefunds(query)
+  }
+
+  listPendingRefunds(workerId?: string): V2WorkerRefundRecord[] {
+    return this.listRefunds({ workerId, status: 'pending' })
+  }
+
+  resolveRefund(id: string, input: V2WorkerRefundResolveInput): V2WorkerRefundRecord {
+    const refundId = requireText(id, '待退款记录标识')
+    const actualRefundCents = requirePositiveCents(input.actualRefundCents, '实际退款金额')
+    const refundedOn = requireDate(input.refundedOn, '退款处理日期')
+    const managerNote = nullableText(input.managerNote)
+    return this.repository.transaction(() => {
+      const refund = this.repository.getRefund(refundId)
+      if (!refund) throw new DomainValidationError('待退款记录不存在')
+      if (refund.status !== 'pending') throw new DomainValidationError('只有待退款记录可以处理')
+      if (actualRefundCents > refund.requestedRefundCents) {
+        throw new DomainValidationError('实际退款金额不能超过待退款金额')
+      }
+      const updated: V2WorkerRefundRecord = {
+        ...refund, actualRefundCents, refundedOn, managerNote, status: 'refunded', updatedAt: this.clock.now()
+      }
+      this.repository.updateRefund(updated)
+      return updated
+    })
+  }
+
   updateDraft(id: string, input: V2WorkerSettlementDraftUpdateInput): V2WorkerSettlementDetail {
     return this.repository.transaction(() => {
       const settlement = this.requireDraft(id)
@@ -251,6 +288,19 @@ export class SettlementService {
           plannedMinutes: source.plannedMinutes, pieceRateCents, hourlyWageCents
         })
       const now = this.clock.now()
+      const confirmedSettlement = this.repository.getConfirmedSettlementForTask(source.processTaskId)
+      if (confirmedSettlement) {
+        this.repository.insertRefund({
+          id: this.clock.createId(), workerId, originalSettlementId: confirmedSettlement.id,
+          processTaskId: source.processTaskId, processResultId: source.processResultId,
+          qualityInspectionId: source.qualityInspectionId!, orderId: source.orderId, orderItemId: source.orderItemId,
+          unqualifiedQuantity: source.unqualifiedQuantity, commissionDeductionCents: deduction.commissionDeductionCents,
+          wageDeductionCents: deduction.hourlyWageDeductionCents, glueDeductionCents: deduction.glueDeductionCents,
+          requestedRefundCents: deduction.totalDeductionCents, actualRefundCents: null, refundedOn: null,
+          managerNote: null, status: 'pending', createdAt: now, updatedAt: now
+        })
+        return
+      }
       this.repository.insertDeduction({
         id: this.clock.createId(), workerId, workAssignmentId: source.workAssignmentId, processTaskId: source.processTaskId,
         processResultId: source.processResultId, qualityInspectionId: source.qualityInspectionId, orderId: source.orderId,

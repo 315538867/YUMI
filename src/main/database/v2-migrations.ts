@@ -587,6 +587,45 @@ const v2FinanceAndAfterSalesFoundation: V2Migration = {
   }
 }
 
+const v2WorkerSettlementRefunds: V2Migration = {
+  version: 9,
+  name: 'v2_worker_settlement_refunds',
+  run(database) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS worker_refund_records (
+        id TEXT PRIMARY KEY,
+        worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE RESTRICT,
+        original_settlement_id TEXT NOT NULL REFERENCES worker_settlements(id) ON DELETE RESTRICT,
+        process_task_id TEXT NOT NULL REFERENCES process_tasks(id) ON DELETE RESTRICT,
+        process_result_id TEXT REFERENCES process_results(id) ON DELETE RESTRICT,
+        quality_inspection_id TEXT NOT NULL UNIQUE REFERENCES quality_inspections(id) ON DELETE RESTRICT,
+        order_id TEXT REFERENCES orders(id) ON DELETE RESTRICT,
+        order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
+        unqualified_quantity INTEGER NOT NULL CHECK(unqualified_quantity > 0),
+        commission_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(commission_deduction_cents >= 0),
+        wage_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(wage_deduction_cents >= 0),
+        glue_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(glue_deduction_cents >= 0),
+        requested_refund_cents INTEGER NOT NULL CHECK(requested_refund_cents > 0),
+        actual_refund_cents INTEGER CHECK(actual_refund_cents IS NULL OR actual_refund_cents > 0),
+        refunded_on TEXT,
+        manager_note TEXT,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'refunded')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK(
+          (status = 'pending' AND actual_refund_cents IS NULL AND refunded_on IS NULL)
+          OR (status = 'refunded' AND actual_refund_cents IS NOT NULL AND refunded_on IS NOT NULL)
+        )
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_worker_refund_records_worker_status
+        ON worker_refund_records(worker_id, status, created_at);
+      CREATE INDEX IF NOT EXISTS idx_worker_refund_records_settlement
+        ON worker_refund_records(original_settlement_id, status);
+    `)
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
@@ -595,7 +634,8 @@ const migrations: readonly V2Migration[] = [
   v2BackfillShipmentFulfillmentEvents,
   v2WorkerSettlementFoundation,
   v2WagePaymentFinancialSource,
-  v2FinanceAndAfterSalesFoundation
+  v2FinanceAndAfterSalesFoundation,
+  v2WorkerSettlementRefunds
 ]
 
 /**

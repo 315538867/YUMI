@@ -17,6 +17,8 @@ describe('V2ApplicationRuntime', () => {
     runtimes.push(runtime)
     runtime.start()
 
+    expect(runtime.workbenchService.getSnapshot().firstUseGuide?.navigationTarget).toEqual({ view: 'customers' })
+
     runtime.orderService.createCustomer({ name: '备份前客户' })
     const sourceBackup = await runtime.backupService.createBackup()
     runtime.orderService.createCustomer({ name: '恢复前新增客户' })

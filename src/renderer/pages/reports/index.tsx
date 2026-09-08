@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Badge, Button, Flex, Heading, Table, Text, TextField } from '@radix-ui/themes'
+import type { V2ConfirmedSettlementReportRow, V2FulfillmentProgressReportRow, V2OrderBusinessReportRow } from '@shared/contracts/index'
 import { useReports } from '../../composables/use-reports'
 import { formatCents, getErrorMessage, today } from '../../composables/v2-utils'
-
-function EmptyRow({ colSpan, message }: { colSpan: number; message: string }) {
-  return <Table.Row><Table.Cell colSpan={colSpan}><div className="empty"><Text color="gray">{message}</Text></div></Table.Cell></Table.Row>
-}
+import { YumiButton, YumiDataTable, YumiField, YumiFieldLabel, YumiMonthPicker, YumiPageHeader, YumiSection, YumiStatusTag } from '../../components/ui'
 
 export function ReportsPage() {
   const { orderBusiness, fulfillmentProgress, confirmedSettlements, monthlyOperation, loading, loadError, exporting, exportMessage, load, exportCurrentReport } = useReports()
@@ -19,22 +16,83 @@ export function ReportsPage() {
     try { setError(null); await exportCurrentReport(month) } catch (cause) { setError(getErrorMessage(cause)) }
   }, [exportCurrentReport, month])
 
-  return <section className="v2-page reports-workspace">
-    <div className="page-heading"><div><Text size="2" color="gray">V2 已确认经营事实</Text><Heading size="7">经营报表</Heading><Text as="p" color="gray">订单核算不分摊工资；工资仅以负责人确认的实际发放为准；月度经营按实际收付款日期统计。</Text></div><Badge color="green">只读汇总</Badge></div>
-    {loadError && <div className="panel"><Text color="red">{loadError}</Text></div>}
-    {error && <div className="panel"><Text color="red">{error}</Text></div>}
-    {exportMessage && <div className="panel"><Text color={exportMessage.startsWith('已导出') ? 'green' : 'gray'}>{exportMessage}</Text></div>}
+  return <div className="yumi-reports-workspace">
+    <YumiPageHeader
+      actions={<YumiStatusTag tone="success">只读汇总</YumiStatusTag>}
+      description="订单核算不分摊工资；工资仅以负责人确认的实际发放为准；月度经营按实际收付款日期统计。"
+      title="经营报表"
+    />
+    {loadError && <p className="yumi-feedback yumi-feedback--danger" role="alert">{loadError}</p>}
+    {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
+    {exportMessage && <p className={`yumi-feedback ${exportMessage.startsWith('已导出') ? 'yumi-feedback--success' : ''}`} role="status">{exportMessage}</p>}
 
-    <section className="panel report-month-panel"><Flex justify="between" align="end" gap="4"><div><Heading size="4">月度经营</Heading><Text size="2" color="gray">报销付款保留现金事实，但不会重复作为经营支出。</Text></div><div className="inline-fields"><label>统计月份<TextField.Root type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label><Button size="1" variant="soft" onClick={() => void reload()} disabled={loading || exporting}>刷新</Button><Button size="1" onClick={() => void exportReport()} disabled={loading || exporting}>{exporting ? '导出中…' : '导出当前报表'}</Button></div></Flex><div className="finance-summary-grid"><Metric label="实际收入" cents={monthlyOperation?.incomeCents ?? 0} tone="income" /><Metric label="经营支出" cents={monthlyOperation?.operatingExpenseCents ?? 0} tone="expense" /><Metric label="经营结果" cents={monthlyOperation?.operatingResultCents ?? 0} tone="result" /><Metric label="已确认工资" cents={monthlyOperation?.confirmedSettlementPaidCents ?? 0} tone="expense" /></div></section>
+    <YumiSection description="报销付款保留现金事实，但不会重复作为经营支出。" title="月度经营">
+      <div className="yumi-report-controls">
+        <YumiField><YumiFieldLabel>统计月份</YumiFieldLabel><YumiMonthPicker aria-label="统计月份" onValueChange={setMonth} value={month} /></YumiField>
+        <YumiButton disabled={loading || exporting} onClick={() => void reload()} variant="secondary">刷新</YumiButton>
+        <YumiButton disabled={loading || exporting} loading={exporting} onClick={() => void exportReport()} variant="primary">导出当前报表</YumiButton>
+      </div>
+      <div className="yumi-finance-summary-grid">
+        <Metric label="实际收入" cents={monthlyOperation?.incomeCents ?? 0} tone="success" />
+        <Metric label="经营支出" cents={monthlyOperation?.operatingExpenseCents ?? 0} tone="danger" />
+        <Metric label="经营结果" cents={monthlyOperation?.operatingResultCents ?? 0} tone={(monthlyOperation?.operatingResultCents ?? 0) >= 0 ? 'success' : 'danger'} />
+        <Metric label="已确认工资" cents={monthlyOperation?.confirmedSettlementPaidCents ?? 0} tone="brand" />
+      </div>
+    </YumiSection>
 
-    <section className="panel report-panel"><div className="section-title"><div><Heading size="4">订单核算</Heading><Text size="2" color="gray">成本为商品下单快照成本与售后核算成本，不将未建立分摊规则的工资强行计入订单。</Text></div><Badge color="gray">{orderBusiness?.rows.length ?? 0} 个订单</Badge></div><Table.Root variant="surface"><Table.Header><Table.Row><Table.ColumnHeaderCell>订单</Table.ColumnHeaderCell><Table.ColumnHeaderCell>确认金额</Table.ColumnHeaderCell><Table.ColumnHeaderCell>净收款</Table.ColumnHeaderCell><Table.ColumnHeaderCell>待收</Table.ColumnHeaderCell><Table.ColumnHeaderCell>商品成本</Table.ColumnHeaderCell><Table.ColumnHeaderCell>售后成本</Table.ColumnHeaderCell><Table.ColumnHeaderCell>核算利润参考</Table.ColumnHeaderCell></Table.Row></Table.Header><Table.Body>{orderBusiness?.rows.length ? orderBusiness.rows.map((row) => <Table.Row key={row.orderId}><Table.Cell><strong>{row.orderCode}</strong><br /><Text size="1" color="gray">{row.customerName}</Text></Table.Cell><Table.Cell>{formatCents(row.currentAmountCents)}</Table.Cell><Table.Cell>{formatCents(row.netReceivedCents)}</Table.Cell><Table.Cell>{formatCents(row.outstandingCents)}</Table.Cell><Table.Cell>{formatCents(row.productCostCents)}</Table.Cell><Table.Cell>{formatCents(row.afterSalesCostCents)}</Table.Cell><Table.Cell><strong>{formatCents(row.knownMarginCents)}</strong></Table.Cell></Table.Row>) : <EmptyRow colSpan={7} message="暂无 V2 订单事实。" />}</Table.Body></Table.Root></section>
+    <YumiSection description="成本为商品下单快照成本与售后核算成本，不将未建立分摊规则的工资强行计入订单。" title="订单核算">
+      <YumiDataTable<V2OrderBusinessReportRow>
+        columns={[
+          { key: 'order', label: '订单', render: (row) => <><strong>{row.orderCode}</strong><br /><span className="yumi-table-secondary">{row.customerName}</span></> },
+          { align: 'right', key: 'current', label: '确认金额', render: (row) => formatCents(row.currentAmountCents) },
+          { align: 'right', key: 'received', label: '净收款', render: (row) => formatCents(row.netReceivedCents) },
+          { align: 'right', key: 'outstanding', label: '待收', render: (row) => formatCents(row.outstandingCents) },
+          { align: 'right', key: 'product-cost', label: '商品成本', render: (row) => formatCents(row.productCostCents) },
+          { align: 'right', key: 'after-sales-cost', label: '售后成本', render: (row) => formatCents(row.afterSalesCostCents) },
+          { align: 'right', key: 'margin', label: '核算利润参考', render: (row) => <strong>{formatCents(row.knownMarginCents)}</strong> }
+        ]}
+        emptyText="暂无 V2 订单事实。"
+        getRowKey={(row) => row.orderId}
+        rows={orderBusiness?.rows ?? []}
+      />
+    </YumiSection>
 
-    <section className="panel report-panel"><div className="section-title"><div><Heading size="4">履约进度</Heading><Text size="2" color="gray">阶段数量来自期初在制品、质检合格、打包和发货等履约事件。</Text></div><Badge color="orange">已发 {fulfillmentProgress?.totalShippedQuantity ?? 0} 件</Badge></div><Table.Root variant="surface"><Table.Header><Table.Row><Table.ColumnHeaderCell>订单产品</Table.ColumnHeaderCell><Table.ColumnHeaderCell>确认数量</Table.ColumnHeaderCell><Table.ColumnHeaderCell>制作中</Table.ColumnHeaderCell><Table.ColumnHeaderCell>待捏毛装袋</Table.ColumnHeaderCell><Table.ColumnHeaderCell>待打包</Table.ColumnHeaderCell><Table.ColumnHeaderCell>待发货</Table.ColumnHeaderCell><Table.ColumnHeaderCell>已发货</Table.ColumnHeaderCell></Table.Row></Table.Header><Table.Body>{fulfillmentProgress?.rows.length ? fulfillmentProgress.rows.map((row) => <Table.Row key={row.orderItemId}><Table.Cell><strong>{row.orderCode}</strong><br /><Text size="1" color="gray">{row.productName}</Text></Table.Cell><Table.Cell>{row.confirmedQuantity}</Table.Cell><Table.Cell>{row.stages.making}</Table.Cell><Table.Cell>{row.stages.fluffingBagging}</Table.Cell><Table.Cell>{row.stages.packing}</Table.Cell><Table.Cell>{row.stages.readyToShip}</Table.Cell><Table.Cell>{row.stages.shipped}</Table.Cell></Table.Row>) : <EmptyRow colSpan={7} message="暂无 V2 履约事实。" />}</Table.Body></Table.Root></section>
+    <YumiSection description="阶段数量来自期初在制品、质检合格、打包和发货等履约事件。" title="履约进度">
+      <div className="yumi-section-inline-status"><YumiStatusTag tone="warning">已发 {fulfillmentProgress?.totalShippedQuantity ?? 0} 件</YumiStatusTag></div>
+      <YumiDataTable<V2FulfillmentProgressReportRow>
+        columns={[
+          { key: 'item', label: '订单产品', render: (row) => <><strong>{row.orderCode}</strong><br /><span className="yumi-table-secondary">{row.productName}</span></> },
+          { align: 'right', key: 'confirmed', label: '确认数量', render: (row) => row.confirmedQuantity },
+          { align: 'right', key: 'making', label: '制作中', render: (row) => row.stages.making },
+          { align: 'right', key: 'fluffing', label: '待捏毛装袋', render: (row) => row.stages.fluffingBagging },
+          { align: 'right', key: 'packing', label: '待打包', render: (row) => row.stages.packing },
+          { align: 'right', key: 'ship', label: '待发货', render: (row) => row.stages.readyToShip },
+          { align: 'right', key: 'shipped', label: '已发货', render: (row) => row.stages.shipped }
+        ]}
+        emptyText="暂无 V2 履约事实。"
+        getRowKey={(row) => row.orderItemId}
+        rows={fulfillmentProgress?.rows ?? []}
+      />
+    </YumiSection>
 
-    <section className="panel report-panel"><div className="section-title"><div><Heading size="4">已确认工资</Heading><Text size="2" color="gray">草稿结算、排班参考工资和考勤参考工资均不作为实际发放进入本报表。</Text></div><Badge color="purple">合计 {formatCents(confirmedSettlements?.totalFinalPaidCents ?? 0)}</Badge></div><Table.Root variant="surface"><Table.Header><Table.Row><Table.ColumnHeaderCell>兼职人员</Table.ColumnHeaderCell><Table.ColumnHeaderCell>结算周期</Table.ColumnHeaderCell><Table.ColumnHeaderCell>实际付款日</Table.ColumnHeaderCell><Table.ColumnHeaderCell>实发金额</Table.ColumnHeaderCell><Table.ColumnHeaderCell>负责人备注</Table.ColumnHeaderCell></Table.Row></Table.Header><Table.Body>{confirmedSettlements?.rows.length ? confirmedSettlements.rows.map((row) => <Table.Row key={row.id}><Table.Cell>{row.workerName}</Table.Cell><Table.Cell>{row.periodStartOn} 至 {row.periodEndOn}</Table.Cell><Table.Cell>{row.paidOn}</Table.Cell><Table.Cell><strong>{formatCents(row.finalPaidAmountCents)}</strong></Table.Cell><Table.Cell>{row.managerNote ?? '—'}</Table.Cell></Table.Row>) : <EmptyRow colSpan={5} message="当前没有已确认并实际发放的工资结算。" />}</Table.Body></Table.Root></section>
-  </section>
+    <YumiSection description="草稿结算、排班参考工资和考勤参考工资均不作为实际发放进入本报表。" title="已确认工资">
+      <div className="yumi-section-inline-status"><YumiStatusTag tone="brand">合计 {formatCents(confirmedSettlements?.totalFinalPaidCents ?? 0)}</YumiStatusTag></div>
+      <YumiDataTable<V2ConfirmedSettlementReportRow>
+        columns={[
+          { key: 'worker', label: '兼职人员', render: (row) => row.workerName },
+          { key: 'period', label: '结算周期', render: (row) => `${row.periodStartOn} 至 ${row.periodEndOn}` },
+          { key: 'paid-on', label: '实际付款日', render: (row) => row.paidOn },
+          { align: 'right', key: 'paid', label: '实发金额', render: (row) => <strong>{formatCents(row.finalPaidAmountCents)}</strong> },
+          { key: 'note', label: '负责人备注', render: (row) => row.managerNote ?? '—' }
+        ]}
+        emptyText="当前没有已确认并实际发放的工资结算。"
+        getRowKey={(row) => row.id}
+        rows={confirmedSettlements?.rows ?? []}
+      />
+    </YumiSection>
+  </div>
 }
 
-function Metric({ label, cents, tone }: { label: string; cents: number; tone: string }) {
-  return <div className={`finance-metric ${tone}`}><Text size="2" color="gray">{label}</Text><Heading size="5">{formatCents(cents)}</Heading></div>
+function Metric({ cents, label, tone }: { cents: number; label: string; tone: 'brand' | 'success' | 'danger' }) {
+  return <article className={`yumi-finance-metric yumi-finance-metric--${tone}`}><span>{label}</span><strong>{formatCents(cents)}</strong></article>
 }

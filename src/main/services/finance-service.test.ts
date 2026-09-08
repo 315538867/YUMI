@@ -85,4 +85,49 @@ describe('FinanceService', () => {
       paymentSource: 'private_advance', advancePayerId: payer.id
     })).toThrow('私人垫付必须选择已启用的垫付人')
   })
+
+  it('批量报销会先完整校验，成功时分别建流水，任何无效选择均不产生部分报销', () => {
+    const database = createV2Database(':memory:')
+    databases.push(database)
+    const service = new FinanceService(database)
+    const category = service.createCategory({ direction: 'expense', name: '日常支出' })
+    const payer = service.createAdvancePayer({ name: '小雨' })
+    const firstAdvance = service.createManualExpense({
+      amountCents: 8_800, occurredOn: '2026-09-01', categoryId: category.id,
+      paymentSource: 'private_advance', advancePayerId: payer.id
+    })
+    const secondAdvance = service.createManualExpense({
+      amountCents: 12_600, occurredOn: '2026-09-02', categoryId: category.id,
+      paymentSource: 'private_advance', advancePayerId: payer.id
+    })
+    const businessExpense = service.createManualExpense({
+      amountCents: 5_000, occurredOn: '2026-09-02', categoryId: category.id,
+      paymentSource: 'business_account'
+    })
+
+    const result = service.reimburseBatch({
+      advanceFinancialEntryIds: [firstAdvance.id, secondAdvance.id],
+      reimbursedOn: '2026-09-05',
+      paymentMethod: '公账转账',
+      note: '9 月第一批报销'
+    })
+    expect(result).toMatchObject({ totalAmountCents: 21_400 })
+    expect(result.entries).toHaveLength(2)
+    expect(service.listPendingReimbursements('2026-09-05')).toEqual([])
+    expect(database.prepare("SELECT COUNT(*) AS count FROM advance_reimbursements").get()).toEqual({ count: 2 })
+
+    const reimbursementCount = database.prepare("SELECT COUNT(*) AS count FROM financial_entries WHERE source_type = 'reimbursement'").get()
+    expect(() => service.reimburseBatch({
+      advanceFinancialEntryIds: [firstAdvance.id, firstAdvance.id], reimbursedOn: '2026-09-06'
+    })).toThrow('不能重复选择同一私人垫付')
+    expect(() => service.reimburseBatch({
+      advanceFinancialEntryIds: [businessExpense.id, secondAdvance.id], reimbursedOn: '2026-09-06'
+    })).toThrow('报销对象必须是私人垫付日常支出')
+    expect(() => service.reimburseBatch({
+      advanceFinancialEntryIds: [firstAdvance.id, businessExpense.id], reimbursedOn: '2026-09-06'
+    })).toThrow('该私人垫付已报销，不能重复报销')
+    expect(database.prepare("SELECT COUNT(*) AS count FROM financial_entries WHERE source_type = 'reimbursement'").get())
+      .toEqual(reimbursementCount)
+  })
+
 })

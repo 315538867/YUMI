@@ -1,9 +1,9 @@
-import { TextField } from '@radix-ui/themes'
 import { useEffect, useState, type ComponentProps } from 'react'
+import { YumiTextField } from '../components/ui'
 import { isNumericDraft } from './numeric-draft'
 
 type NumericTextFieldProps = Omit<
-  ComponentProps<typeof TextField.Root>,
+  ComponentProps<typeof YumiTextField>,
   'inputMode' | 'onBlur' | 'onChange' | 'onFocus' | 'type' | 'value'
 > & {
   value: number | string
@@ -29,7 +29,7 @@ export function NumericTextField({
   }, [focused, formattedValue])
 
   return (
-    <TextField.Root
+    <YumiTextField
       {...props}
       inputMode={allowDecimal ? 'decimal' : 'numeric'}
       onBlur={() => {

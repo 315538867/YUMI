@@ -13,11 +13,12 @@ import type {
   V2ShipmentInput
 } from './orders'
 import type { V2Product, V2ProductInput, V2ProductUpdateInput } from './products'
+import type { V2WorkbenchSnapshot } from './workbench'
 import type {
-  V2AdvancePayer, V2AdvancePayerCreateInput, V2AdvancePayerUpdateInput, V2FinanceCategory,
-  V2FinanceCategoryCreateInput, V2FinanceCategoryUpdateInput, V2FinanceDirection, V2FinanceEntryQuery,
-  V2FinancialEntry, V2ManualExpenseInput, V2ManualIncomeInput, V2MonthlyFinanceSummary,
-  V2PendingReimbursement, V2ReimbursementInput
+  V2AdvancePayer, V2AdvancePayerCreateInput, V2AdvancePayerUpdateInput, V2BatchReimbursementInput,
+  V2BatchReimbursementResult, V2FinanceCategory, V2FinanceCategoryCreateInput, V2FinanceCategoryUpdateInput,
+  V2FinanceDirection, V2FinanceEntryQuery, V2FinancialEntry, V2ManualExpenseInput, V2ManualIncomeInput,
+  V2MonthlyFinanceSummary, V2PendingReimbursement, V2ReimbursementInput
 } from './finance'
 import type {
   V2AfterSalesCase, V2AfterSalesCaseCreateInput, V2AfterSalesCaseQuery,
@@ -31,7 +32,7 @@ import type {
 import type {
   V2Worker, V2WorkerCreateInput, V2WorkerSettlementDetail, V2WorkerSettlementCreateInput,
   V2WorkerSettlementDraftUpdateInput, V2WorkerSettlementQuery, V2WorkerWageHistory,
-  V2WorkerWageHistoryInput
+  V2WorkerWageHistoryInput, V2WorkerRefundQuery, V2WorkerRefundRecord, V2WorkerRefundResolveInput
 } from './settlements'
 import type {
   V2ConfirmedSettlementReport, V2FulfillmentProgressReport, V2MonthlyOperationReport,
@@ -41,6 +42,9 @@ import type {
 /** V2 预加载层唯一向渲染进程暴露的能力边界。 */
 export interface V2YumiApi {
   health(): Promise<{ version: string; databaseReady: boolean }>
+  workbench: {
+    getSnapshot(): Promise<V2WorkbenchSnapshot>
+  }
   customers: {
     list(query?: V2CustomerQuery): Promise<V2Customer[]>
     create(input: V2CustomerInput): Promise<V2Customer>
@@ -86,6 +90,8 @@ export interface V2YumiApi {
     get(id: string): Promise<V2WorkerSettlementDetail | null>
     updateDraft(id: string, input: V2WorkerSettlementDraftUpdateInput): Promise<V2WorkerSettlementDetail>
     confirm(id: string): Promise<V2WorkerSettlementDetail>
+    listRefunds(query?: V2WorkerRefundQuery): Promise<V2WorkerRefundRecord[]>
+    resolveRefund(id: string, input: V2WorkerRefundResolveInput): Promise<V2WorkerRefundRecord>
   }
   finance: {
     listCategories(direction?: V2FinanceDirection, includeDisabled?: boolean): Promise<V2FinanceCategory[]>
@@ -101,6 +107,7 @@ export interface V2YumiApi {
     createManualExpense(input: V2ManualExpenseInput): Promise<V2FinancialEntry>
     listPendingReimbursements(asOf: string): Promise<V2PendingReimbursement[]>
     reimburse(input: V2ReimbursementInput): Promise<V2FinancialEntry>
+    reimburseBatch(input: V2BatchReimbursementInput): Promise<V2BatchReimbursementResult>
     getMonthlySummary(month: string): Promise<V2MonthlyFinanceSummary>
   }
   afterSales: {

@@ -145,6 +145,55 @@ describe('V2OrderService', () => {
     })).toThrow('已被冲正')
   })
 
+  it('允许同一批次并行发出多个商品，并分别保留每个商品的剩余可发数量', () => {
+    const { orderService: service, fulfillmentService } = createServices()
+    const strawberry = createProduct(service, '草莓蛋糕')
+    const cloud = createProduct(service, '云朵')
+    const order = service.createOrder({
+      customer: { name: '小苏' },
+      items: [
+        { productId: strawberry.id, quantity: 5, unitPriceCents: 2_000 },
+        { productId: cloud.id, quantity: 4, unitPriceCents: 2_500 }
+      ],
+      initialConfirmedAmountCents: 20_000
+    })
+
+    fulfillmentService.recordOpeningWip({
+      orderItemId: order.items[0].id, targetStage: 'ready_to_ship', quantity: 5,
+      occurredOn: '2026-09-07', note: '系统启用前已打包'
+    })
+    fulfillmentService.recordOpeningWip({
+      orderItemId: order.items[1].id, targetStage: 'ready_to_ship', quantity: 4,
+      occurredOn: '2026-09-07', note: '系统启用前已打包'
+    })
+
+    const shipment = service.createShipment(order.id, {
+      shippedOn: '2026-09-08', carrier: '顺丰', trackingNo: 'SF-001',
+      items: [
+        { orderItemId: order.items[0].id, quantity: 3 },
+        { orderItemId: order.items[1].id, quantity: 2 }
+      ]
+    })
+
+    expect(shipment.items).toEqual([
+      expect.objectContaining({ orderItemId: order.items[0].id, quantity: 3 }),
+      expect.objectContaining({ orderItemId: order.items[1].id, quantity: 2 })
+    ])
+    expect(fulfillmentService.getOrderItemFulfillment(order.items[0].id).stages)
+      .toMatchObject({ readyToShip: 2, shipped: 3 })
+    expect(fulfillmentService.getOrderItemFulfillment(order.items[1].id).stages)
+      .toMatchObject({ readyToShip: 2, shipped: 2 })
+
+    expect(() => service.createShipment(order.id, {
+      shippedOn: '2026-09-08',
+      items: [
+        { orderItemId: order.items[0].id, quantity: 3 },
+        { orderItemId: order.items[1].id, quantity: 1 }
+      ]
+    })).toThrow('本次发货数量超过待发货可用数量')
+    expect(service.listShipments(order.id)).toHaveLength(1)
+  })
+
   it('仅允许从待发货可用量分批发货，失败时不写入半条发货或审计记录', () => {
     const { orderService: service, fulfillmentService } = createServices()
     const product = createProduct(service, '葡萄')

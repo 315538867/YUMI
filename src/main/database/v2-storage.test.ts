@@ -42,7 +42,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 8 })
+    ).toEqual({ version: 9 })
     database.close()
 
     await expect(readFile(v1DatabasePath, 'utf8')).resolves.toBe('v1-test-data')
@@ -155,7 +155,7 @@ describe('V2 独立数据空间', () => {
       name: 'V2 客户'
     })
     expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 8
+      count: 9
     })
     expect(
       upgraded
@@ -260,9 +260,10 @@ describe('V2 独立数据空间', () => {
     const tableNames = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
     expect(tableNames.map((row) => row.name)).toEqual(expect.arrayContaining([
       'workers', 'worker_wage_history', 'worker_settlements', 'worker_settlement_tasks',
-      'worker_deduction_records', 'worker_settlement_deduction_allocations', 'worker_deduction_balances'
+      'worker_deduction_records', 'worker_settlement_deduction_allocations', 'worker_deduction_balances',
+      'worker_refund_records'
     ]))
-    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 8 })
+    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 9 })
     expect(database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'financial_entries'").get())
       .toEqual(expect.objectContaining({ sql: expect.stringContaining('source_type') }))
 
@@ -354,9 +355,9 @@ describe('V2 独立数据空间', () => {
     const tableNames = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
     expect(tableNames.map((row) => row.name)).toEqual(expect.arrayContaining([
       'finance_categories', 'advance_payers', 'advance_reimbursements',
-      'after_sales_cases', 'after_sales_charge_links'
+      'after_sales_cases', 'after_sales_charge_links', 'worker_refund_records'
     ]))
-    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 8 })
+    expect(database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()).toEqual({ version: 9 })
 
     database.prepare(`
       INSERT INTO finance_categories (id, direction, name, enabled, created_at, updated_at)

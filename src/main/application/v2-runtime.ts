@@ -12,12 +12,14 @@ import { FinanceService } from '@main/services/finance-service'
 import { AfterSalesService } from '@main/services/after-sales-service'
 import { ReportService } from '@main/services/report-service'
 import { V2ReportExportService } from '@main/services/v2-report-export-service'
+import { WorkbenchService } from '@main/services/workbench-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts/index'
 
 interface V2RuntimeReferences {
   database: V2Database
   repository: V2OrderRepository
   orderService: V2OrderService
+  workbenchService: WorkbenchService
   fulfillmentService: FulfillmentService
   settlementService: SettlementService
   financeService: FinanceService
@@ -55,6 +57,10 @@ export class V2ApplicationRuntime {
 
   get orderService(): V2OrderService {
     return this.requireReferences().orderService
+  }
+
+  get workbenchService(): WorkbenchService {
+    return this.requireReferences().workbenchService
   }
 
   get fulfillmentService(): FulfillmentService {
@@ -125,14 +131,26 @@ export class V2ApplicationRuntime {
     const database = createV2Database(this.storage.databasePath)
     const repository = new V2OrderRepository(database)
     const reportService = new ReportService(database)
+    const orderService = new V2OrderService(repository)
+    const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database))
+    const settlementService = new SettlementService(database)
+    const financeService = new FinanceService(database)
+    const afterSalesService = new AfterSalesService(database)
     return {
       database,
       repository,
-      orderService: new V2OrderService(repository),
-      fulfillmentService: new FulfillmentService(new V2FulfillmentRepository(database)),
-      settlementService: new SettlementService(database),
-      financeService: new FinanceService(database),
-      afterSalesService: new AfterSalesService(database),
+      orderService,
+      workbenchService: new WorkbenchService({
+        orders: orderService,
+        fulfillment: fulfillmentService,
+        settlements: settlementService,
+        afterSales: afterSalesService,
+        finance: financeService
+      }),
+      fulfillmentService,
+      settlementService,
+      financeService,
+      afterSalesService,
       reportService,
       reportExportService: new V2ReportExportService(reportService),
       backupService: new V2BackupService(this.storage, this.applicationVersion, database)

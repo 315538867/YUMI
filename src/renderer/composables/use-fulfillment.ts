@@ -10,6 +10,8 @@ import type {
 } from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
+export type FulfillmentQueueStage = 'all' | 'making' | 'fluffing_bagging' | 'packing' | 'ready_to_ship'
+
 export interface FulfillmentQueueItem {
   orderId: string
   orderCode: string
@@ -38,6 +40,21 @@ export function buildFulfillmentQueue(
       stages: row.stages
     }))
     .filter((item) => item.outstandingQuantity > 0)
+}
+
+export function getFulfillmentQueueStageQuantity(item: FulfillmentQueueItem, stage: Exclude<FulfillmentQueueStage, 'all'>): number {
+  if (stage === 'making') return item.stages.making
+  if (stage === 'fluffing_bagging') return item.stages.fluffingBagging
+  if (stage === 'packing') return item.stages.packing
+  return item.stages.readyToShip
+}
+
+export function filterFulfillmentQueue(
+  queue: FulfillmentQueueItem[],
+  stage: FulfillmentQueueStage
+): FulfillmentQueueItem[] {
+  if (stage === 'all') return queue
+  return queue.filter((item) => getFulfillmentQueueStageQuantity(item, stage) > 0)
 }
 
 export function useFulfillment() {

@@ -2,6 +2,7 @@ import { ipcMain as electronIpcMain } from 'electron'
 import type { V2BackupService } from '@main/services/v2-backup-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts/index'
 import type { V2OrderService } from '@main/services/v2-order-service'
+import type { WorkbenchService } from '@main/services/workbench-service'
 import type { FulfillmentService } from '@main/services/fulfillment-service'
 import type { SettlementService } from '@main/services/settlement-service'
 import type { FinanceService } from '@main/services/finance-service'
@@ -31,6 +32,7 @@ export interface V2BackupIpcOptions {
  */
 export function registerV2Ipc(
   service: V2OrderService,
+  workbench: WorkbenchService,
   fulfillment: FulfillmentService,
   settlement: SettlementService,
   finance: FinanceService,
@@ -41,6 +43,7 @@ export function registerV2Ipc(
   ipc: V2IpcMain = electronIpcMain
 ): void {
   ipc.handle('v2:health', () => ({ version: '2.0.0', databaseReady: true }))
+  ipc.handle('v2:workbench:get', () => workbench.getSnapshot())
 
   ipc.handle('v2:customers:list', (_event, query) => service.listCustomers(query as never))
   ipc.handle('v2:customers:create', (_event, input) => service.createCustomer(input as never))

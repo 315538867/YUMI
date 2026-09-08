@@ -101,6 +101,19 @@ export interface V2ReimbursementInput {
   note?: string | null
 }
 
+/** 一次确认多笔私人垫付；服务必须先完成全量校验，再以单一事务写入。 */
+export interface V2BatchReimbursementInput {
+  advanceFinancialEntryIds: string[]
+  reimbursedOn: BusinessDate
+  paymentMethod?: string | null
+  note?: string | null
+}
+
+export interface V2BatchReimbursementResult {
+  entries: V2FinancialEntry[]
+  totalAmountCents: Cents
+}
+
 export interface V2PendingReimbursement {
   financialEntryId: string
   amountCents: Cents

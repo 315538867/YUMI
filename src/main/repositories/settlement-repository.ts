@@ -2,6 +2,8 @@ import type { V2Database } from '@main/database/v2-connection'
 import type {
   V2Worker,
   V2WorkerDeductionRecord,
+  V2WorkerRefundQuery,
+  V2WorkerRefundRecord,
   V2WorkerSettlement,
   V2WorkerSettlementDeductionAllocation,
   V2WorkerSettlementTask,
@@ -122,6 +124,20 @@ function mapAllocation(row: Record<string, unknown>): V2WorkerSettlementDeductio
   }
 }
 
+function mapRefund(row: Record<string, unknown>): V2WorkerRefundRecord {
+  return {
+    id: String(row.id), workerId: String(row.worker_id), originalSettlementId: String(row.original_settlement_id),
+    processTaskId: String(row.process_task_id), processResultId: row.process_result_id as string | null,
+    qualityInspectionId: String(row.quality_inspection_id), orderId: row.order_id as string | null,
+    orderItemId: row.order_item_id as string | null, unqualifiedQuantity: Number(row.unqualified_quantity),
+    commissionDeductionCents: Number(row.commission_deduction_cents), wageDeductionCents: Number(row.wage_deduction_cents),
+    glueDeductionCents: Number(row.glue_deduction_cents), requestedRefundCents: Number(row.requested_refund_cents),
+    actualRefundCents: row.actual_refund_cents === null ? null : Number(row.actual_refund_cents),
+    refundedOn: row.refunded_on as string | null, managerNote: row.manager_note as string | null,
+    status: row.status as V2WorkerRefundRecord['status'], createdAt: String(row.created_at), updatedAt: String(row.updated_at)
+  }
+}
+
 export class SettlementRepository {
   constructor(private readonly database: V2Database) {}
 
@@ -209,6 +225,19 @@ export class SettlementRepository {
     return Boolean(row)
   }
 
+  getConfirmedSettlementForTask(processTaskId: string): V2WorkerSettlement | null {
+    const row = this.database.prepare(
+      `SELECT settlements.*
+       FROM worker_settlement_tasks settlement_tasks
+       JOIN worker_settlements settlements ON settlements.id = settlement_tasks.settlement_id
+       WHERE settlement_tasks.process_task_id = ?
+         AND settlement_tasks.status = 'confirmed'
+         AND settlements.status = 'confirmed'
+       LIMIT 1`
+    ).get(processTaskId) as Record<string, unknown> | undefined
+    return row ? mapSettlement(row) : null
+  }
+
   listUnrecordedDefectSources(workerId: string): SettlementTaskSource[] {
     const rows = this.database.prepare(
       `SELECT
@@ -224,9 +253,11 @@ export class SettlementRepository {
        JOIN process_results ON process_results.id = quality_inspections.process_result_id
        LEFT JOIN order_items ON order_items.id = process_tasks.order_item_id
        LEFT JOIN worker_deduction_records ON worker_deduction_records.quality_inspection_id = quality_inspections.id
+       LEFT JOIN worker_refund_records ON worker_refund_records.quality_inspection_id = quality_inspections.id
        WHERE work_assignments.worker_id = ?
          AND quality_inspections.unqualified_quantity > 0
          AND worker_deduction_records.id IS NULL
+         AND worker_refund_records.id IS NULL
        ORDER BY quality_inspections.inspected_on ASC, quality_inspections.created_at ASC, quality_inspections.id ASC`
     ).all(workerId) as Array<Record<string, unknown>>
     return rows.map(mapSettlementTaskSource)
@@ -258,6 +289,51 @@ export class SettlementRepository {
        ORDER BY COALESCE(quality_inspections.inspected_on, substr(deductions.created_at, 1, 10)) ASC, deductions.created_at ASC, deductions.id ASC`
     ).all(workerId) as Array<Record<string, unknown>>
     return rows.map(mapDeduction)
+  }
+
+  getRefund(id: string): V2WorkerRefundRecord | null {
+    const row = this.database.prepare('SELECT * FROM worker_refund_records WHERE id = ?').get(id) as Record<string, unknown> | undefined
+    return row ? mapRefund(row) : null
+  }
+
+  listRefunds(query: V2WorkerRefundQuery = {}): V2WorkerRefundRecord[] {
+    const clauses: string[] = []
+    const values: string[] = []
+    if (query.workerId) {
+      clauses.push('worker_id = ?')
+      values.push(query.workerId)
+    }
+    if (query.status) {
+      clauses.push('status = ?')
+      values.push(query.status)
+    }
+    const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''
+    const rows = this.database.prepare(
+      `SELECT * FROM worker_refund_records${where} ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, created_at DESC, id DESC`
+    ).all(...values) as Array<Record<string, unknown>>
+    return rows.map(mapRefund)
+  }
+
+  insertRefund(record: V2WorkerRefundRecord): void {
+    this.database.prepare(
+      `INSERT INTO worker_refund_records (
+        id, worker_id, original_settlement_id, process_task_id, process_result_id, quality_inspection_id, order_id, order_item_id,
+        unqualified_quantity, commission_deduction_cents, wage_deduction_cents, glue_deduction_cents, requested_refund_cents,
+        actual_refund_cents, refunded_on, manager_note, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      record.id, record.workerId, record.originalSettlementId, record.processTaskId, record.processResultId,
+      record.qualityInspectionId, record.orderId, record.orderItemId, record.unqualifiedQuantity,
+      record.commissionDeductionCents, record.wageDeductionCents, record.glueDeductionCents, record.requestedRefundCents,
+      record.actualRefundCents, record.refundedOn, record.managerNote, record.status, record.createdAt, record.updatedAt
+    )
+  }
+
+  updateRefund(record: V2WorkerRefundRecord): void {
+    this.database.prepare(
+      `UPDATE worker_refund_records SET actual_refund_cents = ?, refunded_on = ?, manager_note = ?, status = ?, updated_at = ?
+       WHERE id = ?`
+    ).run(record.actualRefundCents, record.refundedOn, record.managerNote, record.status, record.updatedAt, record.id)
   }
 
   listSettlements(query: V2WorkerSettlementQuery = {}): V2WorkerSettlement[] {

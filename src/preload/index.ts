@@ -3,6 +3,9 @@ import type { V2YumiApi } from '@shared/contracts/index'
 
 const yumiV2: V2YumiApi = {
   health: () => ipcRenderer.invoke('v2:health'),
+  workbench: {
+    getSnapshot: () => ipcRenderer.invoke('v2:workbench:get')
+  },
   customers: {
     list: (query) => ipcRenderer.invoke('v2:customers:list', query),
     create: (input) => ipcRenderer.invoke('v2:customers:create', input),
@@ -47,7 +50,9 @@ const yumiV2: V2YumiApi = {
     createDraft: (input) => ipcRenderer.invoke('v2:settlements:drafts:create', input),
     get: (id) => ipcRenderer.invoke('v2:settlements:get', id),
     updateDraft: (id, input) => ipcRenderer.invoke('v2:settlements:drafts:update', id, input),
-    confirm: (id) => ipcRenderer.invoke('v2:settlements:confirm', id)
+    confirm: (id) => ipcRenderer.invoke('v2:settlements:confirm', id),
+    listRefunds: (query) => ipcRenderer.invoke('v2:settlements:refunds:list', query),
+    resolveRefund: (id, input) => ipcRenderer.invoke('v2:settlements:refunds:resolve', id, input)
   },
   finance: {
     listCategories: (direction, includeDisabled) => ipcRenderer.invoke('v2:finance:categories:list', direction, includeDisabled),
@@ -63,6 +68,7 @@ const yumiV2: V2YumiApi = {
     createManualExpense: (input) => ipcRenderer.invoke('v2:finance:manual-expense:create', input),
     listPendingReimbursements: (asOf) => ipcRenderer.invoke('v2:finance:reimbursements:pending:list', asOf),
     reimburse: (input) => ipcRenderer.invoke('v2:finance:reimbursements:create', input),
+    reimburseBatch: (input) => ipcRenderer.invoke('v2:finance:reimbursements:batch-create', input),
     getMonthlySummary: (month) => ipcRenderer.invoke('v2:finance:summary:get', month)
   },
   afterSales: {

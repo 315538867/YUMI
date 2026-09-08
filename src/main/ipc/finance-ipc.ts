@@ -23,5 +23,6 @@ export function registerFinanceIpc(ipc: FinanceIpcMain, service: FinanceService)
   ipc.handle('v2:finance:manual-expense:create', (_event, input) => service.createManualExpense(input as never))
   ipc.handle('v2:finance:reimbursements:pending:list', (_event, asOf) => service.listPendingReimbursements(asOf as string))
   ipc.handle('v2:finance:reimbursements:create', (_event, input) => service.reimburse(input as never))
+  ipc.handle('v2:finance:reimbursements:batch-create', (_event, input) => service.reimburseBatch(input as never))
   ipc.handle('v2:finance:summary:get', (_event, month) => service.getMonthlySummary(month as string))
 }

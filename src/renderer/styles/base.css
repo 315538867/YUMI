@@ -1,0 +1,30 @@
+:root {
+  font-family: var(--yumi-font-sans);
+  color: var(--yumi-ink);
+  background: var(--yumi-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { min-width: 0; min-height: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--yumi-canvas);
+  color: var(--yumi-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button, input, textarea, select { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--yumi-focus-ring);
+}
+
+::selection { background: var(--yumi-brand-soft); color: var(--yumi-ink); }

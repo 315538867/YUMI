@@ -1,8 +1,21 @@
-import { useState, type FormEvent } from 'react'
-import { Badge, Button, Flex, Heading, Text, TextArea, TextField } from '@radix-ui/themes'
+import { useMemo, useState, type FormEvent } from 'react'
 import type { V2Product, V2ProductInput } from '@shared/contracts/index'
 import { centsToYuan, formatCents, getErrorMessage, yuanToCents } from '../../composables/v2-utils'
 import { useProducts } from '../../composables/use-products'
+import {
+  YumiBusinessList,
+  YumiBusinessListItem,
+  YumiButton,
+  YumiEmptyState,
+  YumiField,
+  YumiFieldLabel,
+  YumiNumberField,
+  YumiPageHeader,
+  YumiSheet,
+  YumiStatusTag,
+  YumiTextArea,
+  YumiTextField
+} from '../../components/ui'
 
 interface ProductDraft {
   name: string
@@ -48,6 +61,8 @@ export function ProductsPage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const editorTitle = editing ? `编辑商品：${editing.name}` : '新建商品'
+  const isDirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(editing ? toDraft(editing) : emptyDraft()), [draft, editing])
   const updateDraft = (key: keyof ProductDraft, value: string) => setDraft({ ...draft, [key]: value })
   const closeEditor = () => { setEditing(null); setDraft(emptyDraft()); setError(null); setEditorOpen(false) }
   const openCreate = () => { setEditing(null); setDraft(emptyDraft()); setError(null); setEditorOpen(true) }
@@ -60,34 +75,74 @@ export function ProductsPage() {
       if (editing) await updateProduct({ ...toInput(draft), id: editing.id, enabled: editing.enabled })
       else await createProduct(toInput(draft))
       closeEditor()
-    } catch (submitError) { setError(getErrorMessage(submitError)) } finally { setSubmitting(false) }
+    } catch (submitError) {
+      setError(getErrorMessage(submitError))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const productList = <div className="panel"><Heading size="4">商品列表</Heading>
-    {loadError && <p className="form-error">{loadError}</p>}
-    {loading ? <p className="empty">正在加载商品…</p> : <div className="data-list">
-      {products.map((product) => <button type="button" className="data-list-row" key={product.id} onClick={() => openEdit(product)}>
-        <span><strong>{product.name}</strong><small>{product.code || '未设编码'} · {product.category || '未分类'} · 默认售价 {formatCents(product.basePriceCents)}</small></span>
-        <Badge color={product.enabled ? 'green' : 'gray'}>{product.enabled ? '启用' : '停用'}</Badge>
-      </button>)}
-      {!products.length && <p className="empty">还没有商品。创建商品后即可建立订单。</p>}
-    </div>}
-  </div>
+  return <div className="yumi-page yumi-reference-workspace">
+    <YumiPageHeader
+      actions={<YumiButton onClick={openCreate} variant="primary">新建商品</YumiButton>}
+      description="商品的价格、成本与制作参数会在下单时冻结为订单快照。"
+      title="商品"
+    />
+    {loadError && <p className="yumi-feedback yumi-feedback--danger" role="alert">{loadError}</p>}
+    <div className="yumi-primary-list" aria-label="商品列表">
+      {loading ? <div className="yumi-empty">正在加载商品…</div> : products.length === 0 ? <YumiEmptyState description="点击右上角“新建商品”后，负责人即可在新增订单时主动选择。" scenario="first-use" title="还没有商品资料" /> : <YumiBusinessList>
+        {products.map((product) => <YumiBusinessListItem
+          key={product.id}
+          metrics={[{ label: '默认售价', value: formatCents(product.basePriceCents) }, { label: '标准制作', value: `${product.standardMakingMinutes} 分钟` }]}
+          onOpen={() => openEdit(product)}
+          status={<YumiStatusTag tone={product.enabled ? 'success' : 'neutral'}>{product.enabled ? '启用' : '停用'}</YumiStatusTag>}
+          summary={`${product.code || '未设编码'} · ${product.category || '未分类'} · 制作提成 ${formatCents(product.makingCommissionCents)}`}
+          title={product.name}
+        >
+          <span>单件成本：原材料 {formatCents(product.materialCostCents)} · 包装 {formatCents(product.packagingCostCents)} · 胶水 {formatCents(product.makingGlueCostCents)}</span>
+          {product.notes ? <span>备注：{product.notes}</span> : null}
+        </YumiBusinessListItem>)}
+      </YumiBusinessList>}
+    </div>
 
-  return <section className="v2-page">
-    <Flex justify="between" align="center" gap="4" className="page-title-row"><div><Heading size="6">商品</Heading><Text as="p" color="gray">商品的价格、成本与制作参数会在下单时冻结为订单快照。</Text></div><Button onClick={openCreate}>新建商品</Button></Flex>
-    {editorOpen && <div className="v2-two-column">
-      {productList}
-      <form className="panel v2-form" onSubmit={submit}>
-        <Flex justify="between" align="center"><Heading size="4">{editing ? `编辑商品：${editing.name}` : '新建商品'}</Heading><Button type="button" variant="ghost" color="gray" onClick={closeEditor}>关闭</Button></Flex>
-        <div className="form-grid two"><label>商品名称<TextField.Root required value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} /></label><label>商品编码<TextField.Root value={draft.code} onChange={(event) => updateDraft('code', event.target.value)} /></label><label>分类<TextField.Root value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} /></label><label>基础售价（元）<TextField.Root type="number" min="0" step="0.01" value={draft.basePrice} onChange={(event) => updateDraft('basePrice', event.target.value)} /></label></div>
-        <Heading size="3">单件成本与制作参数</Heading>
-        <div className="form-grid three"><label>原材料（元）<TextField.Root type="number" min="0" step="0.01" value={draft.materialCost} onChange={(event) => updateDraft('materialCost', event.target.value)} /></label><label>包装（元）<TextField.Root type="number" min="0" step="0.01" value={draft.packagingCost} onChange={(event) => updateDraft('packagingCost', event.target.value)} /></label><label>配饰（元）<TextField.Root type="number" min="0" step="0.01" value={draft.accessoryCost} onChange={(event) => updateDraft('accessoryCost', event.target.value)} /></label><label>替换袋（元）<TextField.Root type="number" min="0" step="0.01" value={draft.replacementBagCost} onChange={(event) => updateDraft('replacementBagCost', event.target.value)} /></label><label>封边（元）<TextField.Root type="number" min="0" step="0.01" value={draft.edgeCost} onChange={(event) => updateDraft('edgeCost', event.target.value)} /></label><label>标准制作分钟<TextField.Root type="number" min="0" step="1" value={draft.standardMakingMinutes} onChange={(event) => updateDraft('standardMakingMinutes', event.target.value)} /></label><label>制作提成（元）<TextField.Root type="number" min="0" step="0.01" value={draft.makingCommission} onChange={(event) => updateDraft('makingCommission', event.target.value)} /></label><label>制作胶水（元）<TextField.Root type="number" min="0" step="0.01" value={draft.makingGlueCost} onChange={(event) => updateDraft('makingGlueCost', event.target.value)} /></label></div>
-        <label>备注<TextArea value={draft.notes} onChange={(event) => updateDraft('notes', event.target.value)} /></label>
-        {error && <p className="form-error">{error}</p>}
-        <Flex gap="3" justify="end"><Button type="button" variant="soft" color="gray" onClick={closeEditor}>取消</Button><Button type="submit" disabled={submitting}>{submitting ? '保存中…' : editing ? '保存商品' : '创建商品'}</Button></Flex>
+    <YumiSheet
+      description="价格、成本与制作规则由负责人主动填写；保存后只影响后续建立的订单快照。"
+      dirty={isDirty}
+      footer={<><YumiButton onClick={closeEditor} variant="ghost">取消</YumiButton><YumiButton form="product-editor-form" loading={submitting} type="submit" variant="primary">{editing ? '保存商品' : '创建商品'}</YumiButton></>}
+      onOpenChange={(open) => { if (!open) closeEditor() }}
+      open={editorOpen}
+      title={editorTitle}
+    >
+      <form className="yumi-form-panel yumi-sheet-form" id="product-editor-form" onSubmit={submit}>
+        <section className="yumi-product-editor-section" aria-labelledby="product-basic-heading">
+          <h3 id="product-basic-heading">基础资料</h3>
+          <div className="yumi-form-grid yumi-form-grid--two">
+            <YumiField><YumiFieldLabel htmlFor="product-name" required>商品名称</YumiFieldLabel><YumiTextField id="product-name" onChange={(event) => updateDraft('name', event.target.value)} required value={draft.name} /></YumiField>
+            <YumiField><YumiFieldLabel htmlFor="product-code">商品编码</YumiFieldLabel><YumiTextField id="product-code" onChange={(event) => updateDraft('code', event.target.value)} value={draft.code} /></YumiField>
+            <YumiField><YumiFieldLabel htmlFor="product-category">分类</YumiFieldLabel><YumiTextField id="product-category" onChange={(event) => updateDraft('category', event.target.value)} value={draft.category} /></YumiField>
+            <MoneyField id="product-base-price" label="基础售价（元）" onChange={(value) => updateDraft('basePrice', value)} value={draft.basePrice} />
+          </div>
+        </section>
+        <section className="yumi-product-editor-section" aria-labelledby="product-cost-heading">
+          <h3 id="product-cost-heading">单件成本与制作参数</h3>
+          <div className="yumi-form-grid yumi-form-grid--two">
+            <MoneyField id="product-material-cost" label="原材料（元）" onChange={(value) => updateDraft('materialCost', value)} value={draft.materialCost} />
+            <MoneyField id="product-packaging-cost" label="包装（元）" onChange={(value) => updateDraft('packagingCost', value)} value={draft.packagingCost} />
+            <MoneyField id="product-accessory-cost" label="配饰（元）" onChange={(value) => updateDraft('accessoryCost', value)} value={draft.accessoryCost} />
+            <MoneyField id="product-replacement-bag-cost" label="替换袋（元）" onChange={(value) => updateDraft('replacementBagCost', value)} value={draft.replacementBagCost} />
+            <MoneyField id="product-edge-cost" label="封边（元）" onChange={(value) => updateDraft('edgeCost', value)} value={draft.edgeCost} />
+            <YumiField><YumiFieldLabel htmlFor="product-standard-making-minutes">标准制作分钟</YumiFieldLabel><YumiNumberField id="product-standard-making-minutes" onChange={(event) => updateDraft('standardMakingMinutes', event.target.value)} value={draft.standardMakingMinutes} /></YumiField>
+            <MoneyField id="product-making-commission" label="制作提成（元）" onChange={(value) => updateDraft('makingCommission', value)} value={draft.makingCommission} />
+            <MoneyField id="product-making-glue-cost" label="制作胶水（元）" onChange={(value) => updateDraft('makingGlueCost', value)} value={draft.makingGlueCost} />
+          </div>
+        </section>
+        <YumiField><YumiFieldLabel htmlFor="product-notes">备注</YumiFieldLabel><YumiTextArea id="product-notes" onChange={(event) => updateDraft('notes', event.target.value)} value={draft.notes} /></YumiField>
+        {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
       </form>
-    </div>}
-    {!editorOpen && productList}
-  </section>
+    </YumiSheet>
+  </div>
+}
+
+function MoneyField({ id, label, onChange, value }: { id: string; label: string; onChange(value: string): void; value: string }) {
+  return <YumiField><YumiFieldLabel htmlFor={id}>{label}</YumiFieldLabel><YumiNumberField allowDecimal id={id} onChange={(event) => onChange(event.target.value)} value={value} /></YumiField>
 }

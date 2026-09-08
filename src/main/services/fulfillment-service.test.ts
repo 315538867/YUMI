@@ -11,10 +11,11 @@ afterEach(() => {
   databases.splice(0).forEach((database) => database.close())
 })
 
-function createFixture(): { orderService: V2OrderService; service: FulfillmentService } {
+function createFixture(): { database: V2Database; orderService: V2OrderService; service: FulfillmentService } {
   const database = createV2Database(':memory:')
   databases.push(database)
   return {
+    database,
     orderService: new V2OrderService(new V2OrderRepository(database)),
     service: new FulfillmentService(new V2FulfillmentRepository(database))
   }
@@ -67,6 +68,11 @@ describe('FulfillmentService', () => {
       workerId: 'worker-2', assignedOn: '2026-09-10', processType: 'making',
       tasks: [{ orderItemId, sourceType: 'rework', plannedQuantity: 3 }]
     })
+    expect(rework.tasks[0]).toMatchObject({
+      sourceType: 'rework', plannedQuantity: 3, plannedMinutes: 36, scheduledMinutes: 36,
+      pieceRateCents: 300, glueCostCents: 50
+    })
+    expect(service.listWorkAssignments({ orderItemId }).map((item) => item.id)).toEqual([rework.id, assignment.id])
     const reworkResult = service.submitProcessResult(rework.tasks[0].id, {
       completedQuantity: 3, submittedOn: '2026-09-10'
     })
@@ -131,7 +137,7 @@ describe('FulfillmentService', () => {
   })
 
   it('支持期初在制品、售后补发和负责人带原因的数量调整，并拒绝来源数量不足', () => {
-    const { orderService, service } = createFixture()
+    const { database, orderService, service } = createFixture()
     const order = createOrder(orderService)
     const orderItemId = order.items[0].id
 
@@ -139,6 +145,9 @@ describe('FulfillmentService', () => {
       orderItemId, targetStage: 'ready_to_ship', quantity: 2, occurredOn: '2026-09-08', note: '系统启用前已打包'
     })
     expect(service.getOrderItemFulfillment(orderItemId).stages).toMatchObject({ making: 8, readyToShip: 2 })
+    expect(service.listWorkAssignments({ orderItemId })).toEqual([])
+    expect(database.prepare('SELECT COUNT(*) AS count FROM process_results').get()).toEqual({ count: 0 })
+    expect(database.prepare('SELECT COUNT(*) AS count FROM quality_inspections').get()).toEqual({ count: 0 })
     expect(() => service.recordOpeningWip({
       orderItemId, targetStage: 'packing', quantity: 9, occurredOn: '2026-09-08'
     })).toThrow('来源阶段可用数量不足')
