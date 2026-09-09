@@ -46,7 +46,7 @@
 - 商品页面 → `useStudioSettings` 获取只读单价；商品表单将克重的整数单位提交 → `V2OrderService.createProduct/updateProduct` → Repository。
 - 创建订单 → `V2OrderService.createProductSnapshot` 复制克重与统一单价 → `order_items.product_snapshot_json`。
 - 履约/质检 → 从快照计算本批不合格数量的胶水扣款 → deduction/settlement；报表使用同一计算函数做订单聚合。
-- 设置数据保护模式 → `window.yumiV2.backup.create/list/inspect/restore`；恢复确认仅传递 `confirmed: true`。
+- 设置数据保护模式 → `window.yumiV2.backup.create/list/restore`；恢复确认仅传递 `confirmed: true`。
 
 ### 4. 固定壳与互斥界面
 
