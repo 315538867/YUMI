@@ -37,6 +37,8 @@ interface ProcessTaskRow {
   hourly_wage_cents: number | null
   piece_rate_cents: number | null
   glue_cost_cents: number | null
+  glue_price_micro_yuan_per_gram: number | null
+  glue_weight_milligrams: number | null
   rate_snapshot_json: string | null
   note: string | null
   created_at: string
@@ -106,6 +108,8 @@ function mapTask(row: ProcessTaskRow): V2ProcessTask {
     hourlyWageCents: row.hourly_wage_cents,
     pieceRateCents: row.piece_rate_cents,
     glueCostCents: row.glue_cost_cents,
+    gluePriceMicroYuanPerGram: row.glue_price_micro_yuan_per_gram,
+    glueWeightMilligrams: row.glue_weight_milligrams,
     rateSnapshot: parseJson<Record<string, unknown>>(row.rate_snapshot_json),
     note: row.note,
     createdAt: row.created_at,
@@ -216,13 +220,13 @@ export class V2FulfillmentRepository {
       `INSERT INTO process_tasks (
         id, work_assignment_id, order_item_id, process_type, source_type, planned_quantity,
         planned_minutes, extra_minutes, status, hourly_wage_cents, piece_rate_cents,
-        glue_cost_cents, rate_snapshot_json, note, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        glue_cost_cents, glue_price_micro_yuan_per_gram, glue_weight_milligrams, rate_snapshot_json, note, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       task.id, task.workAssignmentId, task.orderItemId, task.processType, task.sourceType,
       task.plannedQuantity, task.plannedMinutes, task.extraMinutes, task.status, task.hourlyWageCents,
-      task.pieceRateCents, task.glueCostCents, task.rateSnapshot ? JSON.stringify(task.rateSnapshot) : null,
-      task.note, task.createdAt, task.updatedAt
+      task.pieceRateCents, task.glueCostCents, task.gluePriceMicroYuanPerGram, task.glueWeightMilligrams,
+      task.rateSnapshot ? JSON.stringify(task.rateSnapshot) : null, task.note, task.createdAt, task.updatedAt
     )
   }
 

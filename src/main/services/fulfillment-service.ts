@@ -271,8 +271,13 @@ export class FulfillmentService {
     const pieceRateCents = processType === 'making'
       ? input.pieceRateCents ?? orderItem!.productSnapshot.makingCommissionCents
       : requireOptionalNonNegativeCents(input.pieceRateCents, '计件提成')
+    const productSnapshot = processType === 'making' ? orderItem!.productSnapshot : null
+    const hasGlueFormula = productSnapshot?.gluePriceMicroYuanPerGram !== undefined
+      && productSnapshot.glueWeightMilligrams !== undefined
+    const gluePriceMicroYuanPerGram = hasGlueFormula ? productSnapshot!.gluePriceMicroYuanPerGram! : null
+    const glueWeightMilligrams = hasGlueFormula ? productSnapshot!.glueWeightMilligrams! : null
     const glueCostCents = processType === 'making'
-      ? input.glueCostCents ?? orderItem!.productSnapshot.makingGlueCostCents
+      ? hasGlueFormula ? null : input.glueCostCents ?? productSnapshot!.makingGlueCostCents
       : requireOptionalNonNegativeCents(input.glueCostCents, '胶水成本')
     requireOptionalNonNegativeCents(pieceRateCents, '计件提成')
     requireOptionalNonNegativeCents(glueCostCents, '胶水成本')
@@ -281,8 +286,8 @@ export class FulfillmentService {
       id: this.clock.createId(), workAssignmentId: assignmentId, orderItemId: orderItem?.id ?? null,
       processType, sourceType: input.sourceType, plannedQuantity: input.plannedQuantity ?? null,
       plannedMinutes, extraMinutes, scheduledMinutes: plannedMinutes + extraMinutes, status: 'pending',
-      hourlyWageCents, pieceRateCents, glueCostCents, rateSnapshot: input.rateSnapshot ?? null,
-      note: nullableText(input.note), createdAt: now, updatedAt: now
+      hourlyWageCents, pieceRateCents, glueCostCents, gluePriceMicroYuanPerGram, glueWeightMilligrams,
+      rateSnapshot: input.rateSnapshot ?? null, note: nullableText(input.note), createdAt: now, updatedAt: now
     }
   }
 

@@ -283,7 +283,7 @@ export class V2OrderRepository {
       )
       .run(
         input.name.trim(), nullableText(input.code), nullableText(input.category), input.basePriceCents,
-        input.materialCostCents, input.packagingCostCents, input.accessoryCostCents,
+        input.materialCostCents ?? 0, input.packagingCostCents, input.accessoryCostCents,
         input.replacementBagCostCents, input.edgeCostCents, input.standardMakingMinutes,
         input.makingCommissionCents, input.makingGlueCostCents ?? 0, input.glueWeightMilligrams ?? 0,
         input.enabled === undefined ? null : Number(input.enabled), nullableText(input.imageAttachmentId),

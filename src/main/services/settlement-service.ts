@@ -8,6 +8,7 @@ import {
   validateFinalPaidCents
 } from '@main/domain/settlement'
 import { DomainValidationError } from '@main/domain/errors'
+import { calculateGlueCostCents } from '@shared/money'
 import { SettlementRepository, type SettlementTaskSource } from '@main/repositories/settlement-repository'
 import type { V2Database } from '@main/database/v2-connection'
 import type {
@@ -281,7 +282,15 @@ export class SettlementService {
       const deduction = source.processType === 'making'
         ? calculateMakingDefectDeduction({
           unqualifiedQuantity: source.unqualifiedQuantity, pieceRateCents, hourlyWageCents,
-          standardMakingMinutes: productStandardMinutes(source), glueDeductionCentsPerUnit: source.glueCostCents ?? 0
+          standardMakingMinutes: productStandardMinutes(source),
+          glueDeductionCents: source.gluePriceMicroYuanPerGram !== null && source.glueWeightMilligrams !== null
+            ? calculateGlueCostCents({
+              gluePriceMicroYuanPerGram: source.gluePriceMicroYuanPerGram,
+              glueWeightMilligrams: source.glueWeightMilligrams,
+              quantity: source.unqualifiedQuantity
+            })
+            : undefined,
+          glueDeductionCentsPerUnit: source.glueCostCents ?? 0
         })
         : calculateFluffingDefectDeduction({
           unqualifiedQuantity: source.unqualifiedQuantity, plannedQuantity: source.plannedQuantity ?? 0,

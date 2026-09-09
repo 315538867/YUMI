@@ -30,6 +30,8 @@ interface SettlementTaskSource {
   hourlyWageCents: number | null
   pieceRateCents: number | null
   glueCostCents: number | null
+  gluePriceMicroYuanPerGram: number | null
+  glueWeightMilligrams: number | null
   orderId: string | null
   orderItemId: string | null
   productSnapshotJson: string | null
@@ -54,6 +56,8 @@ function mapSettlementTaskSource(row: Record<string, unknown>): SettlementTaskSo
     hourlyWageCents: row.hourly_wage_cents === null ? null : Number(row.hourly_wage_cents),
     pieceRateCents: row.piece_rate_cents === null ? null : Number(row.piece_rate_cents),
     glueCostCents: row.glue_cost_cents === null ? null : Number(row.glue_cost_cents),
+    gluePriceMicroYuanPerGram: row.glue_price_micro_yuan_per_gram === null ? null : Number(row.glue_price_micro_yuan_per_gram),
+    glueWeightMilligrams: row.glue_weight_milligrams === null ? null : Number(row.glue_weight_milligrams),
     orderId: row.order_id as string | null, orderItemId: row.order_item_id as string | null,
     productSnapshotJson: row.product_snapshot_json as string | null, processResultId: row.process_result_id as string | null,
     qualifiedQuantity: Number(row.qualified_quantity), unqualifiedQuantity: Number(row.unqualified_quantity),
@@ -188,6 +192,7 @@ export class SettlementRepository {
         process_tasks.id AS process_task_id, work_assignments.id AS work_assignment_id, work_assignments.assigned_on,
         process_tasks.process_type, process_tasks.planned_quantity, process_tasks.planned_minutes, process_tasks.extra_minutes,
         process_tasks.hourly_wage_cents, process_tasks.piece_rate_cents, process_tasks.glue_cost_cents,
+        process_tasks.glue_price_micro_yuan_per_gram, process_tasks.glue_weight_milligrams,
         order_items.order_id, process_tasks.order_item_id, order_items.product_snapshot_json,
         process_results.id AS process_result_id, COALESCE(quality_inspections.qualified_quantity, 0) AS qualified_quantity,
         COALESCE(quality_inspections.unqualified_quantity, 0) AS unqualified_quantity,
@@ -244,6 +249,7 @@ export class SettlementRepository {
         process_tasks.id AS process_task_id, work_assignments.id AS work_assignment_id, work_assignments.assigned_on,
         process_tasks.process_type, process_tasks.planned_quantity, process_tasks.planned_minutes, process_tasks.extra_minutes,
         process_tasks.hourly_wage_cents, process_tasks.piece_rate_cents, process_tasks.glue_cost_cents,
+        process_tasks.glue_price_micro_yuan_per_gram, process_tasks.glue_weight_milligrams,
         order_items.order_id, process_tasks.order_item_id, order_items.product_snapshot_json,
         process_results.id AS process_result_id, quality_inspections.qualified_quantity, quality_inspections.unqualified_quantity,
         quality_inspections.id AS quality_inspection_id, quality_inspections.inspected_on

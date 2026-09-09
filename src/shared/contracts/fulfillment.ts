@@ -1,4 +1,4 @@
-import type { BusinessDate, Cents, IsoDateTime } from './common'
+import type { BusinessDate, Cents, GluePriceMicroYuanPerGram, IsoDateTime, WeightMilligrams } from './common'
 
 export type V2ProcessType = 'making' | 'fluffing_bagging' | 'packing' | 'shipping'
 export type V2ProcessTaskSource = 'normal_production' | 'rework' | 'after_sales_replacement' | 'manager_arrangement'
@@ -51,7 +51,10 @@ export interface V2ProcessTask {
   status: V2ProcessTaskStatus
   hourlyWageCents: Cents | null
   pieceRateCents: Cents | null
+  /** 历史固定胶水成本；当前任务会使用冻结的单价和用量。 */
   glueCostCents: Cents | null
+  gluePriceMicroYuanPerGram: GluePriceMicroYuanPerGram | null
+  glueWeightMilligrams: WeightMilligrams | null
   rateSnapshot: Record<string, unknown> | null
   note: string | null
   createdAt: IsoDateTime
