@@ -43,6 +43,19 @@ describe('V2 兼职工资结算领域规则', () => {
     })
   })
 
+  it('制作不合格对带有胶水公式快照的任务按整批精确扣胶水', () => {
+    expect(calculateMakingDefectDeduction({
+      unqualifiedQuantity: 100,
+      pieceRateCents: 0,
+      standardMakingMinutes: 0,
+      hourlyWageCents: 0,
+      glueDeductionCents: 850
+    })).toMatchObject({
+      glueDeductionCents: 850,
+      totalDeductionCents: 850
+    })
+  })
+
   it('捏毛装袋不合格按计划分钟比例扣除提成和时薪', () => {
     expect(calculateFluffingDefectDeduction({
       unqualifiedQuantity: 2,

@@ -74,6 +74,26 @@ describe('工资负责人确认', () => {
     await waitFor(() => expect(confirmSettlement).toHaveBeenCalledWith('settlement-1'))
   })
 
+  it('其他调整允许负责人输入负金额，但其它实发金额仍保持非负校验', async () => {
+    const detail = settlement()
+    const updateDraft = vi.fn().mockResolvedValue(detail)
+    render(
+      <SettlementDetail
+        confirmSettlement={vi.fn()}
+        settlement={detail}
+        updateDraft={updateDraft}
+        workerName="小林"
+      />
+    )
+
+    fireEvent.change(screen.getByRole('textbox', { name: '其他调整（元）' }), { target: { value: '-12.34' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }))
+
+    await waitFor(() => expect(updateDraft).toHaveBeenCalledWith('settlement-1', expect.objectContaining({
+      otherAdjustmentCents: -1_234
+    })))
+  })
+
   it('将排班与考勤工资分别作为参考展示，已确认结算只展示负责人实发和实际工资流水', () => {
     render(
       <SettlementDetail

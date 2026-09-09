@@ -1,3 +1,4 @@
+import { calculateCentsForMinutes } from '@shared/money'
 import { requirePositive } from './errors'
 
 export interface ActualProductionInput {
@@ -32,7 +33,10 @@ export function calculateActualProductionCost(
   ) {
     throw new Error('合格、返工和报废数量不能超过计划制作数量')
   }
-  const actualLaborCostCents = Math.round((input.actualMinutes * input.hourlyWageCents) / 60)
+  const actualLaborCostCents = calculateCentsForMinutes({
+    minutes: input.actualMinutes,
+    hourlyWageCents: input.hourlyWageCents
+  })
   const commissionCostCents = input.qualifiedQuantity * input.commissionCentsPerUnit
   return {
     actualLaborCostCents,

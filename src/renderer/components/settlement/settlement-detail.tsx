@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { V2WorkerSettlementDetail, V2WorkerSettlementDraftUpdateInput } from '@shared/contracts/index'
-import { centsToYuan, formatCents, getErrorMessage, yuanToCents } from '../../composables/v2-utils'
+import { centsToYuan, formatCents, getErrorMessage, signedYuanToCents, yuanToCents } from '../../composables/v2-utils'
 import {
   YumiButton,
   YumiDatePicker,
@@ -53,7 +53,7 @@ export function SettlementDetail(props: SettlementDetailProps) {
     attendanceMinutes: draft.attendanceMinutes.trim() ? Math.round(Number(draft.attendanceMinutes)) : null,
     attendanceNote: draft.attendanceNote,
     actualDeductionCents: yuanToCents(draft.actualDeduction),
-    otherAdjustmentCents: yuanToCents(draft.otherAdjustment),
+    otherAdjustmentCents: signedYuanToCents(draft.otherAdjustment),
     finalPaidAmountCents: draft.finalPaid.trim() ? yuanToCents(draft.finalPaid) : null,
     paidOn: draft.paidOn || null,
     managerNote: draft.managerNote
@@ -64,7 +64,7 @@ export function SettlementDetail(props: SettlementDetailProps) {
     try { await props.updateDraft(props.settlement.id, buildUpdate()); setMessage('结算草稿已更新。') } catch (cause) { setError(getErrorMessage(cause)) } finally { setSubmitting(null) }
   }
 
-  const finalPaidAmountCents = yuanToCents(draft.finalPaid)
+  const finalPaidAmountCents = draft.finalPaid.trim() ? yuanToCents(draft.finalPaid) : 0
   const confirmReady = finalPaidAmountCents > 0 && Boolean(draft.paidOn)
 
   const handleConfirm = async () => {

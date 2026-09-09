@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  calculateCentsForMinutes,
+  calculateProportionalCents,
   calculateGlueCostCents,
   parseGluePriceYuanPerGram,
   parseGramsToMilligrams,
+  parseSignedYuanToCents,
   parseYuanToCents
 } from './index'
 
@@ -26,6 +29,17 @@ describe('金额与用量精度', () => {
       glueWeightMilligrams: parseGramsToMilligrams('25'),
       quantity: 100
     })).toBe(850)
+  })
+
+  it('所有时薪和比例金额均在整数分边界以 HALF_UP 计算', () => {
+    expect(calculateCentsForMinutes({ minutes: 1, hourlyWageCents: 1_000 })).toBe(17)
+    expect(calculateCentsForMinutes({ minutes: 30, hourlyWageCents: 1_001 })).toBe(501)
+    expect(calculateProportionalCents({ baseCents: 1_000, numerator: 1, denominator: 6 })).toBe(167)
+  })
+
+  it('仅在明确允许的调整金额路径接受负数元金额', () => {
+    expect(parseSignedYuanToCents('-12.34')).toBe(-1_234)
+    expect(parseSignedYuanToCents('12.34')).toBe(1_234)
   })
 
   it('拒绝普通金额超出两位小数、科学计数法和负值', () => {

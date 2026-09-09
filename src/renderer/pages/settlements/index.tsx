@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { V2NavigationTarget, V2WorkerRefundRecord, V2WorkerSettlementDetail } from '@shared/contracts/index'
-import { formatCents, getErrorMessage, today, yuanToCents } from '../../composables/v2-utils'
+import { centsToYuan, formatCents, getErrorMessage, today, yuanToCents } from '../../composables/v2-utils'
 import { useSettlements } from '../../composables/use-settlements'
 import { SettlementDetail } from '../../components/settlement/settlement-detail'
 import {
@@ -82,7 +82,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
   }
   const openRefund = (refund: V2WorkerRefundRecord) => {
     setSelectedRefundId(refund.id)
-    setActualRefundAmount((refund.requestedRefundCents / 100).toFixed(2))
+    setActualRefundAmount(centsToYuan(refund.requestedRefundCents))
     setRefundedOn(today())
     setRefundNote(refund.managerNote ?? '')
     setError(null)

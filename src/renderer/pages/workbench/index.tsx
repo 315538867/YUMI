@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { V2NavigationTarget, V2WorkbenchItem } from '@shared/contracts/index'
 import { useWorkbench } from '../../composables/use-workbench'
+import { formatCents } from '../../composables/v2-utils'
 import { YumiBusinessList, YumiBusinessListItem, YumiButton, YumiEmptyState, YumiPageHeader, YumiStatusTag } from '../../components/ui'
 
 type WorkbenchView = 'decision' | 'advance'
@@ -18,7 +19,7 @@ const viewLabels: Record<WorkbenchView, string> = {
 
 function formatAmountOrQuantity(item: V2WorkbenchItem): string | null {
   if (!item.quantityOrAmount) return null
-  if (item.quantityOrAmount.kind === 'amount') return `¥${(item.quantityOrAmount.value / 100).toFixed(2)}`
+  if (item.quantityOrAmount.kind === 'amount') return formatCents(item.quantityOrAmount.value)
   return `${item.quantityOrAmount.value}${item.quantityOrAmount.unit}`
 }
 

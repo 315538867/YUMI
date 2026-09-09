@@ -1,10 +1,13 @@
 import {
   formatCents as formatMoneyCents,
+  parseSignedYuanToCents as parseSignedMoneyYuanToCents,
   parseYuanToCents as parseMoneyYuanToCents
 } from '@shared/money'
 
 /** 所有前端元金额输入统一交给 Decimal 精度内核转换，禁止浮点乘除。 */
 export const yuanToCents = parseMoneyYuanToCents
+/** 仅用于可正可负的负责人调整，其他金额仍使用 yuanToCents。 */
+export const signedYuanToCents = parseSignedMoneyYuanToCents
 
 export function centsToYuan(cents: number): string {
   return formatMoneyCents(cents)

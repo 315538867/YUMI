@@ -1,4 +1,5 @@
 import type { Cents } from '@shared/contracts/index'
+import { calculateCentsForMinutes, calculateProportionalCents } from '@shared/money'
 import { processTypes, type ProcessType } from './fulfillment'
 import { DomainValidationError } from './errors'
 
@@ -13,7 +14,10 @@ export interface MakingDefectDeductionInput {
   pieceRateCents: Cents
   standardMakingMinutes: number
   hourlyWageCents: Cents
-  glueDeductionCentsPerUnit: Cents
+  /** 当前订单公式已冻结时，按整批精确计算后传入，避免逐件四舍五入。 */
+  glueDeductionCents?: Cents
+  /** 历史任务没有公式快照时，保留原有的逐件固定胶水成本。 */
+  glueDeductionCentsPerUnit?: Cents
 }
 
 export interface FluffingDefectDeductionInput {
@@ -114,15 +118,11 @@ function requireProcessType(processType: ProcessType): ProcessType {
   return processType
 }
 
-function roundCentsDivision(numerator: number, denominator: number): Cents {
-  return Math.round(numerator / denominator)
-}
-
 /** 按分钟和整数分时薪计算时薪，所有除法均在分级别四舍五入。 */
 export function calculateHourlyWageCents(minutes: number, hourlyWageCents: Cents): Cents {
   requireNonNegativeInteger(minutes, '工作分钟')
   requireNonNegativeCents(hourlyWageCents, '时薪')
-  return roundCentsDivision(minutes * hourlyWageCents, 60)
+  return calculateCentsForMinutes({ minutes, hourlyWageCents })
 }
 
 /** 仅制作和捏毛装袋的合格结果产生提成；返工与售后补发使用新任务结果，适用同一规则。 */
@@ -142,13 +142,14 @@ export function calculateMakingDefectDeduction(input: MakingDefectDeductionInput
   const pieceRateCents = requireNonNegativeCents(input.pieceRateCents, '制作单件提成')
   const standardMakingMinutes = requireNonNegativeInteger(input.standardMakingMinutes, '产品标准制作分钟')
   const hourlyWageCents = requireNonNegativeCents(input.hourlyWageCents, '任务时薪')
-  const glueDeductionCentsPerUnit = requireNonNegativeCents(input.glueDeductionCentsPerUnit, '单位胶水扣款成本')
+  const glueDeductionCents = input.glueDeductionCents === undefined
+    ? unqualifiedQuantity * requireNonNegativeCents(input.glueDeductionCentsPerUnit ?? 0, '单位胶水扣款成本')
+    : requireNonNegativeCents(input.glueDeductionCents, '胶水扣款成本')
   const commissionDeductionCents = unqualifiedQuantity * pieceRateCents
   const hourlyWageDeductionCents = calculateHourlyWageCents(
     unqualifiedQuantity * standardMakingMinutes,
     hourlyWageCents
   )
-  const glueDeductionCents = unqualifiedQuantity * glueDeductionCentsPerUnit
 
   return {
     unqualifiedQuantity,
@@ -171,10 +172,11 @@ export function calculateFluffingDefectDeduction(input: FluffingDefectDeductionI
   const hourlyWageCents = requireNonNegativeCents(input.hourlyWageCents, '任务时薪')
   const deductedMinutes = (plannedMinutes * unqualifiedQuantity) / plannedQuantity
   const commissionDeductionCents = unqualifiedQuantity * pieceRateCents
-  const hourlyWageDeductionCents = roundCentsDivision(
-    plannedMinutes * unqualifiedQuantity * hourlyWageCents,
-    plannedQuantity * 60
-  )
+  const hourlyWageDeductionCents = calculateProportionalCents({
+    baseCents: hourlyWageCents,
+    numerator: plannedMinutes * unqualifiedQuantity,
+    denominator: plannedQuantity * 60
+  })
 
   return {
     unqualifiedQuantity,
