@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from 'react'
-import type { V2AdvancePayer, V2FinanceCategory } from '@shared/contracts/index'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import type { V2AdvancePayer, V2BackupSummary, V2FinanceCategory, V2StudioSettings } from '@shared/contracts/index'
+import { formatGluePriceYuanPerGram, parseGluePriceYuanPerGram } from '@shared/money'
 import { getErrorMessage } from '../../composables/v2-utils'
 import { useFinance } from '../../composables/use-finance'
+import { useStudioSettings } from '../../composables/use-studio-settings'
 import {
   YumiBusinessList,
   YumiBusinessListItem,
@@ -11,6 +13,7 @@ import {
   YumiEmptyState,
   YumiField,
   YumiFieldLabel,
+  YumiNumberField,
   YumiPageHeader,
   YumiSelect,
   YumiStatusTag,
@@ -21,10 +24,28 @@ import {
 type CategoryEditor = { direction: 'income' | 'expense'; item?: V2FinanceCategory } | null
 type PayerEditor = V2AdvancePayer | 'create' | null
 type PendingDelete = { id: string; kind: 'category' | 'payer'; name: string } | null
+type SettingsView = 'studio' | 'finance' | 'protection'
 type LibraryView = 'income' | 'expense' | 'payer'
 
+const settingsCopy: Record<SettingsView, { title: string; description: string }> = {
+  studio: {
+    title: '工作室参数',
+    description: '维护全工作室统一使用的参数；商品只记录自身实际胶水用量。'
+  },
+  finance: {
+    title: '财务资料',
+    description: '维护财务登记可选择的资料；已被流水引用的资料不能删除，可改名或停用。'
+  },
+  protection: {
+    title: '数据保护',
+    description: '完整备份包含工作室数据和附件；恢复前会自动建立当前数据的安全备份。'
+  }
+}
+
 export function SettingsPage() {
-  const { categories, advancePayers, loading, loadError, createCategory, updateCategory, deleteCategory, createAdvancePayer, updateAdvancePayer, deleteAdvancePayer } = useFinance()
+  const finance = useFinance()
+  const studio = useStudioSettings()
+  const [view, setView] = useState<SettingsView>('studio')
   const [libraryView, setLibraryView] = useState<LibraryView>('income')
   const [categoryEditor, setCategoryEditor] = useState<CategoryEditor>(null)
   const [payerEditor, setPayerEditor] = useState<PayerEditor>(null)
@@ -48,64 +69,66 @@ export function SettingsPage() {
   const saveCategory = async (input: { name: string; enabled: boolean }) => {
     if (!categoryEditor) return
     const success = categoryEditor.item
-      ? await run(`category-${categoryEditor.item.id}`, () => updateCategory(categoryEditor.item!.id, input))
-      : await run(`category-create-${categoryEditor.direction}`, () => createCategory({ direction: categoryEditor.direction, name: input.name }))
+      ? await run(`category-${categoryEditor.item.id}`, () => finance.updateCategory(categoryEditor.item!.id, input))
+      : await run(`category-create-${categoryEditor.direction}`, () => finance.createCategory({ direction: categoryEditor.direction, name: input.name }))
     if (success) setCategoryEditor(null)
   }
   const savePayer = async (input: { name: string; note: string | null; enabled: boolean }) => {
     if (!payerEditor) return
     const success = payerEditor === 'create'
-      ? await run('payer-create', () => createAdvancePayer({ name: input.name, note: input.note }))
-      : await run(`payer-${payerEditor.id}`, () => updateAdvancePayer(payerEditor.id, input))
+      ? await run('payer-create', () => finance.createAdvancePayer({ name: input.name, note: input.note }))
+      : await run(`payer-${payerEditor.id}`, () => finance.updateAdvancePayer(payerEditor.id, input))
     if (success) setPayerEditor(null)
   }
   const confirmDelete = async () => {
     if (!pendingDelete) return
     const success = pendingDelete.kind === 'category'
-      ? await run(`category-delete-${pendingDelete.id}`, () => deleteCategory(pendingDelete.id))
-      : await run(`payer-delete-${pendingDelete.id}`, () => deleteAdvancePayer(pendingDelete.id))
+      ? await run(`category-delete-${pendingDelete.id}`, () => finance.deleteCategory(pendingDelete.id))
+      : await run(`payer-delete-${pendingDelete.id}`, () => finance.deleteAdvancePayer(pendingDelete.id))
     if (success) setPendingDelete(null)
   }
-  const incomeCategories = categories.filter((item) => item.direction === 'income')
-  const expenseCategories = categories.filter((item) => item.direction === 'expense')
 
+  const incomeCategories = finance.categories.filter((item) => item.direction === 'income')
+  const expenseCategories = finance.categories.filter((item) => item.direction === 'expense')
   const activeCategoryDirection = libraryView === 'expense' ? 'expense' : 'income'
   const activeCategories = activeCategoryDirection === 'income' ? incomeCategories : expenseCategories
   const activeCategoryLabel = activeCategoryDirection === 'income' ? '收入类目' : '支出类目'
-  const changeLibraryView = (nextView: LibraryView) => {
-    setError(null)
-    setLibraryView(nextView)
-  }
   const openCreate = () => {
-    if (libraryView === 'payer') {
-      setPayerEditor('create')
-      return
-    }
-    setCategoryEditor({ direction: activeCategoryDirection })
+    if (libraryView === 'payer') setPayerEditor('create')
+    else setCategoryEditor({ direction: activeCategoryDirection })
   }
+
+  const headerActions = view === 'finance'
+    ? <YumiButton onClick={openCreate} variant="primary">{libraryView === 'payer' ? '新增垫付人' : `新增${activeCategoryLabel}`}</YumiButton>
+    : undefined
 
   return <div className="yumi-page yumi-settings-workspace">
-    <YumiPageHeader
-      actions={<YumiButton onClick={openCreate} variant="primary">{libraryView === 'payer' ? '新增垫付人' : `新增${activeCategoryLabel}`}</YumiButton>}
-      description="维护财务登记可选的收入类目、支出类目和私人垫付人；已被财务流水引用的资料不能删除，可改名或停用。"
-      title="财务设置"
-    />
-    {loadError && <p className="yumi-feedback yumi-feedback--danger" role="alert">{loadError}</p>}
-    {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
+    <YumiPageHeader actions={headerActions} description={settingsCopy[view].description} title={settingsCopy[view].title} />
+    <nav aria-label="设置区域" className="yumi-page-tabs">
+      <YumiButton aria-pressed={view === 'studio'} onClick={() => { setError(null); setView('studio') }} variant={view === 'studio' ? 'primary' : 'secondary'}>工作室参数</YumiButton>
+      <YumiButton aria-pressed={view === 'finance'} onClick={() => { setError(null); setView('finance') }} variant={view === 'finance' ? 'primary' : 'secondary'}>财务资料</YumiButton>
+      <YumiButton aria-pressed={view === 'protection'} onClick={() => { setError(null); setView('protection') }} variant={view === 'protection' ? 'primary' : 'secondary'}>数据保护</YumiButton>
+    </nav>
 
-    <div className="yumi-library-workspace">
+    {(finance.loadError || studio.loadError || error) && <p className="yumi-feedback yumi-feedback--danger" role="alert">{finance.loadError ?? studio.loadError ?? error}</p>}
+
+    {view === 'studio' && <StudioSettingsPanel loading={studio.loading} onSave={async (gluePriceMicroYuanPerGram) => {
+      const success = await run('studio-settings', () => studio.update({ gluePriceMicroYuanPerGram }))
+      return success
+    }} settings={studio.settings} submitting={submitting === 'studio-settings'} />}
+
+    {view === 'finance' && <div className="yumi-library-workspace">
       <nav aria-label="财务资料类型" className="yumi-page-tabs">
-        <YumiButton aria-pressed={libraryView === 'income'} onClick={() => changeLibraryView('income')} variant={libraryView === 'income' ? 'primary' : 'secondary'}>收入类目</YumiButton>
-        <YumiButton aria-pressed={libraryView === 'expense'} onClick={() => changeLibraryView('expense')} variant={libraryView === 'expense' ? 'primary' : 'secondary'}>支出类目</YumiButton>
-        <YumiButton aria-pressed={libraryView === 'payer'} onClick={() => changeLibraryView('payer')} variant={libraryView === 'payer' ? 'primary' : 'secondary'}>私人垫付人</YumiButton>
+        <YumiButton aria-pressed={libraryView === 'income'} onClick={() => { setError(null); setLibraryView('income') }} variant={libraryView === 'income' ? 'primary' : 'secondary'}>收入类目</YumiButton>
+        <YumiButton aria-pressed={libraryView === 'expense'} onClick={() => { setError(null); setLibraryView('expense') }} variant={libraryView === 'expense' ? 'primary' : 'secondary'}>支出类目</YumiButton>
+        <YumiButton aria-pressed={libraryView === 'payer'} onClick={() => { setError(null); setLibraryView('payer') }} variant={libraryView === 'payer' ? 'primary' : 'secondary'}>私人垫付人</YumiButton>
       </nav>
-
       {libraryView === 'payer' ? (
         <ResourceLibraryList
           emptyDescription="建立垫付人后，私人支付的支出才可在财务登记中选择对应来源。"
           emptyTitle="暂无私人垫付人"
-          items={advancePayers}
-          loading={loading}
+          items={finance.advancePayers}
+          loading={finance.loading}
           onDelete={(item) => setPendingDelete({ id: item.id, kind: 'payer', name: item.name })}
           onEdit={(item) => setPayerEditor(item)}
           summary={(item) => item.note || '暂无备注'}
@@ -115,13 +138,15 @@ export function SettingsPage() {
           emptyDescription={`建立${activeCategoryLabel}后，财务登记时才可选择对应类目。`}
           emptyTitle={`暂无${activeCategoryLabel}`}
           items={activeCategories}
-          loading={loading}
+          loading={finance.loading}
           onDelete={(item) => setPendingDelete({ id: item.id, kind: 'category', name: item.name })}
           onEdit={(item) => setCategoryEditor({ direction: item.direction, item })}
           summary={(item) => item.enabled ? '可在财务登记中选择' : '已停用，不再用于新的财务登记'}
         />
       )}
-    </div>
+    </div>}
+
+    {view === 'protection' && <DataProtectionPanel />}
 
     <YumiDialog
       footer={<CategoryDialogFooter busy={submitting !== null} editing={Boolean(categoryEditor?.item)} />}
@@ -150,6 +175,126 @@ export function SettingsPage() {
   </div>
 }
 
+function StudioSettingsPanel({ loading, onSave, settings, submitting }: {
+  loading: boolean
+  onSave(gluePriceMicroYuanPerGram: number): Promise<boolean>
+  settings: V2StudioSettings | null
+  submitting: boolean
+}) {
+  const [gluePrice, setGluePrice] = useState('0')
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  useEffect(() => {
+    if (settings) setGluePrice(formatGluePriceYuanPerGram(settings.gluePriceMicroYuanPerGram))
+  }, [settings])
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setError(null)
+    setMessage(null)
+    try {
+      const gluePriceMicroYuanPerGram = parseGluePriceYuanPerGram(gluePrice)
+      const success = await onSave(gluePriceMicroYuanPerGram)
+      if (success) {
+        setGluePrice(formatGluePriceYuanPerGram(gluePriceMicroYuanPerGram))
+        setMessage('已保存工作室参数')
+      }
+    } catch (cause) {
+      setError(getErrorMessage(cause))
+    }
+  }
+
+  if (loading) return <div className="yumi-empty">正在读取工作室参数…</div>
+  return <form className="yumi-form-panel yumi-settings-panel" onSubmit={(event) => void submit(event)}>
+    <div className="yumi-settings-panel__intro">
+      <strong>胶水单价</strong>
+      <p>新建订单时，系统会将当时的单价和商品胶水用量一起冻结到订单快照中；之后调整不会回写历史订单。</p>
+    </div>
+    <YumiField error={error ?? undefined} hint="支持最多 6 位小数，例如 0.0034。">
+      <YumiFieldLabel htmlFor="studio-glue-price" required>元 / 克</YumiFieldLabel>
+      <YumiNumberField allowDecimal id="studio-glue-price" onChange={(event) => { setMessage(null); setGluePrice(event.target.value) }} required value={gluePrice} />
+    </YumiField>
+    <div className="yumi-settings-panel__actions">
+      <YumiButton loading={submitting} type="submit" variant="primary">保存工作室参数</YumiButton>
+      {message && <p aria-live="polite" className="yumi-feedback yumi-feedback--success" role="status">{message}</p>}
+    </div>
+  </form>
+}
+
+function DataProtectionPanel() {
+  const [backups, setBackups] = useState<V2BackupSummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [restoreTarget, setRestoreTarget] = useState<V2BackupSummary | null>(null)
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setBackups(await window.yumiV2.backup.list())
+    } catch (cause) {
+      setError(getErrorMessage(cause))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+  useEffect(() => { void reload() }, [reload])
+  const createBackup = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await window.yumiV2.backup.create()
+      await reload()
+    } catch (cause) {
+      setError(getErrorMessage(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const restore = async () => {
+    if (!restoreTarget) return
+    const target = restoreTarget
+    setRestoreTarget(null)
+    setBusy(true)
+    setError(null)
+    try {
+      await window.yumiV2.backup.restore({ backupPath: target.backupPath, confirmed: true })
+    } catch (cause) {
+      setError(getErrorMessage(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <div className="yumi-settings-protection">
+    <div className="yumi-settings-protection__toolbar">
+      <p>建议在批量导入、重大调整或版本升级前建立一份完整备份。</p>
+      <YumiButton loading={busy} onClick={() => void createBackup()} variant="primary">立即备份</YumiButton>
+    </div>
+    {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
+    {loading ? <div className="yumi-empty">正在读取备份记录…</div> : backups.length === 0 ? <YumiEmptyState description="首次完整备份会同时保存当前数据库和已上传附件。" title="还没有备份" /> : <YumiBusinessList>
+      {backups.map((backup) => <YumiBusinessListItem
+        key={backup.id}
+        meta={<YumiButton disabled={busy} onClick={(event) => { event.stopPropagation(); setRestoreTarget(backup) }} variant="secondary">恢复</YumiButton>}
+        status={<YumiStatusTag tone={backup.reason === 'manual' ? 'success' : 'neutral'}>{backup.reason === 'manual' ? '手动备份' : '恢复前安全备份'}</YumiStatusTag>}
+        summary={`${formatBackupDate(backup.createdAt)} · ${backup.attachmentCount} 个附件 · 版本 ${backup.applicationVersion}`}
+        title="完整数据备份"
+      />)}
+    </YumiBusinessList>}
+    <YumiConfirmDialog
+      confirmLabel="恢复此备份"
+      description={restoreTarget ? `恢复将覆盖当前工作室数据。系统会先创建一份当前数据的安全备份，恢复完成后应用会自动重新启动。` : undefined}
+      onConfirm={() => void restore()}
+      onOpenChange={(open) => { if (!open) setRestoreTarget(null) }}
+      open={restoreTarget !== null}
+      title="确认恢复数据？"
+    />
+  </div>
+}
+
+function formatBackupDate(value: string) {
+  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+}
 
 function ResourceLibraryList<T extends V2FinanceCategory | V2AdvancePayer>({
   emptyDescription,

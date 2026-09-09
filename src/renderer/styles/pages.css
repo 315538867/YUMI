@@ -5,7 +5,7 @@
 .yumi-app-brand__mark { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 10px; background: var(--yumi-brand); color: #fff; font-family: Georgia, serif; font-size: 19px; font-weight: 700; }
 .yumi-app-brand strong { display: block; font-size: 15px; letter-spacing: .08em; line-height: 17px; }
 .yumi-app-brand em { display: block; margin-top: 1px; color: var(--yumi-muted); font-size: 9px; font-style: normal; font-weight: 700; letter-spacing: .15em; line-height: 12px; }
-.yumi-app-navigation { display: grid; min-height: 0; flex: 1 1 auto; gap: 18px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.yumi-app-navigation { display: grid; min-height: 0; flex: 1 1 auto; align-content: start; grid-auto-rows: max-content; gap: 14px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
 .yumi-app-navigation__group { display: grid; gap: 3px; }
 .yumi-app-navigation__label { margin: 0; padding: 0 10px 5px; color: var(--yumi-muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; line-height: 16px; }
 .yumi-app-navigation__item { width: 100%; justify-content: flex-start; gap: 10px; padding: 8px 10px; color: var(--yumi-muted); font-weight: 600; text-align: left; }
@@ -122,3 +122,11 @@
 .yumi-worker-history p:last-child { border-bottom: 0; }
 .yumi-settings-section-actions { display: flex; justify-content: flex-end; margin: calc(var(--yumi-space-4) * -1) 0 var(--yumi-space-3); }
 @media (max-width: 900px) { .yumi-worker-editor-grid, .yumi-settings-category-grid { grid-template-columns: 1fr; } }
+
+.yumi-settings-panel, .yumi-settings-protection { display: grid; gap: var(--yumi-space-5); max-width: 680px; }
+.yumi-settings-panel__intro strong { color: var(--yumi-ink); font-size: 15px; line-height: 22px; }
+.yumi-settings-panel__intro p, .yumi-settings-protection__toolbar p { margin: var(--yumi-space-1) 0 0; color: var(--yumi-muted); font-size: 13px; line-height: 20px; }
+.yumi-settings-panel__actions, .yumi-settings-protection__toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--yumi-space-3); }
+.yumi-settings-protection__toolbar { max-width: 860px; }
+.yumi-settings-protection__toolbar p { margin: 0; }
+@media (max-width: 640px) { .yumi-settings-panel__actions, .yumi-settings-protection__toolbar { align-items: stretch; flex-direction: column; } }

@@ -100,7 +100,5 @@ export function registerV2Ipc(
 
   ipc.handle('v2:backup:create', () => backup.service.createBackup())
   ipc.handle('v2:backup:list', () => backup.service.listBackups())
-  ipc.handle('v2:backup:activity', () => backup.service.getActivity())
-  ipc.handle('v2:backup:inspect', (_event, backupPath) => backup.service.inspectBackup(backupPath as string))
   ipc.handle('v2:backup:restore', (_event, input) => backup.restore(input as V2BackupRestoreInput))
 }

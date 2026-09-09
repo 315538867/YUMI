@@ -23,6 +23,7 @@ describe('registerV2Ipc', () => {
       changeOrderContent: vi.fn(), listContentChanges: vi.fn(), listOrderFunds: vi.fn(), recordOrderFund: vi.fn(),
       correctOrderFund: vi.fn(), listShipments: vi.fn(), createShipment: vi.fn()
     }
+    const studioSettings = { get: vi.fn(() => ({ gluePriceMicroYuanPerGram: 3_400, updatedAt: null })), update: vi.fn() }
     const workbench = { getSnapshot: vi.fn(() => ({ decisionItems: [], advanceItems: [], firstUseGuide: null, generatedOn: '2026-09-08' })) }
     const fulfillment = {
       createWorkAssignment: vi.fn(), getWorkAssignment: vi.fn(), listWorkAssignments: vi.fn(), getProcessResultForTask: vi.fn(),
@@ -43,12 +44,12 @@ describe('registerV2Ipc', () => {
     const afterSales = { listCases: vi.fn(() => []), getCase: vi.fn(), createCase: vi.fn(), updateCase: vi.fn(), linkCharge: vi.fn() }
     const reports = { getOrderBusiness: vi.fn(), getFulfillmentProgress: vi.fn(), listConfirmedSettlements: vi.fn(), getMonthlyOperation: vi.fn() }
     const reportOptions = { exporter: { exportCurrentReport: vi.fn(async () => ({ savedPath: null })) } }
-    const backup = { service: { createBackup: vi.fn(), listBackups: vi.fn(), getActivity: vi.fn(), inspectBackup: vi.fn() }, restore: vi.fn() }
+    const backup = { service: { createBackup: vi.fn(), listBackups: vi.fn() }, restore: vi.fn() }
 
-    registerV2Ipc(service as never, workbench as never, fulfillment as never, settlement as never, finance as never, afterSales as never, reports as never, reportOptions as never, backup as never, ipcMain)
+    registerV2Ipc(service as never, studioSettings as never, workbench as never, fulfillment as never, settlement as never, finance as never, afterSales as never, reports as never, reportOptions as never, backup as never, ipcMain)
 
     expect([...handlers.keys()]).toEqual(expect.arrayContaining([
-      'v2:workbench:get', 'v2:customers:list', 'v2:products:create', 'v2:orders:create',
+      'v2:workbench:get', 'v2:studio-settings:get', 'v2:studio-settings:update', 'v2:customers:list', 'v2:products:create', 'v2:orders:create',
       'v2:orders:change-content', 'v2:orders:funds:list', 'v2:orders:record-fund',
       'v2:orders:correct-fund', 'v2:orders:shipments:create',
       'v2:fulfillment:assignments:create', 'v2:fulfillment:assignments:get', 'v2:fulfillment:assignments:list',
@@ -68,6 +69,8 @@ describe('registerV2Ipc', () => {
       'v2:reports:monthly-operation:get', 'v2:reports:export', 'v2:backup:restore'
     ]))
     await handlers.get('v2:workbench:get')!(undefined)
+    await handlers.get('v2:studio-settings:get')!(undefined)
+    await handlers.get('v2:studio-settings:update')!(undefined, { gluePriceMicroYuanPerGram: 3_400 })
     await handlers.get('v2:orders:change-content')!(undefined, 'order-1', { description: '加封边' })
     await handlers.get('v2:orders:funds:list')!(undefined, 'order-1')
     await handlers.get('v2:orders:record-fund')!(undefined, 'order-1', { amountCents: 100 })
@@ -104,6 +107,8 @@ describe('registerV2Ipc', () => {
     await handlers.get('v2:reports:monthly-operation:get')!(undefined, '2026-09')
     await handlers.get('v2:reports:export')!(undefined, { month: '2026-09' })
     expect(workbench.getSnapshot).toHaveBeenCalledTimes(1)
+    expect(studioSettings.get).toHaveBeenCalledTimes(1)
+    expect(studioSettings.update).toHaveBeenCalledWith({ gluePriceMicroYuanPerGram: 3_400 })
     expect(service.changeOrderContent).toHaveBeenCalledWith('order-1', { description: '加封边' })
     expect(service.listOrderFunds).toHaveBeenCalledWith('order-1')
     expect(service.recordOrderFund).toHaveBeenCalledWith('order-1', { amountCents: 100 })

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { V2Product, V2ProductInput } from '@shared/contracts/index'
-import { formatMilligramsAsGrams, parseGramsToMilligrams } from '@shared/money'
+import { formatGluePriceYuanPerGram, formatMilligramsAsGrams, parseGramsToMilligrams } from '@shared/money'
 import { centsToYuan, formatCents, getErrorMessage, yuanToCents } from '../../composables/v2-utils'
 import { useProducts } from '../../composables/use-products'
 import { useStudioSettings } from '../../composables/use-studio-settings'
@@ -82,7 +82,7 @@ export function ProductsPage() {
       setSubmitting(false)
     }
   }
-  const gluePrice = settings ? `${settings.gluePriceMicroYuanPerGram / 1_000_000} 元/克` : '正在读取工作室参数…'
+  const gluePrice = settings ? `${formatGluePriceYuanPerGram(settings.gluePriceMicroYuanPerGram)} 元/克` : '正在读取工作室参数…'
 
   return <div className="yumi-page yumi-reference-workspace">
     <YumiPageHeader

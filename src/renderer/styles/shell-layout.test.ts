@@ -24,4 +24,8 @@ describe('桌面壳层滚动边界', () => {
     expect(rule('.yumi-app-navigation')).toMatch(/overflow-y:\s*auto/)
     expect(rule('.yumi-app-content')).toMatch(/overflow-y:\s*auto/)
   })
+
+  it('导航分组按内容高度排列，不把剩余高度撑成巨大菜单间距', () => {
+    expect(rule('.yumi-app-navigation')).toMatch(/align-content:\s*start/)
+  })
 })
