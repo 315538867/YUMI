@@ -1,8 +1,11 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { YumiNotificationProvider } from '../../components/ui'
+const render = (ui: Parameters<typeof renderBase>[0]) =>
+  renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import { installDomInteractionPolyfills } from '../../test/dom'
 import { OrdersPage } from './index'
 
@@ -189,7 +192,6 @@ vi.mock('../../composables/use-products', () => ({
   })
 }))
 
-
 vi.mock('../../composables/use-studio-settings', () => ({
   useStudioSettings: () => ({
     settings: { gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2, updatedAt: null },
@@ -279,14 +281,20 @@ describe('订单分批发货交互', () => {
     await waitFor(() => expect(mocks.exportShippingList).toHaveBeenCalledWith('order-1', undefined))
 
     fireEvent.click(screen.getByRole('button', { name: '合并导出' }))
-    await waitFor(() => expect(mocks.exportOrderDocuments).toHaveBeenCalledWith('order-1', undefined))
-    expect(screen.getByText(/已导出订单表与发货清单/)).toBeVisible()
+    await waitFor(() =>
+      expect(mocks.exportOrderDocuments).toHaveBeenCalledWith('order-1', undefined)
+    )
+    expect(await screen.findByText(/已导出订单表与发货清单/)).toBeVisible()
   })
 
   it('登记收款时可选择凭证，并将附件关联到资金流水', async () => {
     mocks.pickFundProof.mockResolvedValueOnce({
-      id: 'proof-1', originalName: '定金凭证.png', storageKey: 'proof-1.png',
-      mimeType: 'image/png', sizeBytes: 128, createdAt: '2026-09-09T08:00:00.000Z'
+      id: 'proof-1',
+      originalName: '定金凭证.png',
+      storageKey: 'proof-1.png',
+      mimeType: 'image/png',
+      sizeBytes: 128,
+      createdAt: '2026-09-09T08:00:00.000Z'
     })
     mocks.recordFund.mockResolvedValueOnce({ id: 'fund-new' })
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
@@ -300,9 +308,16 @@ describe('订单分批发货交互', () => {
     fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: '50' } })
     fireEvent.click(screen.getByRole('button', { name: '登记资金' }))
 
-    await waitFor(() => expect(mocks.recordFund).toHaveBeenCalledWith('order-1', expect.objectContaining({
-      businessType: 'payment', amountCents: 5_000, attachmentId: 'proof-1'
-    })))
+    await waitFor(() =>
+      expect(mocks.recordFund).toHaveBeenCalledWith(
+        'order-1',
+        expect.objectContaining({
+          businessType: 'payment',
+          amountCents: 5_000,
+          attachmentId: 'proof-1'
+        })
+      )
+    )
   })
 
   it('新建订单默认带入预留天数，并允许按订单调整', async () => {
@@ -311,12 +326,16 @@ describe('订单分批发货交互', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
     expect(screen.getByRole('textbox', { name: '预留制作天数' })).toHaveValue('2')
-    fireEvent.change(screen.getByRole('textbox', { name: '预留制作天数' }), { target: { value: '3' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '预留制作天数' }), {
+      target: { value: '3' }
+    })
     fireEvent.click(screen.getByRole('combobox', { name: '客户' }))
     fireEvent.click(screen.getByRole('option', { name: '已有客户' }))
     fireEvent.click(screen.getByRole('button', { name: '创建订单' }))
 
-    await waitFor(() => expect(mocks.createOrder).toHaveBeenCalledWith(expect.objectContaining({ reservedDays: 3 })))
+    await waitFor(() =>
+      expect(mocks.createOrder).toHaveBeenCalledWith(expect.objectContaining({ reservedDays: 3 }))
+    )
   })
 
   it('取消快捷建档时保留订单草稿', () => {
@@ -394,7 +413,7 @@ describe('订单分批发货交互', () => {
     fireEvent.click(screen.getByRole('button', { name: '创建并选中商品' }))
 
     await waitFor(() => expect(mocks.quickCreateProduct).toHaveBeenCalledTimes(1))
-    expect(await screen.findByRole('alert')).toHaveTextContent('商品保存失败')
+    expect(await screen.findByRole('alert', { hidden: true })).toHaveTextContent('商品保存失败')
     expect(screen.getByRole('dialog', { name: '新建商品' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '商品名称' })).toHaveValue('新商品')
     expect(screen.getByRole('textbox', { name: '基础售价（元）' })).toHaveValue('18.8')

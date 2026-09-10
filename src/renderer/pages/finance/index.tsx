@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import type { V2ExpensePaymentSource, V2FinancialEntry, V2NavigationTarget } from '@shared/contracts/index'
+import type {
+  V2ExpensePaymentSource,
+  V2FinancialEntry,
+  V2NavigationTarget
+} from '@shared/contracts/index'
 import { formatCents, getErrorMessage, today, yuanToCents } from '../../composables/v2-utils'
 import { useFinance } from '../../composables/use-finance'
 import {
@@ -19,7 +23,7 @@ import {
   YumiStatusTag,
   YumiTextArea,
   YumiTextField,
-  YumiNotification
+  useYumiNotificationMessage
 } from '../../components/ui'
 
 type FinanceWorkspaceView = 'overview' | 'cashflow' | 'reimbursements'
@@ -38,8 +42,17 @@ interface FinancePageProps {
 
 export function FinancePage({ navigationTarget = null }: FinancePageProps) {
   const {
-    categories, advancePayers, entries, pendingReimbursements, monthlySummary, loading, loadError,
-    createManualIncome, createManualExpense, reimburseBatch, loadMonthlyOverview
+    categories,
+    advancePayers,
+    entries,
+    pendingReimbursements,
+    monthlySummary,
+    loading,
+    loadError,
+    createManualIncome,
+    createManualExpense,
+    reimburseBatch,
+    loadMonthlyOverview
   } = useFinance()
   const [workspaceView, setWorkspaceView] = useState<FinanceWorkspaceView>('overview')
   const [month, setMonth] = useState(today().slice(0, 7))
@@ -59,22 +72,51 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
   const [reimburseNote, setReimburseNote] = useState('')
   const [selectedReimbursementIds, setSelectedReimbursementIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  useYumiNotificationMessage(loadError)
+  useYumiNotificationMessage(error)
   const [submitting, setSubmitting] = useState<string | null>(null)
 
-  const enabledCategories = useMemo(() => categories.filter((item) => item.direction === direction && item.enabled), [categories, direction])
+  const enabledCategories = useMemo(
+    () => categories.filter((item) => item.direction === direction && item.enabled),
+    [categories, direction]
+  )
   const enabledPayers = useMemo(() => advancePayers.filter((item) => item.enabled), [advancePayers])
-  const categoryOptions = useMemo(() => enabledCategories.map((item) => ({ label: item.name, searchText: item.name, value: item.id })), [enabledCategories])
-  const payerOptions = useMemo(() => enabledPayers.map((item) => ({ label: item.name, searchText: item.name, value: item.id })), [enabledPayers])
+  const categoryOptions = useMemo(
+    () =>
+      enabledCategories.map((item) => ({
+        label: item.name,
+        searchText: item.name,
+        value: item.id
+      })),
+    [enabledCategories]
+  )
+  const payerOptions = useMemo(
+    () =>
+      enabledPayers.map((item) => ({ label: item.name, searchText: item.name, value: item.id })),
+    [enabledPayers]
+  )
   const selectedReimbursements = useMemo(
-    () => pendingReimbursements.filter((item) => selectedReimbursementIds.includes(item.financialEntryId)),
+    () =>
+      pendingReimbursements.filter((item) =>
+        selectedReimbursementIds.includes(item.financialEntryId)
+      ),
     [pendingReimbursements, selectedReimbursementIds]
   )
-  const selectedCents = useMemo(() => selectedReimbursements.reduce((sum, item) => sum + item.amountCents, 0), [selectedReimbursements])
+  const selectedCents = useMemo(
+    () => selectedReimbursements.reduce((sum, item) => sum + item.amountCents, 0),
+    [selectedReimbursements]
+  )
   const refreshOverview = useCallback(async () => {
-    try { await loadMonthlyOverview(month, asOf) } catch (cause) { setError(getErrorMessage(cause)) }
+    try {
+      await loadMonthlyOverview(month, asOf)
+    } catch (cause) {
+      setError(getErrorMessage(cause))
+    }
   }, [asOf, loadMonthlyOverview, month])
 
-  useEffect(() => { void refreshOverview() }, [refreshOverview])
+  useEffect(() => {
+    void refreshOverview()
+  }, [refreshOverview])
   useEffect(() => {
     if (enabledCategories.some((item) => item.id === categoryId)) return
     setCategoryId(enabledCategories[0]?.id ?? '')
@@ -92,29 +134,68 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
   }, [navigationTarget])
 
   const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault(); setError(null)
-    if (!amount.trim()) { setError('请填写金额。'); return }
-    if (!categoryId) { setError('请选择收支类目。'); return }
-    if (direction === 'expense' && paymentSource === 'private_advance' && !advancePayerId) { setError('请选择垫付人。'); return }
+    event.preventDefault()
+    setError(null)
+    if (!amount.trim()) {
+      setError('请填写金额。')
+      return
+    }
+    if (!categoryId) {
+      setError('请选择收支类目。')
+      return
+    }
+    if (direction === 'expense' && paymentSource === 'private_advance' && !advancePayerId) {
+      setError('请选择垫付人。')
+      return
+    }
     setSubmitting('entry')
     try {
       const amountCents = yuanToCents(amount)
-      if (direction === 'income') await createManualIncome({ amountCents, occurredOn, categoryId, paymentMethod: paymentMethod || null, note: note || null })
-      else await createManualExpense({ amountCents, occurredOn, categoryId, paymentSource, advancePayerId: paymentSource === 'private_advance' ? advancePayerId : null, paymentMethod: paymentMethod || null, note: note || null })
-      setAmount(''); setNote(''); setPaymentMethod(''); setShowEntryForm(false); await refreshOverview()
-    } catch (cause) { setError(getErrorMessage(cause)) } finally { setSubmitting(null) }
+      if (direction === 'income')
+        await createManualIncome({
+          amountCents,
+          occurredOn,
+          categoryId,
+          paymentMethod: paymentMethod || null,
+          note: note || null
+        })
+      else
+        await createManualExpense({
+          amountCents,
+          occurredOn,
+          categoryId,
+          paymentSource,
+          advancePayerId: paymentSource === 'private_advance' ? advancePayerId : null,
+          paymentMethod: paymentMethod || null,
+          note: note || null
+        })
+      setAmount('')
+      setNote('')
+      setPaymentMethod('')
+      setShowEntryForm(false)
+      await refreshOverview()
+    } catch (cause) {
+      setError(getErrorMessage(cause))
+    } finally {
+      setSubmitting(null)
+    }
   }
 
   const toggleReimbursement = (financialEntryId: string) => {
-    setSelectedReimbursementIds((ids) => ids.includes(financialEntryId)
-      ? ids.filter((id) => id !== financialEntryId)
-      : [...ids, financialEntryId]
+    setSelectedReimbursementIds((ids) =>
+      ids.includes(financialEntryId)
+        ? ids.filter((id) => id !== financialEntryId)
+        : [...ids, financialEntryId]
     )
   }
 
   const handleReimburseBatch = async (event: FormEvent) => {
-    event.preventDefault(); setError(null)
-    if (selectedReimbursementIds.length === 0) { setError('请先选择至少一笔待报销私人垫付。'); return }
+    event.preventDefault()
+    setError(null)
+    if (selectedReimbursementIds.length === 0) {
+      setError('请先选择至少一笔待报销私人垫付。')
+      return
+    }
     setSubmitting('batch-reimbursement')
     try {
       await reimburseBatch({
@@ -128,126 +209,397 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
       setReimburseNote('')
       setShowReimbursementForm(false)
       await refreshOverview()
-    } catch (cause) { setError(getErrorMessage(cause)) } finally { setSubmitting(null) }
+    } catch (cause) {
+      setError(getErrorMessage(cause))
+    } finally {
+      setSubmitting(null)
+    }
   }
 
-  return <div className="yumi-finance-workspace">
-    <YumiPageHeader
-      actions={<><YumiStatusTag tone="success">负责人手动登记</YumiStatusTag><YumiButton onClick={() => { setShowEntryForm(true); setError(null) }} variant="primary">登记收支</YumiButton></>}
-      description="按实际付款日期入账；私人垫付形成待报销项，报销付款只进入现金流水，不重复计入经营费用。"
-      title="财务"
-    />
-    {loadError && <YumiNotification key={loadError} message={loadError} />}
-    {error && <YumiNotification key={error} message={error} />}
+  return (
+    <div className="yumi-finance-workspace">
+      <YumiPageHeader
+        actions={
+          <>
+            <YumiStatusTag tone="success">负责人手动登记</YumiStatusTag>
+            <YumiButton
+              onClick={() => {
+                setShowEntryForm(true)
+                setError(null)
+              }}
+              variant="primary"
+            >
+              登记收支
+            </YumiButton>
+          </>
+        }
+        description="按实际付款日期入账；私人垫付形成待报销项，报销付款只进入现金流水，不重复计入经营费用。"
+        title="财务"
+      />
+      <nav aria-label="财务工作视图" className="yumi-page-tabs">
+        {workspaceViews.map((view) => (
+          <YumiButton
+            aria-pressed={workspaceView === view.id}
+            key={view.id}
+            onClick={() => setWorkspaceView(view.id)}
+            variant={workspaceView === view.id ? 'primary' : 'ghost'}
+          >
+            {view.label}
+          </YumiButton>
+        ))}
+      </nav>
 
-    <nav aria-label="财务工作视图" className="yumi-page-tabs">
-      {workspaceViews.map((view) => <YumiButton
-        aria-pressed={workspaceView === view.id}
-        key={view.id}
-        onClick={() => setWorkspaceView(view.id)}
-        variant={workspaceView === view.id ? 'primary' : 'ghost'}
-      >{view.label}</YumiButton>)}
-    </nav>
+      {workspaceView === 'overview' && (
+        <YumiSection
+          description="只按实际收付款日期归属月份；报销付款不重复计入经营支出。"
+          title="本月经营结果"
+        >
+          <div className="yumi-finance-filters">
+            <YumiField>
+              <YumiFieldLabel>统计月份</YumiFieldLabel>
+              <YumiMonthPicker aria-label="统计月份" onValueChange={setMonth} value={month} />
+            </YumiField>
+            <YumiButton
+              disabled={loading}
+              onClick={() => void refreshOverview()}
+              variant="secondary"
+            >
+              刷新
+            </YumiButton>
+          </div>
+          <div className="yumi-finance-summary-grid">
+            <FinanceMetric label="实际收入" value={monthlySummary?.incomeCents ?? 0} />
+            <FinanceMetric
+              label="经营支出"
+              tone="danger"
+              value={monthlySummary?.operatingExpenseCents ?? 0}
+            />
+            <FinanceMetric
+              label="经营结果"
+              tone={(monthlySummary?.operatingResultCents ?? 0) >= 0 ? 'success' : 'danger'}
+              value={monthlySummary?.operatingResultCents ?? 0}
+            />
+          </div>
+        </YumiSection>
+      )}
 
-    {workspaceView === 'overview' && <YumiSection description="只按实际收付款日期归属月份；报销付款不重复计入经营支出。" title="本月经营结果">
-      <div className="yumi-finance-filters">
-        <YumiField><YumiFieldLabel>统计月份</YumiFieldLabel><YumiMonthPicker aria-label="统计月份" onValueChange={setMonth} value={month} /></YumiField>
-        <YumiButton disabled={loading} onClick={() => void refreshOverview()} variant="secondary">刷新</YumiButton>
-      </div>
-      <div className="yumi-finance-summary-grid">
-        <FinanceMetric label="实际收入" value={monthlySummary?.incomeCents ?? 0} />
-        <FinanceMetric label="经营支出" tone="danger" value={monthlySummary?.operatingExpenseCents ?? 0} />
-        <FinanceMetric label="经营结果" tone={(monthlySummary?.operatingResultCents ?? 0) >= 0 ? 'success' : 'danger'} value={monthlySummary?.operatingResultCents ?? 0} />
-      </div>
-    </YumiSection>}
+      {workspaceView === 'cashflow' && (
+        <YumiSection
+          description="包含公账收入、支出和报销付款；报销付款仅反映实际现金流。"
+          title="当月现金流水"
+        >
+          <div className="yumi-finance-filters">
+            <YumiField>
+              <YumiFieldLabel>查看月份</YumiFieldLabel>
+              <YumiMonthPicker aria-label="现金流水月份" onValueChange={setMonth} value={month} />
+            </YumiField>
+            <YumiButton
+              disabled={loading}
+              onClick={() => void refreshOverview()}
+              variant="secondary"
+            >
+              刷新
+            </YumiButton>
+          </div>
+          {loading ? (
+            <div className="yumi-empty">加载当月流水中…</div>
+          ) : entries.length === 0 ? (
+            <div className="yumi-empty">该月尚无现金流水。</div>
+          ) : (
+            <YumiBusinessList>
+              {entries.map((entry) => (
+                <FinanceEntryRow entry={entry} key={entry.id} />
+              ))}
+            </YumiBusinessList>
+          )}
+        </YumiSection>
+      )}
 
-    {workspaceView === 'cashflow' && <YumiSection description="包含公账收入、支出和报销付款；报销付款仅反映实际现金流。" title="当月现金流水">
-      <div className="yumi-finance-filters">
-        <YumiField><YumiFieldLabel>查看月份</YumiFieldLabel><YumiMonthPicker aria-label="现金流水月份" onValueChange={setMonth} value={month} /></YumiField>
-        <YumiButton disabled={loading} onClick={() => void refreshOverview()} variant="secondary">刷新</YumiButton>
-      </div>
-      {loading ? <div className="yumi-empty">加载当月流水中…</div> : entries.length === 0 ? <div className="yumi-empty">该月尚无现金流水。</div> : <YumiBusinessList>
-        {entries.map((entry) => <FinanceEntryRow entry={entry} key={entry.id} />)}
-      </YumiBusinessList>}
-    </YumiSection>}
+      {workspaceView === 'reimbursements' && (
+        <YumiSection
+          description="先在同一列表选择待报销项，再统一填写报销日期、支付方式和备注；提交时会原子地校验并创建全部流水。"
+          title="待报销私人垫付"
+        >
+          <div className="yumi-finance-reimburse-controls">
+            <YumiField>
+              <YumiFieldLabel>截至日期</YumiFieldLabel>
+              <YumiDatePicker aria-label="待报销截至日期" onValueChange={setAsOf} value={asOf} />
+            </YumiField>
+            <YumiButton
+              disabled={loading}
+              onClick={() => void refreshOverview()}
+              variant="secondary"
+            >
+              刷新
+            </YumiButton>
+            <YumiButton
+              disabled={selectedReimbursementIds.length === 0}
+              onClick={() => {
+                setError(null)
+                setShowReimbursementForm(true)
+              }}
+              variant="primary"
+            >
+              批量报销（已选择 {selectedReimbursementIds.length} 笔）
+            </YumiButton>
+          </div>
+          {pendingReimbursements.length === 0 ? (
+            <div className="yumi-empty">截至所选日期没有待报销的私人垫付。</div>
+          ) : (
+            <YumiBusinessList>
+              {pendingReimbursements.map((item) => {
+                const selected = selectedReimbursementIds.includes(item.financialEntryId)
+                return (
+                  <YumiBusinessListItem
+                    key={item.financialEntryId}
+                    meta={
+                      <YumiButton
+                        aria-pressed={selected}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          toggleReimbursement(item.financialEntryId)
+                        }}
+                        variant={selected ? 'primary' : 'secondary'}
+                      >
+                        {selected ? '已选择' : '选择'}
+                      </YumiButton>
+                    }
+                    metrics={[{ label: '待报销金额', value: formatCents(item.amountCents) }]}
+                    status={<YumiStatusTag tone="warning">待报销</YumiStatusTag>}
+                    summary={`${item.occurredOn} · ${item.categoryName ?? '未分类'} · ${item.note || '无备注'}`}
+                    title={item.advancePayerName ?? '未命名垫付人'}
+                  />
+                )
+              })}
+            </YumiBusinessList>
+          )}
+          {selectedReimbursementIds.length > 0 && (
+            <p className="yumi-finance-selection-summary">
+              已选择 {selectedReimbursementIds.length} 笔，合计 {formatCents(selectedCents)}。
+            </p>
+          )}
+        </YumiSection>
+      )}
 
-    {workspaceView === 'reimbursements' && <YumiSection description="先在同一列表选择待报销项，再统一填写报销日期、支付方式和备注；提交时会原子地校验并创建全部流水。" title="待报销私人垫付">
-      <div className="yumi-finance-reimburse-controls">
-        <YumiField><YumiFieldLabel>截至日期</YumiFieldLabel><YumiDatePicker aria-label="待报销截至日期" onValueChange={setAsOf} value={asOf} /></YumiField>
-        <YumiButton disabled={loading} onClick={() => void refreshOverview()} variant="secondary">刷新</YumiButton>
-        <YumiButton disabled={selectedReimbursementIds.length === 0} onClick={() => { setError(null); setShowReimbursementForm(true) }} variant="primary">
-          批量报销（已选择 {selectedReimbursementIds.length} 笔）
-        </YumiButton>
-      </div>
-      {pendingReimbursements.length === 0 ? <div className="yumi-empty">截至所选日期没有待报销的私人垫付。</div> : <YumiBusinessList>
-        {pendingReimbursements.map((item) => {
-          const selected = selectedReimbursementIds.includes(item.financialEntryId)
-          return <YumiBusinessListItem
-            key={item.financialEntryId}
-            meta={<YumiButton aria-pressed={selected} onClick={(event) => { event.stopPropagation(); toggleReimbursement(item.financialEntryId) }} variant={selected ? 'primary' : 'secondary'}>{selected ? '已选择' : '选择'}</YumiButton>}
-            metrics={[{ label: '待报销金额', value: formatCents(item.amountCents) }]}
-            status={<YumiStatusTag tone="warning">待报销</YumiStatusTag>}
-            summary={`${item.occurredOn} · ${item.categoryName ?? '未分类'} · ${item.note || '无备注'}`}
-            title={item.advancePayerName ?? '未命名垫付人'}
-          />
-        })}
-      </YumiBusinessList>}
-      {selectedReimbursementIds.length > 0 && <p className="yumi-finance-selection-summary">已选择 {selectedReimbursementIds.length} 笔，合计 {formatCents(selectedCents)}。</p>}
-    </YumiSection>}
+      <YumiSheet
+        description="按实际收付款日期登记。手工收支不关联订单；私人垫付将在待报销工作区统一处理。"
+        footer={
+          <>
+            <YumiButton onClick={() => setShowEntryForm(false)} variant="ghost">
+              取消
+            </YumiButton>
+            <YumiButton
+              disabled={
+                !categoryId ||
+                (direction === 'expense' && paymentSource === 'private_advance' && !advancePayerId)
+              }
+              form="financial-entry-form"
+              loading={submitting === 'entry'}
+              type="submit"
+              variant="primary"
+            >
+              登记收支
+            </YumiButton>
+          </>
+        }
+        onOpenChange={setShowEntryForm}
+        open={showEntryForm}
+        title="登记日常收支"
+      >
+        <form
+          className="yumi-form-panel yumi-sheet-form"
+          id="financial-entry-form"
+          onSubmit={handleSubmit}
+        >
+          <div className="yumi-form-grid yumi-form-grid--two">
+            <YumiField>
+              <YumiFieldLabel>方向</YumiFieldLabel>
+              <YumiSelect
+                aria-label="收支方向"
+                onValueChange={(value) => setDirection(value as 'income' | 'expense')}
+                options={[
+                  { label: '支出', value: 'expense' },
+                  { label: '收入', value: 'income' }
+                ]}
+                value={direction}
+              />
+            </YumiField>
+            <YumiField>
+              <YumiFieldLabel required>实际付款 / 收款日期</YumiFieldLabel>
+              <YumiDatePicker
+                aria-label="实际付款或收款日期"
+                onValueChange={setOccurredOn}
+                value={occurredOn}
+              />
+            </YumiField>
+            <YumiField>
+              <YumiFieldLabel required>金额（元）</YumiFieldLabel>
+              <YumiNumberField
+                allowDecimal
+                onChange={(event) => setAmount(event.target.value)}
+                placeholder="0.00"
+                value={amount}
+              />
+            </YumiField>
+            <YumiField>
+              <YumiFieldLabel required>收支类目</YumiFieldLabel>
+              <YumiSearchSelect
+                aria-label="收支类目"
+                onValueChange={setCategoryId}
+                options={categoryOptions}
+                placeholder="搜索或选择类目"
+                value={categoryId}
+              />
+            </YumiField>
+          </div>
+          {direction === 'expense' && (
+            <div className="yumi-form-grid yumi-form-grid--two">
+              <YumiField>
+                <YumiFieldLabel>付款来源</YumiFieldLabel>
+                <YumiSelect
+                  aria-label="付款来源"
+                  onValueChange={(value) => setPaymentSource(value as V2ExpensePaymentSource)}
+                  options={[
+                    { label: '公账支出', value: 'business_account' },
+                    { label: '私人垫付', value: 'private_advance' }
+                  ]}
+                  value={paymentSource}
+                />
+              </YumiField>
+              {paymentSource === 'private_advance' && (
+                <YumiField>
+                  <YumiFieldLabel required>垫付人</YumiFieldLabel>
+                  <YumiSearchSelect
+                    aria-label="垫付人"
+                    onValueChange={setAdvancePayerId}
+                    options={payerOptions}
+                    placeholder="搜索或选择垫付人"
+                    value={advancePayerId}
+                  />
+                </YumiField>
+              )}
+            </div>
+          )}
+          <div className="yumi-form-grid yumi-form-grid--two">
+            <YumiField>
+              <YumiFieldLabel>支付方式</YumiFieldLabel>
+              <YumiTextField
+                onChange={(event) => setPaymentMethod(event.target.value)}
+                placeholder="例如：微信、公账转账"
+                value={paymentMethod}
+              />
+            </YumiField>
+            <YumiField>
+              <YumiFieldLabel>备注</YumiFieldLabel>
+              <YumiTextArea onChange={(event) => setNote(event.target.value)} value={note} />
+            </YumiField>
+          </div>
+        </form>
+      </YumiSheet>
 
-    <YumiSheet
-      description="按实际收付款日期登记。手工收支不关联订单；私人垫付将在待报销工作区统一处理。"
-      footer={<><YumiButton onClick={() => setShowEntryForm(false)} variant="ghost">取消</YumiButton><YumiButton disabled={!categoryId || (direction === 'expense' && paymentSource === 'private_advance' && !advancePayerId)} form="financial-entry-form" loading={submitting === 'entry'} type="submit" variant="primary">登记收支</YumiButton></>}
-      onOpenChange={setShowEntryForm}
-      open={showEntryForm}
-      title="登记日常收支"
-    >
-      <form className="yumi-form-panel yumi-sheet-form" id="financial-entry-form" onSubmit={handleSubmit}>
-        <div className="yumi-form-grid yumi-form-grid--two">
-          <YumiField><YumiFieldLabel>方向</YumiFieldLabel><YumiSelect aria-label="收支方向" onValueChange={(value) => setDirection(value as 'income' | 'expense')} options={[{ label: '支出', value: 'expense' }, { label: '收入', value: 'income' }]} value={direction} /></YumiField>
-          <YumiField><YumiFieldLabel required>实际付款 / 收款日期</YumiFieldLabel><YumiDatePicker aria-label="实际付款或收款日期" onValueChange={setOccurredOn} value={occurredOn} /></YumiField>
-          <YumiField><YumiFieldLabel required>金额（元）</YumiFieldLabel><YumiNumberField allowDecimal onChange={(event) => setAmount(event.target.value)} placeholder="0.00" value={amount} /></YumiField>
-          <YumiField><YumiFieldLabel required>收支类目</YumiFieldLabel><YumiSearchSelect aria-label="收支类目" onValueChange={setCategoryId} options={categoryOptions} placeholder="搜索或选择类目" value={categoryId} /></YumiField>
-        </div>
-        {direction === 'expense' && <div className="yumi-form-grid yumi-form-grid--two">
-          <YumiField><YumiFieldLabel>付款来源</YumiFieldLabel><YumiSelect aria-label="付款来源" onValueChange={(value) => setPaymentSource(value as V2ExpensePaymentSource)} options={[{ label: '公账支出', value: 'business_account' }, { label: '私人垫付', value: 'private_advance' }]} value={paymentSource} /></YumiField>
-          {paymentSource === 'private_advance' && <YumiField><YumiFieldLabel required>垫付人</YumiFieldLabel><YumiSearchSelect aria-label="垫付人" onValueChange={setAdvancePayerId} options={payerOptions} placeholder="搜索或选择垫付人" value={advancePayerId} /></YumiField>}
-        </div>}
-        <div className="yumi-form-grid yumi-form-grid--two">
-          <YumiField><YumiFieldLabel>支付方式</YumiFieldLabel><YumiTextField onChange={(event) => setPaymentMethod(event.target.value)} placeholder="例如：微信、公账转账" value={paymentMethod} /></YumiField>
-          <YumiField><YumiFieldLabel>备注</YumiFieldLabel><YumiTextArea onChange={(event) => setNote(event.target.value)} value={note} /></YumiField>
-        </div>
-      </form>
-    </YumiSheet>
-
-    <YumiSheet
-      description={`本次将报销 ${selectedReimbursements.length} 笔私人垫付，合计 ${formatCents(selectedCents)}。任一记录已被报销或无效时，本次不会产生部分报销。`}
-      footer={<><YumiButton onClick={() => setShowReimbursementForm(false)} variant="ghost">取消</YumiButton><YumiButton form="batch-reimbursement-form" loading={submitting === 'batch-reimbursement'} type="submit" variant="primary">确认批量报销</YumiButton></>}
-      onOpenChange={setShowReimbursementForm}
-      open={showReimbursementForm}
-      title="确认批量报销"
-    >
-      <form className="yumi-form-panel yumi-sheet-form" id="batch-reimbursement-form" onSubmit={handleReimburseBatch}>
-        <div className="yumi-form-grid yumi-form-grid--two">
-          <YumiField><YumiFieldLabel required>报销付款日期</YumiFieldLabel><YumiDatePicker aria-label="报销付款日期" onValueChange={setReimburseDate} value={reimburseDate} /></YumiField>
-          <YumiField><YumiFieldLabel htmlFor="batch-reimbursement-method">报销支付方式</YumiFieldLabel><YumiTextField id="batch-reimbursement-method" onChange={(event) => setReimburseMethod(event.target.value)} placeholder="例如：公账转账" value={reimburseMethod} /></YumiField>
-        </div>
-        <YumiField><YumiFieldLabel htmlFor="batch-reimbursement-note">备注</YumiFieldLabel><YumiTextArea id="batch-reimbursement-note" onChange={(event) => setReimburseNote(event.target.value)} placeholder="例如：9 月第一批报销" value={reimburseNote} /></YumiField>
-      </form>
-    </YumiSheet>
-  </div>
+      <YumiSheet
+        description={`本次将报销 ${selectedReimbursements.length} 笔私人垫付，合计 ${formatCents(selectedCents)}。任一记录已被报销或无效时，本次不会产生部分报销。`}
+        footer={
+          <>
+            <YumiButton onClick={() => setShowReimbursementForm(false)} variant="ghost">
+              取消
+            </YumiButton>
+            <YumiButton
+              form="batch-reimbursement-form"
+              loading={submitting === 'batch-reimbursement'}
+              type="submit"
+              variant="primary"
+            >
+              确认批量报销
+            </YumiButton>
+          </>
+        }
+        onOpenChange={setShowReimbursementForm}
+        open={showReimbursementForm}
+        title="确认批量报销"
+      >
+        <form
+          className="yumi-form-panel yumi-sheet-form"
+          id="batch-reimbursement-form"
+          onSubmit={handleReimburseBatch}
+        >
+          <div className="yumi-form-grid yumi-form-grid--two">
+            <YumiField>
+              <YumiFieldLabel required>报销付款日期</YumiFieldLabel>
+              <YumiDatePicker
+                aria-label="报销付款日期"
+                onValueChange={setReimburseDate}
+                value={reimburseDate}
+              />
+            </YumiField>
+            <YumiField>
+              <YumiFieldLabel htmlFor="batch-reimbursement-method">报销支付方式</YumiFieldLabel>
+              <YumiTextField
+                id="batch-reimbursement-method"
+                onChange={(event) => setReimburseMethod(event.target.value)}
+                placeholder="例如：公账转账"
+                value={reimburseMethod}
+              />
+            </YumiField>
+          </div>
+          <YumiField>
+            <YumiFieldLabel htmlFor="batch-reimbursement-note">备注</YumiFieldLabel>
+            <YumiTextArea
+              id="batch-reimbursement-note"
+              onChange={(event) => setReimburseNote(event.target.value)}
+              placeholder="例如：9 月第一批报销"
+              value={reimburseNote}
+            />
+          </YumiField>
+        </form>
+      </YumiSheet>
+    </div>
+  )
 }
 
-function FinanceMetric({ label, tone = 'neutral', value }: { label: string; tone?: 'neutral' | 'brand' | 'success' | 'danger'; value: number }) {
-  return <article className={`yumi-finance-metric yumi-finance-metric--${tone}`}><span>{label}</span><strong>{formatCents(value)}</strong></article>
+function FinanceMetric({
+  label,
+  tone = 'neutral',
+  value
+}: {
+  label: string
+  tone?: 'neutral' | 'brand' | 'success' | 'danger'
+  value: number
+}) {
+  return (
+    <article className={`yumi-finance-metric yumi-finance-metric--${tone}`}>
+      <span>{label}</span>
+      <strong>{formatCents(value)}</strong>
+    </article>
+  )
 }
 
 function FinanceEntryRow({ entry }: { entry: V2FinancialEntry }) {
-  const detail = entry.direction === 'income' ? '收入' : entry.sourceType === 'reimbursement' ? '报销付款（不重复计入经营支出）' : entry.paymentSource === 'private_advance' ? `私人垫付 · ${entry.advancePayerName ?? '未命名垫付人'}` : entry.paymentSource === 'business_account' ? '公账支出' : entry.businessType
-  return <YumiBusinessListItem
-    metrics={[{ label: entry.direction === 'income' ? '入账金额' : '支出金额', value: `${entry.direction === 'income' ? '+' : '-'}${formatCents(entry.amountCents)}` }]}
-    status={<YumiStatusTag tone={entry.direction === 'income' ? 'success' : 'warning'}>{entry.direction === 'income' ? '收入' : '支出'}</YumiStatusTag>}
-    summary={`${entry.occurredOn} · ${detail}${entry.note ? ` · ${entry.note}` : ''}`}
-    title={entry.categoryName ?? entry.businessType}
-  />
+  const detail =
+    entry.direction === 'income'
+      ? '收入'
+      : entry.sourceType === 'reimbursement'
+        ? '报销付款（不重复计入经营支出）'
+        : entry.paymentSource === 'private_advance'
+          ? `私人垫付 · ${entry.advancePayerName ?? '未命名垫付人'}`
+          : entry.paymentSource === 'business_account'
+            ? '公账支出'
+            : entry.businessType
+  return (
+    <YumiBusinessListItem
+      metrics={[
+        {
+          label: entry.direction === 'income' ? '入账金额' : '支出金额',
+          value: `${entry.direction === 'income' ? '+' : '-'}${formatCents(entry.amountCents)}`
+        }
+      ]}
+      status={
+        <YumiStatusTag tone={entry.direction === 'income' ? 'success' : 'warning'}>
+          {entry.direction === 'income' ? '收入' : '支出'}
+        </YumiStatusTag>
+      }
+      summary={`${entry.occurredOn} · ${detail}${entry.note ? ` · ${entry.note}` : ''}`}
+      title={entry.categoryName ?? entry.businessType}
+    />
+  )
 }

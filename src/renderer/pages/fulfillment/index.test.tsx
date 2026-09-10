@@ -1,8 +1,11 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { YumiNotificationProvider } from '../../components/ui'
+const render = (ui: Parameters<typeof renderBase>[0]) =>
+  renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import { installDomInteractionPolyfills } from '../../test/dom'
 import { FulfillmentPage } from './index'
 

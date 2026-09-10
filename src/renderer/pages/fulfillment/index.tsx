@@ -26,7 +26,7 @@ import {
   YumiPageHeader,
   YumiSelect,
   YumiTextArea,
-  YumiNotification
+  useYumiNotificationMessage
 } from '../../components/ui'
 
 type FulfillmentWorkspaceMode = 'queue' | 'processing'
@@ -78,6 +78,8 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
   const [adjustmentOccurredOn, setAdjustmentOccurredOn] = useState(today())
   const [adjustmentNote, setAdjustmentNote] = useState('')
   const [error, setError] = useState<string | null>(null)
+  useYumiNotificationMessage(loadError)
+  useYumiNotificationMessage(error)
   const [submitting, setSubmitting] = useState<string | null>(null)
 
   const navigationOrderId =
@@ -226,8 +228,6 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
           description={`${selectedOrder.code} · ${selectedOrder.customerSnapshot.name}`}
           title={`${focusedOrderItem.productSnapshot.name} · 履约处理`}
         />
-        {loadError && <YumiNotification key={loadError} message={loadError} />}
-        {error && <YumiNotification key={error} message={error} />}
         <div className="yumi-order-summary">
           <div>
             <h2>当前产品</h2>
@@ -410,7 +410,6 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
   return (
     <section className="yumi-page fulfillment-workspace">
       <YumiPageHeader description="按订单查看待派与已派，或按人员横向查看本周任务。" title="履约" />
-      {loadError && <YumiNotification key={loadError} message={loadError} />}
       {loading ? (
         <YumiEmptyState description="履约资料正在读取，请稍候。" title="加载履约待办中…" />
       ) : (

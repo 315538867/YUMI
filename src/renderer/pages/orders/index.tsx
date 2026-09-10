@@ -40,7 +40,7 @@ import {
   YumiStatusTag,
   YumiTextArea,
   YumiTextField,
-  YumiNotification
+  useYumiNotificationMessage
 } from '../../components/ui'
 
 interface OrderLineDraft {
@@ -229,6 +229,21 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
   const [exportMessage, setExportMessage] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [submitting, setSubmitting] = useState<string | null>(null)
+  useYumiNotificationMessage(loadError)
+  useYumiNotificationMessage(error)
+  useYumiNotificationMessage(quickCreateError)
+  useYumiNotificationMessage(exportMessage, {
+    tone: exportMessage?.startsWith('已导出')
+      ? 'success'
+      : exportMessage?.startsWith('已取消')
+        ? 'info'
+        : 'danger',
+    timeout: exportMessage?.startsWith('已导出')
+      ? 5000
+      : exportMessage?.startsWith('已取消')
+        ? 3000
+        : undefined
+  })
 
   useEffect(() => {
     if (!navigationTarget) return
@@ -435,7 +450,7 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
         amountCents: yuanToCents(fundAmount),
         occurredOn: fundDate,
         paymentMethod: fundMethod || null,
-        attachmentId: fundType === 'payment' ? pendingFundProof?.id ?? null : null,
+        attachmentId: fundType === 'payment' ? (pendingFundProof?.id ?? null) : null,
         note: fundNote || null
       })
       setFundAmount('')
@@ -601,18 +616,27 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     setWorkspaceMode('list')
   }
 
-  const exportOrderFile = async (kind: 'order-table' | 'shipping-list' | 'combined', shipmentId?: string) => {
+  const exportOrderFile = async (
+    kind: 'order-table' | 'shipping-list' | 'combined',
+    shipmentId?: string
+  ) => {
     setExporting(true)
     setExportMessage(null)
     try {
-      const result = kind === 'order-table'
-        ? await exportOrderTable(selectedOrder?.id)
-        : kind === 'combined'
-          ? selectedOrder
-            ? await exportOrderDocuments(selectedOrder.id, shipmentId)
-            : await Promise.reject(new Error('订单详情尚未加载完成'))
-          : await exportShippingList(selectedOrder?.id, shipmentId)
-      const label = kind === 'order-table' ? '订单表' : kind === 'shipping-list' ? '发货清单' : '订单表与发货清单'
+      const result =
+        kind === 'order-table'
+          ? await exportOrderTable(selectedOrder?.id)
+          : kind === 'combined'
+            ? selectedOrder
+              ? await exportOrderDocuments(selectedOrder.id, shipmentId)
+              : await Promise.reject(new Error('订单详情尚未加载完成'))
+            : await exportShippingList(selectedOrder?.id, shipmentId)
+      const label =
+        kind === 'order-table'
+          ? '订单表'
+          : kind === 'shipping-list'
+            ? '发货清单'
+            : '订单表与发货清单'
       setExportMessage(result.savedPath ? `已导出${label}：${result.savedPath}` : '已取消导出。')
     } catch (cause) {
       setExportMessage(getErrorMessage(cause))
@@ -636,8 +660,6 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             description="查看已有订单，并进入订单详情处理资金、分批发货与售后。"
             title="订单"
           />
-          {error && <YumiNotification key={error} message={error} />}
-          {loadError && <YumiNotification key={loadError} message={loadError} />}
           <div aria-label={`订单列表，共 ${orders.length} 张`} className="yumi-primary-list">
             {loading ? (
               <YumiEmptyState description="订单资料正在读取，请稍候。" title="正在加载订单…" />
@@ -690,8 +712,6 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             description="录入客户、多个商品行和订单金额组成项；保存后进入订单详情。"
             title="新建订单"
           />
-          {error && <YumiNotification key={error} message={error} />}
-          {loadError && <YumiNotification key={loadError} message={loadError} />}
           {!baseDataReady ? (
             <OrderSetupGuide
               customersReady={availableCustomers.length > 0}
@@ -788,9 +808,6 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             description="处理订单内容、资金、售后和分批发货。"
             title={selectedOrder.code}
           />
-          {error && <YumiNotification key={error} message={error} />}
-          {loadError && <YumiNotification key={loadError} message={loadError} />}
-          {exportMessage && <YumiNotification key={exportMessage} message={exportMessage} timeout={exportMessage.startsWith('已导出') ? 5000 : exportMessage.startsWith('已取消') ? 3000 : undefined} tone={exportMessage.startsWith('已导出') ? 'success' : exportMessage.startsWith('已取消') ? 'info' : 'danger'} />}
           <OrderDetail
             activeView={detailView}
             onViewChange={setDetailView}
@@ -951,9 +968,6 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
               value={quickCustomerDraft.notes}
             />
           </YumiField>
-          {quickCreateError && (
-            <YumiNotification key={quickCreateError} message={quickCreateError} />
-          )}
         </form>
       </YumiSheet>
 
@@ -1014,9 +1028,6 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
               value={quickProductDraft.basePrice}
             />
           </YumiField>
-          {quickCreateError && (
-            <YumiNotification key={quickCreateError} message={quickCreateError} />
-          )}
         </form>
       </YumiSheet>
 
@@ -1271,7 +1282,9 @@ function OrderDetail(props: {
           <h2>{order.code}</h2>
           <p>
             {order.customerSnapshot.name} ·{' '}
-            {order.expectedShipDate ? `预计 ${order.expectedShipDate} 发货 · 制作截止 ${order.productionDeadline ?? '未计算'}` : '未设预计发货日期'}
+            {order.expectedShipDate
+              ? `预计 ${order.expectedShipDate} 发货 · 制作截止 ${order.productionDeadline ?? '未计算'}`
+              : '未设预计发货日期'}
           </p>
         </div>
         <YumiStatusTag tone={order.funds.outstandingCents > 0 ? 'warning' : 'success'}>
@@ -1326,10 +1339,30 @@ function OrderDetail(props: {
             </div>
           </YumiSection>
           <div className="yumi-form-actions yumi-form-actions--end">
-            <YumiButton disabled={props.exporting} onClick={props.onExportOrderTable} variant="secondary">导出订单表</YumiButton>
-            <YumiButton disabled={props.exporting} onClick={() => props.onExportShippingList()} variant="secondary">导出发货清单</YumiButton>
-            <YumiButton disabled={props.exporting} onClick={props.onExportOrderDocuments} variant="secondary">合并导出</YumiButton>
-            <YumiButton onClick={() => props.setContentEditorOpen(true)} variant="secondary">编辑订单内容</YumiButton>
+            <YumiButton
+              disabled={props.exporting}
+              onClick={props.onExportOrderTable}
+              variant="secondary"
+            >
+              导出订单表
+            </YumiButton>
+            <YumiButton
+              disabled={props.exporting}
+              onClick={() => props.onExportShippingList()}
+              variant="secondary"
+            >
+              导出发货清单
+            </YumiButton>
+            <YumiButton
+              disabled={props.exporting}
+              onClick={props.onExportOrderDocuments}
+              variant="secondary"
+            >
+              合并导出
+            </YumiButton>
+            <YumiButton onClick={() => props.setContentEditorOpen(true)} variant="secondary">
+              编辑订单内容
+            </YumiButton>
           </div>
           {props.contentEditorOpen && (
             <form className="yumi-form-panel" onSubmit={props.onContentChange}>
@@ -1578,14 +1611,36 @@ function OrderDetail(props: {
                               : '售后收费'}
                       </YumiStatusTag>
                     }
-                    actions={fund.attachmentId ? (
-                      <>
-                        <YumiButton onClick={() => props.onOpenFundProof(fund.id)} size="small" variant="secondary">查看凭证</YumiButton>
-                        {fund.direction === 'income' && <YumiButton onClick={() => props.onReplaceFundProof(fund.id)} size="small" variant="ghost">替换凭证</YumiButton>}
-                      </>
-                    ) : fund.direction === 'income' ? (
-                      <YumiButton onClick={() => props.onReplaceFundProof(fund.id)} size="small" variant="ghost">关联凭证</YumiButton>
-                    ) : undefined}
+                    actions={
+                      fund.attachmentId ? (
+                        <>
+                          <YumiButton
+                            onClick={() => props.onOpenFundProof(fund.id)}
+                            size="small"
+                            variant="secondary"
+                          >
+                            查看凭证
+                          </YumiButton>
+                          {fund.direction === 'income' && (
+                            <YumiButton
+                              onClick={() => props.onReplaceFundProof(fund.id)}
+                              size="small"
+                              variant="ghost"
+                            >
+                              替换凭证
+                            </YumiButton>
+                          )}
+                        </>
+                      ) : fund.direction === 'income' ? (
+                        <YumiButton
+                          onClick={() => props.onReplaceFundProof(fund.id)}
+                          size="small"
+                          variant="ghost"
+                        >
+                          关联凭证
+                        </YumiButton>
+                      ) : undefined
+                    }
                     summary={fund.note ?? '无备注'}
                     title={fund.occurredOn}
                   />
@@ -1637,10 +1692,14 @@ function OrderDetail(props: {
                       {props.pendingFundProof ? '重新选择凭证' : '选择收款凭证'}
                     </YumiButton>
                     {props.pendingFundProof && (
-                      <YumiButton onClick={props.onClearFundProof} type="button" variant="ghost">移除</YumiButton>
+                      <YumiButton onClick={props.onClearFundProof} type="button" variant="ghost">
+                        移除
+                      </YumiButton>
                     )}
                   </div>
-                  {props.pendingFundProof && <p className="yumi-form-hint">已选择：{props.pendingFundProof.originalName}</p>}
+                  {props.pendingFundProof && (
+                    <p className="yumi-form-hint">已选择：{props.pendingFundProof.originalName}</p>
+                  )}
                 </YumiField>
               )}
               <YumiField>

@@ -1,8 +1,11 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { YumiNotificationProvider } from '../ui'
+const render = (ui: Parameters<typeof renderBase>[0]) =>
+  renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import type { V2WorkerSettlementDetail } from '@shared/contracts/index'
 import { installDomInteractionPolyfills } from '../../test/dom'
 import { SettlementDetail } from './settlement-detail'
@@ -47,7 +50,14 @@ describe('工资负责人确认', () => {
   it('仅在负责人填入实发金额和付款日期后允许确认，并先保存草稿再确认记账', async () => {
     const detail = settlement()
     const updateDraft = vi.fn().mockResolvedValue(detail)
-    const confirmSettlement = vi.fn().mockResolvedValue({ ...detail, status: 'confirmed', finalPaidAmountCents: 13_500, financialEntryId: 'finance-1' })
+    const confirmSettlement = vi
+      .fn()
+      .mockResolvedValue({
+        ...detail,
+        status: 'confirmed',
+        finalPaidAmountCents: 13_500,
+        financialEntryId: 'finance-1'
+      })
 
     render(
       <SettlementDetail
@@ -62,7 +72,9 @@ describe('工资负责人确认', () => {
     expect(confirmButton).toBeDisabled()
     expect(screen.getByRole('button', { name: '实际付款日期' })).toHaveTextContent('2026/9/8')
 
-    fireEvent.change(screen.getByRole('textbox', { name: '最终实发（元）' }), { target: { value: '135' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '最终实发（元）' }), {
+      target: { value: '135' }
+    })
 
     expect(confirmButton).toBeEnabled()
     fireEvent.click(confirmButton)
@@ -70,10 +82,15 @@ describe('工资负责人确认', () => {
     expect(updateDraft).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '确认记账' }))
 
-    await waitFor(() => expect(updateDraft).toHaveBeenCalledWith('settlement-1', expect.objectContaining({
-      finalPaidAmountCents: 13_500,
-      paidOn: '2026-09-08'
-    })))
+    await waitFor(() =>
+      expect(updateDraft).toHaveBeenCalledWith(
+        'settlement-1',
+        expect.objectContaining({
+          finalPaidAmountCents: 13_500,
+          paidOn: '2026-09-08'
+        })
+      )
+    )
     await waitFor(() => expect(confirmSettlement).toHaveBeenCalledWith('settlement-1'))
   })
 
@@ -89,12 +106,19 @@ describe('工资负责人确认', () => {
       />
     )
 
-    fireEvent.change(screen.getByRole('textbox', { name: '其他调整（元）' }), { target: { value: '-12.34' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '其他调整（元）' }), {
+      target: { value: '-12.34' }
+    })
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }))
 
-    await waitFor(() => expect(updateDraft).toHaveBeenCalledWith('settlement-1', expect.objectContaining({
-      otherAdjustmentCents: -1_234
-    })))
+    await waitFor(() =>
+      expect(updateDraft).toHaveBeenCalledWith(
+        'settlement-1',
+        expect.objectContaining({
+          otherAdjustmentCents: -1_234
+        })
+      )
+    )
   })
 
   it('将排班与考勤工资分别作为参考展示，已确认结算只展示负责人实发和实际工资流水', () => {

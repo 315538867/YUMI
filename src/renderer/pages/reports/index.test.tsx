@@ -1,8 +1,11 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render as renderBase, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { YumiNotificationProvider } from '../../components/ui'
+const render = (ui: Parameters<typeof renderBase>[0]) =>
+  renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import { installDomInteractionPolyfills } from '../../test/dom'
 import { ReportsPage } from './index'
 
@@ -17,7 +20,19 @@ vi.mock('../../composables/use-reports', () => ({
   useReports: () => ({
     confirmedSettlements: { rows: [], totalFinalPaidCents: 0 },
     deliveryRisk: {
-      rows: [{ orderId: 'order-1', orderCode: 'YUMI-001', expectedShipDate: '2026-09-09', productionDeadline: '2026-09-07', remainingQuantity: 10, shippedQuantity: 2, level: 'critical', riskSources: ['制作截止日已逾期'], fulfillmentRoute: { orderId: 'order-1' } }]
+      rows: [
+        {
+          orderId: 'order-1',
+          orderCode: 'YUMI-001',
+          expectedShipDate: '2026-09-09',
+          productionDeadline: '2026-09-07',
+          remainingQuantity: 10,
+          shippedQuantity: 2,
+          level: 'critical',
+          riskSources: ['制作截止日已逾期'],
+          fulfillmentRoute: { orderId: 'order-1' }
+        }
+      ]
     },
     exportCurrentReport: mocks.exportCurrentReport,
     exportMessage: null,
@@ -28,10 +43,41 @@ vi.mock('../../composables/use-reports', () => ({
     load: mocks.load,
     loadError: null,
     loading: false,
-    monthlyOperation: { month: '2026-09', incomeCents: 0, operatingExpenseCents: 0, operatingResultCents: 0, confirmedSettlementPaidCents: 0 },
-    orderBusiness: { rows: [], totalCurrentAmountCents: 0, totalNetReceivedCents: 0, totalOutstandingCents: 0, totalProductCostCents: 0, totalAfterSalesCostCents: 0, totalKnownAccountingCostCents: 0, totalKnownMarginCents: 0 },
+    monthlyOperation: {
+      month: '2026-09',
+      incomeCents: 0,
+      operatingExpenseCents: 0,
+      operatingResultCents: 0,
+      confirmedSettlementPaidCents: 0
+    },
+    orderBusiness: {
+      rows: [],
+      totalCurrentAmountCents: 0,
+      totalNetReceivedCents: 0,
+      totalOutstandingCents: 0,
+      totalProductCostCents: 0,
+      totalAfterSalesCostCents: 0,
+      totalKnownAccountingCostCents: 0,
+      totalKnownMarginCents: 0
+    },
     capacityRisk: {
-      rows: [{ productId: 'product-1', productName: '羊毛杯垫', startOn: '2026-09-09', endOn: '2026-09-15', demandQuantity: 100, scheduledQuantity: 20, dailyCapacity: 10, availableCapacityQuantity: 70, gapQuantity: 30, utilizationBasisPoints: 14_286, level: 'critical', riskSources: ['需求超过可用产能'], productRoute: { productId: 'product-1' } }]
+      rows: [
+        {
+          productId: 'product-1',
+          productName: '羊毛杯垫',
+          startOn: '2026-09-09',
+          endOn: '2026-09-15',
+          demandQuantity: 100,
+          scheduledQuantity: 20,
+          dailyCapacity: 10,
+          availableCapacityQuantity: 70,
+          gapQuantity: 30,
+          utilizationBasisPoints: 14_286,
+          level: 'critical',
+          riskSources: ['需求超过可用产能'],
+          productRoute: { productId: 'product-1' }
+        }
+      ]
     }
   })
 }))
@@ -55,6 +101,10 @@ describe('风险报表入口', () => {
     expect(screen.getByRole('heading', { name: '交期风险' })).toBeVisible()
     expect(screen.getByText('YUMI-001')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '进入履约处理' }))
-    expect(onNavigate).toHaveBeenLastCalledWith({ view: 'fulfillment', orderId: 'order-1', focus: 'queue' })
+    expect(onNavigate).toHaveBeenLastCalledWith({
+      view: 'fulfillment',
+      orderId: 'order-1',
+      focus: 'queue'
+    })
   })
 })

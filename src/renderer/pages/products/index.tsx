@@ -21,7 +21,7 @@ import {
   YumiStatusTag,
   YumiTextArea,
   YumiTextField,
-  YumiNotification
+  useYumiNotificationMessage
 } from '../../components/ui'
 
 interface ProductDraft {
@@ -102,7 +102,9 @@ const toInput = (draft: ProductDraft): V2ProductInput => ({
   notes: draft.notes || null
 })
 
-type ProductsPageProps = { navigationTarget?: Extract<V2NavigationTarget, { view: 'products' }> | null }
+type ProductsPageProps = {
+  navigationTarget?: Extract<V2NavigationTarget, { view: 'products' }> | null
+}
 
 export function ProductsPage({ navigationTarget }: ProductsPageProps) {
   const { products, loading, loadError, createProduct, updateProduct } = useProducts()
@@ -114,6 +116,9 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
   const [detailOpen, setDetailOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  useYumiNotificationMessage(loadError)
+  useYumiNotificationMessage(settingsError)
+  useYumiNotificationMessage(error)
   const editorTitle = editing ? `编辑商品：${editing.name}` : '新建商品'
   const isDirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(editing ? toDraft(editing) : emptyDraft()),
@@ -189,9 +194,6 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
         description="商品参数会在下单时冻结；胶水单价由工作室统一维护，商品只填写实际用量。"
         title="商品"
       />
-      {(loadError || settingsError) && (
-        <YumiNotification key={loadError ?? settingsError} message={loadError ?? settingsError!} />
-      )}
       <div className="yumi-primary-list" aria-label="商品列表">
         {loading ? (
           <div className="yumi-empty">正在加载商品…</div>
@@ -209,7 +211,10 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                 metrics={[
                   { label: '默认售价', value: formatCents(product.basePriceCents) },
                   { label: '标准制作', value: `${product.standardMakingMinutes} 分钟` },
-                  { label: '日产能', value: product.dailyCapacity > 0 ? `${product.dailyCapacity} 件` : '未维护' }
+                  {
+                    label: '日产能',
+                    value: product.dailyCapacity > 0 ? `${product.dailyCapacity} 件` : '未维护'
+                  }
                 ]}
                 onOpen={() => openDetail(product)}
                 status={
@@ -221,7 +226,9 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                 title={product.name}
               >
                 <span>
-                  材料 {formatMilligramsAsGrams(product.unitWeightMilligrams)} 克 · 损耗 {product.materialLossRateBasisPoints / 100}% · 胶水用量 {formatMilligramsAsGrams(product.glueWeightMilligrams)} 克 · 包装{' '}
+                  材料 {formatMilligramsAsGrams(product.unitWeightMilligrams)} 克 · 损耗{' '}
+                  {product.materialLossRateBasisPoints / 100}% · 胶水用量{' '}
+                  {formatMilligramsAsGrams(product.glueWeightMilligrams)} 克 · 包装{' '}
                   {formatCents(product.packagingCostCents)} · 配饰{' '}
                   {formatCents(product.accessoryCostCents)}
                 </span>
@@ -234,35 +241,69 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
 
       <YumiSheet
         description="商品资料默认只读展示；需要调整参数时再主动进入编辑。"
-        footer={<><YumiButton onClick={closeDetail} variant="ghost">关闭</YumiButton><YumiButton onClick={startEditingViewingProduct} variant="primary">编辑商品</YumiButton></>}
-        onOpenChange={(open) => { if (!open) closeDetail() }}
+        footer={
+          <>
+            <YumiButton onClick={closeDetail} variant="ghost">
+              关闭
+            </YumiButton>
+            <YumiButton onClick={startEditingViewingProduct} variant="primary">
+              编辑商品
+            </YumiButton>
+          </>
+        }
+        onOpenChange={(open) => {
+          if (!open) closeDetail()
+        }}
         open={detailOpen}
         title={viewing ? `商品资料：${viewing.name}` : '商品资料'}
       >
-        {viewing && <div className="yumi-sheet-form">
-          <div className="yumi-detail-grid">
-            <ProductDetailItem label="商品编码" value={viewing.code || '未设编码'} />
-            <ProductDetailItem label="分类" value={viewing.category || '未分类'} />
-            <ProductDetailItem label="默认售价" value={formatCents(viewing.basePriceCents)} />
-            <ProductDetailItem label="状态" value={viewing.enabled ? '启用' : '停用'} />
-            <ProductDetailItem label="单件材料重量" value={`${formatMilligramsAsGrams(viewing.unitWeightMilligrams)} 克`} />
-            <ProductDetailItem label="材料损耗率" value={`${viewing.materialLossRateBasisPoints / 100}%`} />
-            <ProductDetailItem label="日产能" value={viewing.dailyCapacity > 0 ? `${viewing.dailyCapacity} 件/日` : '未维护'} />
-            <ProductDetailItem label="标准制作" value={`${viewing.standardMakingMinutes} 分钟`} />
-          </div>
-          <section className="yumi-product-editor-section" aria-labelledby="product-cost-heading">
-            <h3 id="product-cost-heading">制作与成本参数</h3>
+        {viewing && (
+          <div className="yumi-sheet-form">
             <div className="yumi-detail-grid">
-              <ProductDetailItem label="胶水用量" value={`${formatMilligramsAsGrams(viewing.glueWeightMilligrams)} 克`} />
-              <ProductDetailItem label="制作提成" value={formatCents(viewing.makingCommissionCents)} />
-              <ProductDetailItem label="包装" value={formatCents(viewing.packagingCostCents)} />
-              <ProductDetailItem label="配饰" value={formatCents(viewing.accessoryCostCents)} />
-              <ProductDetailItem label="替换袋" value={formatCents(viewing.replacementBagCostCents)} />
-              <ProductDetailItem label="内部缝边成本" value={formatCents(viewing.internalEdgeCostCents)} />
+              <ProductDetailItem label="商品编码" value={viewing.code || '未设编码'} />
+              <ProductDetailItem label="分类" value={viewing.category || '未分类'} />
+              <ProductDetailItem label="默认售价" value={formatCents(viewing.basePriceCents)} />
+              <ProductDetailItem label="状态" value={viewing.enabled ? '启用' : '停用'} />
+              <ProductDetailItem
+                label="单件材料重量"
+                value={`${formatMilligramsAsGrams(viewing.unitWeightMilligrams)} 克`}
+              />
+              <ProductDetailItem
+                label="材料损耗率"
+                value={`${viewing.materialLossRateBasisPoints / 100}%`}
+              />
+              <ProductDetailItem
+                label="日产能"
+                value={viewing.dailyCapacity > 0 ? `${viewing.dailyCapacity} 件/日` : '未维护'}
+              />
+              <ProductDetailItem label="标准制作" value={`${viewing.standardMakingMinutes} 分钟`} />
             </div>
-            {viewing.notes ? <p className="yumi-field-hint">备注：{viewing.notes}</p> : null}
-          </section>
-        </div>}
+            <section className="yumi-product-editor-section" aria-labelledby="product-cost-heading">
+              <h3 id="product-cost-heading">制作与成本参数</h3>
+              <div className="yumi-detail-grid">
+                <ProductDetailItem
+                  label="胶水用量"
+                  value={`${formatMilligramsAsGrams(viewing.glueWeightMilligrams)} 克`}
+                />
+                <ProductDetailItem
+                  label="制作提成"
+                  value={formatCents(viewing.makingCommissionCents)}
+                />
+                <ProductDetailItem label="包装" value={formatCents(viewing.packagingCostCents)} />
+                <ProductDetailItem label="配饰" value={formatCents(viewing.accessoryCostCents)} />
+                <ProductDetailItem
+                  label="替换袋"
+                  value={formatCents(viewing.replacementBagCostCents)}
+                />
+                <ProductDetailItem
+                  label="内部缝边成本"
+                  value={formatCents(viewing.internalEdgeCostCents)}
+                />
+              </div>
+              {viewing.notes ? <p className="yumi-field-hint">备注：{viewing.notes}</p> : null}
+            </section>
+          </div>
+        )}
       </YumiSheet>
 
       <YumiSheet
@@ -349,7 +390,9 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                 />
               </YumiField>
               <YumiField>
-                <YumiFieldLabel htmlFor="product-material-loss-rate">材料损耗率（%）</YumiFieldLabel>
+                <YumiFieldLabel htmlFor="product-material-loss-rate">
+                  材料损耗率（%）
+                </YumiFieldLabel>
                 <YumiNumberField
                   allowDecimal
                   id="product-material-loss-rate"
@@ -375,7 +418,9 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                 />
               </YumiField>
               <YumiField>
-                <YumiFieldLabel htmlFor="product-output-per-mold">每模每批产出（件）</YumiFieldLabel>
+                <YumiFieldLabel htmlFor="product-output-per-mold">
+                  每模每批产出（件）
+                </YumiFieldLabel>
                 <YumiNumberField
                   id="product-output-per-mold"
                   onChange={(event) => updateDraft('outputPerMoldPerBatch', event.target.value)}
@@ -393,7 +438,9 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
               <YumiField>
                 <YumiFieldLabel>计算日产能</YumiFieldLabel>
                 <div className="yumi-field-hint">
-                  {Number(draft.moldCount) > 0 && Number(draft.outputPerMoldPerBatch) > 0 && Number(draft.maxBatchesPerDay) > 0
+                  {Number(draft.moldCount) > 0 &&
+                  Number(draft.outputPerMoldPerBatch) > 0 &&
+                  Number(draft.maxBatchesPerDay) > 0
                     ? `${Math.round(Number(draft.moldCount) * Number(draft.outputPerMoldPerBatch) * Number(draft.maxBatchesPerDay))} 件/日`
                     : '填写完整模具参数后计算'}
                 </div>
@@ -448,7 +495,6 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
               value={draft.notes}
             />
           </YumiField>
-          {error && <YumiNotification key={error} message={error} />}
         </form>
       </YumiSheet>
     </div>
@@ -456,7 +502,12 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
 }
 
 function ProductDetailItem({ label, value }: { label: string; value: string }) {
-  return <div><span className="yumi-field-label">{label}</span><p>{value}</p></div>
+  return (
+    <div>
+      <span className="yumi-field-label">{label}</span>
+      <p>{value}</p>
+    </div>
+  )
 }
 
 function MoneyField({

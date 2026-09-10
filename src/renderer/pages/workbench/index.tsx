@@ -2,8 +2,15 @@ import { useMemo, useState } from 'react'
 import type { V2NavigationTarget, V2WorkbenchItem } from '@shared/contracts/index'
 import { useWorkbench } from '../../composables/use-workbench'
 import { formatCents } from '../../composables/v2-utils'
-import { YumiBusinessList, YumiBusinessListItem, YumiButton, YumiEmptyState, YumiPageHeader, YumiStatusTag ,
-  YumiNotification} from '../../components/ui'
+import {
+  YumiBusinessList,
+  YumiBusinessListItem,
+  YumiButton,
+  YumiEmptyState,
+  YumiPageHeader,
+  YumiStatusTag,
+  useYumiNotificationMessage
+} from '../../components/ui'
 
 type WorkbenchView = 'decision' | 'advance'
 
@@ -31,14 +38,23 @@ function statusFor(priority: V2WorkbenchItem['priority']) {
 }
 
 /** 负责人默认入口：任意时刻只显示一个基于真实业务事实的任务列表。 */
-export function WorkbenchPage({ initialView = 'decision', onNavigate, onViewChange }: WorkbenchPageProps) {
+export function WorkbenchPage({
+  initialView = 'decision',
+  onNavigate,
+  onViewChange
+}: WorkbenchPageProps) {
   const { snapshot, loading, loadError, reload } = useWorkbench()
   const [activeView, setActiveView] = useState<WorkbenchView>(initialView)
+  useYumiNotificationMessage(loadError)
   const chooseView = (view: WorkbenchView) => {
     setActiveView(view)
     onViewChange?.(view)
   }
-  const items = useMemo(() => activeView === 'decision' ? snapshot?.decisionItems ?? [] : snapshot?.advanceItems ?? [], [activeView, snapshot])
+  const items = useMemo(
+    () =>
+      activeView === 'decision' ? (snapshot?.decisionItems ?? []) : (snapshot?.advanceItems ?? []),
+    [activeView, snapshot]
+  )
   const decisionCount = snapshot?.decisionItems.length ?? 0
   const advanceCount = snapshot?.advanceItems.length ?? 0
 
@@ -47,13 +63,25 @@ export function WorkbenchPage({ initialView = 'decision', onNavigate, onViewChan
       <YumiPageHeader
         description="只显示由订单、履约、售后、工资和财务事实生成的当前处理入口。"
         title="工作台"
-        actions={<YumiButton onClick={() => void reload()} variant="secondary">刷新</YumiButton>}
+        actions={
+          <YumiButton onClick={() => void reload()} variant="secondary">
+            刷新
+          </YumiButton>
+        }
       />
-      {loadError ? <YumiNotification key={loadError} message={loadError} /> : null}
-      {loading ? <YumiEmptyState description="正在汇总当前需要处理的业务事实。" title="读取工作台中…" /> : null}
+      {loading ? (
+        <YumiEmptyState description="正在汇总当前需要处理的业务事实。" title="读取工作台中…" />
+      ) : null}
       {!loading && snapshot?.firstUseGuide ? (
         <YumiEmptyState
-          action={<YumiButton onClick={() => onNavigate(snapshot.firstUseGuide!.navigationTarget)} variant="primary">{snapshot.firstUseGuide.actionLabel}</YumiButton>}
+          action={
+            <YumiButton
+              onClick={() => onNavigate(snapshot.firstUseGuide!.navigationTarget)}
+              variant="primary"
+            >
+              {snapshot.firstUseGuide.actionLabel}
+            </YumiButton>
+          }
           scenario="first-use"
           description={snapshot.firstUseGuide.description}
           title={snapshot.firstUseGuide.title}
@@ -63,14 +91,23 @@ export function WorkbenchPage({ initialView = 'decision', onNavigate, onViewChan
         <>
           <nav aria-label="工作台事项视图" className="yumi-page-tabs">
             {(['decision', 'advance'] as WorkbenchView[]).map((view) => (
-              <YumiButton aria-pressed={activeView === view} key={view} onClick={() => chooseView(view)} variant={activeView === view ? 'secondary' : 'ghost'}>
+              <YumiButton
+                aria-pressed={activeView === view}
+                key={view}
+                onClick={() => chooseView(view)}
+                variant={activeView === view ? 'secondary' : 'ghost'}
+              >
                 {viewLabels[view]}（{view === 'decision' ? decisionCount : advanceCount}）
               </YumiButton>
             ))}
           </nav>
           {items.length === 0 ? (
             <YumiEmptyState
-              description={activeView === 'decision' ? '当前没有需要负责人确认的事项。' : '当前没有可以直接推进的事项。'}
+              description={
+                activeView === 'decision'
+                  ? '当前没有需要负责人确认的事项。'
+                  : '当前没有可以直接推进的事项。'
+              }
               title={activeView === 'decision' ? '暂时不需要你决定' : '暂时没有待推进事项'}
             />
           ) : (
@@ -78,15 +115,26 @@ export function WorkbenchPage({ initialView = 'decision', onNavigate, onViewChan
               {items.map((item) => {
                 const status = statusFor(item.priority)
                 const amountOrQuantity = formatAmountOrQuantity(item)
-                return <YumiBusinessListItem
-                  key={item.id}
-                  meta={item.dueHint ?? '进入实际处理区'}
-                  metrics={amountOrQuantity ? [{ label: item.quantityOrAmount?.kind === 'amount' ? '金额' : '数量', value: amountOrQuantity }] : []}
-                  onOpen={() => onNavigate(item.navigationTarget)}
-                  status={<YumiStatusTag tone={status.tone}>{status.label}</YumiStatusTag>}
-                  summary={item.subject.description ?? '进入实际处理区继续处理'}
-                  title={item.subject.title}
-                />
+                return (
+                  <YumiBusinessListItem
+                    key={item.id}
+                    meta={item.dueHint ?? '进入实际处理区'}
+                    metrics={
+                      amountOrQuantity
+                        ? [
+                            {
+                              label: item.quantityOrAmount?.kind === 'amount' ? '金额' : '数量',
+                              value: amountOrQuantity
+                            }
+                          ]
+                        : []
+                    }
+                    onOpen={() => onNavigate(item.navigationTarget)}
+                    status={<YumiStatusTag tone={status.tone}>{status.label}</YumiStatusTag>}
+                    summary={item.subject.description ?? '进入实际处理区继续处理'}
+                    title={item.subject.title}
+                  />
+                )
               })}
             </YumiBusinessList>
           )}

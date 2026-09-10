@@ -26,7 +26,7 @@ import {
   YumiSheet,
   YumiTextArea,
   YumiTextField,
-  YumiNotification
+  useYumiNotificationMessage
 } from '../../components/ui'
 
 type CategoryEditor = { direction: 'income' | 'expense'; item?: V2FinanceCategory } | null
@@ -62,6 +62,10 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
+  useYumiNotificationMessage(finance.loadError)
+  useYumiNotificationMessage(studio.loadError)
+  useYumiNotificationMessage(error)
+  useYumiNotificationMessage(message, { tone: 'success' })
 
   const run = async (key: string, action: () => Promise<unknown>) => {
     setError(null)
@@ -130,7 +134,9 @@ export function SettingsPage() {
         {libraryView === 'payer' ? '新增垫付人' : `新增${activeCategoryLabel}`}
       </YumiButton>
     ) : view === 'studio' ? (
-      <YumiButton onClick={() => setStudioEditorOpen(true)} variant="primary">编辑工作室参数</YumiButton>
+      <YumiButton onClick={() => setStudioEditorOpen(true)} variant="primary">
+        编辑工作室参数
+      </YumiButton>
     ) : undefined
 
   return (
@@ -172,25 +178,22 @@ export function SettingsPage() {
           数据保护
         </YumiButton>
       </nav>
-
-      {(finance.loadError || studio.loadError || error) && (
-        <YumiNotification
-          key={finance.loadError ?? studio.loadError ?? error}
-          message={finance.loadError ?? studio.loadError ?? error!}
-        />
-      )}
-      {message && <YumiNotification key={message} message={message} tone="success" />}
-
       {view === 'studio' && (
-        <StudioSettingsPanel
-          loading={studio.loading}
-          settings={studio.settings}
-        />
+        <StudioSettingsPanel loading={studio.loading} settings={studio.settings} />
       )}
 
       <YumiSheet
         description="修改后只影响后续新建订单，历史订单保留创建时的快照。"
-        footer={<YumiButton form="studio-settings-editor-form" loading={submitting === 'studio-settings'} type="submit" variant="primary">保存工作室参数</YumiButton>}
+        footer={
+          <YumiButton
+            form="studio-settings-editor-form"
+            loading={submitting === 'studio-settings'}
+            type="submit"
+            variant="primary"
+          >
+            保存工作室参数
+          </YumiButton>
+        }
         onOpenChange={setStudioEditorOpen}
         open={studioEditorOpen}
         title="编辑工作室参数"
@@ -199,9 +202,7 @@ export function SettingsPage() {
           key={studio.settings?.updatedAt ?? 'studio-settings'}
           loading={studio.loading}
           onSave={async (input) => {
-            const success = await run('studio-settings', () =>
-              studio.update(input)
-            )
+            const success = await run('studio-settings', () => studio.update(input))
             if (success) {
               setStudioEditorOpen(false)
               setMessage('已保存工作室参数')
@@ -347,7 +348,9 @@ function StudioSettingsPanel({
     <section className="yumi-form-panel yumi-settings-panel" aria-label="工作室参数查看">
       <div className="yumi-settings-panel__intro">
         <strong>胶水单价</strong>
-        <p>新建订单时，系统会将当时的单价和商品胶水用量一起冻结到订单快照中；之后调整不会回写历史订单。</p>
+        <p>
+          新建订单时，系统会将当时的单价和商品胶水用量一起冻结到订单快照中；之后调整不会回写历史订单。
+        </p>
         <strong>订单默认预留天数</strong>
         <p>新建订单自动带入该天数，创建订单时仍可按实际交期单独调整。</p>
       </div>
@@ -357,7 +360,9 @@ function StudioSettingsPanel({
             <span>{formatGluePriceYuanPerGram(settings.gluePriceMicroYuanPerGram)} 元 / 克</span>
             <span>{settings.orderReservedDays} 天</span>
           </>
-        ) : '暂无参数'}
+        ) : (
+          '暂无参数'
+        )}
       </div>
       <div className="yumi-settings-panel__actions">
         <span className="yumi-form-hint">如需修改，请点击页面右上角“编辑工作室参数”。</span>
@@ -391,7 +396,8 @@ function StudioSettingsForm({
     try {
       const gluePriceMicroYuanPerGram = parseGluePriceYuanPerGram(gluePrice)
       const reservedDays = Number(orderReservedDays)
-      if (!Number.isInteger(reservedDays) || reservedDays < 0) throw new Error('订单默认预留天数必须是非负整数')
+      if (!Number.isInteger(reservedDays) || reservedDays < 0)
+        throw new Error('订单默认预留天数必须是非负整数')
       await onSave({ gluePriceMicroYuanPerGram, orderReservedDays: reservedDays })
     } catch (cause) {
       setError(getErrorMessage(cause))
@@ -400,13 +406,27 @@ function StudioSettingsForm({
 
   if (loading) return <div className="yumi-empty">正在读取工作室参数…</div>
   return (
-    <form className="yumi-form-panel yumi-sheet-form" id="studio-settings-editor-form" onSubmit={(event) => void submit(event)}>
+    <form
+      className="yumi-form-panel yumi-sheet-form"
+      id="studio-settings-editor-form"
+      onSubmit={(event) => void submit(event)}
+    >
       <YumiField error={error ?? undefined} hint="支持最多 6 位小数，例如 0.0034。">
-        <YumiFieldLabel htmlFor="studio-glue-price" required>元 / 克</YumiFieldLabel>
-        <YumiNumberField allowDecimal id="studio-glue-price" onChange={(event) => setGluePrice(event.target.value)} required value={gluePrice} />
+        <YumiFieldLabel htmlFor="studio-glue-price" required>
+          元 / 克
+        </YumiFieldLabel>
+        <YumiNumberField
+          allowDecimal
+          id="studio-glue-price"
+          onChange={(event) => setGluePrice(event.target.value)}
+          required
+          value={gluePrice}
+        />
       </YumiField>
       <YumiField hint="新建订单默认使用，可在订单中按实际情况修改。">
-        <YumiFieldLabel htmlFor="studio-order-reserved-days" required>订单默认预留天数（天）</YumiFieldLabel>
+        <YumiFieldLabel htmlFor="studio-order-reserved-days" required>
+          订单默认预留天数（天）
+        </YumiFieldLabel>
         <YumiNumberField
           aria-label="订单默认预留天数（天）"
           id="studio-order-reserved-days"
@@ -417,7 +437,9 @@ function StudioSettingsForm({
           value={orderReservedDays}
         />
       </YumiField>
-      <p className="yumi-form-hint">保存后只影响后续新建订单；已建立订单会保留当时的商品、胶水单价与预留天数快照。</p>
+      <p className="yumi-form-hint">
+        保存后只影响后续新建订单；已建立订单会保留当时的商品、胶水单价与预留天数快照。
+      </p>
     </form>
   )
 }
@@ -425,6 +447,7 @@ function StudioSettingsForm({
 function DataProtectionPanel() {
   const { backups, loading, busy, error, createBackup, restoreBackup } = useBackups()
   const [restoreTarget, setRestoreTarget] = useState<V2BackupSummary | null>(null)
+  useYumiNotificationMessage(error)
 
   const restore = async () => {
     if (!restoreTarget) return
@@ -445,7 +468,6 @@ function DataProtectionPanel() {
           立即备份
         </YumiButton>
       </div>
-      {error && <YumiNotification key={error} message={error} />}
       {loading ? (
         <div className="yumi-empty">正在读取备份记录…</div>
       ) : backups.length === 0 ? (

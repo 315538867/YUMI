@@ -30,6 +30,10 @@ export { YumiStatusTag, type YumiStatusTone } from './status-tag/yumi-status-tag
 export {
   YumiNotification,
   YumiNotificationHost,
-  YumiNotificationProvider,
+  YumiNotificationProvider
 } from './notification/yumi-notification'
-export { getYumiNotificationTimeout, useYumiNotification } from './notification/yumi-notification-context'
+export {
+  getYumiNotificationTimeout,
+  useYumiNotification,
+  useYumiNotificationMessage
+} from './notification/yumi-notification-context'

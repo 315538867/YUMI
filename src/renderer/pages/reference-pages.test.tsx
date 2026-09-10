@@ -1,8 +1,18 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render as renderBase,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { YumiNotificationProvider } from '../components/ui'
+const render = (ui: Parameters<typeof renderBase>[0]) =>
+  renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import type { V2Product } from '@shared/contracts/index'
 import { installDomInteractionPolyfills } from '../test/dom'
 import { CustomersPage } from './customers'
@@ -13,7 +23,16 @@ import { WorkersPage } from './workers'
 const mocks = vi.hoisted(() => ({
   customers: {
     createCustomer: vi.fn(),
-    customers: [] as Array<{ id: string; name: string; contact: string | null; defaultAddress: string | null; notes: string | null; enabled: boolean; createdAt: string; updatedAt: string }>,
+    customers: [] as Array<{
+      id: string
+      name: string
+      contact: string | null
+      defaultAddress: string | null
+      notes: string | null
+      enabled: boolean
+      createdAt: string
+      updatedAt: string
+    }>,
     getCustomerOrderInsights: vi.fn(),
     loadError: null as string | null,
     loading: false,
@@ -29,7 +48,15 @@ const mocks = vi.hoisted(() => ({
   studio: {
     loadError: null as string | null,
     loading: false,
-    settings: { gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2, updatedAt: '2026-09-08T00:00:00.000Z' } as { gluePriceMicroYuanPerGram: number; orderReservedDays: number; updatedAt: string | null } | null,
+    settings: {
+      gluePriceMicroYuanPerGram: 3_400,
+      orderReservedDays: 2,
+      updatedAt: '2026-09-08T00:00:00.000Z'
+    } as {
+      gluePriceMicroYuanPerGram: number
+      orderReservedDays: number
+      updatedAt: string | null
+    } | null,
     update: vi.fn()
   },
   backup: {
@@ -38,8 +65,22 @@ const mocks = vi.hoisted(() => ({
     restore: vi.fn(async () => ({}))
   },
   finance: {
-    advancePayers: [] as Array<{ id: string; name: string; note: string | null; enabled: boolean; createdAt: string; updatedAt: string }>,
-    categories: [] as Array<{ id: string; direction: 'income' | 'expense'; name: string; enabled: boolean; createdAt: string; updatedAt: string }>,
+    advancePayers: [] as Array<{
+      id: string
+      name: string
+      note: string | null
+      enabled: boolean
+      createdAt: string
+      updatedAt: string
+    }>,
+    categories: [] as Array<{
+      id: string
+      direction: 'income' | 'expense'
+      name: string
+      enabled: boolean
+      createdAt: string
+      updatedAt: string
+    }>,
     createAdvancePayer: vi.fn(),
     createCategory: vi.fn(),
     deleteAdvancePayer: vi.fn(),
@@ -76,7 +117,11 @@ afterEach(() => {
   mocks.products.products = []
   mocks.products.createProduct.mockReset()
   mocks.products.updateProduct.mockReset()
-  mocks.studio.settings = { gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2, updatedAt: '2026-09-08T00:00:00.000Z' }
+  mocks.studio.settings = {
+    gluePriceMicroYuanPerGram: 3_400,
+    orderReservedDays: 2,
+    updatedAt: '2026-09-08T00:00:00.000Z'
+  }
   mocks.studio.update.mockReset()
   mocks.backup.create.mockReset()
   mocks.backup.list.mockReset()
@@ -92,8 +137,6 @@ afterEach(() => {
   mocks.finance.createAdvancePayer.mockReset()
   mocks.finance.updateAdvancePayer.mockReset()
   mocks.finance.deleteAdvancePayer.mockReset()
-
-
 })
 
 describe('YUMI 基础资料按需录入', () => {
@@ -109,7 +152,7 @@ describe('YUMI 基础资料按需录入', () => {
     expect(screen.getByRole('dialog', { name: '新建客户' })).toBeVisible()
   })
 
-  it('新建客户保存失败时在抽屉中保留错误反馈', async () => {
+  it('新建客户保存失败时通过全局浮层反馈且不插入抽屉内容', async () => {
     mocks.customers.createCustomer.mockRejectedValueOnce(new Error('客户名称已存在'))
     render(<CustomersPage />)
 
@@ -119,19 +162,44 @@ describe('YUMI 基础资料按需录入', () => {
     fireEvent.change(within(dialog).getByLabelText(/客户名称/), { target: { value: '木木工作室' } })
     fireEvent.click(within(dialog).getByRole('button', { name: '创建客户' }))
 
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('客户名称已存在')
+    const notification = await screen.findByRole('alert', { hidden: true })
+    expect(notification).toHaveTextContent('客户名称已存在')
+    expect(dialog).not.toContainElement(notification)
   })
 
   it('点击既有客户先查看资料与历史订单，主动点击编辑后才进入编辑抽屉', async () => {
-    mocks.customers.customers = [{
-      id: 'customer-1', name: '木木工作室', contact: '王女士', defaultAddress: '上海市静安区', notes: null, enabled: true,
-      createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z'
-    }]
+    mocks.customers.customers = [
+      {
+        id: 'customer-1',
+        name: '木木工作室',
+        contact: '王女士',
+        defaultAddress: '上海市静安区',
+        notes: null,
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      }
+    ]
     mocks.customers.getCustomerOrderInsights.mockResolvedValue({
-      customerId: 'customer-1', customerName: '木木工作室', orderCount: 1,
-      totalCurrentAmountCents: 12_800, totalNetReceivedCents: 8_000, totalOutstandingCents: 4_800,
+      customerId: 'customer-1',
+      customerName: '木木工作室',
+      orderCount: 1,
+      totalCurrentAmountCents: 12_800,
+      totalNetReceivedCents: 8_000,
+      totalOutstandingCents: 4_800,
       latestOrderDate: '2026-09-08',
-      orders: [{ orderId: 'order-1', orderCode: 'YUMI-001', createdAt: '2026-09-08T08:00:00.000Z', currentAmountCents: 12_800, netReceivedCents: 8_000, outstandingCents: 4_800, shipmentStatus: '未发货', orderStatus: '履约中' }]
+      orders: [
+        {
+          orderId: 'order-1',
+          orderCode: 'YUMI-001',
+          createdAt: '2026-09-08T08:00:00.000Z',
+          currentAmountCents: 12_800,
+          netReceivedCents: 8_000,
+          outstandingCents: 4_800,
+          shipmentStatus: '未发货',
+          orderStatus: '履约中'
+        }
+      ]
     })
     const onNavigate = vi.fn()
     render(<CustomersPage onNavigate={onNavigate} />)
@@ -145,40 +213,46 @@ describe('YUMI 基础资料按需录入', () => {
     expect(await within(detail).findByText('YUMI-001')).toBeVisible()
     expect(within(detail).getAllByText('¥128.00')).toHaveLength(2)
     fireEvent.click(within(detail).getByRole('button', { name: '查看订单' }))
-    expect(onNavigate).toHaveBeenCalledWith({ view: 'orders', orderId: 'order-1', orderView: 'overview' })
+    expect(onNavigate).toHaveBeenCalledWith({
+      view: 'orders',
+      orderId: 'order-1',
+      orderView: 'overview'
+    })
     fireEvent.click(within(detail).getByRole('button', { name: '编辑客户' }))
     expect(screen.getByRole('dialog', { name: '编辑客户：木木工作室' })).toBeVisible()
     expect(screen.getByLabelText('默认收货地址')).toHaveValue('上海市静安区')
   })
 
   it('商品可维护材料损耗与模具日产能参数，并在列表中展示计算结果', () => {
-    mocks.products.products = [{
-      id: 'product-1',
-      name: '羊毛杯垫',
-      code: 'MAT-001',
-      category: '杯垫',
-      basePriceCents: 10_800,
-      materialCostCents: 0,
-      packagingCostCents: 200,
-      accessoryCostCents: 100,
-      replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
-      standardMakingMinutes: 30,
-      makingCommissionCents: 2_000,
-      makingGlueCostCents: 0,
-      glueWeightMilligrams: 500,
-      unitWeightMilligrams: 20_000,
-      materialLossRateBasisPoints: 1_000,
-      moldCount: 20,
-      outputPerMoldPerBatch: 1,
-      maxBatchesPerDay: 2,
-      dailyCapacity: 40,
-      enabled: true,
-      imageAttachmentId: null,
-      notes: null,
-      createdAt: '2026-09-09T00:00:00.000Z',
-      updatedAt: '2026-09-09T00:00:00.000Z'
-    }]
+    mocks.products.products = [
+      {
+        id: 'product-1',
+        name: '羊毛杯垫',
+        code: 'MAT-001',
+        category: '杯垫',
+        basePriceCents: 10_800,
+        materialCostCents: 0,
+        packagingCostCents: 200,
+        accessoryCostCents: 100,
+        replacementBagCostCents: 0,
+        internalEdgeCostCents: 0,
+        standardMakingMinutes: 30,
+        makingCommissionCents: 2_000,
+        makingGlueCostCents: 0,
+        glueWeightMilligrams: 500,
+        unitWeightMilligrams: 20_000,
+        materialLossRateBasisPoints: 1_000,
+        moldCount: 20,
+        outputPerMoldPerBatch: 1,
+        maxBatchesPerDay: 2,
+        dailyCapacity: 40,
+        enabled: true,
+        imageAttachmentId: null,
+        notes: null,
+        createdAt: '2026-09-09T00:00:00.000Z',
+        updatedAt: '2026-09-09T00:00:00.000Z'
+      }
+    ]
     render(<ProductsPage />)
 
     expect(screen.getByText('40 件')).toBeVisible()
@@ -200,20 +274,32 @@ describe('YUMI 基础资料按需录入', () => {
   })
 
   it('被财务流水引用的资料删除失败时保留当前资料，并明确反馈负责人', async () => {
-    mocks.finance.categories = [{
-      id: 'income-used', direction: 'income', name: '定金收入', enabled: true,
-      createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z'
-    }]
-    mocks.finance.deleteCategory.mockRejectedValueOnce(new Error('该类目已被财务流水引用，不能删除'))
+    mocks.finance.categories = [
+      {
+        id: 'income-used',
+        direction: 'income',
+        name: '定金收入',
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      }
+    ]
+    mocks.finance.deleteCategory.mockRejectedValueOnce(
+      new Error('该类目已被财务流水引用，不能删除')
+    )
     render(<SettingsPage />)
 
     fireEvent.click(screen.getByRole('button', { name: '财务资料' }))
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('如果资料已被财务流水引用，系统会保留原有数据并拒绝删除。')
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      '如果资料已被财务流水引用，系统会保留原有数据并拒绝删除。'
+    )
     fireEvent.click(screen.getByRole('button', { name: '确认删除' }))
 
     await waitFor(() => expect(mocks.finance.deleteCategory).toHaveBeenCalledWith('income-used'))
-    expect(await screen.findByRole('alert')).toHaveTextContent('该类目已被财务流水引用，不能删除')
+    expect(await screen.findByRole('alert', { hidden: true })).toHaveTextContent(
+      '该类目已被财务流水引用，不能删除'
+    )
     expect(screen.getByText('定金收入')).toBeVisible()
   })
 })
@@ -221,14 +307,52 @@ describe('YUMI 基础资料按需录入', () => {
 describe('YUMI 人员时薪与动态设置', () => {
   it('人员默认只展示列表，新增和调整时薪分别在抽屉中完成', async () => {
     const workers = [
-      { id: 'worker-1', name: '小林', note: null, enabled: true, createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z' },
-      { id: 'worker-2', name: '小夏', note: '可做捏毛', enabled: true, createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z' }
+      {
+        id: 'worker-1',
+        name: '小林',
+        note: null,
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      },
+      {
+        id: 'worker-2',
+        name: '小夏',
+        note: '可做捏毛',
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      }
     ]
-    const listWageHistory = vi.fn(async (workerId: string) => workerId === 'worker-2'
-      ? [{ id: 'wage-2', workerId, effectiveOn: '2026-09-01', hourlyWageCents: 2500, createdAt: '2026-09-01T00:00:00.000Z' }]
-      : [{ id: 'wage-1', workerId, effectiveOn: '2026-08-01', hourlyWageCents: 2200, createdAt: '2026-08-01T00:00:00.000Z' }]
+    const listWageHistory = vi.fn(async (workerId: string) =>
+      workerId === 'worker-2'
+        ? [
+            {
+              id: 'wage-2',
+              workerId,
+              effectiveOn: '2026-09-01',
+              hourlyWageCents: 2500,
+              createdAt: '2026-09-01T00:00:00.000Z'
+            }
+          ]
+        : [
+            {
+              id: 'wage-1',
+              workerId,
+              effectiveOn: '2026-08-01',
+              hourlyWageCents: 2200,
+              createdAt: '2026-08-01T00:00:00.000Z'
+            }
+          ]
     )
-    render(<WorkersPage createWorker={vi.fn()} listWageHistory={listWageHistory} recordWageHistory={vi.fn()} workers={workers} />)
+    render(
+      <WorkersPage
+        createWorker={vi.fn()}
+        listWageHistory={listWageHistory}
+        recordWageHistory={vi.fn()}
+        workers={workers}
+      />
+    )
 
     expect(screen.getByRole('button', { name: '新增人员' })).toBeVisible()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -249,11 +373,32 @@ describe('YUMI 人员时薪与动态设置', () => {
 
   it('设置以互斥模式进入财务资料，并按当前资料类型新建', async () => {
     mocks.finance.categories = [
-      { id: 'income-1', direction: 'income', name: '定金收入', enabled: true, createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z' },
-      { id: 'expense-1', direction: 'expense', name: '工作室房租', enabled: true, createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z' }
+      {
+        id: 'income-1',
+        direction: 'income',
+        name: '定金收入',
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      },
+      {
+        id: 'expense-1',
+        direction: 'expense',
+        name: '工作室房租',
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      }
     ]
     mocks.finance.advancePayers = [
-      { id: 'payer-1', name: '小林', note: '临时垫付', enabled: true, createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z' }
+      {
+        id: 'payer-1',
+        name: '小林',
+        note: '临时垫付',
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      }
     ]
     mocks.finance.createCategory.mockResolvedValue({})
     render(<SettingsPage />)
@@ -265,9 +410,16 @@ describe('YUMI 人员时薪与动态设置', () => {
     fireEvent.click(screen.getByRole('button', { name: '编辑工作室参数' }))
     const studioDialog = screen.getByRole('dialog', { name: '编辑工作室参数' })
     expect(within(studioDialog).getByDisplayValue('0.0034')).toBeVisible()
-    fireEvent.change(within(studioDialog).getByRole('textbox', { name: /元 \/ 克/ }), { target: { value: '0.0034' } })
+    fireEvent.change(within(studioDialog).getByRole('textbox', { name: /元 \/ 克/ }), {
+      target: { value: '0.0034' }
+    })
     fireEvent.click(within(studioDialog).getByRole('button', { name: '保存工作室参数' }))
-    await waitFor(() => expect(mocks.studio.update).toHaveBeenCalledWith({ gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2 }))
+    await waitFor(() =>
+      expect(mocks.studio.update).toHaveBeenCalledWith({
+        gluePriceMicroYuanPerGram: 3_400,
+        orderReservedDays: 2
+      })
+    )
     expect(await screen.findByRole('status')).toHaveTextContent('已保存工作室参数')
 
     fireEvent.click(screen.getByRole('button', { name: '财务资料' }))
@@ -288,10 +440,18 @@ describe('YUMI 人员时薪与动态设置', () => {
     const dialog = screen.getByRole('dialog', { name: '新增收入类目' })
     fireEvent.change(within(dialog).getByLabelText(/类目名称/), { target: { value: '尾款收入' } })
     fireEvent.click(within(dialog).getByRole('button', { name: '创建类目' }))
-    await waitFor(() => expect(mocks.finance.createCategory).toHaveBeenCalledWith({ direction: 'income', name: '尾款收入' }))
+    await waitFor(() =>
+      expect(mocks.finance.createCategory).toHaveBeenCalledWith({
+        direction: 'income',
+        name: '尾款收入'
+      })
+    )
 
     fireEvent.click(screen.getByRole('button', { name: '私人垫付人' }))
-    expect(screen.getByRole('button', { name: '私人垫付人' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '私人垫付人' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
     expect(screen.getByText('小林')).toBeVisible()
     expect(screen.queryByText('定金收入')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '新增垫付人' })).toBeVisible()
@@ -299,8 +459,12 @@ describe('YUMI 人员时薪与动态设置', () => {
 
   it('数据保护只在确认后恢复，并在立即备份后刷新记录', async () => {
     const backup = {
-      id: 'backup-1', backupPath: '/tmp/backup-1', createdAt: '2026-09-08T10:00:00.000Z',
-      reason: 'manual' as const, applicationVersion: '2.0.0', attachmentCount: 3
+      id: 'backup-1',
+      backupPath: '/tmp/backup-1',
+      createdAt: '2026-09-08T10:00:00.000Z',
+      reason: 'manual' as const,
+      applicationVersion: '2.0.0',
+      attachmentCount: 3
     }
     mocks.backup.list.mockResolvedValue([backup])
     render(<SettingsPage />)
@@ -318,7 +482,11 @@ describe('YUMI 人员时薪与动态设置', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '恢复' }))
     fireEvent.click(screen.getByRole('button', { name: '恢复此备份' }))
-    await waitFor(() => expect(mocks.backup.restore).toHaveBeenCalledWith({ backupPath: '/tmp/backup-1', confirmed: true }))
+    await waitFor(() =>
+      expect(mocks.backup.restore).toHaveBeenCalledWith({
+        backupPath: '/tmp/backup-1',
+        confirmed: true
+      })
+    )
   })
-
 })
