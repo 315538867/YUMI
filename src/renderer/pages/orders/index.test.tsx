@@ -26,16 +26,38 @@ const mocks = vi.hoisted(() => {
   }
   return {
     createShipment: vi.fn().mockResolvedValue({ id: 'shipment-new' }),
+    exportOrderTable: vi.fn().mockResolvedValue({ savedPath: '/tmp/订单表.xlsx' }),
+    exportOrderDocuments: vi.fn().mockResolvedValue({ savedPath: '/tmp/订单与发货单.xlsx' }),
+    exportShippingList: vi.fn().mockResolvedValue({ savedPath: '/tmp/发货清单.xlsx' }),
     quickCustomer: {
-      id: 'customer-new', name: '新客户', contact: '王女士', defaultAddress: null, notes: null,
-      enabled: true, createdAt: '2026-09-08T10:00:00.000Z', updatedAt: '2026-09-08T10:00:00.000Z'
+      id: 'customer-new',
+      name: '新客户',
+      contact: '王女士',
+      defaultAddress: null,
+      notes: null,
+      enabled: true,
+      createdAt: '2026-09-08T10:00:00.000Z',
+      updatedAt: '2026-09-08T10:00:00.000Z'
     },
     quickProduct: {
-      id: 'product-new', name: '新商品', code: null, category: null, basePriceCents: 1880,
-      materialCostCents: 0, packagingCostCents: 0, accessoryCostCents: 0, replacementBagCostCents: 0,
-      edgeCostCents: 0, standardMakingMinutes: 0, makingCommissionCents: 0, makingGlueCostCents: 0,
-      imageAttachmentId: null, notes: null, enabled: true,
-      createdAt: '2026-09-08T10:00:00.000Z', updatedAt: '2026-09-08T10:00:00.000Z'
+      id: 'product-new',
+      name: '新商品',
+      code: null,
+      category: null,
+      basePriceCents: 1880,
+      materialCostCents: 0,
+      packagingCostCents: 0,
+      accessoryCostCents: 0,
+      replacementBagCostCents: 0,
+      internalEdgeCostCents: 0,
+      standardMakingMinutes: 0,
+      makingCommissionCents: 0,
+      makingGlueCostCents: 0,
+      imageAttachmentId: null,
+      notes: null,
+      enabled: true,
+      createdAt: '2026-09-08T10:00:00.000Z',
+      updatedAt: '2026-09-08T10:00:00.000Z'
     },
     quickCreateCustomer: vi.fn(),
     quickCreateProduct: vi.fn(),
@@ -65,20 +87,48 @@ const mocks = vi.hoisted(() => {
       }
     ],
     createOrder: vi.fn(),
-    customers: [{
-      id: 'customer-old', name: '已有客户', contact: null, defaultAddress: null, notes: null,
-      enabled: true, createdAt: '2026-09-08T10:00:00.000Z', updatedAt: '2026-09-08T10:00:00.000Z'
-    }],
-    products: [{
-      id: 'product-old', name: '已有商品', code: null, category: null, basePriceCents: 1000,
-      materialCostCents: 0, packagingCostCents: 0, accessoryCostCents: 0, replacementBagCostCents: 0,
-      edgeCostCents: 0, standardMakingMinutes: 0, makingCommissionCents: 0, makingGlueCostCents: 0,
-      imageAttachmentId: null, notes: null, enabled: true,
-      createdAt: '2026-09-08T10:00:00.000Z', updatedAt: '2026-09-08T10:00:00.000Z'
-    }],
+    customers: [
+      {
+        id: 'customer-old',
+        name: '已有客户',
+        contact: null,
+        defaultAddress: null,
+        notes: null,
+        enabled: true,
+        createdAt: '2026-09-08T10:00:00.000Z',
+        updatedAt: '2026-09-08T10:00:00.000Z'
+      }
+    ],
+    products: [
+      {
+        id: 'product-old',
+        name: '已有商品',
+        code: null,
+        category: null,
+        basePriceCents: 1000,
+        materialCostCents: 0,
+        packagingCostCents: 0,
+        accessoryCostCents: 0,
+        replacementBagCostCents: 0,
+        internalEdgeCostCents: 0,
+        standardMakingMinutes: 0,
+        makingCommissionCents: 0,
+        makingGlueCostCents: 0,
+        imageAttachmentId: null,
+        notes: null,
+        enabled: true,
+        createdAt: '2026-09-08T10:00:00.000Z',
+        updatedAt: '2026-09-08T10:00:00.000Z'
+      }
+    ],
     changeContent: vi.fn(),
     recordFund: vi.fn(),
-    correctFund: vi.fn()
+    correctFund: vi.fn(),
+    pickFundProof: vi.fn(),
+    discardPreparedFundProof: vi.fn(),
+    getFundProof: vi.fn(),
+    attachFundProof: vi.fn(),
+    openFundProof: vi.fn()
   }
 })
 
@@ -115,10 +165,17 @@ vi.mock('../../composables/use-orders', () => ({
     changeContent: mocks.changeContent,
     recordFund: mocks.recordFund,
     correctFund: mocks.correctFund,
-    createShipment: mocks.createShipment
+    pickFundProof: mocks.pickFundProof,
+    discardPreparedFundProof: mocks.discardPreparedFundProof,
+    getFundProof: mocks.getFundProof,
+    attachFundProof: mocks.attachFundProof,
+    openFundProof: mocks.openFundProof,
+    createShipment: mocks.createShipment,
+    exportOrderTable: mocks.exportOrderTable,
+    exportOrderDocuments: mocks.exportOrderDocuments,
+    exportShippingList: mocks.exportShippingList
   })
 }))
-
 
 vi.mock('../../composables/use-customers', () => ({
   useCustomers: () => ({
@@ -129,6 +186,17 @@ vi.mock('../../composables/use-customers', () => ({
 vi.mock('../../composables/use-products', () => ({
   useProducts: () => ({
     createProduct: mocks.quickCreateProduct
+  })
+}))
+
+
+vi.mock('../../composables/use-studio-settings', () => ({
+  useStudioSettings: () => ({
+    settings: { gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2, updatedAt: null },
+    loading: false,
+    loadError: null,
+    reload: vi.fn(),
+    update: vi.fn()
   })
 }))
 
@@ -144,10 +212,14 @@ vi.mock('../../composables/use-finance', () => ({
 installDomInteractionPolyfills()
 afterEach(() => {
   cleanup()
+  mocks.createOrder.mockClear()
   mocks.createShipment.mockClear()
   mocks.selectOrder.mockClear()
   mocks.quickCreateCustomer.mockClear()
   mocks.quickCreateProduct.mockClear()
+  mocks.exportOrderTable.mockClear()
+  mocks.exportOrderDocuments.mockClear()
+  mocks.exportShippingList.mockClear()
 })
 
 describe('订单分批发货交互', () => {
@@ -195,21 +267,79 @@ describe('订单分批发货交互', () => {
     )
   })
 
+  it('从订单详情按当前订单导出独立与合并单据', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /YD-001/ }))
+
+    fireEvent.click(await screen.findByRole('button', { name: '导出订单表' }))
+    await waitFor(() => expect(mocks.exportOrderTable).toHaveBeenCalledWith('order-1'))
+
+    fireEvent.click(screen.getByRole('button', { name: '导出发货清单' }))
+    await waitFor(() => expect(mocks.exportShippingList).toHaveBeenCalledWith('order-1', undefined))
+
+    fireEvent.click(screen.getByRole('button', { name: '合并导出' }))
+    await waitFor(() => expect(mocks.exportOrderDocuments).toHaveBeenCalledWith('order-1', undefined))
+    expect(screen.getByText(/已导出订单表与发货清单/)).toBeVisible()
+  })
+
+  it('登记收款时可选择凭证，并将附件关联到资金流水', async () => {
+    mocks.pickFundProof.mockResolvedValueOnce({
+      id: 'proof-1', originalName: '定金凭证.png', storageKey: 'proof-1.png',
+      mimeType: 'image/png', sizeBytes: 128, createdAt: '2026-09-09T08:00:00.000Z'
+    })
+    mocks.recordFund.mockResolvedValueOnce({ id: 'fund-new' })
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /YD-001/ }))
+    fireEvent.click(await screen.findByRole('button', { name: '资金' }))
+    fireEvent.click(screen.getByRole('button', { name: '选择收款凭证' }))
+
+    await waitFor(() => expect(mocks.pickFundProof).toHaveBeenCalledTimes(1))
+    expect(screen.getByText('已选择：定金凭证.png')).toBeVisible()
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: '50' } })
+    fireEvent.click(screen.getByRole('button', { name: '登记资金' }))
+
+    await waitFor(() => expect(mocks.recordFund).toHaveBeenCalledWith('order-1', expect.objectContaining({
+      businessType: 'payment', amountCents: 5_000, attachmentId: 'proof-1'
+    })))
+  })
+
+  it('新建订单默认带入预留天数，并允许按订单调整', async () => {
+    mocks.createOrder.mockResolvedValueOnce(mocks.selectedOrder)
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
+    expect(screen.getByRole('textbox', { name: '预留制作天数' })).toHaveValue('2')
+    fireEvent.change(screen.getByRole('textbox', { name: '预留制作天数' }), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('combobox', { name: '客户' }))
+    fireEvent.click(screen.getByRole('option', { name: '已有客户' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建订单' }))
+
+    await waitFor(() => expect(mocks.createOrder).toHaveBeenCalledWith(expect.objectContaining({ reservedDays: 3 })))
+  })
+
   it('取消快捷建档时保留订单草稿', () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '初始确认金额（元）' }), { target: { value: '188' } })
-    fireEvent.change(screen.getByRole('textbox', { name: '订单备注' }), { target: { value: '保留中的草稿' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '订单优惠（元）' }), {
+      target: { value: '188' }
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: '订单备注' }), {
+      target: { value: '保留中的草稿' }
+    })
     fireEvent.click(screen.getByRole('combobox', { name: '客户' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '搜索客户' }), { target: { value: '新客户' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索客户' }), {
+      target: { value: '新客户' }
+    })
     fireEvent.click(screen.getByRole('button', { name: '新建“新客户”' }))
 
     expect(screen.getByRole('dialog', { name: '新建客户' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
 
     expect(screen.queryByRole('dialog', { name: '新建客户' })).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: '初始确认金额（元）' })).toHaveValue('188')
+    expect(screen.getByRole('textbox', { name: '订单优惠（元）' })).toHaveValue('188')
     expect(screen.getByRole('textbox', { name: '订单备注' })).toHaveValue('保留中的草稿')
   })
 
@@ -219,15 +349,26 @@ describe('订单分批发货交互', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
     fireEvent.click(screen.getByRole('combobox', { name: '客户' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '搜索客户' }), { target: { value: '新客户' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索客户' }), {
+      target: { value: '新客户' }
+    })
     fireEvent.click(screen.getByRole('button', { name: '新建“新客户”' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '联系人' }), { target: { value: '王女士' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '联系人' }), {
+      target: { value: '王女士' }
+    })
     fireEvent.click(screen.getByRole('button', { name: '创建并选中客户' }))
 
-    await waitFor(() => expect(mocks.quickCreateCustomer).toHaveBeenCalledWith({
-      name: '新客户', contact: '王女士', defaultAddress: null, notes: null
-    }))
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: '新建客户' })).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(mocks.quickCreateCustomer).toHaveBeenCalledWith({
+        name: '新客户',
+        contact: '王女士',
+        defaultAddress: null,
+        notes: null
+      })
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '新建客户' })).not.toBeInTheDocument()
+    )
     expect(screen.getByRole('combobox', { name: '客户' })).toHaveTextContent('新客户')
   }, 45_000)
 
@@ -236,21 +377,30 @@ describe('订单分批发货交互', () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '初始确认金额（元）' }), { target: { value: '188' } })
-    fireEvent.change(screen.getByRole('textbox', { name: '订单备注' }), { target: { value: '保存失败后的草稿' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '订单优惠（元）' }), {
+      target: { value: '188' }
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: '订单备注' }), {
+      target: { value: '保存失败后的草稿' }
+    })
     fireEvent.click(screen.getByRole('combobox', { name: '第 1 行商品' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '搜索第 1 行商品' }), { target: { value: '新商品' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索第 1 行商品' }), {
+      target: { value: '新商品' }
+    })
     fireEvent.click(screen.getByRole('button', { name: '新建“新商品”' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '基础售价（元）' }), { target: { value: '18.8' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '基础售价（元）' }), {
+      target: { value: '18.8' }
+    })
     fireEvent.click(screen.getByRole('button', { name: '创建并选中商品' }))
 
+    await waitFor(() => expect(mocks.quickCreateProduct).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('alert')).toHaveTextContent('商品保存失败')
     expect(screen.getByRole('dialog', { name: '新建商品' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '商品名称' })).toHaveValue('新商品')
     expect(screen.getByRole('textbox', { name: '基础售价（元）' })).toHaveValue('18.8')
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(screen.queryByRole('dialog', { name: '新建商品' })).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: '初始确认金额（元）' })).toHaveValue('188')
+    expect(screen.getByRole('textbox', { name: '订单优惠（元）' })).toHaveValue('188')
     expect(screen.getByRole('textbox', { name: '订单备注' })).toHaveValue('保存失败后的草稿')
   }, 45_000)
 
@@ -259,24 +409,38 @@ describe('订单分批发货交互', () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '初始确认金额（元）' }), { target: { value: '188' } })
-    fireEvent.change(screen.getByRole('textbox', { name: '订单备注' }), { target: { value: '保留中的草稿' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '订单优惠（元）' }), {
+      target: { value: '188' }
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: '订单备注' }), {
+      target: { value: '保留中的草稿' }
+    })
     fireEvent.click(screen.getByRole('combobox', { name: '第 1 行商品' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '搜索第 1 行商品' }), { target: { value: '新商品' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索第 1 行商品' }), {
+      target: { value: '新商品' }
+    })
     fireEvent.click(screen.getByRole('button', { name: '新建“新商品”' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '基础售价（元）' }), { target: { value: '18.8' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '基础售价（元）' }), {
+      target: { value: '18.8' }
+    })
     fireEvent.click(screen.getByRole('button', { name: '创建并选中商品' }))
 
-    await waitFor(() => expect(mocks.quickCreateProduct).toHaveBeenCalledWith(expect.objectContaining({
-      name: '新商品', basePriceCents: 1880
-    })))
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: '新建商品' })).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(mocks.quickCreateProduct).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: '新商品',
+          basePriceCents: 1880
+        })
+      )
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '新建商品' })).not.toBeInTheDocument()
+    )
     expect(screen.getByRole('combobox', { name: '第 1 行商品' })).toHaveTextContent('新商品')
     expect(screen.getByRole('textbox', { name: '第 1 行单价' })).toHaveValue('18.80')
-    expect(screen.getByRole('textbox', { name: '初始确认金额（元）' })).toHaveValue('188')
+    expect(screen.getByRole('textbox', { name: '订单优惠（元）' })).toHaveValue('188')
     expect(screen.getByRole('textbox', { name: '订单备注' })).toHaveValue('保留中的草稿')
   }, 45_000)
-
 })
 
 describe('订单前置资料引导', () => {

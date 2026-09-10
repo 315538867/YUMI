@@ -9,6 +9,8 @@ import type {
   V2OrderItemFulfillment,
   V2OrderFundCorrectionInput,
   V2OrderFundInput,
+  V2OrderFundProof,
+  V2OrderFundProofOpenResult,
   V2OrderSummary,
   V2Product,
   V2Shipment,
@@ -169,6 +171,24 @@ export function useOrders() {
     [reload]
   )
 
+  const pickFundProof = useCallback(() => window.yumiV2.orderFundProofs.pick(), [])
+  const discardPreparedFundProof = useCallback(
+    (attachmentId: string) => window.yumiV2.orderFundProofs.discardPrepared(attachmentId),
+    []
+  )
+  const getFundProof = useCallback(
+    (fundId: string): Promise<V2OrderFundProof | null> => window.yumiV2.orderFundProofs.get(fundId),
+    []
+  )
+  const attachFundProof = useCallback(
+    (fundId: string, attachmentId: string) => window.yumiV2.orderFundProofs.attach(fundId, attachmentId),
+    []
+  )
+  const openFundProof = useCallback(
+    (fundId: string): Promise<V2OrderFundProofOpenResult> => window.yumiV2.orderFundProofs.open(fundId),
+    []
+  )
+
   const createShipment = useCallback(
     async (orderId: string, input: V2ShipmentInput) => {
       const shipment = await window.yumiV2.orders.createShipment(orderId, input)
@@ -176,6 +196,20 @@ export function useOrders() {
       return shipment
     },
     [reload]
+  )
+
+  const exportOrderTable = useCallback(
+    (orderId?: string | null) => window.yumiV2.reports.exportOrderTable(orderId ? { orderId } : undefined),
+    []
+  )
+  const exportOrderDocuments = useCallback(
+    (orderId: string, shipmentId?: string | null) => window.yumiV2.reports.exportOrderDocuments({ orderId, shipmentId }),
+    []
+  )
+  const exportShippingList = useCallback(
+    (orderId?: string | null, shipmentId?: string | null) =>
+      window.yumiV2.reports.exportShippingList({ orderId, shipmentId }),
+    []
   )
 
   return {
@@ -195,6 +229,14 @@ export function useOrders() {
     changeContent,
     recordFund,
     correctFund,
-    createShipment
+    pickFundProof,
+    discardPreparedFundProof,
+    getFundProof,
+    attachFundProof,
+    openFundProof,
+    createShipment,
+    exportOrderTable,
+    exportOrderDocuments,
+    exportShippingList
   }
 }

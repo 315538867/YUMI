@@ -28,7 +28,6 @@ function order(): V2Order {
   return {
     id: 'order-1', code: 'YD-001', customer: null, customerSnapshot: { name: '小雨' },
     items: [{ id: 'item-1', orderId: 'order-1', productId: null, productSnapshot: { name: '草莓团子', unitPriceCents: 1_000, makingCommissionCents: 100, makingStandardMinutes: 30, makingGlueCostCents: 20 }, quantity: 10, unitPriceCents: 1_000, createdAt: iso, updatedAt: iso }],
-    amount: { initialConfirmedAmountCents: 10_000, adjustmentsCents: 0, currentAmountCents: 10_000 },
     funds: { receivedCents: 0, refundedCents: 0, netReceivedCents: 0, outstandingCents: 10_000 }, expectedShipDate: '2026-09-10', notes: null, createdAt: iso, updatedAt: iso
   }
 }

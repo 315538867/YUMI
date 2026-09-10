@@ -27,6 +27,8 @@ export interface V2MutationResult<T> {
   auditLogId: string
 }
 
+export type V2AttachmentStatus = 'available' | 'missing'
+
 export interface V2AttachmentReference {
   id: string
   originalName: string
@@ -34,6 +36,15 @@ export interface V2AttachmentReference {
   mimeType: string | null
   sizeBytes: number
   createdAt: IsoDateTime
+}
+
+export interface V2OrderFundProof extends V2AttachmentReference {
+  status: V2AttachmentStatus
+}
+
+export interface V2OrderFundProofOpenResult {
+  status: 'opened' | 'missing' | 'none' | 'failed'
+  message?: string
 }
 
 export interface V2BackupSummary {

@@ -18,7 +18,8 @@ import {
   YumiSheet,
   YumiStatusTag,
   YumiTextArea,
-  YumiTextField
+  YumiTextField,
+  YumiNotification
 } from '../../components/ui'
 
 type FinanceWorkspaceView = 'overview' | 'cashflow' | 'reimbursements'
@@ -136,8 +137,8 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
       description="按实际付款日期入账；私人垫付形成待报销项，报销付款只进入现金流水，不重复计入经营费用。"
       title="财务"
     />
-    {loadError && <p className="yumi-feedback yumi-feedback--danger" role="alert">{loadError}</p>}
-    {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
+    {loadError && <YumiNotification key={loadError} message={loadError} />}
+    {error && <YumiNotification key={error} message={error} />}
 
     <nav aria-label="财务工作视图" className="yumi-page-tabs">
       {workspaceViews.map((view) => <YumiButton

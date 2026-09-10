@@ -30,13 +30,13 @@ describe('V2 大订单端到端验收', () => {
     const bear = orders.createProduct({
       name: '奶油小熊', code: 'BEAR', category: '动物', basePriceCents: 6_000,
       materialCostCents: 1_000, packagingCostCents: 100, accessoryCostCents: 50,
-      replacementBagCostCents: 50, edgeCostCents: 80, standardMakingMinutes: 12,
+      replacementBagCostCents: 50, internalEdgeCostCents: 80, standardMakingMinutes: 12,
       makingCommissionCents: 300, makingGlueCostCents: 50
     })
     const fruit = orders.createProduct({
       name: '草莓捏捏', code: 'BERRY', category: '水果', basePriceCents: 5_000,
       materialCostCents: 800, packagingCostCents: 100, accessoryCostCents: 0,
-      replacementBagCostCents: 50, edgeCostCents: 0, standardMakingMinutes: 10,
+      replacementBagCostCents: 50, internalEdgeCostCents: 0, standardMakingMinutes: 10,
       makingCommissionCents: 250, makingGlueCostCents: 40
     })
     const order = orders.createOrder({
@@ -46,7 +46,6 @@ describe('V2 大订单端到端验收', () => {
         { productId: bear.id, quantity: 3, unitPriceCents: 6_000 },
         { productId: fruit.id, quantity: 2, unitPriceCents: 5_000 }
       ],
-      initialConfirmedAmountCents: 28_000,
       expectedShipDate: '2026-09-20'
     })
     const [bearItem, fruitItem] = order.items

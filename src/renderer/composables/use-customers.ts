@@ -35,5 +35,9 @@ export function useCustomers() {
     return customer
   }, [reload])
 
-  return { customers, loading, loadError, reload, createCustomer, updateCustomer }
+  /** 客户订单洞察只在负责人主动打开客户资料时读取，列表保持轻量只读。 */
+  const getCustomerOrderInsights = useCallback((customerId: string) =>
+    window.yumiV2.reports.getCustomerOrderInsights(customerId), [])
+
+  return { customers, loading, loadError, reload, createCustomer, updateCustomer, getCustomerOrderInsights }
 }

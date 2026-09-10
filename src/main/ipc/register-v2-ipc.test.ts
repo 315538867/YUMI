@@ -23,7 +23,7 @@ describe('registerV2Ipc', () => {
       changeOrderContent: vi.fn(), listContentChanges: vi.fn(), listOrderFunds: vi.fn(), recordOrderFund: vi.fn(),
       correctOrderFund: vi.fn(), listShipments: vi.fn(), createShipment: vi.fn()
     }
-    const studioSettings = { get: vi.fn(() => ({ gluePriceMicroYuanPerGram: 3_400, updatedAt: null })), update: vi.fn() }
+    const studioSettings = { get: vi.fn(() => ({ gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2, updatedAt: null })), update: vi.fn() }
     const workbench = { getSnapshot: vi.fn(() => ({ decisionItems: [], advanceItems: [], firstUseGuide: null, generatedOn: '2026-09-08' })) }
     const fulfillment = {
       createWorkAssignment: vi.fn(), getWorkAssignment: vi.fn(), listWorkAssignments: vi.fn(), getProcessResultForTask: vi.fn(),
@@ -43,15 +43,25 @@ describe('registerV2Ipc', () => {
     }
     const afterSales = { listCases: vi.fn(() => []), getCase: vi.fn(), createCase: vi.fn(), updateCase: vi.fn(), linkCharge: vi.fn() }
     const reports = { getOrderBusiness: vi.fn(), getFulfillmentProgress: vi.fn(), listConfirmedSettlements: vi.fn(), getMonthlyOperation: vi.fn() }
-    const reportOptions = { exporter: { exportCurrentReport: vi.fn(async () => ({ savedPath: null })) } }
+    const reportOptions = { exporter: {
+      exportCurrentReport: vi.fn(async () => ({ savedPath: null })),
+      exportOrderTable: vi.fn(async () => ({ savedPath: null })),
+      exportShippingList: vi.fn(async () => ({ savedPath: null }))
+    } }
     const backup = { service: { createBackup: vi.fn(), listBackups: vi.fn() }, restore: vi.fn() }
+    const proofs = {
+      service: { prepareFromFile: vi.fn(), discardPrepared: vi.fn(), getFundProof: vi.fn(), attachToFund: vi.fn(), getFundProofPath: vi.fn() },
+      pickFile: vi.fn(async () => null), openFile: vi.fn(async () => '')
+    }
 
-    registerV2Ipc(service as never, studioSettings as never, workbench as never, fulfillment as never, settlement as never, finance as never, afterSales as never, reports as never, reportOptions as never, backup as never, ipcMain)
+    registerV2Ipc(service as never, studioSettings as never, workbench as never, fulfillment as never, settlement as never, finance as never, afterSales as never, reports as never, reportOptions as never, backup as never, proofs as never, ipcMain)
 
     expect([...handlers.keys()]).toEqual(expect.arrayContaining([
       'v2:workbench:get', 'v2:studio-settings:get', 'v2:studio-settings:update', 'v2:customers:list', 'v2:products:create', 'v2:orders:create',
       'v2:orders:change-content', 'v2:orders:funds:list', 'v2:orders:record-fund',
       'v2:orders:correct-fund', 'v2:orders:shipments:create',
+      'v2:order-fund-proofs:pick', 'v2:order-fund-proofs:discard-prepared', 'v2:order-fund-proofs:get',
+      'v2:order-fund-proofs:attach', 'v2:order-fund-proofs:open',
       'v2:fulfillment:assignments:create', 'v2:fulfillment:assignments:get', 'v2:fulfillment:assignments:list',
       'v2:fulfillment:tasks:result:get', 'v2:fulfillment:results:submit', 'v2:fulfillment:inspections:confirm',
       'v2:fulfillment:opening-wip:record', 'v2:fulfillment:adjustments:create', 'v2:fulfillment:order-item:get',
@@ -66,7 +76,7 @@ describe('registerV2Ipc', () => {
       'v2:after-sales:cases:list', 'v2:after-sales:cases:get', 'v2:after-sales:cases:create',
       'v2:after-sales:cases:update', 'v2:after-sales:charges:link',
       'v2:reports:orders:business', 'v2:reports:fulfillment:progress', 'v2:reports:settlements:confirmed',
-      'v2:reports:monthly-operation:get', 'v2:reports:export', 'v2:backup:restore'
+      'v2:reports:monthly-operation:get', 'v2:reports:export', 'v2:reports:export:order-table', 'v2:reports:export:shipping-list', 'v2:backup:restore'
     ]))
     await handlers.get('v2:workbench:get')!(undefined)
     await handlers.get('v2:studio-settings:get')!(undefined)
@@ -106,6 +116,8 @@ describe('registerV2Ipc', () => {
     await handlers.get('v2:after-sales:charges:link')!(undefined, 'case-1', 'entry-1')
     await handlers.get('v2:reports:monthly-operation:get')!(undefined, '2026-09')
     await handlers.get('v2:reports:export')!(undefined, { month: '2026-09' })
+    await handlers.get('v2:reports:export:order-table')!(undefined)
+    await handlers.get('v2:reports:export:shipping-list')!(undefined)
     expect(workbench.getSnapshot).toHaveBeenCalledTimes(1)
     expect(studioSettings.get).toHaveBeenCalledTimes(1)
     expect(studioSettings.update).toHaveBeenCalledWith({ gluePriceMicroYuanPerGram: 3_400 })
@@ -144,5 +156,7 @@ describe('registerV2Ipc', () => {
     expect(afterSales.linkCharge).toHaveBeenCalledWith('case-1', 'entry-1')
     expect(reports.getMonthlyOperation).toHaveBeenCalledWith('2026-09')
     expect(reportOptions.exporter.exportCurrentReport).toHaveBeenCalledWith({ month: '2026-09' })
+    expect(reportOptions.exporter.exportOrderTable).toHaveBeenCalledTimes(1)
+    expect(reportOptions.exporter.exportShippingList).toHaveBeenCalledTimes(1)
   })
 })

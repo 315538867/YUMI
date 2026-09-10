@@ -1,6 +1,8 @@
 import type { V2Database } from '@main/database/v2-connection'
 import { calculateOrderAmountSummary } from '@main/domain/order-amounts'
 import { calculateOrderFundSummary } from '@main/domain/order-funds'
+import { calculateOrderSchedule } from '@main/domain/order-schedule'
+import { calculateDailyMoldCapacity } from '@main/domain/product-capacity'
 import type {
   V2Customer,
   V2CustomerInput,
@@ -36,8 +38,9 @@ interface OrderRow {
   code: string
   customer_id: string | null
   customer_snapshot_json: string
-  initial_confirmed_amount_cents: number
+  order_discount_cents: number
   expected_ship_date: string | null
+  reserved_days: number
   notes: string | null
   created_at: string
   updated_at: string
@@ -50,6 +53,10 @@ interface OrderItemRow {
   product_snapshot_json: string
   quantity: number
   unit_price_cents: number
+  edge_enabled: number
+  edge_quantity: number
+  edge_unit_price_cents: number
+  item_discount_cents: number
   created_at: string
   updated_at: string
   line_no: number
@@ -67,6 +74,11 @@ interface FundRow {
   reversal_of_entry_id: string | null
   note: string | null
   created_at: string
+  attachment_original_name?: string | null
+  attachment_storage_key?: string | null
+  attachment_mime_type?: string | null
+  attachment_size_bytes?: number | null
+  attachment_created_at?: string | null
 }
 
 interface AdjustmentRow {
@@ -96,6 +108,7 @@ interface ShipmentRow {
   carrier: string | null
   tracking_number: string | null
   note: string | null
+  snapshot_json: string | null
   created_at: string
   updated_at: string
 }
@@ -104,6 +117,10 @@ interface ShipmentItemRow {
   shipment_id: string
   order_item_id: string
   quantity: number
+}
+
+function calculateProductionDeadline(expectedShipDate: string | null, reservedDays: number): string | null {
+  return calculateOrderSchedule({ expectedShipDate, reservedDays }).productionDeadline
 }
 
 function parseJson<T>(value: string): T {
@@ -139,11 +156,17 @@ function mapProduct(row: Record<string, unknown>): V2Product {
     packagingCostCents: Number(row.packaging_cost_cents),
     accessoryCostCents: Number(row.accessory_cost_cents),
     replacementBagCostCents: Number(row.replacement_bag_cost_cents),
-    edgeCostCents: Number(row.edge_cost_cents),
+    internalEdgeCostCents: Number(row.internal_edge_cost_cents),
     standardMakingMinutes: Number(row.standard_making_minutes),
     makingCommissionCents: Number(row.making_commission_cents),
     makingGlueCostCents: Number(row.making_glue_cost_cents),
     glueWeightMilligrams: Number(row.glue_weight_milligrams ?? 0),
+    unitWeightMilligrams: Number(row.unit_weight_milligrams ?? 0),
+    materialLossRateBasisPoints: Number(row.material_loss_rate_basis_points ?? 0),
+    moldCount: Number(row.mold_count ?? 0),
+    outputPerMoldPerBatch: Number(row.output_per_mold_per_batch ?? 0),
+    maxBatchesPerDay: Number(row.max_batches_per_day ?? 0),
+    dailyCapacity: Number(row.daily_capacity ?? 0),
     enabled: Boolean(row.enabled),
     imageAttachmentId: (row.image_attachment_id as string | null) ?? null,
     notes: (row.notes as string | null) ?? null,
@@ -160,6 +183,13 @@ function mapOrderItem(row: OrderItemRow): V2OrderItem {
     productSnapshot: parseJson<V2ProductOrderSnapshot>(row.product_snapshot_json),
     quantity: row.quantity,
     unitPriceCents: row.unit_price_cents,
+    edgeEnabled: Boolean(row.edge_enabled),
+    edgeQuantity: row.edge_quantity,
+    edgeUnitPriceCents: row.edge_unit_price_cents,
+    itemAmountCents: row.quantity * row.unit_price_cents,
+    edgeAmountCents: row.edge_quantity * row.edge_unit_price_cents,
+    itemDiscountCents: row.item_discount_cents,
+    lineAmountCents: row.quantity * row.unit_price_cents + row.edge_quantity * row.edge_unit_price_cents - row.item_discount_cents,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -177,7 +207,16 @@ function mapFund(row: FundRow): V2OrderFund {
     attachmentId: row.attachment_id,
     note: row.note,
     reversalOfEntryId: row.reversal_of_entry_id,
-    attachment: null,
+    attachment: row.attachment_original_name && row.attachment_storage_key && row.attachment_created_at
+      ? {
+          id: row.attachment_id!,
+          originalName: row.attachment_original_name,
+          storageKey: row.attachment_storage_key,
+          mimeType: row.attachment_mime_type ?? null,
+          sizeBytes: Number(row.attachment_size_bytes ?? 0),
+          createdAt: row.attachment_created_at
+        }
+      : null,
     createdAt: row.created_at
   }
 }
@@ -257,15 +296,22 @@ export class V2OrderRepository {
       .prepare(
         `INSERT INTO products (
           id, name, code, category, base_price_cents, material_cost_cents, packaging_cost_cents,
-          accessory_cost_cents, replacement_bag_cost_cents, edge_cost_cents, standard_making_minutes,
-          making_commission_cents, making_glue_cost_cents, glue_weight_milligrams, enabled, image_attachment_id, notes, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+          accessory_cost_cents, replacement_bag_cost_cents, internal_edge_cost_cents, standard_making_minutes,
+          making_commission_cents, making_glue_cost_cents, glue_weight_milligrams, unit_weight_milligrams,
+          material_loss_rate_basis_points, mold_count, output_per_mold_per_batch, max_batches_per_day,
+          daily_capacity, enabled, image_attachment_id, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
       )
       .run(
         id, input.name.trim(), nullableText(input.code), nullableText(input.category), input.basePriceCents,
         input.materialCostCents ?? 0, input.packagingCostCents, input.accessoryCostCents,
-        input.replacementBagCostCents, input.edgeCostCents, input.standardMakingMinutes,
+        input.replacementBagCostCents, input.internalEdgeCostCents, input.standardMakingMinutes,
         input.makingCommissionCents, input.makingGlueCostCents ?? 0, input.glueWeightMilligrams ?? 0,
+        input.unitWeightMilligrams ?? 0, input.materialLossRateBasisPoints ?? 0, input.moldCount ?? 0,
+        input.outputPerMoldPerBatch ?? 0, input.maxBatchesPerDay ?? 0,
+        input.moldCount && input.outputPerMoldPerBatch && input.maxBatchesPerDay
+          ? calculateDailyMoldCapacity({ moldCount: input.moldCount, outputPerMoldPerBatch: input.outputPerMoldPerBatch, maxBatchesPerDay: input.maxBatchesPerDay })
+          : 0,
         nullableText(input.imageAttachmentId),
         nullableText(input.notes), now, now
       )
@@ -277,15 +323,21 @@ export class V2OrderRepository {
       .prepare(
         `UPDATE products SET
           name = ?, code = ?, category = ?, base_price_cents = ?, material_cost_cents = ?, packaging_cost_cents = ?,
-          accessory_cost_cents = ?, replacement_bag_cost_cents = ?, edge_cost_cents = ?, standard_making_minutes = ?,
-          making_commission_cents = ?, making_glue_cost_cents = ?, glue_weight_milligrams = ?, enabled = COALESCE(?, enabled),
-          image_attachment_id = ?, notes = ?, updated_at = ? WHERE id = ?`
+          accessory_cost_cents = ?, replacement_bag_cost_cents = ?, internal_edge_cost_cents = ?, standard_making_minutes = ?,
+          making_commission_cents = ?, making_glue_cost_cents = ?, glue_weight_milligrams = ?, unit_weight_milligrams = ?,
+          material_loss_rate_basis_points = ?, mold_count = ?, output_per_mold_per_batch = ?, max_batches_per_day = ?,
+          daily_capacity = ?, enabled = COALESCE(?, enabled), image_attachment_id = ?, notes = ?, updated_at = ? WHERE id = ?`
       )
       .run(
         input.name.trim(), nullableText(input.code), nullableText(input.category), input.basePriceCents,
         input.materialCostCents ?? 0, input.packagingCostCents, input.accessoryCostCents,
-        input.replacementBagCostCents, input.edgeCostCents, input.standardMakingMinutes,
+        input.replacementBagCostCents, input.internalEdgeCostCents, input.standardMakingMinutes,
         input.makingCommissionCents, input.makingGlueCostCents ?? 0, input.glueWeightMilligrams ?? 0,
+        input.unitWeightMilligrams ?? 0, input.materialLossRateBasisPoints ?? 0, input.moldCount ?? 0,
+        input.outputPerMoldPerBatch ?? 0, input.maxBatchesPerDay ?? 0,
+        input.moldCount && input.outputPerMoldPerBatch && input.maxBatchesPerDay
+          ? calculateDailyMoldCapacity({ moldCount: input.moldCount, outputPerMoldPerBatch: input.outputPerMoldPerBatch, maxBatchesPerDay: input.maxBatchesPerDay })
+          : 0,
         input.enabled === undefined ? null : Number(input.enabled), nullableText(input.imageAttachmentId),
         nullableText(input.notes), now, input.id
       )
@@ -297,42 +349,48 @@ export class V2OrderRepository {
     code: string
     customerId: string | null
     customerSnapshot: V2CustomerInput
-    initialConfirmedAmountCents: number
+    orderDiscountCents: number
     expectedShipDate: string | null
+    reservedDays: number
     notes: string | null
     now: string
   }): void {
     this.database
       .prepare(
         `INSERT INTO orders (
-          id, code, customer_id, customer_snapshot_json, initial_confirmed_amount_cents,
-          expected_ship_date, notes, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          id, code, customer_id, customer_snapshot_json, order_discount_cents,
+          expected_ship_date, reserved_days, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         input.id, input.code, input.customerId, JSON.stringify(input.customerSnapshot),
-        input.initialConfirmedAmountCents, input.expectedShipDate, input.notes, input.now, input.now
+        input.orderDiscountCents, input.expectedShipDate, input.reservedDays, input.notes, input.now, input.now
       )
   }
 
   insertOrderItems(orderId: string, items: Array<Omit<V2OrderItem, 'orderId'>>): void {
     const statement = this.database.prepare(
       `INSERT INTO order_items (
-        id, order_id, product_id, product_snapshot_json, quantity, unit_price_cents, line_no, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        id, order_id, product_id, product_snapshot_json, quantity, unit_price_cents,
+        edge_enabled, edge_quantity, edge_unit_price_cents, item_discount_cents,
+        line_no, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     for (const [lineNo, item] of items.entries()) {
       statement.run(
         item.id, orderId, item.productId, JSON.stringify(item.productSnapshot), item.quantity,
-        item.unitPriceCents, lineNo, item.createdAt, item.updatedAt
+        item.unitPriceCents, Number(item.edgeEnabled), item.edgeQuantity, item.edgeUnitPriceCents,
+        item.itemDiscountCents, lineNo, item.createdAt, item.updatedAt
       )
     }
   }
 
-  replaceOrderItems(orderId: string, items: Array<Omit<V2OrderItem, 'orderId'>>): void {
+  replaceOrderItems(orderId: string, items: Array<Omit<V2OrderItem, 'orderId'>>, orderDiscountCents: number): void {
     this.database.prepare('DELETE FROM order_items WHERE order_id = ?').run(orderId)
     this.insertOrderItems(orderId, items)
-    this.database.prepare('UPDATE orders SET updated_at = ? WHERE id = ?').run(items[0]?.updatedAt ?? new Date().toISOString(), orderId)
+    this.database.prepare('UPDATE orders SET order_discount_cents = ?, updated_at = ? WHERE id = ?').run(
+      orderDiscountCents, items[0]?.updatedAt ?? new Date().toISOString(), orderId
+    )
   }
 
   getOrder(orderId: string): V2Order | null {
@@ -344,7 +402,12 @@ export class V2OrderRepository {
       .prepare('SELECT * FROM order_amount_adjustments WHERE order_id = ? ORDER BY created_at ASC')
       .all(orderId) as AdjustmentRow[]
     const amount = calculateOrderAmountSummary({
-      initialConfirmedAmountCents: row.initial_confirmed_amount_cents,
+      items: items.map((item) => ({
+        quantity: item.quantity, unitPriceCents: item.unitPriceCents,
+        edge: { enabled: item.edgeEnabled, quantity: item.edgeQuantity, unitPriceCents: item.edgeUnitPriceCents },
+        itemDiscountCents: item.itemDiscountCents
+      })),
+      orderDiscountCents: row.order_discount_cents,
       adjustmentsCents: adjustmentRows.map((item) => item.amount_cents)
     })
     const funds = this.getOrderFundSummary(orderId, amount.currentAmountCents)
@@ -357,6 +420,8 @@ export class V2OrderRepository {
       amount,
       funds,
       expectedShipDate: row.expected_ship_date,
+      reservedDays: row.reserved_days,
+      productionDeadline: calculateProductionDeadline(row.expected_ship_date, row.reserved_days),
       notes: row.notes,
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -371,7 +436,12 @@ export class V2OrderRepository {
         .prepare('SELECT amount_cents FROM order_amount_adjustments WHERE order_id = ?')
         .all(row.id) as Array<{ amount_cents: number }>
       const amount = calculateOrderAmountSummary({
-        initialConfirmedAmountCents: row.initial_confirmed_amount_cents,
+        items: this.listOrderItems(row.id).map((item) => ({
+          quantity: item.quantity, unitPriceCents: item.unitPriceCents,
+          edge: { enabled: item.edgeEnabled, quantity: item.edgeQuantity, unitPriceCents: item.edgeUnitPriceCents },
+          itemDiscountCents: item.itemDiscountCents
+        })),
+        orderDiscountCents: row.order_discount_cents,
         adjustmentsCents: adjustmentRows.map((item) => item.amount_cents)
       })
       const funds = this.getOrderFundSummary(row.id, amount.currentAmountCents)
@@ -384,6 +454,8 @@ export class V2OrderRepository {
         netReceivedCents: funds.netReceivedCents,
         outstandingCents: funds.outstandingCents,
         expectedShipDate: row.expected_ship_date,
+        reservedDays: row.reserved_days,
+        productionDeadline: calculateProductionDeadline(row.expected_ship_date, row.reserved_days),
         updatedAt: row.updated_at
       }
     })
@@ -455,13 +527,23 @@ export class V2OrderRepository {
   }
 
   getFund(id: string): V2OrderFund | null {
-    const row = this.database.prepare('SELECT * FROM financial_entries WHERE id = ?').get(id) as FundRow | undefined
+    const row = this.database.prepare(`
+      SELECT entry.*, a.original_name AS attachment_original_name, a.storage_key AS attachment_storage_key,
+        a.mime_type AS attachment_mime_type, a.size_bytes AS attachment_size_bytes, a.created_at AS attachment_created_at
+      FROM financial_entries entry LEFT JOIN attachments a ON a.id = entry.attachment_id
+      WHERE entry.id = ?
+    `).get(id) as FundRow | undefined
     return row ? mapFund(row) : null
   }
 
   listOrderFunds(orderId: string): V2OrderFund[] {
     return (this.database
-      .prepare('SELECT * FROM financial_entries WHERE order_id = ? ORDER BY created_at ASC, id ASC')
+      .prepare(`
+        SELECT entry.*, a.original_name AS attachment_original_name, a.storage_key AS attachment_storage_key,
+          a.mime_type AS attachment_mime_type, a.size_bytes AS attachment_size_bytes, a.created_at AS attachment_created_at
+        FROM financial_entries entry LEFT JOIN attachments a ON a.id = entry.attachment_id
+        WHERE entry.order_id = ? ORDER BY entry.created_at ASC, entry.id ASC
+      `)
       .all(orderId) as FundRow[]).map(mapFund)
   }
 
@@ -499,16 +581,16 @@ export class V2OrderRepository {
     return new Map(rows.map((row) => [row.order_item_id, row.quantity]))
   }
 
-  insertShipment(shipment: V2Shipment): void {
+  insertShipment(shipment: V2Shipment, snapshot: unknown): void {
     this.database
       .prepare(
         `INSERT INTO shipments (
-          id, order_id, shipped_on, carrier, tracking_number, note, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          id, order_id, shipped_on, carrier, tracking_number, note, snapshot_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         shipment.id, shipment.orderId, shipment.shippedOn, shipment.carrier ?? null,
-        shipment.trackingNumber ?? null, shipment.note ?? null, shipment.createdAt, shipment.updatedAt
+        shipment.trackingNumber ?? null, shipment.note ?? null, JSON.stringify(snapshot), shipment.createdAt, shipment.updatedAt
       )
     const statement = this.database.prepare(
       'INSERT INTO shipment_items (id, shipment_id, order_item_id, quantity, created_at) VALUES (?, ?, ?, ?, ?)'
@@ -516,6 +598,14 @@ export class V2OrderRepository {
     for (const item of shipment.items) {
       statement.run(item.id, shipment.id, item.orderItemId, item.quantity, shipment.createdAt)
     }
+  }
+
+  getShipmentDocumentSnapshot(orderId: string, shipmentId: string): Record<string, unknown> | null {
+    const row = this.database.prepare(
+      'SELECT snapshot_json FROM shipments WHERE id = ? AND order_id = ?'
+    ).get(shipmentId, orderId) as { snapshot_json: string | null } | undefined
+    if (!row) return null
+    return row.snapshot_json ? parseJson<Record<string, unknown>>(row.snapshot_json) : null
   }
 
   listShipments(orderId: string): V2Shipment[] {

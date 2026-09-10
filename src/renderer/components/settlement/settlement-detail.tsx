@@ -10,7 +10,9 @@ import {
   YumiSection,
   YumiStatusTag,
   YumiTextArea,
-  YumiTextField
+  YumiTextField,
+  YumiNotification,
+  YumiConfirmDialog
 } from '../ui'
 
 interface SettlementDetailProps {
@@ -44,9 +46,10 @@ export function SettlementDetail(props: SettlementDetailProps) {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const allocationByDeductionId = useMemo(() => new Map(props.settlement.deductionAllocations.map((item) => [item.deductionRecordId, item.allocatedCents])), [props.settlement.deductionAllocations])
 
-  useEffect(() => { setDraft(createDraft(props.settlement)); setError(null); setMessage(null) }, [props.settlement])
+  useEffect(() => { setDraft(createDraft(props.settlement)); setError(null); setMessage(null); setConfirmOpen(false) }, [props.settlement])
 
   const update = (patch: Partial<DetailDraft>) => setDraft((current) => ({ ...current, ...patch }))
   const buildUpdate = (): V2WorkerSettlementDraftUpdateInput => ({
@@ -67,7 +70,7 @@ export function SettlementDetail(props: SettlementDetailProps) {
   const finalPaidAmountCents = draft.finalPaid.trim() ? yuanToCents(draft.finalPaid) : 0
   const confirmReady = finalPaidAmountCents > 0 && Boolean(draft.paidOn)
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     setError(null); setMessage(null)
     if (finalPaidAmountCents <= 0) {
       setError('确认前请填写大于零的最终实发金额。')
@@ -77,6 +80,11 @@ export function SettlementDetail(props: SettlementDetailProps) {
       setError('确认前请选择实际付款日期。')
       return
     }
+    setConfirmOpen(true)
+  }
+
+  const executeConfirm = async () => {
+    setConfirmOpen(false)
     setSubmitting('confirm')
     try {
       await props.updateDraft(props.settlement.id, buildUpdate())
@@ -92,8 +100,8 @@ export function SettlementDetail(props: SettlementDetailProps) {
         <div><strong>{props.workerName}</strong><p>{props.settlement.periodStartOn} 至 {props.settlement.periodEndOn}</p></div>
         <YumiStatusTag tone={isDraft ? 'warning' : 'success'}>{isDraft ? '草稿' : '已确认'}</YumiStatusTag>
       </div>
-      {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
-      {message && <p className="yumi-feedback yumi-feedback--success" role="status">{message}</p>}
+      {error && <YumiNotification key={error} message={error} />}
+      {message && <YumiNotification key={message} message={message} tone="success" />}
       <div className="yumi-settlement-reference-grid">
         <article><span>排班口径</span><strong>{props.settlement.scheduledMinutes} 分钟</strong><p>{formatCents(props.settlement.scheduledReferenceWageCents)}</p></article>
         <article><span>考勤口径</span><strong>{props.settlement.attendanceMinutes ?? '未填'} 分钟</strong><p>{formatCents(props.settlement.attendanceReferenceWageCents)}</p></article>
@@ -128,8 +136,18 @@ export function SettlementDetail(props: SettlementDetailProps) {
         <YumiField><YumiFieldLabel>负责人备注</YumiFieldLabel><YumiTextArea aria-label="负责人备注" disabled={!isDraft} onChange={(event) => update({ managerNote: event.target.value })} value={draft.managerNote} /></YumiField>
         {isDraft && !confirmReady && <p className="yumi-form-hint">请填写最终实发金额并选择实际付款日期后再确认。</p>}
         {props.settlement.financialEntryId && <p className="yumi-form-hint">实际工资流水：{props.settlement.financialEntryId}</p>}
-        {isDraft && <div className="yumi-form-actions"><YumiButton disabled={submitting !== null} type="submit" variant="secondary">保存草稿</YumiButton><YumiButton disabled={submitting !== null || !confirmReady} loading={submitting === 'confirm'} onClick={() => void handleConfirm()} variant="primary">确认并记账</YumiButton></div>}
+        {isDraft && <div className="yumi-form-actions"><YumiButton disabled={submitting !== null} type="submit" variant="secondary">保存草稿</YumiButton><YumiButton disabled={submitting !== null || !confirmReady} loading={submitting === 'confirm'} onClick={handleConfirm} variant="primary">确认并记账</YumiButton></div>}
       </form>
     </YumiSection>
+    <YumiConfirmDialog
+      cancelLabel="继续修改"
+      confirmLabel="确认记账"
+      description="确认后将保存当前实发金额，并写入实际工资支出流水；如金额或日期有误，请先取消并修改草稿。"
+      destructive={false}
+      onConfirm={() => void executeConfirm()}
+      onOpenChange={setConfirmOpen}
+      open={confirmOpen}
+      title="确认工资结算并记账？"
+    />
   </div>
 }

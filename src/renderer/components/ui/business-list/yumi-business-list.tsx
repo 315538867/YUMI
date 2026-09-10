@@ -15,6 +15,7 @@ export type YumiBusinessMetric = { label: ReactNode; value: ReactNode }
 type YumiBusinessListItemProps = {
   children?: ReactNode
   className?: string
+  actions?: ReactNode
   meta?: ReactNode
   metrics?: YumiBusinessMetric[]
   onOpen?(): void
@@ -24,6 +25,7 @@ type YumiBusinessListItemProps = {
 }
 
 export function YumiBusinessListItem({
+  actions,
   children,
   className,
   meta,
@@ -63,6 +65,7 @@ export function YumiBusinessListItem({
           {metrics.map((metric, index) => <div key={index}><span>{metric.label}</span><strong>{metric.value}</strong></div>)}
         </div>
       ) : null}
+      {actions ? <div className="yumi-business-list__actions">{actions}</div> : null}
       <div className="yumi-business-list__meta">
         {meta ? <span>{meta}</span> : null}
         {interactive ? <ChevronRight aria-hidden="true" size={18} /> : null}

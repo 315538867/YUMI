@@ -32,6 +32,13 @@ const yumiV2: V2YumiApi = {
     listShipments: (orderId) => ipcRenderer.invoke('v2:orders:shipments:list', orderId),
     createShipment: (orderId, input) => ipcRenderer.invoke('v2:orders:shipments:create', orderId, input)
   },
+  orderFundProofs: {
+    pick: () => ipcRenderer.invoke('v2:order-fund-proofs:pick'),
+    discardPrepared: (attachmentId) => ipcRenderer.invoke('v2:order-fund-proofs:discard-prepared', attachmentId),
+    get: (fundId) => ipcRenderer.invoke('v2:order-fund-proofs:get', fundId),
+    attach: (fundId, attachmentId) => ipcRenderer.invoke('v2:order-fund-proofs:attach', fundId, attachmentId),
+    open: (fundId) => ipcRenderer.invoke('v2:order-fund-proofs:open', fundId)
+  },
   fulfillment: {
     createWorkAssignment: (input) => ipcRenderer.invoke('v2:fulfillment:assignments:create', input),
     getWorkAssignment: (id) => ipcRenderer.invoke('v2:fulfillment:assignments:get', id),
@@ -83,11 +90,18 @@ const yumiV2: V2YumiApi = {
     linkCharge: (afterSalesCaseId, financialEntryId) => ipcRenderer.invoke('v2:after-sales:charges:link', afterSalesCaseId, financialEntryId)
   },
   reports: {
+    listCustomerOrderInsights: () => ipcRenderer.invoke('v2:reports:customers:insights:list'),
+    getCustomerOrderInsights: (customerId) => ipcRenderer.invoke('v2:reports:customers:insights:get', customerId),
     getOrderBusiness: () => ipcRenderer.invoke('v2:reports:orders:business'),
     getFulfillmentProgress: () => ipcRenderer.invoke('v2:reports:fulfillment:progress'),
+    getCapacityRiskReport: (input) => ipcRenderer.invoke('v2:reports:capacity-risk:get', input),
+    getDeliveryRiskReport: (input) => ipcRenderer.invoke('v2:reports:delivery-risk:get', input),
     listConfirmedSettlements: () => ipcRenderer.invoke('v2:reports:settlements:confirmed'),
     getMonthlyOperation: (month) => ipcRenderer.invoke('v2:reports:monthly-operation:get', month),
-    exportCurrentReport: (input) => ipcRenderer.invoke('v2:reports:export', input)
+    exportCurrentReport: (input) => ipcRenderer.invoke('v2:reports:export', input),
+    exportOrderTable: (input) => ipcRenderer.invoke('v2:reports:export:order-table', input),
+    exportOrderDocuments: (input) => ipcRenderer.invoke('v2:reports:export:order-documents', input),
+    exportShippingList: (input) => ipcRenderer.invoke('v2:reports:export:shipping-list', input)
   },
   backup: {
     create: () => ipcRenderer.invoke('v2:backup:create'),

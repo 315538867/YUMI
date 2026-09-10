@@ -1,4 +1,4 @@
-import type { V2BackupRestoreInput, V2BackupRestoreResult, V2BackupSummary } from './common'
+import type { V2AttachmentReference, V2BackupRestoreInput, V2BackupRestoreResult, V2BackupSummary, V2OrderFundProof, V2OrderFundProofOpenResult } from './common'
 import type { V2Customer, V2CustomerInput, V2CustomerQuery, V2CustomerUpdateInput } from './customers'
 import type {
   V2Order,
@@ -36,8 +36,9 @@ import type {
   V2WorkerWageHistoryInput, V2WorkerRefundQuery, V2WorkerRefundRecord, V2WorkerRefundResolveInput
 } from './settlements'
 import type {
-  V2ConfirmedSettlementReport, V2FulfillmentProgressReport, V2MonthlyOperationReport,
-  V2OrderBusinessReport, V2ReportExportInput, V2ReportExportResult
+  V2CapacityRiskReport, V2CapacityRiskReportInput, V2ConfirmedSettlementReport, V2CustomerOrderInsights, V2FulfillmentProgressReport,
+  V2MonthlyOperationReport, V2OrderBusinessReport, V2ReportExportInput, V2ReportExportResult,
+  V2ShippingListExportInput
 } from './reports'
 
 /** V2 预加载层唯一向渲染进程暴露的能力边界。 */
@@ -71,6 +72,13 @@ export interface V2YumiApi {
     correctFund(orderId: string, input: V2OrderFundCorrectionInput): Promise<{ reversal: V2OrderFund; replacement: V2OrderFund }>
     listShipments(orderId: string): Promise<V2Shipment[]>
     createShipment(orderId: string, input: V2ShipmentInput): Promise<V2Shipment>
+  }
+  orderFundProofs: {
+    pick(): Promise<V2AttachmentReference | null>
+    discardPrepared(attachmentId: string): Promise<void>
+    get(fundId: string): Promise<V2OrderFundProof | null>
+    attach(fundId: string, attachmentId: string): Promise<void>
+    open(fundId: string): Promise<V2OrderFundProofOpenResult>
   }
   fulfillment: {
     createWorkAssignment(input: V2WorkAssignmentCreateInput): Promise<V2WorkAssignment>
@@ -123,11 +131,18 @@ export interface V2YumiApi {
     linkCharge(afterSalesCaseId: string, financialEntryId: string): Promise<V2AfterSalesChargeLink>
   }
   reports: {
+    listCustomerOrderInsights(): Promise<V2CustomerOrderInsights[]>
+    getCustomerOrderInsights(customerId: string): Promise<V2CustomerOrderInsights | null>
     getOrderBusiness(): Promise<V2OrderBusinessReport>
     getFulfillmentProgress(): Promise<V2FulfillmentProgressReport>
+    getCapacityRiskReport(input: V2CapacityRiskReportInput): Promise<V2CapacityRiskReport>
+    getDeliveryRiskReport(input: V2DeliveryRiskReportInput): Promise<V2DeliveryRiskReport>
     listConfirmedSettlements(): Promise<V2ConfirmedSettlementReport>
     getMonthlyOperation(month: string): Promise<V2MonthlyOperationReport>
     exportCurrentReport(input: V2ReportExportInput): Promise<V2ReportExportResult>
+    exportOrderTable(input?: V2OrderTableExportInput): Promise<V2ReportExportResult>
+    exportOrderDocuments(input: V2OrderDocumentsExportInput): Promise<V2ReportExportResult>
+    exportShippingList(input?: V2ShippingListExportInput): Promise<V2ReportExportResult>
   }
   backup: {
     create(): Promise<V2BackupSummary>

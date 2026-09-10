@@ -27,14 +27,13 @@ describe('V2 订单核心链路', () => {
     const product = service.createProduct({
       name: '草莓捏捏', code: 'NY-001', category: '水果', basePriceCents: 8_000,
       materialCostCents: 1_500, packagingCostCents: 300, accessoryCostCents: 200,
-      replacementBagCostCents: 50, edgeCostCents: 100, standardMakingMinutes: 15,
+      replacementBagCostCents: 50, internalEdgeCostCents: 100, standardMakingMinutes: 15,
       makingCommissionCents: 500, makingGlueCostCents: 80
     })
     const order = service.createOrder({
       customerId: customer.id,
       customer: { name: customer.name, contact: customer.contact },
       items: [{ productId: product.id, quantity: 3, unitPriceCents: 8_000 }],
-      initialConfirmedAmountCents: 24_000,
       expectedShipDate: '2026-09-15'
     })
 
@@ -43,7 +42,7 @@ describe('V2 订单核心链路', () => {
       id: product.id, name: '草莓捏捏（更新）', code: product.code, category: product.category,
       basePriceCents: 9_000, materialCostCents: product.materialCostCents,
       packagingCostCents: product.packagingCostCents, accessoryCostCents: product.accessoryCostCents,
-      replacementBagCostCents: product.replacementBagCostCents, edgeCostCents: product.edgeCostCents,
+      replacementBagCostCents: product.replacementBagCostCents, internalEdgeCostCents: product.internalEdgeCostCents,
       standardMakingMinutes: product.standardMakingMinutes, makingCommissionCents: product.makingCommissionCents,
       makingGlueCostCents: product.makingGlueCostCents, enabled: true
     })

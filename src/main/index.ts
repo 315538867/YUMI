@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { V2ApplicationRuntime } from '@main/application/v2-runtime'
@@ -51,11 +51,58 @@ app.whenReady().then(() => {
           if (result.canceled || !result.filePath) return { savedPath: null }
           writeFileSync(result.filePath, workbook)
           return { savedPath: result.filePath }
+        },
+        async exportOrderTable(input) {
+          const workbook = await currentRuntime.reportExportService.exportOrderTableWorkbook(input)
+          const result = await dialog.showSaveDialog({
+            title: '导出订单表',
+            defaultPath: `yumi-${input?.orderId ?? '全部'}-订单表.xlsx`,
+            filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
+          })
+          if (result.canceled || !result.filePath) return { savedPath: null }
+          writeFileSync(result.filePath, workbook)
+          return { savedPath: result.filePath }
+        },
+        async exportOrderDocuments(input) {
+          const workbook = await currentRuntime.reportExportService.exportOrderDocumentsWorkbook(input)
+          const result = await dialog.showSaveDialog({
+            title: '合并导出订单表与发货清单',
+            defaultPath: `yumi-${input.orderId ?? '全部'}-订单与发货单.xlsx`,
+            filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
+          })
+          if (result.canceled || !result.filePath) return { savedPath: null }
+          writeFileSync(result.filePath, workbook)
+          return { savedPath: result.filePath }
+        },
+        async exportShippingList(input) {
+          const workbook = await currentRuntime.reportExportService.exportShippingListWorkbook(input)
+          const result = await dialog.showSaveDialog({
+            title: '导出发货清单',
+            defaultPath: 'yumi-发货清单.xlsx',
+            filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
+          })
+          if (result.canceled || !result.filePath) return { savedPath: null }
+          writeFileSync(result.filePath, workbook)
+          return { savedPath: result.filePath }
         }
       }
     }, {
       service: currentRuntime.backupService,
       restore
+    }, {
+      service: currentRuntime.orderFundAttachmentService,
+      async pickFile() {
+        const result = await dialog.showOpenDialog({
+          title: '选择收款凭证',
+          properties: ['openFile'],
+          filters: [
+            { name: '常用凭证', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'] },
+            { name: '所有文件', extensions: ['*'] }
+          ]
+        })
+        return result.canceled || !result.filePaths[0] ? null : result.filePaths[0]
+      },
+      openFile: (filePath) => shell.openPath(filePath)
     })
   createMainWindow()
   app.on('activate', () => {

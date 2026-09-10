@@ -100,9 +100,9 @@ export function App() {
           {view === 'fulfillment' && <FulfillmentPage navigationTarget={navigation.target?.view === 'fulfillment' ? navigation.target : null} onNavigate={openNavigationTarget} />}
           {view === 'settlements' && <SettlementsPage navigationTarget={navigation.target?.view === 'settlements' ? navigation.target : null} />}
           {view === 'finance' && <FinancePage navigationTarget={navigation.target?.view === 'finance' ? navigation.target : null} />}
-          {view === 'reports' && <ReportsPage />}
-          {view === 'customers' && <CustomersPage />}
-          {view === 'products' && <ProductsPage />}
+          {view === 'reports' && <ReportsPage onNavigate={openNavigationTarget} />}
+          {view === 'customers' && <CustomersPage onNavigate={openNavigationTarget} />}
+          {view === 'products' && <ProductsPage navigationTarget={navigation.target?.view === 'products' ? navigation.target : null} />}
           {view === 'settings' && <SettingsPage />}
         </div>
       </main>

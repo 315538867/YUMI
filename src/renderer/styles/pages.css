@@ -130,3 +130,41 @@
 .yumi-settings-protection__toolbar { max-width: 860px; }
 .yumi-settings-protection__toolbar p { margin: 0; }
 @media (max-width: 640px) { .yumi-settings-panel__actions, .yumi-settings-protection__toolbar { align-items: stretch; flex-direction: column; } }
+
+/* 全局业务反馈：固定在右上角，成功/提示自动关闭，错误保留更久并支持手动关闭。 */
+.yumi-notification-host {
+  position: fixed;
+  z-index: 200;
+  top: 84px;
+  right: 24px;
+  display: grid;
+  width: min(420px, calc(100vw - 32px));
+  gap: var(--yumi-space-2);
+  pointer-events: none;
+}
+.yumi-notification-host .yumi-notification {
+  position: relative;
+  top: auto;
+  right: auto;
+  max-width: none;
+  pointer-events: auto;
+}
+.yumi-notification {
+  display: flex;
+  max-width: min(420px, calc(100vw - 32px));
+  align-items: flex-start;
+  gap: var(--yumi-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--yumi-radius-md);
+  padding: 10px 10px 10px 14px;
+  box-shadow: var(--yumi-shadow-md);
+  font-size: 13px;
+  line-height: 20px;
+}
+.yumi-notification > span { flex: 1; }
+.yumi-notification--danger { border-color: #f2cdd7; background: #fff1f4; color: #a13d5a; }
+.yumi-notification--success { border-color: #c8e5d1; background: #eff9f1; color: #2d7950; }
+.yumi-notification--warning { border-color: #ead8a7; background: #fff9e8; color: #7a5b13; }
+.yumi-notification--info { border-color: #c9ddea; background: #f1f8fc; color: #285b78; }
+.yumi-notification .yumi-button--icon { width: 24px; min-height: 24px; padding: 0; color: currentColor; }
+@media (max-width: 640px) { .yumi-notification-host { top: 72px; right: 16px; left: 16px; width: auto; } .yumi-notification { max-width: none; } }

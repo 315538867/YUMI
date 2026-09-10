@@ -3,8 +3,10 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { V2Product } from '@shared/contracts/index'
 import { installDomInteractionPolyfills } from '../test/dom'
 import { CustomersPage } from './customers'
+import { ProductsPage } from './products'
 import { SettingsPage } from './settings'
 import { WorkersPage } from './workers'
 
@@ -12,14 +14,22 @@ const mocks = vi.hoisted(() => ({
   customers: {
     createCustomer: vi.fn(),
     customers: [] as Array<{ id: string; name: string; contact: string | null; defaultAddress: string | null; notes: string | null; enabled: boolean; createdAt: string; updatedAt: string }>,
+    getCustomerOrderInsights: vi.fn(),
     loadError: null as string | null,
     loading: false,
     updateCustomer: vi.fn()
   },
+  products: {
+    createProduct: vi.fn(),
+    loadError: null as string | null,
+    loading: false,
+    products: [] as V2Product[],
+    updateProduct: vi.fn()
+  },
   studio: {
     loadError: null as string | null,
     loading: false,
-    settings: { gluePriceMicroYuanPerGram: 3_400, updatedAt: '2026-09-08T00:00:00.000Z' } as { gluePriceMicroYuanPerGram: number; updatedAt: string | null } | null,
+    settings: { gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2, updatedAt: '2026-09-08T00:00:00.000Z' } as { gluePriceMicroYuanPerGram: number; orderReservedDays: number; updatedAt: string | null } | null,
     update: vi.fn()
   },
   backup: {
@@ -47,6 +57,9 @@ vi.mock('../composables/use-customers', () => ({
 vi.mock('../composables/use-finance', () => ({
   useFinance: () => mocks.finance
 }))
+vi.mock('../composables/use-products', () => ({
+  useProducts: () => mocks.products
+}))
 vi.mock('../composables/use-studio-settings', () => ({
   useStudioSettings: () => mocks.studio
 }))
@@ -57,8 +70,13 @@ afterEach(() => {
   cleanup()
   mocks.customers.customers = []
   mocks.customers.createCustomer.mockReset()
+  mocks.customers.getCustomerOrderInsights.mockReset()
+  mocks.customers.getCustomerOrderInsights.mockResolvedValue(null)
   mocks.customers.updateCustomer.mockReset()
-  mocks.studio.settings = { gluePriceMicroYuanPerGram: 3_400, updatedAt: '2026-09-08T00:00:00.000Z' }
+  mocks.products.products = []
+  mocks.products.createProduct.mockReset()
+  mocks.products.updateProduct.mockReset()
+  mocks.studio.settings = { gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2, updatedAt: '2026-09-08T00:00:00.000Z' }
   mocks.studio.update.mockReset()
   mocks.backup.create.mockReset()
   mocks.backup.list.mockReset()
@@ -104,19 +122,81 @@ describe('YUMI 基础资料按需录入', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('客户名称已存在')
   })
 
-  it('点击既有客户后才进入编辑抽屉，保留客户快照说明', () => {
+  it('点击既有客户先查看资料与历史订单，主动点击编辑后才进入编辑抽屉', async () => {
     mocks.customers.customers = [{
       id: 'customer-1', name: '木木工作室', contact: '王女士', defaultAddress: '上海市静安区', notes: null, enabled: true,
       createdAt: '2026-09-08T00:00:00.000Z', updatedAt: '2026-09-08T00:00:00.000Z'
     }]
-    render(<CustomersPage />)
+    mocks.customers.getCustomerOrderInsights.mockResolvedValue({
+      customerId: 'customer-1', customerName: '木木工作室', orderCount: 1,
+      totalCurrentAmountCents: 12_800, totalNetReceivedCents: 8_000, totalOutstandingCents: 4_800,
+      latestOrderDate: '2026-09-08',
+      orders: [{ orderId: 'order-1', orderCode: 'YUMI-001', createdAt: '2026-09-08T08:00:00.000Z', currentAmountCents: 12_800, netReceivedCents: 8_000, outstandingCents: 4_800, shipmentStatus: '未发货', orderStatus: '履约中' }]
+    })
+    const onNavigate = vi.fn()
+    render(<CustomersPage onNavigate={onNavigate} />)
 
     expect(screen.getByText(/订单会保留当时的客户快照。/)).toBeVisible()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /木木工作室/ }))
 
+    const detail = screen.getByRole('dialog', { name: '客户资料：木木工作室' })
+    expect(within(detail).queryByLabelText('默认收货地址')).not.toBeInTheDocument()
+    expect(await within(detail).findByText('YUMI-001')).toBeVisible()
+    expect(within(detail).getAllByText('¥128.00')).toHaveLength(2)
+    fireEvent.click(within(detail).getByRole('button', { name: '查看订单' }))
+    expect(onNavigate).toHaveBeenCalledWith({ view: 'orders', orderId: 'order-1', orderView: 'overview' })
+    fireEvent.click(within(detail).getByRole('button', { name: '编辑客户' }))
     expect(screen.getByRole('dialog', { name: '编辑客户：木木工作室' })).toBeVisible()
     expect(screen.getByLabelText('默认收货地址')).toHaveValue('上海市静安区')
+  })
+
+  it('商品可维护材料损耗与模具日产能参数，并在列表中展示计算结果', () => {
+    mocks.products.products = [{
+      id: 'product-1',
+      name: '羊毛杯垫',
+      code: 'MAT-001',
+      category: '杯垫',
+      basePriceCents: 10_800,
+      materialCostCents: 0,
+      packagingCostCents: 200,
+      accessoryCostCents: 100,
+      replacementBagCostCents: 0,
+      internalEdgeCostCents: 0,
+      standardMakingMinutes: 30,
+      makingCommissionCents: 2_000,
+      makingGlueCostCents: 0,
+      glueWeightMilligrams: 500,
+      unitWeightMilligrams: 20_000,
+      materialLossRateBasisPoints: 1_000,
+      moldCount: 20,
+      outputPerMoldPerBatch: 1,
+      maxBatchesPerDay: 2,
+      dailyCapacity: 40,
+      enabled: true,
+      imageAttachmentId: null,
+      notes: null,
+      createdAt: '2026-09-09T00:00:00.000Z',
+      updatedAt: '2026-09-09T00:00:00.000Z'
+    }]
+    render(<ProductsPage />)
+
+    expect(screen.getByText('40 件')).toBeVisible()
+    expect(screen.getByText(/材料 20 克 · 损耗 10%/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /羊毛杯垫/ }))
+    const detail = screen.getByRole('dialog', { name: '商品资料：羊毛杯垫' })
+    expect(within(detail).queryByLabelText('单件材料重量（克）')).not.toBeInTheDocument()
+    fireEvent.click(within(detail).getByRole('button', { name: '编辑商品' }))
+    const editor = screen.getByRole('dialog', { name: '编辑商品：羊毛杯垫' })
+    expect(editor).toBeVisible()
+    fireEvent.click(within(editor).getByRole('button', { name: '取消' }))
+
+    fireEvent.click(screen.getByRole('button', { name: '新建商品' }))
+    const dialog = screen.getByRole('dialog', { name: '新建商品' })
+    expect(within(dialog).getByLabelText('单件材料重量（克）')).toHaveValue('0')
+    expect(within(dialog).getByLabelText('材料损耗率（%）')).toHaveValue('0')
+    expect(within(dialog).getByLabelText('模具数量')).toHaveValue('0')
+    expect(within(dialog).getByText('填写完整模具参数后计算')).toBeVisible()
   })
 
   it('被财务流水引用的资料删除失败时保留当前资料，并明确反馈负责人', async () => {
@@ -179,12 +259,15 @@ describe('YUMI 人员时薪与动态设置', () => {
     render(<SettingsPage />)
 
     expect(screen.getByRole('heading', { name: '工作室参数' })).toBeVisible()
-    expect(screen.getByDisplayValue('0.0034')).toBeVisible()
+    expect(screen.getByText('0.0034 元 / 克')).toBeVisible()
     expect(screen.queryByText('定金收入')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('textbox', { name: /元 \/ 克/ }), { target: { value: '0.0034' } })
-    fireEvent.click(screen.getByRole('button', { name: '保存工作室参数' }))
-    await waitFor(() => expect(mocks.studio.update).toHaveBeenCalledWith({ gluePriceMicroYuanPerGram: 3_400 }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑工作室参数' }))
+    const studioDialog = screen.getByRole('dialog', { name: '编辑工作室参数' })
+    expect(within(studioDialog).getByDisplayValue('0.0034')).toBeVisible()
+    fireEvent.change(within(studioDialog).getByRole('textbox', { name: /元 \/ 克/ }), { target: { value: '0.0034' } })
+    fireEvent.click(within(studioDialog).getByRole('button', { name: '保存工作室参数' }))
+    await waitFor(() => expect(mocks.studio.update).toHaveBeenCalledWith({ gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2 }))
     expect(await screen.findByRole('status')).toHaveTextContent('已保存工作室参数')
 
     fireEvent.click(screen.getByRole('button', { name: '财务资料' }))

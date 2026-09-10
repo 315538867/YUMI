@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { installDomInteractionPolyfills } from '../../test/dom'
+import { today } from '../../composables/v2-utils'
 import { FinancePage } from './index'
 
 const mocks = vi.hoisted(() => ({
@@ -58,7 +59,7 @@ describe('财务负责人工作区', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认批量报销' }))
 
     await waitFor(() => expect(mocks.reimburseBatch).toHaveBeenCalledWith({
-      advanceFinancialEntryIds: ['advance-1', 'advance-2'], reimbursedOn: '2026-09-08', paymentMethod: '公账转账', note: null
+      advanceFinancialEntryIds: ['advance-1', 'advance-2'], reimbursedOn: today(), paymentMethod: '公账转账', note: null
     }))
   })
 })

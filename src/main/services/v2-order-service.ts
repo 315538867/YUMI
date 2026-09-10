@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { validateOrderFundInput, validateOrderFundReversal } from '@main/domain/order-funds'
 import { DomainValidationError } from '@main/domain/errors'
 import { applyFulfillmentEvent, createFulfillmentState } from '@main/domain/fulfillment'
+import { calculateOrderAmountSummary, calculateOrderItemAmounts } from '@main/domain/order-amounts'
+import { calculateOrderSchedule } from '@main/domain/order-schedule'
+import { validateProductMaterialAndCapacity } from '@main/domain/product-capacity'
 import { validateShipmentQuantity } from '@main/domain/shipment-quantities'
 import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
 import { V2OrderRepository, type V2AuditLog } from '@main/repositories/v2-order-repository'
@@ -108,12 +111,20 @@ function createProductSnapshot(
     packagingCostCents: product.packagingCostCents,
     accessoryCostCents: product.accessoryCostCents,
     replacementBagCostCents: product.replacementBagCostCents,
-    edgeCostCents: product.edgeCostCents,
+    internalEdgeCostCents: product.internalEdgeCostCents,
     standardMakingMinutes: product.standardMakingMinutes,
     makingCommissionCents: product.makingCommissionCents,
     makingGlueCostCents: product.makingGlueCostCents,
     glueWeightMilligrams: product.glueWeightMilligrams,
-    gluePriceMicroYuanPerGram
+    gluePriceMicroYuanPerGram,
+    imageAttachmentId: product.imageAttachmentId,
+    notes: product.notes,
+    unitWeightMilligrams: product.unitWeightMilligrams,
+    materialLossRateBasisPoints: product.materialLossRateBasisPoints,
+    moldCount: product.moldCount,
+    outputPerMoldPerBatch: product.outputPerMoldPerBatch,
+    maxBatchesPerDay: product.maxBatchesPerDay,
+    dailyCapacity: product.dailyCapacity
   }
 }
 
@@ -189,7 +200,7 @@ export class V2OrderService {
   }
 
   createOrder(input: V2OrderCreateInput): V2Order {
-    this.assertOrderCreateInput(input)
+    const schedule = this.assertOrderCreateInput(input)
     return this.repository.transaction(() => {
       const now = this.clock.now()
       const orderId = this.clock.createId()
@@ -209,8 +220,9 @@ export class V2OrderService {
         code: requireText(code, '订单编号'),
         customerId: customer.id,
         customerSnapshot,
-        initialConfirmedAmountCents: input.initialConfirmedAmountCents,
+        orderDiscountCents: input.orderDiscountCents ?? 0,
         expectedShipDate: input.expectedShipDate ? requireBusinessDate(input.expectedShipDate, '预计发货日期') : null,
+        reservedDays: schedule.reservedDays,
         notes: nullableText(input.notes),
         now
       })
@@ -234,7 +246,11 @@ export class V2OrderService {
       }
       const now = this.clock.now()
       const afterItems = this.buildOrderItems(orderId, input.items, now)
-      this.repository.replaceOrderItems(orderId, afterItems)
+      this.repository.replaceOrderItems(
+        orderId,
+        afterItems,
+        input.orderDiscountCents ?? beforeOrder.amount.orderDiscountCents
+      )
       if (input.amountAdjustment) {
         this.repository.createAmountAdjustment({
           id: this.clock.createId(), orderId, amountCents: input.amountAdjustment.amountCents,
@@ -278,6 +294,7 @@ export class V2OrderService {
     const normalized = this.normalizeFund(input)
     return this.repository.transaction(() => {
       this.requireOrder(orderId)
+      this.assertFundAttachment(normalized)
       const now = this.clock.now()
       const fund: V2OrderFund = {
         id: this.clock.createId(), orderId,
@@ -288,6 +305,17 @@ export class V2OrderService {
       this.recordAudit('order.fund_recorded', 'financial_entry', fund.id, undefined, fund, now, { orderId })
       return fund
     })
+  }
+
+  private assertFundAttachment(input: V2OrderFundInput): void {
+    if (!input.attachmentId) return
+    if (input.businessType === 'refund') {
+      throw new DomainValidationError('退款流水不能关联收款凭证')
+    }
+    const attachment = this.repository.connection.prepare(`
+      SELECT 1 FROM attachments WHERE id = ? AND kind = 'order_fund_proof'
+    `).get(input.attachmentId)
+    if (!attachment) throw new DomainValidationError('收款凭证不存在或类型不正确')
   }
 
   correctOrderFund(orderId: string, input: V2OrderFundCorrectionInput): { reversal: V2OrderFund; replacement: V2OrderFund } {
@@ -304,6 +332,7 @@ export class V2OrderService {
     requireBusinessDate(input.reversalOccurredOn, '冲正日期')
     return this.repository.transaction(() => {
       this.requireOrder(orderId)
+      this.assertFundAttachment(replacement)
       const original = this.repository.getFund(requireId(input.originalEntryId, '原资金记录标识'))
       if (!original || original.orderId !== orderId) throw new DomainValidationError('原资金记录不存在或不属于当前订单')
       if (original.reversalOfEntryId) throw new DomainValidationError('冲正记录不能再次冲正')
@@ -386,7 +415,47 @@ export class V2OrderService {
           .sort((left, right) => left.id.localeCompare(right.id))
           .reduce((current, event) => applyFulfillmentEvent(current, event), state)
       }
-      this.repository.insertShipment(shipment)
+      const shippedBeforeByItem = this.repository.listShippedQuantities(orderId)
+      const shipmentDocumentSnapshot = {
+        version: 1,
+        shipment: {
+          id: shipment.id,
+          shippedOn: shipment.shippedOn,
+          carrier: shipment.carrier,
+          trackingNumber: shipment.trackingNumber,
+          note: shipment.note,
+          createdAt: shipment.createdAt
+        },
+        order: {
+          id: order.id,
+          code: order.code,
+          customerSnapshot: order.customerSnapshot,
+          expectedShipDate: order.expectedShipDate,
+          notes: order.notes
+        },
+        items: order.items.map((item) => {
+          const thisShipmentQuantity = quantities.get(item.id) ?? 0
+          const shippedQuantity = Math.min(
+            (shippedBeforeByItem.get(item.id) ?? 0) + thisShipmentQuantity,
+            item.quantity
+          )
+          return {
+            orderItemId: item.id,
+            productSnapshot: item.productSnapshot,
+            orderedQuantity: item.quantity,
+            thisShipmentQuantity,
+            shippedQuantity,
+            remainingQuantity: Math.max(item.quantity - shippedQuantity, 0),
+            unitPriceCents: item.unitPriceCents,
+            edgeEnabled: item.edgeEnabled,
+            edgeQuantity: item.edgeQuantity,
+            edgeUnitPriceCents: item.edgeUnitPriceCents,
+            itemDiscountCents: item.itemDiscountCents,
+            lineAmountCents: item.lineAmountCents
+          }
+        })
+      }
+      this.repository.insertShipment(shipment, shipmentDocumentSnapshot)
       shipmentEvents.forEach((event) => this.fulfillmentRepository.insertFulfillmentEvent(event))
       this.recordAudit('shipment.created', 'order', orderId, undefined, shipment, now, { shipmentId: shipment.id })
       return shipment
@@ -423,17 +492,26 @@ export class V2OrderService {
 
   private normalizeProduct(input: V2ProductInput): V2ProductInput {
     requireText(input.name, '商品名称')
+    const normalizedMaterialAndCapacity = {
+      unitWeightMilligrams: input.unitWeightMilligrams ?? 0,
+      materialLossRateBasisPoints: input.materialLossRateBasisPoints ?? 0,
+      moldCount: input.moldCount ?? 0,
+      outputPerMoldPerBatch: input.outputPerMoldPerBatch ?? 0,
+      maxBatchesPerDay: input.maxBatchesPerDay ?? 0
+    }
     for (const [label, value] of [
       ['商品基础售价', input.basePriceCents],
       ['包装成本', input.packagingCostCents], ['配饰成本', input.accessoryCostCents],
-      ['替换袋成本', input.replacementBagCostCents], ['封边成本', input.edgeCostCents],
+      ['替换袋成本', input.replacementBagCostCents], ['内部缝边成本', input.internalEdgeCostCents],
       ['标准制作分钟', input.standardMakingMinutes], ['制作提成', input.makingCommissionCents],
       ['胶水用量（毫克）', input.glueWeightMilligrams ?? 0],
       ['旧版原材料成本', input.materialCostCents ?? 0],
       ['旧版制作胶水成本', input.makingGlueCostCents ?? 0]
     ] as const) requireNonNegativeInteger(value, label)
+    validateProductMaterialAndCapacity(normalizedMaterialAndCapacity)
     return {
       ...input,
+      ...normalizedMaterialAndCapacity,
       materialCostCents: input.materialCostCents ?? 0,
       makingGlueCostCents: input.makingGlueCostCents ?? 0,
       glueWeightMilligrams: input.glueWeightMilligrams ?? 0,
@@ -442,11 +520,15 @@ export class V2OrderService {
     }
   }
 
-  private assertOrderCreateInput(input: V2OrderCreateInput): void {
+  private assertOrderCreateInput(input: V2OrderCreateInput) {
     this.normalizeCustomer(input.customer)
     this.assertOrderItems(input.items)
-    requireNonNegativeInteger(input.initialConfirmedAmountCents, '初始确认金额')
-    if (input.expectedShipDate) requireBusinessDate(input.expectedShipDate, '预计发货日期')
+    calculateOrderAmountSummary({ items: input.items, orderDiscountCents: input.orderDiscountCents })
+    return calculateOrderSchedule({
+      expectedShipDate: input.expectedShipDate,
+      reservedDays: input.reservedDays,
+      defaultReservedDays: this.studioSettings?.get().orderReservedDays
+    })
   }
 
   private assertOrderItems(items: V2OrderItemInput[]): void {
@@ -455,6 +537,7 @@ export class V2OrderService {
       requireId(item.productId, '商品标识')
       requirePositiveInteger(item.quantity, '订单数量')
       requireNonNegativeInteger(item.unitPriceCents, '订单单价')
+      calculateOrderItemAmounts(item)
     }
   }
 
@@ -483,9 +566,18 @@ export class V2OrderService {
     return inputs.map((item) => {
       const product = this.requireProduct(item.productId)
       if (!product.enabled) throw new DomainValidationError(`商品「${product.name}」已停用，不能用于新订单内容`)
+      const amounts = calculateOrderItemAmounts(item)
       return {
         id: this.clock.createId(), productId: product.id, productSnapshot: createProductSnapshot(product, this.studioSettings?.get().gluePriceMicroYuanPerGram ?? 0),
-        quantity: item.quantity, unitPriceCents: item.unitPriceCents, createdAt: now, updatedAt: now
+        quantity: item.quantity, unitPriceCents: item.unitPriceCents,
+        edgeEnabled: amounts.edge.enabled,
+        edgeQuantity: amounts.edge.quantity,
+        edgeUnitPriceCents: amounts.edge.unitPriceCents,
+        itemAmountCents: amounts.itemAmountCents,
+        edgeAmountCents: amounts.edgeAmountCents,
+        itemDiscountCents: amounts.itemDiscountCents,
+        lineAmountCents: amounts.lineAmountCents,
+        createdAt: now, updatedAt: now
       }
     })
   }

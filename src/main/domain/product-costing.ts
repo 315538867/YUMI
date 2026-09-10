@@ -1,6 +1,7 @@
 import type { Cents, V2ProductOrderSnapshot } from '@shared/contracts/index'
 import { calculateGlueCostCents } from '@shared/money'
 import { DomainValidationError } from './errors'
+import { calculateMaterialRequirementMilligrams } from './product-capacity'
 
 function requireNonNegativeInteger(value: number, label: string): number {
   if (!Number.isInteger(value) || value < 0) {
@@ -15,26 +16,50 @@ function requireNonNegativeInteger(value: number, label: string): number {
  */
 export function calculateProductSnapshotCostCents(
   snapshot: V2ProductOrderSnapshot,
-  quantity: number
+  quantity: number,
+  edgeQuantity = quantity
 ): Cents {
   requireNonNegativeInteger(quantity, '商品数量')
-  const otherCostCents = (
-    snapshot.packagingCostCents
-    + snapshot.accessoryCostCents
-    + snapshot.replacementBagCostCents
-    + snapshot.edgeCostCents
-  ) * quantity
+  requireNonNegativeInteger(edgeQuantity, '缝边数量')
+  // 旧版订单快照使用 edgeCostCents；升级后字段改为 internalEdgeCostCents。
+  // 读取历史快照时必须兼容两者，否则 undefined × 0 会传播为 NaN，进而使报表和客户统计白屏。
+  const internalEdgeCostCents =
+    snapshot.internalEdgeCostCents ??
+    (snapshot as V2ProductOrderSnapshot & { edgeCostCents?: Cents }).edgeCostCents ??
+    0
+  const otherCostCents =
+    (snapshot.packagingCostCents + snapshot.accessoryCostCents + snapshot.replacementBagCostCents) *
+      quantity +
+    internalEdgeCostCents * edgeQuantity
 
-  const hasGlueFormula = snapshot.glueWeightMilligrams !== undefined
-    && snapshot.gluePriceMicroYuanPerGram !== undefined
+  const hasMaterialFormula =
+    snapshot.unitWeightMilligrams !== undefined &&
+    snapshot.unitWeightMilligrams > 0 &&
+    snapshot.materialLossRateBasisPoints !== undefined &&
+    snapshot.materialLossRateBasisPoints !== null &&
+    snapshot.gluePriceMicroYuanPerGram !== undefined
+  const hasGlueFormula =
+    !hasMaterialFormula &&
+    snapshot.glueWeightMilligrams !== undefined &&
+    snapshot.gluePriceMicroYuanPerGram !== undefined
 
-  const materialOrGlueCostCents = hasGlueFormula
+  const materialOrGlueCostCents = hasMaterialFormula
     ? calculateGlueCostCents({
-      gluePriceMicroYuanPerGram: snapshot.gluePriceMicroYuanPerGram,
-      glueWeightMilligrams: snapshot.glueWeightMilligrams,
-      quantity
-    })
-    : snapshot.materialCostCents * quantity
+        gluePriceMicroYuanPerGram: snapshot.gluePriceMicroYuanPerGram,
+        glueWeightMilligrams: calculateMaterialRequirementMilligrams({
+          quantity,
+          unitWeightMilligrams: snapshot.unitWeightMilligrams,
+          materialLossRateBasisPoints: snapshot.materialLossRateBasisPoints
+        }),
+        quantity: 1
+      })
+    : hasGlueFormula
+      ? calculateGlueCostCents({
+          gluePriceMicroYuanPerGram: snapshot.gluePriceMicroYuanPerGram,
+          glueWeightMilligrams: snapshot.glueWeightMilligrams,
+          quantity
+        })
+      : snapshot.materialCostCents * quantity
 
   return materialOrGlueCostCents + otherCostCents
 }

@@ -25,13 +25,12 @@ function createOrder(orderService: V2OrderService) {
   const product = orderService.createProduct({
     name: '奶油小熊', basePriceCents: 6_000, materialCostCents: 1_000,
     packagingCostCents: 100, accessoryCostCents: 0, replacementBagCostCents: 0,
-    edgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300,
+    internalEdgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300,
     makingGlueCostCents: 50
   })
   return orderService.createOrder({
     customer: { name: '小雨' },
     items: [{ productId: product.id, quantity: 10, unitPriceCents: 6_000 }],
-    initialConfirmedAmountCents: 60_000
   })
 }
 
@@ -70,7 +69,7 @@ describe('FulfillmentService', () => {
     })
     expect(rework.tasks[0]).toMatchObject({
       sourceType: 'rework', plannedQuantity: 3, plannedMinutes: 36, scheduledMinutes: 36,
-      pieceRateCents: 300, glueCostCents: 50
+      pieceRateCents: 300, glueCostCents: null, gluePriceMicroYuanPerGram: 0, glueWeightMilligrams: 0
     })
     expect(service.listWorkAssignments({ orderItemId }).map((item) => item.id)).toEqual([rework.id, assignment.id])
     const reworkResult = service.submitProcessResult(rework.tasks[0].id, {

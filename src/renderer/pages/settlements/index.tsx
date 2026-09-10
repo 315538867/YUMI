@@ -16,7 +16,8 @@ import {
   YumiSearchSelect,
   YumiSheet,
   YumiStatusTag,
-  YumiTextArea
+  YumiTextArea,
+  YumiNotification
 } from '../../components/ui'
 import { WorkersPage } from '../workers'
 
@@ -146,8 +147,8 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
       description="负责人确认实际工资；已确认工资后发现的不合格，不回写历史实发，改由负责人单独处理退款。"
       title="工资"
     />
-    {loadError && <p className="yumi-feedback yumi-feedback--danger" role="alert">{loadError}</p>}
-    {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
+    {loadError && <YumiNotification key={loadError} message={loadError} />}
+    {error && <YumiNotification key={error} message={error} />}
     {workspace === 'workers' ? <WorkersPage workers={workers} createWorker={createWorker} listWageHistory={listWageHistory} recordWageHistory={recordWageHistory} /> : workspace === 'refunds' ? <div aria-label="兼职待退款列表" className="yumi-primary-list">
       <p className="yumi-workspace-hint">只列出已确认工资后才发现的不合格；负责人登记实际收到的退款，原工资记录保持不变。</p>
       {loading ? <div className="yumi-empty">加载待退款记录中…</div> : refunds.length === 0 ? <div className="yumi-empty">暂无兼职退款记录。</div> : <YumiBusinessList>

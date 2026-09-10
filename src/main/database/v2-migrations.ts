@@ -9,10 +9,25 @@ interface V2Migration {
 
 function hasTable(database: Database.Database, tableName: string): boolean {
   return Boolean(
-    database
-      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
-      .get(tableName)
+    database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName)
   )
+}
+
+function hasColumn(database: Database.Database, tableName: string, columnName: string): boolean {
+  return (
+    database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
+  ).some((column) => column.name === columnName)
+}
+
+function addColumnIfMissing(
+  database: Database.Database,
+  tableName: string,
+  columnName: string,
+  definition: string
+): void {
+  if (!hasColumn(database, tableName, columnName)) {
+    database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${definition};`)
+  }
 }
 
 const v2MasterData: V2Migration = {
@@ -47,7 +62,7 @@ const v2MasterData: V2Migration = {
         packaging_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(packaging_cost_cents >= 0),
         accessory_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(accessory_cost_cents >= 0),
         replacement_bag_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(replacement_bag_cost_cents >= 0),
-        edge_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(edge_cost_cents >= 0),
+        internal_edge_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(internal_edge_cost_cents >= 0),
         standard_making_minutes INTEGER NOT NULL DEFAULT 0 CHECK(standard_making_minutes >= 0),
         making_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(making_commission_cents >= 0),
         making_glue_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(making_glue_cost_cents >= 0),
@@ -95,7 +110,7 @@ const v2OrderFoundation: V2Migration = {
         code TEXT NOT NULL UNIQUE,
         customer_id TEXT REFERENCES customers(id),
         customer_snapshot_json TEXT NOT NULL,
-        initial_confirmed_amount_cents INTEGER NOT NULL CHECK(initial_confirmed_amount_cents >= 0),
+        order_discount_cents INTEGER NOT NULL DEFAULT 0 CHECK(order_discount_cents >= 0),
         expected_ship_date TEXT,
         notes TEXT,
         created_at TEXT NOT NULL,
@@ -109,6 +124,10 @@ const v2OrderFoundation: V2Migration = {
         product_snapshot_json TEXT NOT NULL,
         quantity INTEGER NOT NULL CHECK(quantity > 0),
         unit_price_cents INTEGER NOT NULL CHECK(unit_price_cents >= 0),
+        edge_enabled INTEGER NOT NULL DEFAULT 0 CHECK(edge_enabled IN (0, 1)),
+        edge_quantity INTEGER NOT NULL DEFAULT 0 CHECK(edge_quantity >= 0),
+        edge_unit_price_cents INTEGER NOT NULL DEFAULT 0 CHECK(edge_unit_price_cents >= 0),
+        item_discount_cents INTEGER NOT NULL DEFAULT 0 CHECK(item_discount_cents >= 0),
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -327,7 +346,6 @@ const v2BackfillShipmentFulfillmentEvents: V2Migration = {
     `)
   }
 }
-
 
 const v2WorkerSettlementFoundation: V2Migration = {
   version: 6,
@@ -641,6 +659,104 @@ const v2StudioGlueFormula: V2Migration = {
   }
 }
 
+const v2ShipmentDocumentSnapshots: V2Migration = {
+  version: 11,
+  name: 'v2_shipment_document_snapshots',
+  run(database) {
+    database.exec(`
+      ALTER TABLE shipments ADD COLUMN snapshot_json TEXT;
+    `)
+  }
+}
+
+const v2OrderSchedule: V2Migration = {
+  version: 12,
+  name: 'v2_order_schedule',
+  run(database) {
+    database.exec(`
+      ALTER TABLE orders
+        ADD COLUMN reserved_days INTEGER NOT NULL DEFAULT 2 CHECK(reserved_days >= 0);
+    `)
+  }
+}
+
+const v2ProductMaterialAndCapacity: V2Migration = {
+  version: 13,
+  name: 'v2_product_material_and_capacity',
+  run(database) {
+    database.exec(`
+      ALTER TABLE products
+        ADD COLUMN unit_weight_milligrams INTEGER NOT NULL DEFAULT 0 CHECK(unit_weight_milligrams >= 0);
+      ALTER TABLE products
+        ADD COLUMN material_loss_rate_basis_points INTEGER NOT NULL DEFAULT 0 CHECK(material_loss_rate_basis_points >= 0 AND material_loss_rate_basis_points < 10000);
+      ALTER TABLE products
+        ADD COLUMN mold_count INTEGER NOT NULL DEFAULT 0 CHECK(mold_count >= 0);
+      ALTER TABLE products
+        ADD COLUMN output_per_mold_per_batch INTEGER NOT NULL DEFAULT 0 CHECK(output_per_mold_per_batch >= 0);
+      ALTER TABLE products
+        ADD COLUMN max_batches_per_day INTEGER NOT NULL DEFAULT 0 CHECK(max_batches_per_day >= 0);
+      ALTER TABLE products
+        ADD COLUMN daily_capacity INTEGER NOT NULL DEFAULT 0 CHECK(daily_capacity >= 0);
+    `)
+  }
+}
+
+const v2OrderAmountAndEdgeFields: V2Migration = {
+  version: 14,
+  name: 'v2_order_amount_and_edge_fields',
+  run(database) {
+    // V2 初版订单表已在部分用户设备上落库。后续补写初版建表 SQL 不会影响已有表，
+    // 因此必须通过独立的增量迁移补齐金额与订单级缝边字段。
+    addColumnIfMissing(
+      database,
+      'orders',
+      'order_discount_cents',
+      'order_discount_cents INTEGER NOT NULL DEFAULT 0 CHECK(order_discount_cents >= 0)'
+    )
+    addColumnIfMissing(
+      database,
+      'order_items',
+      'edge_enabled',
+      'edge_enabled INTEGER NOT NULL DEFAULT 0 CHECK(edge_enabled IN (0, 1))'
+    )
+    addColumnIfMissing(
+      database,
+      'order_items',
+      'edge_quantity',
+      'edge_quantity INTEGER NOT NULL DEFAULT 0 CHECK(edge_quantity >= 0)'
+    )
+    addColumnIfMissing(
+      database,
+      'order_items',
+      'edge_unit_price_cents',
+      'edge_unit_price_cents INTEGER NOT NULL DEFAULT 0 CHECK(edge_unit_price_cents >= 0)'
+    )
+    addColumnIfMissing(
+      database,
+      'order_items',
+      'item_discount_cents',
+      'item_discount_cents INTEGER NOT NULL DEFAULT 0 CHECK(item_discount_cents >= 0)'
+    )
+  }
+}
+
+const v2ProductInternalEdgeCost: V2Migration = {
+  version: 15,
+  name: 'v2_product_internal_edge_cost',
+  run(database) {
+    // 早期 V2 产品表使用 edge_cost_cents。订单级缝边改造后，产品页读取的是内部成本字段；
+    // 已应用旧迁移的数据库不会重建 products 表，必须增量补齐该列，避免读取时产生 NaN。
+    // 历史测试/异常的半成品库可能还没有 products 表；此时保持迁移可继续执行。
+    if (!hasTable(database, 'products')) return
+    addColumnIfMissing(
+      database,
+      'products',
+      'internal_edge_cost_cents',
+      'internal_edge_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(internal_edge_cost_cents >= 0)'
+    )
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
@@ -651,7 +767,12 @@ const migrations: readonly V2Migration[] = [
   v2WagePaymentFinancialSource,
   v2FinanceAndAfterSalesFoundation,
   v2WorkerSettlementRefunds,
-  v2StudioGlueFormula
+  v2StudioGlueFormula,
+  v2ShipmentDocumentSnapshots,
+  v2OrderSchedule,
+  v2ProductMaterialAndCapacity,
+  v2OrderAmountAndEdgeFields,
+  v2ProductInternalEdgeCost
 ]
 
 /**
@@ -672,7 +793,9 @@ export function runV2Migrations(database: Database.Database): void {
   `)
   const appliedVersions = new Set(
     (
-      database.prepare('SELECT version FROM v2_schema_migrations').all() as Array<{ version: number }>
+      database.prepare('SELECT version FROM v2_schema_migrations').all() as Array<{
+        version: number
+      }>
     ).map((row) => row.version)
   )
 

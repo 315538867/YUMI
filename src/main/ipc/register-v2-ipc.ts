@@ -1,5 +1,6 @@
 import { ipcMain as electronIpcMain } from 'electron'
 import type { V2BackupService } from '@main/services/v2-backup-service'
+import type { OrderFundAttachmentService } from '@main/services/order-fund-attachment-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts/index'
 import type { V2OrderService } from '@main/services/v2-order-service'
 import type { StudioSettingsService } from '@main/services/studio-settings-service'
@@ -22,6 +23,12 @@ export interface V2ReportIpcOptions {
   exporter: V2ReportFileExporter
 }
 
+export interface V2OrderFundProofIpcOptions {
+  service: OrderFundAttachmentService
+  pickFile(): Promise<string | null>
+  openFile(filePath: string): Promise<string>
+}
+
 export interface V2BackupIpcOptions {
   service: V2BackupService
   restore(input: V2BackupRestoreInput): Promise<V2BackupRestoreResult>
@@ -42,6 +49,7 @@ export function registerV2Ipc(
   reports: ReportService,
   reportOptions: V2ReportIpcOptions,
   backup: V2BackupIpcOptions,
+  proofs: V2OrderFundProofIpcOptions,
   ipc: V2IpcMain = electronIpcMain
 ): void {
   ipc.handle('v2:health', () => ({ version: '2.0.0', databaseReady: true }))
@@ -78,6 +86,25 @@ export function registerV2Ipc(
   ipc.handle('v2:orders:shipments:create', (_event, orderId, input) =>
     service.createShipment(orderId as string, input as never)
   )
+
+  ipc.handle('v2:order-fund-proofs:pick', async () => {
+    const filePath = await proofs.pickFile()
+    return filePath ? proofs.service.prepareFromFile(filePath) : null
+  })
+  ipc.handle('v2:order-fund-proofs:discard-prepared', (_event, attachmentId) =>
+    proofs.service.discardPrepared(attachmentId as string)
+  )
+  ipc.handle('v2:order-fund-proofs:get', (_event, fundId) => proofs.service.getFundProof(fundId as string))
+  ipc.handle('v2:order-fund-proofs:attach', (_event, fundId, attachmentId) =>
+    proofs.service.attachToFund(fundId as string, attachmentId as string)
+  )
+  ipc.handle('v2:order-fund-proofs:open', async (_event, fundId) => {
+    const proof = proofs.service.getFundProof(fundId as string)
+    if (!proof) return { status: 'none' as const }
+    if (proof.status === 'missing') return { status: 'missing' as const }
+    const message = await proofs.openFile(proofs.service.getFundProofPath(fundId as string)!)
+    return message ? { status: 'failed' as const, message } : { status: 'opened' as const }
+  })
 
   ipc.handle('v2:fulfillment:assignments:create', (_event, input) => fulfillment.createWorkAssignment(input as never))
   ipc.handle('v2:fulfillment:assignments:get', (_event, assignmentId) => fulfillment.getWorkAssignment(assignmentId as string))

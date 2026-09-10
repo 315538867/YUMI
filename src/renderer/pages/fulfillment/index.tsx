@@ -21,7 +21,8 @@ import {
   YumiPageHeader,
   YumiSelect,
   YumiStatusTag,
-  YumiTextArea
+  YumiTextArea,
+  YumiNotification
 } from '../../components/ui'
 
 type FulfillmentWorkspaceMode = 'queue' | 'processing'
@@ -189,8 +190,8 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
           description={`${selectedOrder.code} · ${selectedOrder.customerSnapshot.name}`}
           title={`${focusedOrderItem.productSnapshot.name} · 履约处理`}
         />
-        {loadError && <p className="yumi-form-error">{loadError}</p>}
-        {error && <p className="yumi-form-error">{error}</p>}
+        {loadError && <YumiNotification key={loadError} message={loadError} />}
+        {error && <YumiNotification key={error} message={error} />}
         <div className="yumi-order-summary">
           <div><h2>当前产品</h2><p>确认数量 {focusedOrderItem.quantity} · 仅处理此产品的履约事项</p></div>
           {focusedFulfillment ? <div className="yumi-order-stat-grid"><span>制作<strong>{focusedFulfillment.stages.making}</strong></span><span>捏毛装袋<strong>{focusedFulfillment.stages.fluffingBagging}</strong></span><span>打包<strong>{focusedFulfillment.stages.packing}</strong></span><span>待发货<strong>{focusedFulfillment.stages.readyToShip}</strong></span></div> : null}
@@ -233,7 +234,7 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
   return (
     <section className="yumi-page fulfillment-workspace">
       <YumiPageHeader description="跨订单查看当前待办；先按实际阶段筛选，再进入一个产品的处理上下文。" title="履约" />
-      {loadError && <p className="yumi-form-error">{loadError}</p>}
+      {loadError && <YumiNotification key={loadError} message={loadError} />}
       {loading ? <YumiEmptyState description="履约资料正在读取，请稍候。" title="加载履约待办中…" /> : <>
         <nav aria-label="阶段筛选" className="yumi-page-tabs">
           {queueFilters.map((filter) => <YumiButton aria-pressed={queueStage === filter.id} key={filter.id} onClick={() => setQueueStage(filter.id)} variant={queueStage === filter.id ? 'primary' : 'ghost'}>{filter.label} {filterCounts.get(filter.id) ?? 0}</YumiButton>)}

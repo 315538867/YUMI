@@ -23,13 +23,12 @@ describe('SettlementService', () => {
     const product = orderService.createProduct({
       name: '奶油小熊', basePriceCents: 6_000, materialCostCents: 1_000,
       packagingCostCents: 100, accessoryCostCents: 0, replacementBagCostCents: 0,
-      edgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300,
+      internalEdgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300,
       makingGlueCostCents: 50
     })
     const order = orderService.createOrder({
       customer: { name: '小雨' },
       items: [{ productId: product.id, quantity: 3, unitPriceCents: 6_000 }],
-      initialConfirmedAmountCents: 18_000
     })
     const assignment = fulfillmentService.createWorkAssignment({
       workerId: worker.id, assignedOn: '2026-09-07', processType: 'making',
@@ -53,12 +52,12 @@ describe('SettlementService', () => {
     })
     expect(draft).toMatchObject({
       status: 'draft', scheduledMinutes: 36, qualifiedCommissionCents: 600,
-      currentDeductionCents: 750, actualDeductionCents: 750,
-      scheduledReferenceWageCents: 1_050, continuingCarryoverCents: 0
+      currentDeductionCents: 700, actualDeductionCents: 700,
+      scheduledReferenceWageCents: 1_100, continuingCarryoverCents: 0
     })
     expect(draft.tasks).toHaveLength(1)
     expect(draft.deductions).toHaveLength(1)
-    expect(draft.deductions[0]).toMatchObject({ occurredOn: '2026-09-08', totalDeductionCents: 750 })
+    expect(draft.deductions[0]).toMatchObject({ occurredOn: '2026-09-08', totalDeductionCents: 700 })
 
     settlementService.updateDraft(draft.id, {
       finalPaidAmountCents: 0, paidOn: '2026-09-09'
@@ -70,7 +69,7 @@ describe('SettlementService', () => {
       attendanceMinutes: 60, attendanceNote: '打卡汇总', actualDeductionCents: 500, finalPaidAmountCents: 1_800,
       paidOn: '2026-09-09', managerNote: '负责人确认'
     })
-    expect(updated).toMatchObject({ attendanceReferenceWageCents: 2_100, actualDeductionCents: 500, continuingCarryoverCents: 250 })
+    expect(updated).toMatchObject({ attendanceReferenceWageCents: 2_100, actualDeductionCents: 500, continuingCarryoverCents: 200 })
     expect(updated.deductionAllocations).toHaveLength(1)
     expect(updated.deductionAllocations[0].allocatedCents).toBe(500)
 
@@ -78,7 +77,7 @@ describe('SettlementService', () => {
     expect(confirmed).toMatchObject({
       status: 'confirmed', finalPaidAmountCents: 1_800, paidOn: '2026-09-09',
       scheduledReferenceWageCents: 1_300, attendanceReferenceWageCents: 2_100,
-      actualDeductionCents: 500, continuingCarryoverCents: 250
+      actualDeductionCents: 500, continuingCarryoverCents: 200
     })
     expect(confirmed.financialEntryId).toEqual(expect.any(String))
     expect(database.prepare(`
@@ -91,7 +90,7 @@ describe('SettlementService', () => {
     }])
     expect(() => settlementService.confirm(draft.id)).toThrow('只有草稿结算单可以编辑或确认')
     expect(database.prepare('SELECT remaining_cents, status FROM worker_deduction_balances').all()).toEqual([
-      { remaining_cents: 250, status: 'open' }
+      { remaining_cents: 200, status: 'open' }
     ])
     expect(settlementService.listWorkers()).toMatchObject([{ id: worker.id, name: '小林' }])
     expect(settlementService.listWageHistory(worker.id)).toMatchObject([{ hourlyWageCents: 2_000 }])
@@ -113,13 +112,12 @@ describe('SettlementService', () => {
     const product = orderService.createProduct({
       name: '栗子小熊', basePriceCents: 6_000, materialCostCents: 1_000,
       packagingCostCents: 100, accessoryCostCents: 0, replacementBagCostCents: 0,
-      edgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300,
+      internalEdgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300,
       makingGlueCostCents: 50
     })
     const order = orderService.createOrder({
       customer: { name: '小雨' },
       items: [{ productId: product.id, quantity: 2, unitPriceCents: 6_000 }],
-      initialConfirmedAmountCents: 12_000
     })
     const orderItemId = order.items[0].id
 
@@ -164,11 +162,11 @@ describe('SettlementService', () => {
     expect(draft.scheduledMinutes).toBe(87)
     expect(draft.qualifiedCommissionCents).toBe(700)
     expect(draft.deductions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ commissionDeductionCents: 300, wageDeductionCents: 400, glueDeductionCents: 50, totalDeductionCents: 750 }),
+      expect.objectContaining({ commissionDeductionCents: 300, wageDeductionCents: 400, glueDeductionCents: 0, totalDeductionCents: 700 }),
       expect.objectContaining({ commissionDeductionCents: 100, wageDeductionCents: 333, glueDeductionCents: 0, totalDeductionCents: 433 })
     ]))
-    expect(draft.scheduledReferenceWageCents).toBe(2_417)
-    expect(draft.attendanceReferenceWageCents).toBe(2_517)
+    expect(draft.scheduledReferenceWageCents).toBe(2_467)
+    expect(draft.attendanceReferenceWageCents).toBe(2_567)
     expect(draft.attendanceReferenceWageCents).not.toBe(draft.scheduledReferenceWageCents + draft.attendanceReferenceWageCents)
   })
 
@@ -184,13 +182,12 @@ describe('SettlementService', () => {
     const product = orderService.createProduct({
       name: '奶油小熊', basePriceCents: 6_000, materialCostCents: 1_000,
       packagingCostCents: 100, accessoryCostCents: 0, replacementBagCostCents: 0,
-      edgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300,
+      internalEdgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300,
       makingGlueCostCents: 50
     })
     const order = orderService.createOrder({
       customer: { name: '小雨' },
       items: [{ productId: product.id, quantity: 3, unitPriceCents: 6_000 }],
-      initialConfirmedAmountCents: 18_000
     })
     const makingAssignment = fulfillmentService.createWorkAssignment({
       workerId: worker.id, assignedOn: '2026-09-07', processType: 'making',
@@ -230,7 +227,7 @@ describe('SettlementService', () => {
       expect.objectContaining({
         workerId: worker.id,
         originalSettlementId: confirmed.id,
-        requestedRefundCents: 750,
+        requestedRefundCents: 700,
         status: 'pending',
         actualRefundCents: null,
         refundedOn: null
@@ -241,14 +238,14 @@ describe('SettlementService', () => {
     })
 
     const resolved = settlementService.resolveRefund(pendingRefunds[0].id, {
-      actualRefundCents: 750, refundedOn: '2026-09-11', managerNote: '已退回'
+      actualRefundCents: 700, refundedOn: '2026-09-11', managerNote: '已退回'
     })
     expect(resolved).toMatchObject({
-      status: 'refunded', actualRefundCents: 750, refundedOn: '2026-09-11', managerNote: '已退回'
+      status: 'refunded', actualRefundCents: 700, refundedOn: '2026-09-11', managerNote: '已退回'
     })
     expect(settlementService.listPendingRefunds(worker.id)).toEqual([])
     expect(() => settlementService.resolveRefund(resolved.id, {
-      actualRefundCents: 750, refundedOn: '2026-09-11'
+      actualRefundCents: 700, refundedOn: '2026-09-11'
     })).toThrow('只有待退款记录可以处理')
   })
 

@@ -6,8 +6,8 @@ export type V2NavigationTarget =
   | { view: 'fulfillment'; orderId?: string; orderItemId?: string; processTaskId?: string; focus?: 'queue' | 'inspection' | 'shipment' }
   | { view: 'settlements'; settlementId?: string; focus?: 'draft' | 'confirm' | 'refund' }
   | { view: 'finance'; financeView?: 'overview' | 'cashflow' | 'reimbursements'; financialEntryId?: string }
-  | { view: 'customers' }
-  | { view: 'products' }
+  | { view: 'customers'; customerId?: string }
+  | { view: 'products'; productId?: string }
 
 export type V2WorkbenchBucket = 'decision' | 'advance'
 export type V2WorkbenchPriority = 'urgent' | 'high' | 'normal'

@@ -66,6 +66,9 @@ describe('工资负责人确认', () => {
 
     expect(confirmButton).toBeEnabled()
     fireEvent.click(confirmButton)
+    expect(screen.getByRole('heading', { name: '确认工资结算并记账？' })).toBeVisible()
+    expect(updateDraft).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '确认记账' }))
 
     await waitFor(() => expect(updateDraft).toHaveBeenCalledWith('settlement-1', expect.objectContaining({
       finalPaidAmountCents: 13_500,

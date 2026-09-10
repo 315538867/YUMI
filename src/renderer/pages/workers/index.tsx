@@ -14,7 +14,8 @@ import {
   YumiPageHeader,
   YumiSheet,
   YumiStatusTag,
-  YumiTextField
+  YumiTextField,
+  YumiNotification
 } from '../../components/ui'
 
 interface WorkersPageProps {
@@ -137,8 +138,8 @@ export function WorkersPage({ workers, createWorker, listWageHistory, recordWage
       description="人员与时薪分开维护：时薪变动按负责人填写的生效日期保留历史，不回写既有工资结算。"
       title="兼职人员"
     />
-    {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
-    {message && <p className="yumi-feedback yumi-feedback--success" role="status">{message}</p>}
+    {error && <YumiNotification key={error} message={error} />}
+    {message && <YumiNotification key={message} message={message} tone="success" />}
 
     <div aria-label="兼职人员列表" className="yumi-primary-list">
       {workers.length === 0 ? <YumiEmptyState description="从右上角新增首位兼职人员，并同时记录其初始时薪。" scenario="first-use" title="还没有兼职人员" /> : <YumiBusinessList>
@@ -167,7 +168,7 @@ export function WorkersPage({ workers, createWorker, listWageHistory, recordWage
           <YumiField><YumiFieldLabel required>生效日期</YumiFieldLabel><YumiDatePicker aria-label="首个时薪生效日期" onValueChange={setEffectiveOn} value={effectiveOn} /></YumiField>
           <YumiField><YumiFieldLabel htmlFor="worker-note">备注</YumiFieldLabel><YumiTextField id="worker-note" onChange={(event) => setNote(event.target.value)} value={note} /></YumiField>
         </div>
-        {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
+        {error && <YumiNotification key={error} message={error} />}
       </form>
     </YumiSheet>
 

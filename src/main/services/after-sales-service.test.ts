@@ -21,11 +21,10 @@ describe('AfterSalesService', () => {
     const product = orderService.createProduct({
       name: '奶油小熊', basePriceCents: 6_000, materialCostCents: 1_000,
       packagingCostCents: 100, accessoryCostCents: 0, replacementBagCostCents: 0,
-      edgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300, makingGlueCostCents: 50
+      internalEdgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300, makingGlueCostCents: 50
     })
     const order = orderService.createOrder({
       customer: { name: '小雨' }, items: [{ productId: product.id, quantity: 1, unitPriceCents: 6_000 }],
-      initialConfirmedAmountCents: 6_000
     })
 
     const caseRecord = afterSales.createCase({
@@ -59,11 +58,10 @@ describe('AfterSalesService', () => {
     const product = orderService.createProduct({
       name: '海盐小熊', basePriceCents: 6_000, materialCostCents: 1_000,
       packagingCostCents: 100, accessoryCostCents: 0, replacementBagCostCents: 0,
-      edgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300, makingGlueCostCents: 50
+      internalEdgeCostCents: 0, standardMakingMinutes: 12, makingCommissionCents: 300, makingGlueCostCents: 50
     })
     const order = orderService.createOrder({
       customer: { name: '小叶' }, items: [{ productId: product.id, quantity: 3, unitPriceCents: 6_000 }],
-      initialConfirmedAmountCents: 18_000
     })
     const orderItemId = order.items[0].id
     fulfillment.recordOpeningWip({
@@ -91,7 +89,6 @@ describe('AfterSalesService', () => {
 
     const unrelatedOrder = orderService.createOrder({
       customer: { name: '小陈' }, items: [{ productId: product.id, quantity: 1, unitPriceCents: 6_000 }],
-      initialConfirmedAmountCents: 6_000
     })
     expect(() => afterSales.createCase({
       orderId: unrelatedOrder.id, shipmentId: originalShipment.id, occurredOn: '2026-09-08',

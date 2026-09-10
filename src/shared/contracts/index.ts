@@ -5,6 +5,9 @@ export type {
   IsoDateTime,
   WeightMilligrams,
   V2AttachmentReference,
+  V2AttachmentStatus,
+  V2OrderFundProof,
+  V2OrderFundProofOpenResult,
   V2BackupRestoreInput,
   V2BackupRestoreResult,
   V2BackupSummary,
@@ -116,15 +119,33 @@ export type {
 } from './finance'
 
 export type {
+  V2CapacityRiskReport,
+  V2CapacityRiskReportInput,
+  V2CapacityRiskReportRow,
   V2ConfirmedSettlementReport,
   V2ConfirmedSettlementReportRow,
+  V2CustomerOrderHistoryRow,
+  V2CustomerOrderInsights,
+  V2CustomerOrderShipmentStatus,
+  V2CustomerOrderStatus,
+  V2DeliveryRiskReport,
+  V2DeliveryRiskReportInput,
+  V2DeliveryRiskReportRow,
   V2FulfillmentProgressReport,
   V2FulfillmentProgressReportRow,
   V2MonthlyOperationReport,
   V2OrderBusinessReport,
   V2OrderBusinessReportRow,
+  V2OrderTableDocument,
+  V2OrderTableExportRow,
+  V2OrderTableExportInput,
+  V2OrderDocumentsExportInput,
   V2ReportExportInput,
-  V2ReportExportResult
+  V2ReportExportResult,
+  V2RiskLevel,
+  V2ShippingListDocument,
+  V2ShippingListExportInput,
+  V2ShippingListExportRow
 } from './reports'
 
 export type { V2YumiApi } from './v2-api'

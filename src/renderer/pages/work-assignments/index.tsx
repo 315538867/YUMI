@@ -14,7 +14,8 @@ import {
   YumiSection,
   YumiSelect,
   YumiStatusTag,
-  YumiTextField
+  YumiTextField,
+  YumiNotification
 } from '../../components/ui'
 
 interface TaskDraft {
@@ -145,8 +146,8 @@ export function WorkAssignmentsPage(props: { order: V2Order | null; focusedTaskI
       </form>
 
       <YumiSection title="工作安排与次日质检" description={props.focusedTaskId ? '已定位到当前待处理任务，仅展示这项任务所在的工作安排。' : '完成记录提交后，负责人可以在次日质检中填写合格与不合格数量。'}>
-        {loadError && <p className="yumi-form-error">{loadError}</p>}
-        {error && <p className="yumi-form-error">{error}</p>}
+        {loadError && <YumiNotification key={loadError} message={loadError} />}
+        {error && <YumiNotification key={error} message={error} />}
         {loading ? <YumiEmptyState description="工作安排正在读取，请稍候。" title="加载中…" /> : visibleAssignments.length === 0 ? <YumiEmptyState description={props.focusedTaskId ? '该任务可能已完成或已发生变化，请返回履约队列刷新后继续处理。' : '负责人新建安排后，任务和质检入口会出现在这里。'} title={props.focusedTaskId ? '未找到当前任务' : '暂时没有工作安排'} /> : (
           <YumiBusinessList>{visibleAssignments.map((assignment) => (
             <YumiBusinessListItem

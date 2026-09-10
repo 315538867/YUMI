@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
+import { relative, resolve } from 'node:path'
 import type { V2Database } from '@main/database/v2-connection'
 import { createV2Database } from '@main/database/v2-connection'
 import { resolveV2StoragePaths, type V2StoragePaths } from '@main/database/v2-storage'
@@ -6,6 +8,7 @@ import { V2OrderRepository } from '@main/repositories/v2-order-repository'
 import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
 import { V2BackupService } from '@main/services/v2-backup-service'
 import { V2OrderService } from '@main/services/v2-order-service'
+import { OrderFundAttachmentService } from '@main/services/order-fund-attachment-service'
 import { FulfillmentService } from '@main/services/fulfillment-service'
 import { SettlementService } from '@main/services/settlement-service'
 import { FinanceService } from '@main/services/finance-service'
@@ -16,10 +19,18 @@ import { WorkbenchService } from '@main/services/workbench-service'
 import { StudioSettingsService } from '@main/services/studio-settings-service'
 import type { V2BackupRestoreInput, V2BackupRestoreResult } from '@shared/contracts/index'
 
+function imageExtension(mimeType: string | null): 'jpeg' | 'png' | 'gif' | null {
+  if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') return 'jpeg'
+  if (mimeType === 'image/png') return 'png'
+  if (mimeType === 'image/gif') return 'gif'
+  return null
+}
+
 interface V2RuntimeReferences {
   database: V2Database
   repository: V2OrderRepository
   orderService: V2OrderService
+  orderFundAttachmentService: OrderFundAttachmentService
   studioSettingsService: StudioSettingsService
   workbenchService: WorkbenchService
   fulfillmentService: FulfillmentService
@@ -59,6 +70,10 @@ export class V2ApplicationRuntime {
 
   get orderService(): V2OrderService {
     return this.requireReferences().orderService
+  }
+
+  get orderFundAttachmentService(): OrderFundAttachmentService {
+    return this.requireReferences().orderFundAttachmentService
   }
 
   get studioSettingsService(): StudioSettingsService {
@@ -139,6 +154,7 @@ export class V2ApplicationRuntime {
     const reportService = new ReportService(database)
     const studioSettingsService = new StudioSettingsService(database, repository)
     const orderService = new V2OrderService(repository, undefined, studioSettingsService)
+    const orderFundAttachmentService = new OrderFundAttachmentService(database, this.storage.attachmentDirectory)
     const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database))
     const settlementService = new SettlementService(database)
     const financeService = new FinanceService(database)
@@ -147,6 +163,7 @@ export class V2ApplicationRuntime {
       database,
       repository,
       orderService,
+      orderFundAttachmentService,
       studioSettingsService,
       workbenchService: new WorkbenchService({
         orders: orderService,
@@ -160,7 +177,18 @@ export class V2ApplicationRuntime {
       financeService,
       afterSalesService,
       reportService,
-      reportExportService: new V2ReportExportService(reportService),
+      reportExportService: new V2ReportExportService(reportService, async (attachmentId) => {
+        const attachment = database
+          .prepare('SELECT storage_key, mime_type FROM attachments WHERE id = ?')
+          .get(attachmentId) as { storage_key: string; mime_type: string | null } | undefined
+        const extension = attachment ? imageExtension(attachment.mime_type) : null
+        if (!attachment || !extension) return null
+        const root = resolve(this.storage.attachmentDirectory)
+        const filePath = resolve(root, attachment.storage_key)
+        const pathWithinRoot = relative(root, filePath)
+        if (pathWithinRoot.startsWith('..') || pathWithinRoot === '' || !existsSync(filePath)) return null
+        return { buffer: readFileSync(filePath), extension }
+      }),
       backupService: new V2BackupService(this.storage, this.applicationVersion, database)
     }
   }

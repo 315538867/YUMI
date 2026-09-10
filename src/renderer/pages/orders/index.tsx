@@ -5,6 +5,7 @@ import type {
   V2NavigationTarget,
   V2Order,
   V2OrderFundBusinessType,
+  V2AttachmentReference,
   V2OrderItem,
   V2Product,
   V2ProductInput
@@ -20,6 +21,7 @@ import { buildShipmentItemAvailability, useOrders } from '../../composables/use-
 import { useFinance } from '../../composables/use-finance'
 import { useCustomers } from '../../composables/use-customers'
 import { useProducts } from '../../composables/use-products'
+import { useStudioSettings } from '../../composables/use-studio-settings'
 import { AfterSalesPanel } from '../../components/after-sales/after-sales-panel'
 import {
   YumiBusinessList,
@@ -37,13 +39,18 @@ import {
   YumiSelect,
   YumiStatusTag,
   YumiTextArea,
-  YumiTextField
+  YumiTextField,
+  YumiNotification
 } from '../../components/ui'
 
 interface OrderLineDraft {
   productId: string
   quantity: string
   unitPrice: string
+  edgeEnabled: boolean
+  edgeQuantity: string
+  edgeUnitPrice: string
+  itemDiscount: string
 }
 
 type OrderWorkspaceMode = 'list' | 'create' | 'detail'
@@ -57,12 +64,20 @@ interface OrdersPageProps {
 const createLine = (product?: V2Product): OrderLineDraft => ({
   productId: product?.id ?? '',
   quantity: '1',
-  unitPrice: product ? centsToYuan(product.basePriceCents) : '0'
+  unitPrice: product ? centsToYuan(product.basePriceCents) : '0',
+  edgeEnabled: false,
+  edgeQuantity: '0',
+  edgeUnitPrice: '0',
+  itemDiscount: '0'
 })
 const itemToDraft = (item: V2OrderItem): OrderLineDraft => ({
   productId: item.productId ?? '',
   quantity: String(item.quantity),
-  unitPrice: centsToYuan(item.unitPriceCents)
+  unitPrice: centsToYuan(item.unitPriceCents),
+  edgeEnabled: item.edgeEnabled ?? false,
+  edgeQuantity: String(item.edgeQuantity ?? 0),
+  edgeUnitPrice: centsToYuan(item.edgeUnitPriceCents ?? 0),
+  itemDiscount: centsToYuan(item.itemDiscountCents ?? 0)
 })
 
 interface QuickCustomerDraft {
@@ -77,10 +92,7 @@ interface QuickProductDraft {
   basePrice: string
 }
 
-type QuickCreateTarget =
-  | { kind: 'customer' }
-  | { kind: 'product'; lineIndex: number }
-  | null
+type QuickCreateTarget = { kind: 'customer' } | { kind: 'product'; lineIndex: number } | null
 
 const emptyQuickCustomerDraft = (name = ''): QuickCustomerDraft => ({
   name,
@@ -104,7 +116,7 @@ const toQuickProductInput = (draft: QuickProductDraft): V2ProductInput => ({
   packagingCostCents: 0,
   accessoryCostCents: 0,
   replacementBagCostCents: 0,
-  edgeCostCents: 0,
+  internalEdgeCostCents: 0,
   standardMakingMinutes: 0,
   makingCommissionCents: 0,
   makingGlueCostCents: 0,
@@ -155,21 +167,32 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     changeContent,
     recordFund,
     correctFund,
-    createShipment
+    pickFundProof,
+    discardPreparedFundProof,
+    attachFundProof,
+    openFundProof,
+    createShipment,
+    exportOrderTable,
+    exportOrderDocuments,
+    exportShippingList
   } = useOrders()
   const { createCustomer: createQuickCustomer } = useCustomers()
   const { createProduct: createQuickProduct } = useProducts()
   const { listAfterSalesCases, createAfterSalesCase, updateAfterSalesCase, linkAfterSalesCharge } =
     useFinance()
+  const studio = useStudioSettings()
   const [workspaceMode, setWorkspaceMode] = useState<OrderWorkspaceMode>('list')
   const [detailView, setDetailView] = useState<OrderDetailView>('overview')
   const [createCustomerId, setCreateCustomerId] = useState('')
   const [createLines, setCreateLines] = useState<OrderLineDraft[]>([createLine()])
-  const [initialAmount, setInitialAmount] = useState('0')
+  const [createOrderDiscount, setCreateOrderDiscount] = useState('0')
   const [expectedShipDate, setExpectedShipDate] = useState('')
+  const [createReservedDays, setCreateReservedDays] = useState('2')
   const [createNotes, setCreateNotes] = useState('')
   const [contentLines, setContentLines] = useState<OrderLineDraft[]>([])
   const [contentDescription, setContentDescription] = useState('')
+  const [contentOrderDiscount, setContentOrderDiscount] = useState('0')
+  const [contentEditorOpen, setContentEditorOpen] = useState(false)
   const [contentDate, setContentDate] = useState(today())
   const [adjustmentAmount, setAdjustmentAmount] = useState('')
   const [adjustmentReason, setAdjustmentReason] = useState('')
@@ -178,6 +201,7 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
   const [fundDate, setFundDate] = useState(today())
   const [fundMethod, setFundMethod] = useState('')
   const [fundNote, setFundNote] = useState('')
+  const [pendingFundProof, setPendingFundProof] = useState<V2AttachmentReference | null>(null)
   const [correctionOriginalId, setCorrectionOriginalId] = useState('')
   const [correctionAmount, setCorrectionAmount] = useState('')
   const [correctionDate, setCorrectionDate] = useState(today())
@@ -191,13 +215,19 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
   const [quickCustomers, setQuickCustomers] = useState<V2Customer[]>([])
   const [quickProducts, setQuickProducts] = useState<V2Product[]>([])
   const [quickCreateTarget, setQuickCreateTarget] = useState<QuickCreateTarget>(null)
-  const [quickCustomerDraft, setQuickCustomerDraft] = useState<QuickCustomerDraft>(emptyQuickCustomerDraft)
-  const [quickCustomerInitialDraft, setQuickCustomerInitialDraft] = useState<QuickCustomerDraft>(emptyQuickCustomerDraft)
-  const [quickProductDraft, setQuickProductDraft] = useState<QuickProductDraft>(emptyQuickProductDraft)
-  const [quickProductInitialDraft, setQuickProductInitialDraft] = useState<QuickProductDraft>(emptyQuickProductDraft)
+  const [quickCustomerDraft, setQuickCustomerDraft] =
+    useState<QuickCustomerDraft>(emptyQuickCustomerDraft)
+  const [quickCustomerInitialDraft, setQuickCustomerInitialDraft] =
+    useState<QuickCustomerDraft>(emptyQuickCustomerDraft)
+  const [quickProductDraft, setQuickProductDraft] =
+    useState<QuickProductDraft>(emptyQuickProductDraft)
+  const [quickProductInitialDraft, setQuickProductInitialDraft] =
+    useState<QuickProductDraft>(emptyQuickProductDraft)
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null)
   const [quickSubmitting, setQuickSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
   const [submitting, setSubmitting] = useState<string | null>(null)
 
   useEffect(() => {
@@ -211,14 +241,22 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     if (!selectedOrder) return
     setContentLines(selectedOrder.items.map(itemToDraft))
     setContentDescription('')
+    setContentEditorOpen(false)
+    setContentOrderDiscount(centsToYuan(selectedOrder.amount.orderDiscountCents ?? 0))
     setAdjustmentAmount('')
     setAdjustmentReason('')
     setCorrectionOriginalId('')
     setShipmentLines(Object.fromEntries(selectedOrder.items.map((item) => [item.id, '0'])))
   }, [selectedOrder])
 
-  const availableCustomers = useMemo(() => mergeById(customers, quickCustomers), [customers, quickCustomers])
-  const availableProducts = useMemo(() => mergeById(products, quickProducts), [products, quickProducts])
+  const availableCustomers = useMemo(
+    () => mergeById(customers, quickCustomers),
+    [customers, quickCustomers]
+  )
+  const availableProducts = useMemo(
+    () => mergeById(products, quickProducts),
+    [products, quickProducts]
+  )
 
   const shipmentAvailability = useMemo(
     () =>
@@ -236,10 +274,23 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     value: string
   ) => {
     const nextLines = [...lines]
-    nextLines[index] = { ...nextLines[index], [key]: value }
+    const previousLine = nextLines[index]
+    nextLines[index] = { ...previousLine, [key]: value }
     if (key === 'productId') {
       const product = availableProducts.find((candidate) => candidate.id === value)
       if (product) nextLines[index].unitPrice = centsToYuan(product.basePriceCents)
+    }
+    if (key === 'edgeEnabled') {
+      nextLines[index].edgeEnabled = value === 'true'
+      nextLines[index].edgeQuantity = value === 'true' ? nextLines[index].quantity : '0'
+      if (value !== 'true') nextLines[index].edgeUnitPrice = '0'
+    }
+    if (
+      key === 'quantity' &&
+      previousLine.edgeEnabled &&
+      previousLine.edgeQuantity === previousLine.quantity
+    ) {
+      nextLines[index].edgeQuantity = value
     }
     setLines(nextLines)
   }
@@ -248,14 +299,26 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     lines.map((line) => ({
       productId: line.productId,
       quantity: Math.round(Number(line.quantity)),
-      unitPriceCents: yuanToCents(line.unitPrice)
+      unitPriceCents: yuanToCents(line.unitPrice),
+      edge: {
+        enabled: line.edgeEnabled,
+        quantity: Math.round(Number(line.edgeQuantity)),
+        unitPriceCents: yuanToCents(line.edgeUnitPrice)
+      },
+      itemDiscountCents: yuanToCents(line.itemDiscount)
     }))
 
   const validateLines = (lines: OrderLineDraft[]) => {
     if (
       !lines.length ||
       lines.some(
-        (line) => !line.productId || Number(line.quantity) < 1 || Number(line.unitPrice) < 0
+        (line) =>
+          !line.productId ||
+          Number(line.quantity) < 1 ||
+          Number(line.unitPrice) < 0 ||
+          Number(line.edgeQuantity) < 0 ||
+          Number(line.edgeUnitPrice) < 0 ||
+          Number(line.itemDiscount) < 0
       )
     ) {
       throw new Error('请完整填写每一行商品、数量和单价')
@@ -279,14 +342,16 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
           notes: customer.notes
         },
         items: toItems(createLines),
-        initialConfirmedAmountCents: yuanToCents(initialAmount),
+        orderDiscountCents: yuanToCents(createOrderDiscount),
         expectedShipDate: expectedShipDate || null,
+        reservedDays: Number(createReservedDays),
         notes: createNotes || null
       })
       setCreateCustomerId('')
       setCreateLines([createLine(availableProducts[0])])
-      setInitialAmount('0')
+      setCreateOrderDiscount('0')
       setExpectedShipDate('')
+      setCreateReservedDays(String(studio.settings?.orderReservedDays ?? 2))
       setCreateNotes('')
       setWorkspaceMode('detail')
     } catch (submitError) {
@@ -307,6 +372,7 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
         occurredOn: contentDate,
         description: contentDescription,
         items: toItems(contentLines),
+        orderDiscountCents: yuanToCents(contentOrderDiscount),
         amountAdjustment: adjustmentAmount
           ? {
               amountCents: yuanToCents(adjustmentAmount),
@@ -318,10 +384,43 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
       setContentDescription('')
       setAdjustmentAmount('')
       setAdjustmentReason('')
+      setContentEditorOpen(false)
     } catch (submitError) {
       setError(getErrorMessage(submitError))
     } finally {
       setSubmitting(null)
+    }
+  }
+
+  const handlePickFundProof = async () => {
+    try {
+      const proof = await pickFundProof()
+      if (proof) setPendingFundProof(proof)
+    } catch (pickError) {
+      setError(getErrorMessage(pickError))
+    }
+  }
+
+  const handleOpenFundProof = async (fundId: string) => {
+    try {
+      const result = await openFundProof(fundId)
+      if (result.status === 'missing') setError('收款凭证文件已缺失，请重新关联凭证')
+      else if (result.status === 'failed') setError(result.message ?? '收款凭证打开失败')
+      else if (result.status === 'none') setError('该资金流水尚未关联凭证')
+    } catch (openError) {
+      setError(getErrorMessage(openError))
+    }
+  }
+
+  const handleReplaceFundProof = async (fundId: string) => {
+    try {
+      const proof = await pickFundProof()
+      if (proof) {
+        await attachFundProof(fundId, proof.id)
+        await selectOrder(selectedOrder!.id)
+      }
+    } catch (replaceError) {
+      setError(getErrorMessage(replaceError))
     }
   }
 
@@ -336,11 +435,13 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
         amountCents: yuanToCents(fundAmount),
         occurredOn: fundDate,
         paymentMethod: fundMethod || null,
+        attachmentId: fundType === 'payment' ? pendingFundProof?.id ?? null : null,
         note: fundNote || null
       })
       setFundAmount('')
       setFundMethod('')
       setFundNote('')
+      setPendingFundProof(null)
     } catch (submitError) {
       setError(getErrorMessage(submitError))
     } finally {
@@ -467,9 +568,13 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     try {
       const product = await createQuickProduct(toQuickProductInput(quickProductDraft))
       setQuickProducts((current) => mergeById(current, [product]))
-      setCreateLines((current) => current.map((line, index) => index === quickCreateTarget.lineIndex
-        ? { ...line, productId: product.id, unitPrice: centsToYuan(product.basePriceCents) }
-        : line))
+      setCreateLines((current) =>
+        current.map((line, index) =>
+          index === quickCreateTarget.lineIndex
+            ? { ...line, productId: product.id, unitPrice: centsToYuan(product.basePriceCents) }
+            : line
+        )
+      )
       closeQuickCreate()
     } catch (submitError) {
       setQuickCreateError(getErrorMessage(submitError))
@@ -487,12 +592,33 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
   const openCreateWorkspace = () => {
     setError(null)
     setCreateLines([createLine(availableProducts[0])])
+    setCreateReservedDays(String(studio.settings?.orderReservedDays ?? 2))
     setWorkspaceMode('create')
   }
 
   const returnToOrderList = () => {
     setError(null)
     setWorkspaceMode('list')
+  }
+
+  const exportOrderFile = async (kind: 'order-table' | 'shipping-list' | 'combined', shipmentId?: string) => {
+    setExporting(true)
+    setExportMessage(null)
+    try {
+      const result = kind === 'order-table'
+        ? await exportOrderTable(selectedOrder?.id)
+        : kind === 'combined'
+          ? selectedOrder
+            ? await exportOrderDocuments(selectedOrder.id, shipmentId)
+            : await Promise.reject(new Error('订单详情尚未加载完成'))
+          : await exportShippingList(selectedOrder?.id, shipmentId)
+      const label = kind === 'order-table' ? '订单表' : kind === 'shipping-list' ? '发货清单' : '订单表与发货清单'
+      setExportMessage(result.savedPath ? `已导出${label}：${result.savedPath}` : '已取消导出。')
+    } catch (cause) {
+      setExportMessage(getErrorMessage(cause))
+    } finally {
+      setExporting(false)
+    }
   }
 
   const baseDataReady = availableCustomers.length > 0 && availableProducts.length > 0
@@ -510,8 +636,8 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             description="查看已有订单，并进入订单详情处理资金、分批发货与售后。"
             title="订单"
           />
-          {error && <p className="yumi-form-error">{error}</p>}
-          {loadError && <p className="yumi-form-error">{loadError}</p>}
+          {error && <YumiNotification key={error} message={error} />}
+          {loadError && <YumiNotification key={loadError} message={loadError} />}
           <div aria-label={`订单列表，共 ${orders.length} 张`} className="yumi-primary-list">
             {loading ? (
               <YumiEmptyState description="订单资料正在读取，请稍候。" title="正在加载订单…" />
@@ -522,7 +648,7 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
                     key={order.id}
                     meta={`更新于 ${order.updatedAt.slice(0, 10)}`}
                     metrics={[
-                      { label: '确认金额', value: formatCents(order.currentAmountCents) },
+                      { label: '订单金额', value: formatCents(order.currentAmountCents) },
                       { label: '待收', value: formatCents(order.outstandingCents) }
                     ]}
                     onOpen={() => void openOrderDetail(order.id)}
@@ -531,7 +657,7 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
                         {order.outstandingCents > 0 ? '待收款' : '已收齐'}
                       </YumiStatusTag>
                     }
-                    summary={`${order.customerName} · 应收 ${formatCents(order.currentAmountCents)}`}
+                    summary={`${order.customerName} · 订单金额 ${formatCents(order.currentAmountCents)}`}
                     title={order.code}
                   />
                 ))}
@@ -561,11 +687,11 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
                 返回订单列表
               </YumiButton>
             }
-            description="录入客户、多个商品行和确认金额；保存后直接进入订单详情。"
+            description="录入客户、多个商品行和订单金额组成项；保存后进入订单详情。"
             title="新建订单"
           />
-          {error && <p className="yumi-form-error">{error}</p>}
-          {loadError && <p className="yumi-form-error">{loadError}</p>}
+          {error && <YumiNotification key={error} message={error} />}
+          {loadError && <YumiNotification key={loadError} message={loadError} />}
           {!baseDataReady ? (
             <OrderSetupGuide
               customersReady={availableCustomers.length > 0}
@@ -599,14 +725,24 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
                   />
                 </YumiField>
                 <YumiField>
-                  <YumiFieldLabel required>初始确认金额（元）</YumiFieldLabel>
+                  <YumiFieldLabel>预留制作天数</YumiFieldLabel>
+                  <YumiNumberField
+                    aria-label="预留制作天数"
+                    hint="默认来自工作室参数；可按本订单实际情况修改。"
+                    min="0"
+                    onChange={(event) => setCreateReservedDays(event.target.value)}
+                    step="1"
+                    value={createReservedDays}
+                  />
+                </YumiField>
+                <YumiField>
+                  <YumiFieldLabel>订单优惠（元）</YumiFieldLabel>
                   <YumiNumberField
                     allowDecimal
-                    aria-label="初始确认金额（元）"
+                    aria-label="订单优惠（元）"
                     min="0"
-                    onChange={(event) => setInitialAmount(event.target.value)}
-                    required
-                    value={initialAmount}
+                    onChange={(event) => setCreateOrderDiscount(event.target.value)}
+                    value={createOrderDiscount}
                   />
                 </YumiField>
               </div>
@@ -652,8 +788,9 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             description="处理订单内容、资金、售后和分批发货。"
             title={selectedOrder.code}
           />
-          {error && <p className="yumi-form-error">{error}</p>}
-          {loadError && <p className="yumi-form-error">{loadError}</p>}
+          {error && <YumiNotification key={error} message={error} />}
+          {loadError && <YumiNotification key={loadError} message={loadError} />}
+          {exportMessage && <YumiNotification key={exportMessage} message={exportMessage} timeout={exportMessage.startsWith('已导出') ? 5000 : exportMessage.startsWith('已取消') ? 3000 : undefined} tone={exportMessage.startsWith('已导出') ? 'success' : exportMessage.startsWith('已取消') ? 'info' : 'danger'} />}
           <OrderDetail
             activeView={detailView}
             onViewChange={setDetailView}
@@ -666,6 +803,8 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             setContentLines={setContentLines}
             contentDescription={contentDescription}
             setContentDescription={setContentDescription}
+            contentEditorOpen={contentEditorOpen}
+            setContentEditorOpen={setContentEditorOpen}
             contentDate={contentDate}
             setContentDate={setContentDate}
             adjustmentAmount={adjustmentAmount}
@@ -682,6 +821,14 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             setFundMethod={setFundMethod}
             fundNote={fundNote}
             setFundNote={setFundNote}
+            pendingFundProof={pendingFundProof}
+            onPickFundProof={() => void handlePickFundProof()}
+            onClearFundProof={() => {
+              if (pendingFundProof) void discardPreparedFundProof(pendingFundProof.id)
+              setPendingFundProof(null)
+            }}
+            onOpenFundProof={(fundId) => void handleOpenFundProof(fundId)}
+            onReplaceFundProof={(fundId) => void handleReplaceFundProof(fundId)}
             correctionOriginalId={correctionOriginalId}
             setCorrectionOriginalId={setCorrectionOriginalId}
             correctionAmount={correctionAmount}
@@ -707,7 +854,9 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             updateContentLine={(index, key, value) =>
               updateLine(contentLines, setContentLines, index, key, value)
             }
-            onAddContentLine={() => setContentLines([...contentLines, createLine(availableProducts[0])])}
+            onAddContentLine={() =>
+              setContentLines([...contentLines, createLine(availableProducts[0])])
+            }
             onRemoveContentLine={(index) =>
               setContentLines(contentLines.filter((_, lineIndex) => lineIndex !== index))
             }
@@ -715,6 +864,10 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             onRecordFund={handleRecordFund}
             onCorrection={handleCorrection}
             onShipment={handleCreateShipment}
+            exporting={exporting}
+            onExportOrderTable={() => void exportOrderFile('order-table')}
+            onExportOrderDocuments={() => void exportOrderFile('combined')}
+            onExportShippingList={(shipmentId) => void exportOrderFile('shipping-list', shipmentId)}
             listAfterSalesCases={listAfterSalesCases}
             createAfterSalesCase={createAfterSalesCase}
             updateCase={updateAfterSalesCase}
@@ -726,32 +879,144 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
       <YumiSheet
         description="建立后会自动选入当前订单草稿；关闭或保存失败都不会清空已填写的订单内容。"
         dirty={JSON.stringify(quickCustomerDraft) !== JSON.stringify(quickCustomerInitialDraft)}
-        footer={<><YumiButton onClick={closeQuickCreate} variant="ghost">取消</YumiButton><YumiButton form="quick-customer-form" loading={quickSubmitting} type="submit" variant="primary">创建并选中客户</YumiButton></>}
-        onOpenChange={(open) => { if (!open) closeQuickCreate() }}
+        footer={
+          <>
+            <YumiButton onClick={closeQuickCreate} variant="ghost">
+              取消
+            </YumiButton>
+            <YumiButton
+              form="quick-customer-form"
+              loading={quickSubmitting}
+              type="submit"
+              variant="primary"
+            >
+              创建并选中客户
+            </YumiButton>
+          </>
+        }
+        onOpenChange={(open) => {
+          if (!open) closeQuickCreate()
+        }}
         open={quickCreateTarget?.kind === 'customer'}
         title="新建客户"
       >
-        <form className="yumi-form-panel yumi-sheet-form" id="quick-customer-form" onSubmit={handleQuickCustomerCreate}>
-          <YumiField><YumiFieldLabel htmlFor="quick-customer-name" required>客户名称</YumiFieldLabel><YumiTextField id="quick-customer-name" onChange={(event) => setQuickCustomerDraft((current) => ({ ...current, name: event.target.value }))} required value={quickCustomerDraft.name} /></YumiField>
-          <YumiField><YumiFieldLabel htmlFor="quick-customer-contact">联系人</YumiFieldLabel><YumiTextField id="quick-customer-contact" onChange={(event) => setQuickCustomerDraft((current) => ({ ...current, contact: event.target.value }))} value={quickCustomerDraft.contact} /></YumiField>
-          <YumiField><YumiFieldLabel htmlFor="quick-customer-address">默认收货地址</YumiFieldLabel><YumiTextArea id="quick-customer-address" onChange={(event) => setQuickCustomerDraft((current) => ({ ...current, defaultAddress: event.target.value }))} value={quickCustomerDraft.defaultAddress} /></YumiField>
-          <YumiField><YumiFieldLabel htmlFor="quick-customer-notes">备注</YumiFieldLabel><YumiTextArea id="quick-customer-notes" onChange={(event) => setQuickCustomerDraft((current) => ({ ...current, notes: event.target.value }))} value={quickCustomerDraft.notes} /></YumiField>
-          {quickCreateError && <p className="yumi-feedback yumi-feedback--danger" role="alert">{quickCreateError}</p>}
+        <form
+          className="yumi-form-panel yumi-sheet-form"
+          id="quick-customer-form"
+          onSubmit={handleQuickCustomerCreate}
+        >
+          <YumiField>
+            <YumiFieldLabel htmlFor="quick-customer-name" required>
+              客户名称
+            </YumiFieldLabel>
+            <YumiTextField
+              id="quick-customer-name"
+              onChange={(event) =>
+                setQuickCustomerDraft((current) => ({ ...current, name: event.target.value }))
+              }
+              required
+              value={quickCustomerDraft.name}
+            />
+          </YumiField>
+          <YumiField>
+            <YumiFieldLabel htmlFor="quick-customer-contact">联系人</YumiFieldLabel>
+            <YumiTextField
+              id="quick-customer-contact"
+              onChange={(event) =>
+                setQuickCustomerDraft((current) => ({ ...current, contact: event.target.value }))
+              }
+              value={quickCustomerDraft.contact}
+            />
+          </YumiField>
+          <YumiField>
+            <YumiFieldLabel htmlFor="quick-customer-address">默认收货地址</YumiFieldLabel>
+            <YumiTextArea
+              id="quick-customer-address"
+              onChange={(event) =>
+                setQuickCustomerDraft((current) => ({
+                  ...current,
+                  defaultAddress: event.target.value
+                }))
+              }
+              value={quickCustomerDraft.defaultAddress}
+            />
+          </YumiField>
+          <YumiField>
+            <YumiFieldLabel htmlFor="quick-customer-notes">备注</YumiFieldLabel>
+            <YumiTextArea
+              id="quick-customer-notes"
+              onChange={(event) =>
+                setQuickCustomerDraft((current) => ({ ...current, notes: event.target.value }))
+              }
+              value={quickCustomerDraft.notes}
+            />
+          </YumiField>
+          {quickCreateError && (
+            <YumiNotification key={quickCreateError} message={quickCreateError} />
+          )}
         </form>
       </YumiSheet>
 
       <YumiSheet
         description="快捷建档只填写名称与本次订单的基础售价；其余成本和制作参数可在商品资料中继续维护。保存后会自动回填当前商品行。"
         dirty={JSON.stringify(quickProductDraft) !== JSON.stringify(quickProductInitialDraft)}
-        footer={<><YumiButton onClick={closeQuickCreate} variant="ghost">取消</YumiButton><YumiButton form="quick-product-form" loading={quickSubmitting} type="submit" variant="primary">创建并选中商品</YumiButton></>}
-        onOpenChange={(open) => { if (!open) closeQuickCreate() }}
+        footer={
+          <>
+            <YumiButton onClick={closeQuickCreate} variant="ghost">
+              取消
+            </YumiButton>
+            <YumiButton
+              form="quick-product-form"
+              loading={quickSubmitting}
+              type="submit"
+              variant="primary"
+            >
+              创建并选中商品
+            </YumiButton>
+          </>
+        }
+        onOpenChange={(open) => {
+          if (!open) closeQuickCreate()
+        }}
         open={quickCreateTarget?.kind === 'product'}
         title="新建商品"
       >
-        <form className="yumi-form-panel yumi-sheet-form" id="quick-product-form" onSubmit={handleQuickProductCreate}>
-          <YumiField><YumiFieldLabel htmlFor="quick-product-name" required>商品名称</YumiFieldLabel><YumiTextField id="quick-product-name" onChange={(event) => setQuickProductDraft((current) => ({ ...current, name: event.target.value }))} required value={quickProductDraft.name} /></YumiField>
-          <YumiField><YumiFieldLabel htmlFor="quick-product-base-price" required>基础售价（元）</YumiFieldLabel><YumiNumberField allowDecimal id="quick-product-base-price" min="0" onChange={(event) => setQuickProductDraft((current) => ({ ...current, basePrice: event.target.value }))} required value={quickProductDraft.basePrice} /></YumiField>
-          {quickCreateError && <p className="yumi-feedback yumi-feedback--danger" role="alert">{quickCreateError}</p>}
+        <form
+          className="yumi-form-panel yumi-sheet-form"
+          id="quick-product-form"
+          onSubmit={handleQuickProductCreate}
+        >
+          <YumiField>
+            <YumiFieldLabel htmlFor="quick-product-name" required>
+              商品名称
+            </YumiFieldLabel>
+            <YumiTextField
+              id="quick-product-name"
+              onChange={(event) =>
+                setQuickProductDraft((current) => ({ ...current, name: event.target.value }))
+              }
+              required
+              value={quickProductDraft.name}
+            />
+          </YumiField>
+          <YumiField>
+            <YumiFieldLabel htmlFor="quick-product-base-price" required>
+              基础售价（元）
+            </YumiFieldLabel>
+            <YumiNumberField
+              allowDecimal
+              id="quick-product-base-price"
+              min="0"
+              onChange={(event) =>
+                setQuickProductDraft((current) => ({ ...current, basePrice: event.target.value }))
+              }
+              required
+              value={quickProductDraft.basePrice}
+            />
+          </YumiField>
+          {quickCreateError && (
+            <YumiNotification key={quickCreateError} message={quickCreateError} />
+          )}
         </form>
       </YumiSheet>
 
@@ -849,6 +1114,53 @@ function OrderLines({
               value={line.unitPrice}
             />
           </YumiField>
+          <YumiField>
+            <YumiFieldLabel>缝边</YumiFieldLabel>
+            <label>
+              <input
+                aria-label={`第 ${index + 1} 行缝边`}
+                checked={line.edgeEnabled}
+                onChange={(event) => onChange(index, 'edgeEnabled', String(event.target.checked))}
+                type="checkbox"
+              />
+              启用缝边
+            </label>
+          </YumiField>
+          {line.edgeEnabled && (
+            <>
+              <YumiField>
+                <YumiFieldLabel>缝边数量</YumiFieldLabel>
+                <YumiNumberField
+                  aria-label={`第 ${index + 1} 行缝边数量`}
+                  max={line.quantity}
+                  min="1"
+                  onChange={(event) => onChange(index, 'edgeQuantity', event.target.value)}
+                  required
+                  value={line.edgeQuantity}
+                />
+              </YumiField>
+              <YumiField>
+                <YumiFieldLabel>缝边单价（元）</YumiFieldLabel>
+                <YumiNumberField
+                  allowDecimal
+                  aria-label={`第 ${index + 1} 行缝边单价`}
+                  min="0"
+                  onChange={(event) => onChange(index, 'edgeUnitPrice', event.target.value)}
+                  value={line.edgeUnitPrice}
+                />
+              </YumiField>
+            </>
+          )}
+          <YumiField>
+            <YumiFieldLabel>明细优惠（元）</YumiFieldLabel>
+            <YumiNumberField
+              allowDecimal
+              aria-label={`第 ${index + 1} 行明细优惠`}
+              min="0"
+              onChange={(event) => onChange(index, 'itemDiscount', event.target.value)}
+              value={line.itemDiscount}
+            />
+          </YumiField>
           <YumiButton disabled={lines.length === 1} onClick={() => onRemove(index)} variant="ghost">
             移除
           </YumiButton>
@@ -860,7 +1172,6 @@ function OrderLines({
     </fieldset>
   )
 }
-
 
 function OrderDetail(props: {
   activeView: OrderDetailView
@@ -874,6 +1185,10 @@ function OrderDetail(props: {
   setContentLines: (value: OrderLineDraft[]) => void
   contentDescription: string
   setContentDescription: (value: string) => void
+  contentEditorOpen: boolean
+  setContentEditorOpen: (open: boolean) => void
+  contentOrderDiscount: string
+  setContentOrderDiscount: (value: string) => void
   contentDate: string
   setContentDate: (value: string) => void
   adjustmentAmount: string
@@ -890,6 +1205,11 @@ function OrderDetail(props: {
   setFundMethod: (value: string) => void
   fundNote: string
   setFundNote: (value: string) => void
+  pendingFundProof: V2AttachmentReference | null
+  onPickFundProof: () => void
+  onClearFundProof: () => void
+  onOpenFundProof: (fundId: string) => void
+  onReplaceFundProof: (fundId: string) => void
   correctionOriginalId: string
   setCorrectionOriginalId: (value: string) => void
   correctionAmount: string
@@ -912,6 +1232,10 @@ function OrderDetail(props: {
   setShipmentSheetOpen: (open: boolean) => void
   shipmentAvailability: ReturnType<typeof buildShipmentItemAvailability>
   submitting: string | null
+  exporting: boolean
+  onExportOrderTable: () => void
+  onExportOrderDocuments: () => void
+  onExportShippingList: (shipmentId?: string) => void
   listAfterSalesCases: ReturnType<typeof useFinance>['listAfterSalesCases']
   createAfterSalesCase: ReturnType<typeof useFinance>['createAfterSalesCase']
   updateCase: ReturnType<typeof useFinance>['updateAfterSalesCase']
@@ -947,7 +1271,7 @@ function OrderDetail(props: {
           <h2>{order.code}</h2>
           <p>
             {order.customerSnapshot.name} ·{' '}
-            {order.expectedShipDate ? `预计 ${order.expectedShipDate} 发货` : '未设预计发货日期'}
+            {order.expectedShipDate ? `预计 ${order.expectedShipDate} 发货 · 制作截止 ${order.productionDeadline ?? '未计算'}` : '未设预计发货日期'}
           </p>
         </div>
         <YumiStatusTag tone={order.funds.outstandingCents > 0 ? 'warning' : 'success'}>
@@ -957,13 +1281,19 @@ function OrderDetail(props: {
         </YumiStatusTag>
         <div className="yumi-order-stat-grid">
           <span>
-            当前确认金额<strong>{formatCents(order.amount.currentAmountCents)}</strong>
+            预留制作<strong>{order.reservedDays} 天</strong>
+          </span>
+          <span>
+            订单金额
+            <strong>
+              {formatCents(order.amount.orderAmountCents ?? order.amount.currentAmountCents)}
+            </strong>
           </span>
           <span>
             累计收款<strong>{formatCents(order.funds.netReceivedCents)}</strong>
           </span>
           <span>
-            金额调整<strong>{formatCents(order.amount.adjustmentsCents)}</strong>
+            调整后应收<strong>{formatCents(order.amount.currentAmountCents)}</strong>
           </span>
         </div>
       </section>
@@ -995,63 +1325,85 @@ function OrderDetail(props: {
               ))}
             </div>
           </YumiSection>
-          <form className="yumi-form-panel" onSubmit={props.onContentChange}>
-            <h2 className="yumi-form-panel__title">订单内容变更</h2>
-            <div className="yumi-form-grid yumi-form-grid--two">
-              <YumiField>
-                <YumiFieldLabel required>变更日期</YumiFieldLabel>
-                <YumiDatePicker
-                  aria-label="变更日期"
-                  onValueChange={props.setContentDate}
-                  value={props.contentDate}
-                />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel required>变更说明</YumiFieldLabel>
-                <YumiTextField
-                  onChange={(event) => props.setContentDescription(event.target.value)}
-                  required
-                  value={props.contentDescription}
-                />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel>金额调整（元，可正可负）</YumiFieldLabel>
-                <YumiNumberField
-                  allowDecimal
-                  onChange={(event) => props.setAdjustmentAmount(event.target.value)}
-                  value={props.adjustmentAmount}
-                />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel required={Boolean(props.adjustmentAmount)}>
-                  金额调整原因
-                </YumiFieldLabel>
-                <YumiTextField
-                  onChange={(event) => props.setAdjustmentReason(event.target.value)}
-                  required={Boolean(props.adjustmentAmount)}
-                  value={props.adjustmentReason}
-                />
-              </YumiField>
-            </div>
-            <OrderLines
-              title="变更后的商品"
-              lines={props.contentLines}
-              products={products}
-              onChange={props.updateContentLine}
-              onAdd={props.onAddContentLine}
-              onRemove={props.onRemoveContentLine}
-            />
-            <div className="yumi-form-actions">
-              <YumiButton loading={props.submitting === 'content'} type="submit" variant="primary">
-                保存内容变更
-              </YumiButton>
-            </div>
-            {contentChanges.length > 0 && (
-              <p className="yumi-form-hint">
-                已记录 {contentChanges.length} 次内容变更，历史不会被覆盖。
-              </p>
-            )}
-          </form>
+          <div className="yumi-form-actions yumi-form-actions--end">
+            <YumiButton disabled={props.exporting} onClick={props.onExportOrderTable} variant="secondary">导出订单表</YumiButton>
+            <YumiButton disabled={props.exporting} onClick={() => props.onExportShippingList()} variant="secondary">导出发货清单</YumiButton>
+            <YumiButton disabled={props.exporting} onClick={props.onExportOrderDocuments} variant="secondary">合并导出</YumiButton>
+            <YumiButton onClick={() => props.setContentEditorOpen(true)} variant="secondary">编辑订单内容</YumiButton>
+          </div>
+          {props.contentEditorOpen && (
+            <form className="yumi-form-panel" onSubmit={props.onContentChange}>
+              <h2 className="yumi-form-panel__title">订单内容变更</h2>
+              <div className="yumi-form-grid yumi-form-grid--two">
+                <YumiField>
+                  <YumiFieldLabel required>变更日期</YumiFieldLabel>
+                  <YumiDatePicker
+                    aria-label="变更日期"
+                    onValueChange={props.setContentDate}
+                    value={props.contentDate}
+                  />
+                </YumiField>
+                <YumiField>
+                  <YumiFieldLabel required>变更说明</YumiFieldLabel>
+                  <YumiTextField
+                    onChange={(event) => props.setContentDescription(event.target.value)}
+                    required
+                    value={props.contentDescription}
+                  />
+                </YumiField>
+                <YumiField>
+                  <YumiFieldLabel>金额调整（元，可正可负）</YumiFieldLabel>
+                  <YumiNumberField
+                    allowDecimal
+                    onChange={(event) => props.setAdjustmentAmount(event.target.value)}
+                    value={props.adjustmentAmount}
+                  />
+                </YumiField>
+                <YumiField>
+                  <YumiFieldLabel>订单优惠（元）</YumiFieldLabel>
+                  <YumiNumberField
+                    allowDecimal
+                    aria-label="订单优惠（元）"
+                    min="0"
+                    onChange={(event) => props.setContentOrderDiscount(event.target.value)}
+                    value={props.contentOrderDiscount}
+                  />
+                </YumiField>
+                <YumiField>
+                  <YumiFieldLabel required={Boolean(props.adjustmentAmount)}>
+                    金额调整原因
+                  </YumiFieldLabel>
+                  <YumiTextField
+                    onChange={(event) => props.setAdjustmentReason(event.target.value)}
+                    required={Boolean(props.adjustmentAmount)}
+                    value={props.adjustmentReason}
+                  />
+                </YumiField>
+              </div>
+              <OrderLines
+                title="变更后的商品"
+                lines={props.contentLines}
+                products={products}
+                onChange={props.updateContentLine}
+                onAdd={props.onAddContentLine}
+                onRemove={props.onRemoveContentLine}
+              />
+              <div className="yumi-form-actions">
+                <YumiButton
+                  loading={props.submitting === 'content'}
+                  type="submit"
+                  variant="primary"
+                >
+                  保存内容变更
+                </YumiButton>
+              </div>
+              {contentChanges.length > 0 && (
+                <p className="yumi-form-hint">
+                  已记录 {contentChanges.length} 次内容变更，历史不会被覆盖。
+                </p>
+              )}
+            </form>
+          )}
         </>
       )}
 
@@ -1086,7 +1438,15 @@ function OrderDetail(props: {
                     status={<YumiStatusTag tone="success">已发货</YumiStatusTag>}
                     summary={getShipmentSummary(shipment)}
                     title={`${shipment.shippedOn} · ${shipment.carrier ?? '未填写承运商'}`}
-                  />
+                  >
+                    <YumiButton
+                      disabled={props.exporting}
+                      onClick={() => props.onExportShippingList(shipment.id)}
+                      variant="secondary"
+                    >
+                      导出本批清单
+                    </YumiButton>
+                  </YumiBusinessListItem>
                 ))}
               </YumiBusinessList>
             )}
@@ -1195,7 +1555,7 @@ function OrderDetail(props: {
                     meta={fund.paymentMethod ?? '未填写支付方式'}
                     metrics={[
                       {
-                        label: fund.direction === 'in' ? '流入' : '流出',
+                        label: fund.direction === 'income' ? '流入' : '流出',
                         value: formatCents(fund.amountCents)
                       }
                     ]}
@@ -1204,7 +1564,7 @@ function OrderDetail(props: {
                         tone={
                           fund.reversalOfEntryId
                             ? 'neutral'
-                            : fund.direction === 'in'
+                            : fund.direction === 'income'
                               ? 'success'
                               : 'warning'
                         }
@@ -1218,6 +1578,14 @@ function OrderDetail(props: {
                               : '售后收费'}
                       </YumiStatusTag>
                     }
+                    actions={fund.attachmentId ? (
+                      <>
+                        <YumiButton onClick={() => props.onOpenFundProof(fund.id)} size="small" variant="secondary">查看凭证</YumiButton>
+                        {fund.direction === 'income' && <YumiButton onClick={() => props.onReplaceFundProof(fund.id)} size="small" variant="ghost">替换凭证</YumiButton>}
+                      </>
+                    ) : fund.direction === 'income' ? (
+                      <YumiButton onClick={() => props.onReplaceFundProof(fund.id)} size="small" variant="ghost">关联凭证</YumiButton>
+                    ) : undefined}
                     summary={fund.note ?? '无备注'}
                     title={fund.occurredOn}
                   />
@@ -1261,6 +1629,20 @@ function OrderDetail(props: {
                   value={props.fundMethod}
                 />
               </YumiField>
+              {props.fundType === 'payment' && (
+                <YumiField>
+                  <YumiFieldLabel>收款凭证（可选）</YumiFieldLabel>
+                  <div className="yumi-form-actions">
+                    <YumiButton onClick={props.onPickFundProof} type="button" variant="secondary">
+                      {props.pendingFundProof ? '重新选择凭证' : '选择收款凭证'}
+                    </YumiButton>
+                    {props.pendingFundProof && (
+                      <YumiButton onClick={props.onClearFundProof} type="button" variant="ghost">移除</YumiButton>
+                    )}
+                  </div>
+                  {props.pendingFundProof && <p className="yumi-form-hint">已选择：{props.pendingFundProof.originalName}</p>}
+                </YumiField>
+              )}
               <YumiField>
                 <YumiFieldLabel>备注</YumiFieldLabel>
                 <YumiTextArea

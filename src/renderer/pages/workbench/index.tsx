@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import type { V2NavigationTarget, V2WorkbenchItem } from '@shared/contracts/index'
 import { useWorkbench } from '../../composables/use-workbench'
 import { formatCents } from '../../composables/v2-utils'
-import { YumiBusinessList, YumiBusinessListItem, YumiButton, YumiEmptyState, YumiPageHeader, YumiStatusTag } from '../../components/ui'
+import { YumiBusinessList, YumiBusinessListItem, YumiButton, YumiEmptyState, YumiPageHeader, YumiStatusTag ,
+  YumiNotification} from '../../components/ui'
 
 type WorkbenchView = 'decision' | 'advance'
 
@@ -48,7 +49,7 @@ export function WorkbenchPage({ initialView = 'decision', onNavigate, onViewChan
         title="工作台"
         actions={<YumiButton onClick={() => void reload()} variant="secondary">刷新</YumiButton>}
       />
-      {loadError ? <p className="yumi-form-error" role="alert">{loadError}</p> : null}
+      {loadError ? <YumiNotification key={loadError} message={loadError} /> : null}
       {loading ? <YumiEmptyState description="正在汇总当前需要处理的业务事实。" title="读取工作台中…" /> : null}
       {!loading && snapshot?.firstUseGuide ? (
         <YumiEmptyState

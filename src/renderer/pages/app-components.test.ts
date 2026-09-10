@@ -27,6 +27,7 @@ const settingsPageSource = source('src/renderer/pages/settings/index.tsx')
 const numericTextFieldSource = source('src/renderer/pages/numeric-text-field.tsx')
 const afterSalesPanelSource = source('src/renderer/components/after-sales/after-sales-panel.tsx')
 const financeComposableSource = source('src/renderer/composables/use-finance.ts')
+const backupsComposableSource = source('src/renderer/composables/use-backups.ts')
 const workbenchPageSource = source('src/renderer/pages/workbench/index.tsx')
 const workbenchComposableSource = source('src/renderer/composables/use-workbench.ts')
 
@@ -70,7 +71,7 @@ describe('V2 应用壳与页面边界', () => {
 
 describe('V2 订单工作区', () => {
   it('覆盖多商品订单、内容变更、资金冲正和分批发货操作', () => {
-    expect(orderPageSource).toContain('初始确认金额')
+    expect(orderPageSource).toContain('订单优惠')
     expect(orderPageSource).toContain('订单内容变更')
     expect(orderPageSource).toContain('金额调整')
     expect(orderPageSource).toContain('收款 / 退款')
@@ -209,6 +210,7 @@ describe('V2 财务与售后工作区', () => {
     }
     expect(financeComposableSource).toContain('window.yumiV2.finance')
     expect(financeComposableSource).toContain('window.yumiV2.afterSales')
+    expect(backupsComposableSource).toContain('window.yumiV2.backup')
     expect(financePageSource).toContain('登记日常收支')
     expect(financePageSource).toContain('批量报销')
     expect(settingsPageSource).toContain('私人垫付人')
@@ -415,7 +417,7 @@ describe('YUMI 客户与商品资料界面', () => {
     }
     expect(customerPageSource).toContain('订单会保留当时的客户快照')
     expect(productPageSource).toContain('标准制作分钟')
-    expect(productPageSource).toContain('制作胶水')
+    expect(productPageSource).toContain('胶水用量（克）')
     expect(productPageSource).toContain('制作提成')
   })
 })
@@ -429,7 +431,6 @@ describe('YUMI 人员与财务设置界面', () => {
     expect(workersPageSource).not.toContain('<select')
     expect(workersPageSource).not.toContain('type="date"')
     expect(workersPageSource).toContain('YumiDatePicker')
-    expect(workersPageSource).toContain('YumiSearchSelect')
     expect(workersPageSource).toContain('YumiBusinessList')
     expect(settingsPageSource).toContain('YumiBusinessList')
     expect(settingsPageSource).toContain('YumiDialog')

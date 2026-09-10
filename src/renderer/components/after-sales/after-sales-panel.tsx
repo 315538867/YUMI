@@ -16,7 +16,8 @@ import {
   YumiSheet,
   YumiStatusTag,
   YumiTextArea,
-  YumiTextField
+  YumiTextField,
+  YumiNotification
 } from '../ui'
 
 interface AfterSalesPanelProps {
@@ -119,7 +120,7 @@ export function AfterSalesPanel({ orderId, shipments, funds, listCases, createCa
   return <div className="yumi-after-sales-panel">
     <YumiSection description="负责人记录原发货、责任、处理判断、成本与收费约定；系统不会自动定责、收费或创建返工任务。" title="售后处理">
       <div className="yumi-after-sales-heading-actions"><YumiStatusTag tone="warning">负责人决定</YumiStatusTag><YumiButton onClick={openCreateForm} variant="primary">新增售后记录</YumiButton></div>
-      {error && <p className="yumi-feedback yumi-feedback--danger" role="alert">{error}</p>}
+      {error && <YumiNotification key={error} message={error} />}
       {cases.length === 0 ? <div className="yumi-empty">暂未记录售后处理。</div> : <YumiBusinessList>
         {cases.map((item) => {
           const originalShipment = item.shipmentId ? shipmentById.get(item.shipmentId) : null
