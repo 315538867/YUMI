@@ -30,7 +30,7 @@ export function YumiSelect({
   value
 }: SharedSelectProps) {
   return (
-    <Select.Root disabled={disabled} onValueChange={onValueChange} value={value || undefined}>
+    <Select.Root disabled={disabled} onValueChange={onValueChange} value={value}>
       <Select.Trigger aria-label={ariaLabel} className={['yumi-select__trigger', className].filter(Boolean).join(' ')}>
         <Select.Value placeholder={placeholder} />
         <Select.Icon><ChevronDown aria-hidden="true" size={16} /></Select.Icon>

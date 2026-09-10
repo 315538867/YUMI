@@ -1,36 +1,83 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { installDomInteractionPolyfills } from '../../test/dom'
 import { FulfillmentPage } from './index'
 
-const mocks = vi.hoisted(() => ({
-  selectOrder: vi.fn().mockResolvedValue(undefined),
-  queueItems: [
-    {
-      orderId: 'order-1',
-      orderCode: 'YD-001',
-      customerName: '小满',
-      orderItemId: 'item-making',
-      productName: '草莓捏捏',
-      confirmedQuantity: 20,
-      outstandingQuantity: 20,
-      stages: { making: 20, fluffingBagging: 0, packing: 0, readyToShip: 0, shipped: 0 }
-    },
-    {
-      orderId: 'order-1',
-      orderCode: 'YD-001',
-      customerName: '小满',
-      orderItemId: 'item-ready',
-      productName: '奶油捏捏',
-      confirmedQuantity: 12,
-      outstandingQuantity: 4,
-      stages: { making: 0, fluffingBagging: 0, packing: 0, readyToShip: 4, shipped: 8 }
-    }
-  ]
-}))
+const mocks = vi.hoisted(() => {
+  const emptySchedule = {
+    wipQuantity: 0,
+    reservedQuantity: 0,
+    unassignedQuantity: 0,
+    overassignedQuantity: 0,
+    tasks: []
+  }
+  const makingSchedule = {
+    wipQuantity: 20,
+    reservedQuantity: 12,
+    unassignedQuantity: 8,
+    overassignedQuantity: 0,
+    tasks: [
+      {
+        assignmentId: 'assignment-1',
+        taskId: 'task-making',
+        workerId: 'worker-wang',
+        workerName: '小王',
+        assignedOn: '2026-09-10',
+        processType: 'making',
+        stage: 'making',
+        plannedQuantity: 12,
+        status: 'pending'
+      }
+    ]
+  }
+  return {
+    selectOrder: vi.fn().mockResolvedValue(undefined),
+    createWorkAssignment: vi.fn().mockResolvedValue(undefined),
+    queueItems: [
+      {
+        orderId: 'order-1',
+        orderCode: 'YD-001',
+        customerName: '小满',
+        orderItemId: 'item-making',
+        productName: '草莓捏捏',
+        confirmedQuantity: 20,
+        outstandingQuantity: 20,
+        stages: { making: 20, fluffingBagging: 0, packing: 0, readyToShip: 0, shipped: 0 },
+        stageSchedules: {
+          making: makingSchedule,
+          fluffing_bagging: emptySchedule,
+          packing: emptySchedule,
+          ready_to_ship: emptySchedule
+        }
+      },
+      {
+        orderId: 'order-1',
+        orderCode: 'YD-001',
+        customerName: '小满',
+        orderItemId: 'item-ready',
+        productName: '奶油捏捏',
+        confirmedQuantity: 12,
+        outstandingQuantity: 4,
+        stages: { making: 0, fluffingBagging: 0, packing: 0, readyToShip: 4, shipped: 8 },
+        stageSchedules: {
+          making: emptySchedule,
+          fluffing_bagging: emptySchedule,
+          packing: emptySchedule,
+          ready_to_ship: {
+            wipQuantity: 4,
+            reservedQuantity: 0,
+            unassignedQuantity: 4,
+            overassignedQuantity: 0,
+            tasks: []
+          }
+        }
+      }
+    ]
+  }
+})
 
 vi.mock('../../composables/use-fulfillment', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../composables/use-fulfillment')>()
@@ -38,11 +85,13 @@ vi.mock('../../composables/use-fulfillment', async (importOriginal) => {
     ...actual,
     useFulfillment: () => ({
       queueItems: mocks.queueItems,
+      workers: [{ id: 'worker-wang', name: '小王', enabled: true }],
       selectedOrder: null,
       items: [],
       loading: false,
       loadError: null,
       selectOrder: mocks.selectOrder,
+      createWorkAssignment: mocks.createWorkAssignment,
       recordOpeningWip: vi.fn(),
       adjustStageQuantity: vi.fn()
     })
@@ -53,35 +102,91 @@ installDomInteractionPolyfills()
 afterEach(() => {
   cleanup()
   mocks.selectOrder.mockClear()
+  mocks.createWorkAssignment.mockClear()
 })
 
-describe('履约队列交互', () => {
-  it('把并行商品保留在同一队列中，并通过互斥阶段筛选给出不同的下一步和阶段空状态', () => {
-    const onNavigate = vi.fn()
-    render(<FulfillmentPage onNavigate={onNavigate} />)
+describe('履约排班双视角交互', () => {
+  it('订单视角用待派件数筛选，在行内展示已派任务并可打开派工抽屉', () => {
+    render(<FulfillmentPage />)
 
-    expect(screen.getByRole('button', { name: /草莓捏捏/ })).toBeVisible()
-    expect(screen.getByRole('button', { name: /奶油捏捏/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: '制作 8' })).toBeVisible()
+    expect(screen.getByText('未派 8')).toBeVisible()
+    expect(screen.getByRole('button', { name: /小王 12.*待完成/ })).toBeVisible()
 
-    fireEvent.click(screen.getByRole('button', { name: '制作 1' }))
-    expect(screen.getByRole('button', { name: /草莓捏捏/ })).toBeVisible()
-    expect(screen.queryByRole('button', { name: /奶油捏捏/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '派工制作' }))
+    expect(screen.getByRole('dialog', { name: '派工：制作' })).toBeVisible()
+    expect(screen.getByText('待派上限：8 件')).toBeVisible()
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: '待发货 1' }))
-    expect(screen.getByRole('button', { name: /奶油捏捏/ })).toBeVisible()
-    expect(screen.queryByRole('button', { name: /草莓捏捏/ })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /奶油捏捏/ }))
-    expect(onNavigate).toHaveBeenCalledWith({
-      view: 'orders',
-      orderId: 'order-1',
-      orderView: 'fulfillment'
-    })
+  it('行内派工会限制待派数量，并提交到既有创建工作安排接口', async () => {
+    render(<FulfillmentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '打包 0' }))
-    expect(screen.getByRole('status', { name: '筛选无结果' })).toBeVisible()
-    expect(screen.getByText('此阶段暂无待办')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: '查看全部待办' }))
-    expect(screen.getByRole('button', { name: /草莓捏捏/ })).toBeVisible()
-    expect(screen.getByRole('button', { name: /奶油捏捏/ })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '派工制作' }))
+    const workerSelect = screen.getByRole('combobox', { name: '派工人员' })
+    fireEvent.keyDown(workerSelect, { key: 'ArrowDown' })
+    fireEvent.keyDown(screen.getByRole('option', { name: '小王' }), { key: 'Enter' })
+    fireEvent.change(screen.getByRole('textbox', { name: '派工数量' }), { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存派工' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('计划数量不能超过当前待派上限 8 件。')
+
+    fireEvent.change(screen.getByRole('textbox', { name: '派工数量' }), { target: { value: '8' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存派工' }))
+    await waitFor(() =>
+      expect(mocks.createWorkAssignment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workerId: 'worker-wang',
+          processType: 'making',
+          tasks: [
+            expect.objectContaining({
+              orderItemId: 'item-making',
+              plannedQuantity: 8,
+              plannedMinutes: null,
+              extraMinutes: 0
+            })
+          ]
+        })
+      )
+    )
+  })
+
+  it('非制作工序未填写计划分钟时不能保存派工', () => {
+    render(<FulfillmentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '待发货 4' }))
+    fireEvent.click(screen.getByRole('button', { name: '派工待发货' }))
+    const workerSelect = screen.getByRole('combobox', { name: '派工人员' })
+    fireEvent.keyDown(workerSelect, { key: 'ArrowDown' })
+    fireEvent.keyDown(screen.getByRole('option', { name: '小王' }), { key: 'Enter' })
+    fireEvent.change(screen.getByRole('textbox', { name: '派工数量' }), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存派工' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('非制作工序必须填写正整数计划分钟。')
+  })
+
+  it('人员周历按人员和日期展示任务，并能从任务卡进入精确处理上下文', () => {
+    render(<FulfillmentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '人员周历' }))
+    expect(screen.getByRole('heading', { name: '人员周历' })).toBeVisible()
+    expect(screen.getByText('小王')).toBeVisible()
+    expect(screen.getByRole('button', { name: /草莓捏捏.*制作.*12.*待完成/ })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: /草莓捏捏.*制作.*12.*待完成/ }))
+    expect(mocks.selectOrder).toHaveBeenCalledWith('order-1')
+  })
+
+  it('人员周历支持自然周切换，并为人员日期空白格预填派工抽屉', () => {
+    render(<FulfillmentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '人员周历' }))
+    expect(screen.getByText('2026-09-07 至 2026-09-13 · 仅显示待完成与待质检任务')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '上一周' }))
+    expect(screen.getByText('2026-08-31 至 2026-09-06 · 仅显示待完成与待质检任务')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '本周' }))
+
+    fireEvent.click(screen.getByRole('button', { name: '为小王2026-09-11派工' }))
+    expect(screen.getByRole('dialog', { name: '派工：制作' })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: '派工人员' })).toHaveTextContent('小王')
+    expect(screen.getByRole('button', { name: '派工日期' })).toHaveTextContent('2026/9/11')
   })
 })

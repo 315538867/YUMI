@@ -168,3 +168,38 @@
 .yumi-notification--info { border-color: #c9ddea; background: #f1f8fc; color: #285b78; }
 .yumi-notification .yumi-button--icon { width: 24px; min-height: 24px; padding: 0; color: currentColor; }
 @media (max-width: 640px) { .yumi-notification-host { top: 72px; right: 16px; left: 16px; width: auto; } .yumi-notification { max-width: none; } }
+
+/* 履约派工双视角：订单视角聚合阶段派工，人员周历横向查看本周任务。 */
+.yumi-fulfillment-dispatch-list .yumi-business-list__item { align-items: start; }
+.yumi-fulfillment-dispatch-list .yumi-business-list__details { display: block; margin-top: var(--yumi-space-3); }
+.yumi-fulfillment-dispatch-item { min-height: 150px; }
+.yumi-fulfillment-stage-stack { display: grid; gap: var(--yumi-space-2); }
+.yumi-fulfillment-stage { display: grid; gap: 4px; border-left: 3px solid var(--yumi-brand-soft); border-radius: 0 var(--yumi-radius-sm) var(--yumi-radius-sm) 0; padding: 8px 10px; background: #fcfafb; }
+.yumi-fulfillment-stage__header { display: flex; align-items: center; justify-content: space-between; gap: var(--yumi-space-3); }
+.yumi-fulfillment-stage__header strong { color: var(--yumi-ink); font-size: 13px; line-height: 20px; }
+.yumi-fulfillment-stage__header .yumi-button { min-height: 28px; padding: 3px 9px; font-size: 12px; }
+.yumi-fulfillment-stage__unassigned, .yumi-fulfillment-stage__overassigned { margin: 0; font-size: 12px; line-height: 18px; }
+.yumi-fulfillment-stage__unassigned { color: var(--yumi-brand-hover); font-weight: 650; }
+.yumi-fulfillment-stage__overassigned { color: #a13d5a; }
+.yumi-fulfillment-task-card { display: flex; width: max-content; max-width: 100%; justify-content: flex-start; padding: 3px 0 !important; color: var(--yumi-muted) !important; font-size: 12px !important; line-height: 18px !important; text-align: left; white-space: normal; }
+.yumi-fulfillment-task-card:hover:not(:disabled) { color: var(--yumi-brand-hover) !important; text-decoration: underline; }
+.yumi-worker-week { display: grid; gap: var(--yumi-space-4); border: 1px solid var(--yumi-border); border-radius: var(--yumi-radius-lg); padding: var(--yumi-space-5); background: var(--yumi-surface); box-shadow: var(--yumi-shadow-sm); }
+.yumi-worker-week__header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--yumi-space-4); }
+.yumi-worker-week__header h2 { margin: 0; color: var(--yumi-ink); font-size: 17px; line-height: 24px; }
+.yumi-worker-week__header p { margin: 3px 0 0; color: var(--yumi-muted); font-size: 13px; line-height: 20px; }
+.yumi-worker-week__scroller { overflow-x: auto; border: 1px solid var(--yumi-border); border-radius: var(--yumi-radius-md); }
+.yumi-worker-week__grid { display: grid; min-width: 1210px; }
+.yumi-worker-week__corner, .yumi-worker-week__date, .yumi-worker-week__worker { padding: 10px var(--yumi-space-3); background: #fcf8f9; color: var(--yumi-muted); font-size: 12px; line-height: 18px; }
+.yumi-worker-week__corner, .yumi-worker-week__date { border-bottom: 1px solid var(--yumi-border); }
+.yumi-worker-week__date { display: grid; gap: 2px; border-left: 1px solid var(--yumi-border); text-align: center; }
+.yumi-worker-week__date small { color: var(--yumi-subtle); font-size: 11px; font-weight: 500; }
+.yumi-worker-week__row { display: contents; }
+.yumi-worker-week__worker { display: flex; align-items: flex-start; border-bottom: 1px solid var(--yumi-border); color: var(--yumi-ink); }
+.yumi-worker-week__cell { display: grid; align-content: start; gap: 6px; min-height: 108px; border-bottom: 1px solid var(--yumi-border); border-left: 1px solid var(--yumi-border); padding: 8px; background: var(--yumi-surface); }
+.yumi-worker-week__row:last-child .yumi-worker-week__worker, .yumi-worker-week__row:last-child .yumi-worker-week__cell { border-bottom: 0; }
+.yumi-worker-week__task { width: 100%; min-height: 0; justify-content: flex-start; border: 1px solid #d7e9ef; border-radius: var(--yumi-radius-sm); padding: 6px 8px; background: #f2fafc; color: #285b78; font-size: 12px; line-height: 18px; text-align: left; white-space: normal; }
+.yumi-worker-week__task:hover:not(:disabled) { border-color: #a9cfdc; background: #e8f6fa; }
+.yumi-worker-week__add { width: max-content; min-height: 26px; justify-self: start; padding: 2px 0; color: var(--yumi-brand-hover); font-size: 12px; }
+.yumi-worker-week__add:hover:not(:disabled) { text-decoration: underline; }
+@media (max-width: 820px) { .yumi-fulfillment-dispatch-list .yumi-business-list__item { grid-template-columns: minmax(0, 1fr) auto; } .yumi-fulfillment-dispatch-list .yumi-business-list__meta { grid-column: 2; grid-row: 1; align-self: start; } .yumi-worker-week { padding: var(--yumi-space-4); } }
+@media (max-width: 640px) { .yumi-fulfillment-stage__header { align-items: flex-start; } .yumi-worker-week__header .yumi-page-tabs { width: 100%; } .yumi-worker-week__header .yumi-button { flex: 1; } }

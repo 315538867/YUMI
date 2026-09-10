@@ -11,6 +11,9 @@ const customerPageSource = source('src/renderer/pages/customers/index.tsx')
 const productPageSource = source('src/renderer/pages/products/index.tsx')
 const orderPageSource = source('src/renderer/pages/orders/index.tsx')
 const fulfillmentPageSource = source('src/renderer/pages/fulfillment/index.tsx')
+const fulfillmentDispatchViewsSource = source(
+  'src/renderer/components/fulfillment/dispatch-views.tsx'
+)
 const workAssignmentsPageSource = source('src/renderer/pages/work-assignments/index.tsx')
 const workersPageSource = source('src/renderer/pages/workers/index.tsx')
 const settlementsPageSource = source('src/renderer/pages/settlements/index.tsx')
@@ -117,9 +120,11 @@ describe('YUMI 履约界面', () => {
     expect(fulfillmentPageSource).not.toContain('@radix-ui/themes')
     expect(fulfillmentPageSource).not.toContain('<select')
     expect(fulfillmentPageSource).not.toContain('TextField.Root')
-    expect(fulfillmentPageSource).toContain('YumiBusinessList')
-    expect(fulfillmentPageSource).toContain('YumiSelect')
-    expect(fulfillmentPageSource).toContain('YumiDatePicker')
+    expect(fulfillmentPageSource).toContain('OrderDispatchBoard')
+    expect(fulfillmentPageSource).toContain('WorkerWeekSchedule')
+    expect(fulfillmentDispatchViewsSource).toContain('YumiBusinessList')
+    expect(fulfillmentDispatchViewsSource).toContain('YumiSelect')
+    expect(fulfillmentDispatchViewsSource).toContain('YumiDatePicker')
     expect(workAssignmentsPageSource).not.toContain('@radix-ui/themes')
     expect(workAssignmentsPageSource).not.toContain('<select')
     expect(workAssignmentsPageSource).not.toContain('TextField.Root')
@@ -130,8 +135,9 @@ describe('YUMI 履约界面', () => {
 
 describe('V2 履约工作区', () => {
   it('提供阶段余额、期初在制品、负责人调整和工作安排入口', () => {
-    expect(fulfillmentPageSource).toContain('履约待办')
-    expect(fulfillmentPageSource).toContain('进入处理')
+    expect(fulfillmentPageSource).toContain('订单视角')
+    expect(fulfillmentPageSource).toContain('人员周历')
+    expect(fulfillmentPageSource).toContain('工作安排与质检')
     expect(fulfillmentComposableSource).toContain('buildFulfillmentQueue')
     expect(fulfillmentPageSource).toContain('期初在制品')
     expect(fulfillmentPageSource).toContain('负责人数量调整')
@@ -148,9 +154,13 @@ describe('V2 履约工作区', () => {
     expect(fulfillmentPageSource).toContain("useState<FulfillmentQueueStage>('all')")
     expect(fulfillmentPageSource).toContain('filterFulfillmentQueue')
     expect(fulfillmentPageSource).toContain('阶段筛选')
-    expect(fulfillmentPageSource).toContain('进入发货处理')
+    expect(fulfillmentPageSource).toContain('OrderDispatchBoard')
     expect(fulfillmentPageSource).toContain("orderView: 'fulfillment'")
-    expect(fulfillmentPageSource).toContain('focusedTaskId={navigationTarget?.processTaskId}')
+    expect(fulfillmentPageSource).toContain(
+      'focusedTaskId={focusedProcessTaskId || navigationTarget?.processTaskId}'
+    )
+    expect(fulfillmentDispatchViewsSource).toContain('未派')
+    expect(fulfillmentDispatchViewsSource).toContain('超派')
     expect(workAssignmentsPageSource).toContain('focusedTaskId?: string')
     expect(workAssignmentsPageSource).toContain('visibleAssignments')
   })
