@@ -1,0 +1,55 @@
+<section class="section">
+  <div class="label">排班看板 · 交互示例</div>
+  <h2>订单列表直接看排班，未派即刻派工</h2>
+  <p class="subtitle">示例中的「派工抽屉」已展开；保存后只刷新当前列表行，不离开排班看板。</p>
+</section>
+
+<style>
+  .demo-shell { max-width: 1120px; margin: 0 auto; border: 1px solid #dfe4ea; background:#f6f7f9; border-radius: 16px; overflow: hidden; box-shadow: 0 16px 48px rgba(24,35,52,.12); }
+  .demo-header { padding: 24px 28px 16px; background:#fff; border-bottom:1px solid #e4e8ed; }
+  .demo-header h3 { margin:0; font-size:24px; color:#1d2a3a; }.demo-header p{margin:7px 0 0;color:#667386;font-size:14px}
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; padding:14px 28px; background:#fff; border-bottom:1px solid #e4e8ed; }
+  .tab { border:1px solid #d5dce5; background:#fff; border-radius:8px; padding:8px 12px; color:#586579; font-size:13px; font-weight:650; }.tab.active{background:#0e7490;border-color:#0e7490;color:#fff}
+  .demo-body { display:grid; grid-template-columns:minmax(0,1fr) 355px; min-height:520px; }.list-area{padding:22px 24px 28px;}
+  .order-card { background:#fff; border:1px solid #dbe2ea; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(22,34,51,.06); }
+  .order-top { display:flex; gap:16px; align-items:flex-start; justify-content:space-between; padding:18px 20px 14px; border-left:4px solid #0e7490; }.order-top h4{margin:0;font-size:16px;color:#172436}.order-top p{margin:5px 0 0;color:#6a7686;font-size:13px}.link-hint{color:#0e7490;font-size:12px;font-weight:700;white-space:nowrap}
+  .stage { padding:14px 20px; border-top:1px solid #edf0f3; }.stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}.stage-name{font-weight:750;color:#243247;font-size:14px}.stage-meta{font-size:12px;color:#7a8593}.dash{color:#a2aab4}
+  .dispatch-line {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 10px;border-radius:8px}.dispatch-line.unassigned{background:#fff7ed;border:1px solid #fed7aa}.dispatch-line.assigned{background:#f0f9ff;border:1px solid #bae6fd}.dispatch-copy{display:flex;gap:9px;align-items:baseline;min-width:0}.dispatch-copy strong{font-size:13px;color:#334155}.dispatch-copy span{font-size:12px;color:#617084;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tag{font-size:11px;border-radius:99px;padding:3px 7px;font-weight:700}.tag.wait{background:#ffedd5;color:#9a3412}.tag.active{background:#dbeafe;color:#1d4ed8}
+  .action {border:0;border-radius:7px;background:#0e7490;color:white;padding:7px 10px;font-weight:700;font-size:12px;white-space:nowrap;cursor:pointer}.text-action { border:0;background:transparent;color:#0369a1;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap }.order-foot{padding:11px 20px 14px;color:#85909f;font-size:12px;border-top:1px solid #edf0f3}
+  .sheet { background:#fff; border-left:1px solid #dfe4ea; padding:22px; position:relative; }.sheet:before{content:"";position:absolute;left:-8px;top:26px;width:15px;height:15px;background:#fff;border-left:1px solid #dfe4ea;border-bottom:1px solid #dfe4ea;transform:rotate(45deg)}.sheet h3{margin:0;color:#1d2a3a;font-size:18px}.sheet .context{margin:7px 0 20px;color:#687588;font-size:13px;line-height:1.55}.context b{color:#0e7490}.field{margin:13px 0}.field label{display:block;margin-bottom:6px;color:#526174;font-size:12px;font-weight:750}.field-input{display:flex;align-items:center;min-height:38px;border:1px solid #cfd8e3;border-radius:7px;padding:0 10px;color:#27364a;background:#fff;font-size:13px}.field-input.muted{color:#8490a0;background:#f8fafc}.split{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hint{margin:5px 0 0;color:#7b8796;font-size:11px;line-height:1.45}.sheet-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:22px;padding-top:15px;border-top:1px solid #e8edf2}.cancel{background:#fff;border:1px solid #cdd6e1;color:#516071}.save{background:#0e7490}.notice{display:flex;gap:8px;margin-top:16px;padding:10px;border-radius:8px;background:#ecfeff;color:#155e75;font-size:12px;line-height:1.45}.notice b{font-size:14px}
+  .callout{margin-top:18px;padding:14px 16px;border:1px dashed #96a5b5;border-radius:10px;background:#fff;color:#526174;font-size:13px;line-height:1.6}.callout strong{color:#1d2a3a}.callout ul{margin:7px 0 0;padding-left:18px}
+  @media (max-width:760px){.demo-body{grid-template-columns:1fr}.sheet{border-left:0;border-top:1px solid #dfe4ea}.sheet:before{left:28px;top:-8px;transform:rotate(135deg)}.demo-header,.tabs{padding-left:18px;padding-right:18px}.list-area{padding:16px}.order-top{flex-direction:column;gap:6px}}
+</style>
+
+<div class="demo-shell">
+  <header class="demo-header"><h3>排班看板</h3><p>按订单产品聚合：先判断哪里还没派，再进入报数和质检。</p></header>
+  <nav class="tabs" aria-label="排班阶段筛选">
+    <button class="tab active" data-choice="all">全部 <b>1</b></button><button class="tab">制作 <b>40</b></button><button class="tab">捏毛装袋 <b>0</b></button><button class="tab">打包 <b>0</b></button><button class="tab">待发货 <b>0</b></button>
+  </nav>
+  <div class="demo-body">
+    <main class="list-area">
+      <article class="order-card">
+        <header class="order-top"><div><h4>YUMI-20260909-40DA4997 · 罗小雨</h4><p>800g 大猫爪 · 确认 100</p></div><span class="link-hint">整行点击 → 产品操作台</span></header>
+        <section class="stage"><div class="stage-head"><span class="stage-name">制作 <span class="stage-meta">100 件</span></span><span class="tag wait">尚有 40 未派</span></div>
+          <div class="dispatch-line unassigned"><div class="dispatch-copy"><strong>未派 40</strong><span>仍在制作阶段，等待安排给人员</span></div><button class="action" data-choice="inline-dispatch">+ 派工</button></div>
+          <div style="height:8px"></div>
+          <div class="dispatch-line assigned"><div class="dispatch-copy"><strong>已派 · 小王 60</strong><span>今天 · 制作 · 待完成</span></div><button class="text-action" data-choice="task-navigation">报数 / 质检 →</button></div>
+        </section>
+        <section class="stage"><div class="stage-head"><span class="stage-name">捏毛装袋 <span class="dash">—</span></span><span class="stage-meta">暂无待处理</span></div></section>
+        <section class="stage"><div class="stage-head"><span class="stage-name">打包 <span class="dash">—</span></span><span class="stage-meta">暂无待处理</span></div></section>
+        <section class="stage"><div class="stage-head"><span class="stage-name">待发货 <span class="dash">—</span></span><span class="stage-meta">暂无待处理</span></div></section>
+        <footer class="order-foot">列表行表达“看”；复杂调整、期初在制品等仍在产品操作台里完成。</footer>
+      </article>
+      <div class="callout"><strong>这个例子的关键：</strong><ul><li>筛选标签不再数“有几个订单”，而是数“仍未派的件数”。</li><li>已派条目是任务入口；整张订单卡仍保留操作台入口。</li><li>如果“制作”已派超出当前阶段数量，行内显示红色“超派 n”，而不是静默归零。</li></ul></div>
+    </main>
+    <aside class="sheet" aria-label="行内派工抽屉">
+      <h3>派工 · 制作</h3><p class="context">YUMI-20260909-40DA4997<br><b>800g 大猫爪 · 当前未派 40 件</b></p>
+      <div class="field"><label>兼职人员</label><div class="field-input">小李 <span style="margin-left:auto;color:#8a96a5">⌄</span></div></div>
+      <div class="split"><div class="field"><label>安排日期</label><div class="field-input">2026-09-10</div></div><div class="field"><label>派工数量</label><div class="field-input">40 件</div><p class="hint">最多为当前未派数量</p></div></div>
+      <div class="field"><label>额外工时（可选）</label><div class="field-input muted">0 分钟</div><p class="hint">制作会自动使用产品标准工时；仅在特殊情况补录额外时长。</p></div>
+      <div class="field"><label>备注（可选）</label><div class="field-input muted">例如：优先完成</div></div>
+      <div class="notice"><b>i</b><span>当前展示的是“制作”示例。捏毛装袋、打包等工序会在此处额外显示“计划分钟”，因为现有数据契约要求填写该字段。</span></div>
+      <footer class="sheet-footer"><button class="action cancel" data-choice="cancel">取消</button><button class="action save" data-choice="save-dispatch">确认派工</button></footer>
+    </aside>
+  </div>
+</div>
