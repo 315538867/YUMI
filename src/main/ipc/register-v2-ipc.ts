@@ -86,6 +86,9 @@ export function registerV2Ipc(
   ipc.handle('v2:orders:shipments:create', (_event, orderId, input) =>
     service.createShipment(orderId as string, input as never)
   )
+  ipc.handle('v2:orders:shipments:void', (_event, orderId, shipmentId, input) =>
+    service.voidShipment(orderId as string, shipmentId as string, input as never)
+  )
 
   ipc.handle('v2:order-fund-proofs:pick', async () => {
     const filePath = await proofs.pickFile()

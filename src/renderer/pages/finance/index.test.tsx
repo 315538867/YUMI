@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render as renderBase, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
@@ -63,6 +63,41 @@ describe('财务负责人工作区', () => {
     expect(screen.getByText(/报销付款不重复计入经营支出/)).toBeVisible()
   })
 
+  it('现金流水以统一工具条和具名记录表展示，不将登记表单作为列表首屏', async () => {
+    mocks.state.entries = [
+      {
+        id: 'entry-1',
+        sourceType: 'manual',
+        direction: 'expense',
+        businessType: '日常支出',
+        amountCents: 12_340,
+        occurredOn: '2026-09-08',
+        paymentMethod: '微信',
+        paymentSource: 'business_account',
+        categoryId: 'category-1',
+        categoryName: '包装材料',
+        advancePayerId: null,
+        advancePayerName: null,
+        orderId: null,
+        attachmentId: null,
+        reversalOfEntryId: null,
+        note: '补充材料',
+        createdAt: '2026-09-08T10:00:00.000Z'
+      }
+    ]
+    render(<FinancePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '现金流水' }))
+    const cashflowToolbar = await screen.findByRole('toolbar', { name: '现金流水列表工具' })
+    expect(cashflowToolbar).toBeVisible()
+    expect(within(cashflowToolbar).queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '刷新' })).toBeVisible()
+    expect(screen.getByText('共 1 笔流水')).toBeVisible()
+    expect(screen.getByRole('table', { name: '现金流水列表' })).toBeVisible()
+    expect(screen.getByText('包装材料')).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: '登记日常收支' })).not.toBeInTheDocument()
+  })
+
   it('负责人可在同一待报销列表选择多笔后，以单次确认原子提交', async () => {
     mocks.state.pendingReimbursements = [
       {
@@ -89,7 +124,17 @@ describe('财务负责人工作区', () => {
     render(<FinancePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '待报销' }))
-    expect(await screen.findByText(/第一笔/)).toBeVisible()
+    const reimbursementToolbar = await screen.findByRole('toolbar', { name: '待报销列表工具' })
+    expect(reimbursementToolbar).toBeVisible()
+    expect(within(reimbursementToolbar).queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
+    expect(
+      within(reimbursementToolbar).queryByRole('button', { name: /批量报销/ })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '刷新' })).toBeVisible()
+    expect(screen.getByRole('button', { name: /批量报销/ })).toBeVisible()
+    expect(screen.getByRole('table', { name: '待报销列表' })).toBeVisible()
+    expect(screen.getByText('共 2 笔待报销')).toBeVisible()
+    expect(screen.getByText(/第一笔/)).toBeVisible()
     for (const button of screen.getAllByRole('button', { name: '选择' })) fireEvent.click(button)
     fireEvent.click(screen.getByRole('button', { name: '批量报销（已选择 2 笔）' }))
 

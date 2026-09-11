@@ -757,6 +757,25 @@ const v2ProductInternalEdgeCost: V2Migration = {
   }
 }
 
+const v2ShipmentVoidLifecycle: V2Migration = {
+  version: 16,
+  name: 'v2_shipment_void_lifecycle',
+  run(database) {
+    // 兼容历史半成品库：其迁移记录可能完整但从未创建 shipments 表。
+    if (!hasTable(database, 'shipments')) return
+    addColumnIfMissing(
+      database,
+      'shipments',
+      'status',
+      "status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'voided'))"
+    )
+    addColumnIfMissing(database, 'shipments', 'voided_on', 'voided_on TEXT')
+    addColumnIfMissing(database, 'shipments', 'void_reason', 'void_reason TEXT')
+    addColumnIfMissing(database, 'shipments', 'voided_at', 'voided_at TEXT')
+    database.exec('CREATE INDEX IF NOT EXISTS idx_shipments_order_status ON shipments(order_id, status)')
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
@@ -772,7 +791,8 @@ const migrations: readonly V2Migration[] = [
   v2OrderSchedule,
   v2ProductMaterialAndCapacity,
   v2OrderAmountAndEdgeFields,
-  v2ProductInternalEdgeCost
+  v2ProductInternalEdgeCost,
+  v2ShipmentVoidLifecycle
 ]
 
 /**

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import type {
   V2Customer,
   V2CustomerInput,
@@ -24,15 +24,24 @@ import { useProducts } from '../../composables/use-products'
 import { useStudioSettings } from '../../composables/use-studio-settings'
 import { AfterSalesPanel } from '../../components/after-sales/after-sales-panel'
 import {
-  YumiBusinessList,
-  YumiBusinessListItem,
   YumiButton,
+  YumiCheckbox,
+  YumiConfirmDialog,
+  YumiDataTable,
   YumiDatePicker,
+  YumiDetailList,
   YumiEmptyState,
   YumiField,
   YumiFieldLabel,
+  YumiFormMessage,
+  YumiFormSection,
+  YumiListSurface,
+  YumiListToolbar,
+  YumiMetricStrip,
   YumiNumberField,
   YumiPageHeader,
+  YumiPrimaryTabs,
+  YumiRecordSummary,
   YumiSearchSelect,
   YumiSection,
   YumiSheet,
@@ -55,6 +64,8 @@ interface OrderLineDraft {
 
 type OrderWorkspaceMode = 'list' | 'create' | 'detail'
 type OrderDetailView = 'overview' | 'fulfillment' | 'funds' | 'after_sales'
+type OrderFundFilter = 'all' | 'outstanding' | 'settled'
+type OrderScheduleFilter = 'all' | 'scheduled' | 'unscheduled'
 
 interface OrdersPageProps {
   navigationTarget?: Extract<V2NavigationTarget, { view: 'orders' }> | null
@@ -172,8 +183,8 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     attachFundProof,
     openFundProof,
     createShipment,
+    voidShipment,
     exportOrderTable,
-    exportOrderDocuments,
     exportShippingList
   } = useOrders()
   const { createCustomer: createQuickCustomer } = useCustomers()
@@ -183,6 +194,9 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
   const studio = useStudioSettings()
   const [workspaceMode, setWorkspaceMode] = useState<OrderWorkspaceMode>('list')
   const [detailView, setDetailView] = useState<OrderDetailView>('overview')
+  const [orderSearchQuery, setOrderSearchQuery] = useState('')
+  const [orderFundFilter, setOrderFundFilter] = useState<OrderFundFilter>('all')
+  const [orderScheduleFilter, setOrderScheduleFilter] = useState<OrderScheduleFilter>('all')
   const [createCustomerId, setCreateCustomerId] = useState('')
   const [createLines, setCreateLines] = useState<OrderLineDraft[]>([createLine()])
   const [createOrderDiscount, setCreateOrderDiscount] = useState('0')
@@ -196,6 +210,7 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
   const [contentDate, setContentDate] = useState(today())
   const [adjustmentAmount, setAdjustmentAmount] = useState('')
   const [adjustmentReason, setAdjustmentReason] = useState('')
+  const [fundSheet, setFundSheet] = useState<'record' | 'correction' | null>(null)
   const [fundType, setFundType] = useState<V2OrderFundBusinessType>('payment')
   const [fundAmount, setFundAmount] = useState('')
   const [fundDate, setFundDate] = useState(today())
@@ -206,12 +221,18 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
   const [correctionAmount, setCorrectionAmount] = useState('')
   const [correctionDate, setCorrectionDate] = useState(today())
   const [correctionType, setCorrectionType] = useState<V2OrderFundBusinessType>('payment')
+  const [correctionConfirmOpen, setCorrectionConfirmOpen] = useState(false)
   const [shipmentDate, setShipmentDate] = useState(today())
   const [shipmentLines, setShipmentLines] = useState<Record<string, string>>({})
   const [shipmentCarrier, setShipmentCarrier] = useState('')
   const [shipmentTrackingNumber, setShipmentTrackingNumber] = useState('')
   const [shipmentNote, setShipmentNote] = useState('')
   const [shipmentSheetOpen, setShipmentSheetOpen] = useState(false)
+  const [shipmentVoidSheetOpen, setShipmentVoidSheetOpen] = useState(false)
+  const [shipmentVoidConfirmOpen, setShipmentVoidConfirmOpen] = useState(false)
+  const [shipmentToVoid, setShipmentToVoid] = useState<string | null>(null)
+  const [shipmentVoidDate, setShipmentVoidDate] = useState(today())
+  const [shipmentVoidReason, setShipmentVoidReason] = useState('')
   const [quickCustomers, setQuickCustomers] = useState<V2Customer[]>([])
   const [quickProducts, setQuickProducts] = useState<V2Product[]>([])
   const [quickCreateTarget, setQuickCreateTarget] = useState<QuickCreateTarget>(null)
@@ -457,6 +478,7 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
       setFundMethod('')
       setFundNote('')
       setPendingFundProof(null)
+      setFundSheet(null)
     } catch (submitError) {
       setError(getErrorMessage(submitError))
     } finally {
@@ -464,13 +486,23 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     }
   }
 
-  const handleCorrection = async (event: FormEvent<HTMLFormElement>) => {
+  const requestCorrectionConfirmation = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!selectedOrder) return
     setError(null)
+    if (!correctionOriginalId) {
+      setError('请选择需要冲正的原资金流水')
+      return
+    }
+    setCorrectionConfirmOpen(true)
+  }
+
+  const confirmCorrection = async () => {
+    if (!selectedOrder || !correctionOriginalId) return
+    setCorrectionConfirmOpen(false)
+    setError(null)
     setSubmitting('correction')
     try {
-      if (!correctionOriginalId) throw new Error('请选择需要冲正的原资金流水')
       await correctFund(selectedOrder.id, {
         originalEntryId: correctionOriginalId,
         reversalOccurredOn: correctionDate,
@@ -482,6 +514,7 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
       })
       setCorrectionOriginalId('')
       setCorrectionAmount('')
+      setFundSheet(null)
     } catch (submitError) {
       setError(getErrorMessage(submitError))
     } finally {
@@ -616,27 +649,42 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     setWorkspaceMode('list')
   }
 
-  const exportOrderFile = async (
-    kind: 'order-table' | 'shipping-list' | 'combined',
-    shipmentId?: string
-  ) => {
+  const requestVoidShipmentConfirmation = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!selectedOrder || !shipmentToVoid) return
+    setError(null)
+    setShipmentVoidConfirmOpen(true)
+  }
+
+  const confirmVoidShipment = async () => {
+    if (!selectedOrder || !shipmentToVoid) return
+    setShipmentVoidConfirmOpen(false)
+    setError(null)
+    setSubmitting('shipment-void')
+    try {
+      await voidShipment(selectedOrder.id, shipmentToVoid, {
+        voidedOn: shipmentVoidDate,
+        reason: shipmentVoidReason
+      })
+      setShipmentVoidSheetOpen(false)
+      setShipmentToVoid(null)
+      setShipmentVoidReason('')
+    } catch (submitError) {
+      setError(getErrorMessage(submitError))
+    } finally {
+      setSubmitting(null)
+    }
+  }
+
+  const exportOrderFile = async (kind: 'order-table' | 'shipping-list', shipmentId?: string) => {
     setExporting(true)
     setExportMessage(null)
     try {
       const result =
         kind === 'order-table'
           ? await exportOrderTable(selectedOrder?.id)
-          : kind === 'combined'
-            ? selectedOrder
-              ? await exportOrderDocuments(selectedOrder.id, shipmentId)
-              : await Promise.reject(new Error('订单详情尚未加载完成'))
-            : await exportShippingList(selectedOrder?.id, shipmentId)
-      const label =
-        kind === 'order-table'
-          ? '订单表'
-          : kind === 'shipping-list'
-            ? '发货清单'
-            : '订单表与发货清单'
+          : await exportShippingList(selectedOrder?.id, shipmentId)
+      const label = kind === 'order-table' ? '订单表' : shipmentId ? '本批发货清单' : '发货汇总'
       setExportMessage(result.savedPath ? `已导出${label}：${result.savedPath}` : '已取消导出。')
     } catch (cause) {
       setExportMessage(getErrorMessage(cause))
@@ -645,6 +693,25 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
     }
   }
 
+  const visibleOrders = useMemo(() => {
+    const query = orderSearchQuery.trim().toLocaleLowerCase()
+    return orders.filter((order) => {
+      const matchesQuery =
+        !query || `${order.code} ${order.customerName}`.toLocaleLowerCase().includes(query)
+      const matchesFunds =
+        orderFundFilter === 'all' ||
+        (orderFundFilter === 'outstanding'
+          ? order.outstandingCents > 0
+          : order.outstandingCents <= 0)
+      const matchesSchedule =
+        orderScheduleFilter === 'all' ||
+        (orderScheduleFilter === 'scheduled'
+          ? Boolean(order.expectedShipDate)
+          : !order.expectedShipDate)
+      return matchesQuery && matchesFunds && matchesSchedule
+    })
+  }, [orderFundFilter, orderScheduleFilter, orderSearchQuery, orders])
+
   const baseDataReady = availableCustomers.length > 0 && availableProducts.length > 0
 
   return (
@@ -652,38 +719,146 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
       {workspaceMode === 'list' && (
         <>
           <YumiPageHeader
-            actions={
-              <YumiButton onClick={openCreateWorkspace} variant="primary">
-                新建订单
-              </YumiButton>
-            }
+            actions={{
+              ariaLabel: '订单页面动作',
+              primaryAction: { label: '新建订单', onClick: openCreateWorkspace }
+            }}
             description="查看已有订单，并进入订单详情处理资金、分批发货与售后。"
             title="订单"
           />
-          <div aria-label={`订单列表，共 ${orders.length} 张`} className="yumi-primary-list">
-            {loading ? (
-              <YumiEmptyState description="订单资料正在读取，请稍候。" title="正在加载订单…" />
-            ) : orders.length ? (
-              <YumiBusinessList>
-                {orders.map((order) => (
-                  <YumiBusinessListItem
-                    key={order.id}
-                    meta={`更新于 ${order.updatedAt.slice(0, 10)}`}
-                    metrics={[
-                      { label: '订单金额', value: formatCents(order.currentAmountCents) },
-                      { label: '待收', value: formatCents(order.outstandingCents) }
+          <YumiListSurface
+            ariaLabel={`订单列表，共 ${visibleOrders.length} 张`}
+            className="yumi-order-list-surface"
+          >
+            <YumiListToolbar
+              ariaLabel="订单列表工具"
+              countLabel={`共 ${visibleOrders.length} 张订单`}
+              filters={
+                <>
+                  <YumiSelect
+                    aria-label="资金状态筛选"
+                    onValueChange={(value) => setOrderFundFilter(value as OrderFundFilter)}
+                    options={[
+                      { label: '全部资金状态', value: 'all' },
+                      { label: '待收款', value: 'outstanding' },
+                      { label: '已收齐', value: 'settled' }
                     ]}
-                    onOpen={() => void openOrderDetail(order.id)}
-                    status={
-                      <YumiStatusTag tone={order.outstandingCents > 0 ? 'warning' : 'success'}>
-                        {order.outstandingCents > 0 ? '待收款' : '已收齐'}
-                      </YumiStatusTag>
-                    }
-                    summary={`${order.customerName} · 订单金额 ${formatCents(order.currentAmountCents)}`}
-                    title={order.code}
+                    value={orderFundFilter}
                   />
-                ))}
-              </YumiBusinessList>
+                  <YumiSelect
+                    aria-label="交付排班筛选"
+                    onValueChange={(value) => setOrderScheduleFilter(value as OrderScheduleFilter)}
+                    options={[
+                      { label: '全部交付排班', value: 'all' },
+                      { label: '已设置交付', value: 'scheduled' },
+                      { label: '未设置交付', value: 'unscheduled' }
+                    ]}
+                    value={orderScheduleFilter}
+                  />
+                </>
+              }
+              search={
+                <YumiTextField
+                  aria-label="搜索订单"
+                  onChange={(event) => setOrderSearchQuery(event.target.value)}
+                  placeholder="搜索订单号、客户"
+                  value={orderSearchQuery}
+                />
+              }
+            />
+            {loading ? (
+              <YumiEmptyState
+                description="订单资料正在读取，请稍候。"
+                scenario="loading"
+                title="正在加载订单…"
+              />
+            ) : orders.length ? (
+              visibleOrders.length ? (
+                <YumiDataTable
+                  ariaLabel="订单列表"
+                  columns={[
+                    {
+                      key: 'order',
+                      label: '订单号 / 客户',
+                      render: (order) => (
+                        <div className="yumi-list-cell yumi-order-list-cell">
+                          <strong>{order.code}</strong>
+                          <span>
+                            {order.customerName} · 共 {order.itemCount} 款
+                          </span>
+                        </div>
+                      )
+                    },
+                    {
+                      key: 'createdAt',
+                      label: '下单日期',
+                      render: (order) => (order.createdAt ?? order.updatedAt).slice(0, 10)
+                    },
+                    {
+                      key: 'amount',
+                      label: '订单金额',
+                      align: 'right',
+                      render: (order) => <strong>{formatCents(order.currentAmountCents)}</strong>
+                    },
+                    {
+                      key: 'funds',
+                      label: '资金状态',
+                      render: (order) => (
+                        <YumiStatusTag tone={order.outstandingCents > 0 ? 'warning' : 'success'}>
+                          {order.outstandingCents > 0
+                            ? `待收 ${formatCents(order.outstandingCents)}`
+                            : '已收齐'}
+                        </YumiStatusTag>
+                      )
+                    },
+                    {
+                      key: 'schedule',
+                      label: '排班进度',
+                      render: (order) => {
+                        const total = order.totalQuantity ?? 0
+                        const shipped = Math.min(order.shippedQuantity ?? 0, total)
+                        const progress = total ? Math.round((shipped / total) * 100) : 0
+                        return (
+                          <div className="yumi-order-progress">
+                            <span className="yumi-order-progress__track">
+                              <i
+                                style={{ '--yumi-order-progress': `${progress}%` } as CSSProperties}
+                              />
+                            </span>
+                            <span>{total ? `已发 ${shipped} / ${total} 件` : '待排班'}</span>
+                          </div>
+                        )
+                      }
+                    },
+                    {
+                      key: 'shipDate',
+                      label: '预计交付',
+                      render: (order) => order.expectedShipDate ?? '未设置'
+                    },
+                    {
+                      key: 'actions',
+                      label: '操作',
+                      align: 'right',
+                      render: (order) => (
+                        <YumiButton
+                          aria-label="查看详情"
+                          onClick={() => void openOrderDetail(order.id)}
+                          variant="ghost"
+                        >
+                          查看详情
+                        </YumiButton>
+                      )
+                    }
+                  ]}
+                  getRowKey={(order) => order.id}
+                  rows={visibleOrders}
+                />
+              ) : (
+                <YumiEmptyState
+                  description="请调整搜索内容或筛选条件后重试。"
+                  title="没有符合筛选条件的订单。"
+                />
+              )
             ) : baseDataReady ? (
               <YumiEmptyState
                 description="客户与商品已就绪；点击右上角“新建订单”后即可在这里继续处理。"
@@ -697,18 +872,21 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
                 onNavigateToBaseData={onNavigateToBaseData}
               />
             )}
-          </div>
+          </YumiListSurface>
         </>
       )}
 
       {workspaceMode === 'create' && (
         <>
           <YumiPageHeader
-            actions={
-              <YumiButton onClick={returnToOrderList} variant="ghost">
-                返回订单列表
-              </YumiButton>
-            }
+            actions={{
+              ariaLabel: '新建订单页面动作',
+              secondaryAction: {
+                label: '返回订单列表',
+                onClick: returnToOrderList,
+                variant: 'ghost'
+              }
+            }}
             description="录入客户、多个商品行和订单金额组成项；保存后进入订单详情。"
             title="新建订单"
           />
@@ -800,12 +978,34 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
       {workspaceMode === 'detail' && selectedOrder && (
         <>
           <YumiPageHeader
-            actions={
-              <YumiButton onClick={returnToOrderList} variant="ghost">
-                返回订单列表
-              </YumiButton>
-            }
-            description="处理订单内容、资金、售后和分批发货。"
+            actions={{
+              ariaLabel: '订单详情页面动作',
+              menu: {
+                ariaLabel: '订单详情更多操作',
+                items: [
+                  { id: 'return-to-list', label: '返回订单列表', onSelect: returnToOrderList },
+                  {
+                    disabled: exporting,
+                    id: 'export-shipping-summary',
+                    label: '发货汇总',
+                    onSelect: () => void exportOrderFile('shipping-list')
+                  }
+                ]
+              },
+              primaryAction: {
+                label: '编辑订单',
+                onClick: () => {
+                  setDetailView('overview')
+                  setContentEditorOpen(true)
+                }
+              },
+              secondaryAction: {
+                disabled: exporting,
+                label: '导出订单表',
+                onClick: () => void exportOrderFile('order-table')
+              }
+            }}
+            description="查看订单内容，并处理发货、资金与售后记录。"
             title={selectedOrder.code}
           />
           <OrderDetail
@@ -879,11 +1079,35 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
             }
             onContentChange={handleContentChange}
             onRecordFund={handleRecordFund}
-            onCorrection={handleCorrection}
+            onCorrection={requestCorrectionConfirmation}
+            onConfirmCorrection={() => void confirmCorrection()}
+            onCorrectionConfirmChange={setCorrectionConfirmOpen}
+            correctionConfirmOpen={correctionConfirmOpen}
             onShipment={handleCreateShipment}
             exporting={exporting}
-            onExportOrderTable={() => void exportOrderFile('order-table')}
-            onExportOrderDocuments={() => void exportOrderFile('combined')}
+            fundSheet={fundSheet}
+            onFundSheetChange={setFundSheet}
+            onShipmentVoidSheetChange={(open) => {
+              setShipmentVoidSheetOpen(open)
+              if (!open) setShipmentVoidConfirmOpen(false)
+            }}
+            onShipmentVoidStart={(shipmentId) => {
+              setShipmentToVoid(shipmentId)
+              setShipmentVoidDate(today())
+              setShipmentVoidReason('')
+              setShipmentVoidConfirmOpen(false)
+              setShipmentVoidSheetOpen(true)
+            }}
+            onConfirmVoidShipment={() => void confirmVoidShipment()}
+            onVoidShipment={requestVoidShipmentConfirmation}
+            shipmentToVoid={shipmentToVoid}
+            shipmentVoidDate={shipmentVoidDate}
+            shipmentVoidReason={shipmentVoidReason}
+            shipmentVoidSheetOpen={shipmentVoidSheetOpen}
+            shipmentVoidConfirmOpen={shipmentVoidConfirmOpen}
+            onShipmentVoidConfirmChange={setShipmentVoidConfirmOpen}
+            setShipmentVoidDate={setShipmentVoidDate}
+            setShipmentVoidReason={setShipmentVoidReason}
             onExportShippingList={(shipmentId) => void exportOrderFile('shipping-list', shipmentId)}
             listAfterSalesCases={listAfterSalesCases}
             createAfterSalesCase={createAfterSalesCase}
@@ -1032,7 +1256,11 @@ export function OrdersPage({ navigationTarget = null, onNavigateToBaseData }: Or
       </YumiSheet>
 
       {workspaceMode === 'detail' && !selectedOrder && (
-        <YumiEmptyState description="订单详情正在读取，请稍候。" title="正在加载订单详情…" />
+        <YumiEmptyState
+          description="订单详情正在读取，请稍候。"
+          scenario="loading"
+          title="正在加载订单详情…"
+        />
       )}
     </section>
   )
@@ -1127,15 +1355,13 @@ function OrderLines({
           </YumiField>
           <YumiField>
             <YumiFieldLabel>缝边</YumiFieldLabel>
-            <label>
-              <input
-                aria-label={`第 ${index + 1} 行缝边`}
-                checked={line.edgeEnabled}
-                onChange={(event) => onChange(index, 'edgeEnabled', String(event.target.checked))}
-                type="checkbox"
-              />
+            <YumiCheckbox
+              aria-label={`第 ${index + 1} 行缝边`}
+              checked={line.edgeEnabled}
+              onChange={(event) => onChange(index, 'edgeEnabled', String(event.target.checked))}
+            >
               启用缝边
-            </label>
+            </YumiCheckbox>
           </YumiField>
           {line.edgeEnabled && (
             <>
@@ -1229,6 +1455,9 @@ function OrderDetail(props: {
   setCorrectionDate: (value: string) => void
   correctionType: V2OrderFundBusinessType
   setCorrectionType: (value: V2OrderFundBusinessType) => void
+  correctionConfirmOpen: boolean
+  onCorrectionConfirmChange: (open: boolean) => void
+  onConfirmCorrection: () => void
   shipmentDate: string
   setShipmentDate: (value: string) => void
   shipmentLines: Record<string, string>
@@ -1244,8 +1473,20 @@ function OrderDetail(props: {
   shipmentAvailability: ReturnType<typeof buildShipmentItemAvailability>
   submitting: string | null
   exporting: boolean
-  onExportOrderTable: () => void
-  onExportOrderDocuments: () => void
+  fundSheet: 'record' | 'correction' | null
+  onFundSheetChange: (value: 'record' | 'correction' | null) => void
+  shipmentVoidSheetOpen: boolean
+  shipmentVoidConfirmOpen: boolean
+  onShipmentVoidSheetChange: (open: boolean) => void
+  onShipmentVoidConfirmChange: (open: boolean) => void
+  shipmentToVoid: string | null
+  shipmentVoidDate: string
+  setShipmentVoidDate: (value: string) => void
+  shipmentVoidReason: string
+  setShipmentVoidReason: (value: string) => void
+  onShipmentVoidStart: (shipmentId: string) => void
+  onConfirmVoidShipment: () => void
+  onVoidShipment: (event: FormEvent<HTMLFormElement>) => void
   onExportShippingList: (shipmentId?: string) => void
   listAfterSalesCases: ReturnType<typeof useFinance>['listAfterSalesCases']
   createAfterSalesCase: ReturnType<typeof useFinance>['createAfterSalesCase']
@@ -1263,10 +1504,28 @@ function OrderDetail(props: {
     props
   const detailViews: Array<{ id: OrderDetailView; label: string }> = [
     { id: 'overview', label: '概览' },
-    { id: 'fulfillment', label: '履约' },
+    { id: 'fulfillment', label: '发货' },
     { id: 'funds', label: '资金' },
     { id: 'after_sales', label: '售后' }
   ]
+  const sortedShipments = [...shipments].sort((left, right) =>
+    right.shippedOn.localeCompare(left.shippedOn)
+  )
+  const sortedFunds = [...funds].sort((left, right) =>
+    right.occurredOn.localeCompare(left.occurredOn)
+  )
+  const itemTotalCents = order.items.reduce(
+    (sum, item) => sum + item.quantity * item.unitPriceCents,
+    0
+  )
+  const totalQuantity = order.items.reduce((sum, item) => sum + item.quantity, 0)
+  const shippedQuantity = sortedShipments
+    .filter((shipment) => shipment.status !== 'voided')
+    .reduce(
+      (sum, shipment) => sum + shipment.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+      0
+    )
+  const recentShipments = sortedShipments.slice(0, 3)
   const getShipmentSummary = (shipment: (typeof shipments)[number]) =>
     shipment.items
       .map((line) => {
@@ -1277,212 +1536,327 @@ function OrderDetail(props: {
 
   return (
     <div className="yumi-order-detail-stack">
-      <section className="yumi-order-summary">
-        <div>
-          <h2>{order.code}</h2>
-          <p>
+      <YumiRecordSummary
+        ariaLabel="订单经营摘要"
+        description={
+          <>
             {order.customerSnapshot.name} ·{' '}
             {order.expectedShipDate
               ? `预计 ${order.expectedShipDate} 发货 · 制作截止 ${order.productionDeadline ?? '未计算'}`
               : '未设预计发货日期'}
-          </p>
-        </div>
-        <YumiStatusTag tone={order.funds.outstandingCents > 0 ? 'warning' : 'success'}>
-          {order.funds.outstandingCents > 0
-            ? `待收 ${formatCents(order.funds.outstandingCents)}`
-            : '已收齐'}
-        </YumiStatusTag>
-        <div className="yumi-order-stat-grid">
-          <span>
-            预留制作<strong>{order.reservedDays} 天</strong>
-          </span>
-          <span>
-            订单金额
-            <strong>
-              {formatCents(order.amount.orderAmountCents ?? order.amount.currentAmountCents)}
-            </strong>
-          </span>
-          <span>
-            累计收款<strong>{formatCents(order.funds.netReceivedCents)}</strong>
-          </span>
-          <span>
-            调整后应收<strong>{formatCents(order.amount.currentAmountCents)}</strong>
-          </span>
-        </div>
-      </section>
+          </>
+        }
+        status={
+          <YumiStatusTag tone={order.funds.outstandingCents > 0 ? 'warning' : 'success'}>
+            {order.funds.outstandingCents > 0
+              ? `待收 ${formatCents(order.funds.outstandingCents)}`
+              : '已收齐'}
+          </YumiStatusTag>
+        }
+        title={order.code}
+      >
+        <YumiMetricStrip
+          ariaLabel="订单经营指标"
+          items={[
+            {
+              label: '订单金额',
+              value: formatCents(order.amount.orderAmountCents ?? order.amount.currentAmountCents)
+            },
+            {
+              label: '累计收款',
+              tone: 'success',
+              value: formatCents(order.funds.netReceivedCents)
+            },
+            { label: '待收款', tone: 'warning', value: formatCents(order.funds.outstandingCents) },
+            {
+              label: '发货进度',
+              tone: 'brand',
+              value: totalQuantity
+                ? `${Math.min(shippedQuantity, totalQuantity)} / ${totalQuantity} 件`
+                : '—'
+            }
+          ]}
+        />
+      </YumiRecordSummary>
 
-      <nav aria-label="订单详情工作视图" className="yumi-page-tabs">
-        {detailViews.map((view) => (
-          <YumiButton
-            aria-pressed={activeView === view.id}
-            key={view.id}
-            onClick={() => props.onViewChange(view.id)}
-            variant={activeView === view.id ? 'primary' : 'ghost'}
-          >
-            {view.label}
-          </YumiButton>
-        ))}
-      </nav>
+      <YumiPrimaryTabs
+        ariaLabel="订单详情工作视图"
+        items={detailViews}
+        onValueChange={props.onViewChange}
+        value={activeView}
+      />
 
       {activeView === 'overview' && (
         <>
           <YumiSection
-            description="订单基础信息与内容变更只在这里处理，不与发货、资金和售后表单同时出现。"
-            title="订单内容"
+            description="以商品、数量和金额确认订单内容；变更需从页头显式进入编辑态，发货、资金及售后分别保留独立记录。"
+            title="订单商品"
           >
-            <div className="yumi-order-simple-lines">
-              {order.items.map((item) => (
-                <p key={item.id}>
-                  {item.productSnapshot.name} × {item.quantity} · {formatCents(item.unitPriceCents)}
-                </p>
-              ))}
+            <YumiDataTable
+              ariaLabel="订单商品列表"
+              columns={[
+                { key: 'product', label: '商品', render: (item) => item.productSnapshot.name },
+                { key: 'quantity', label: '数量', align: 'right', render: (item) => item.quantity },
+                {
+                  key: 'price',
+                  label: '单价',
+                  align: 'right',
+                  render: (item) => formatCents(item.unitPriceCents)
+                },
+                {
+                  key: 'subtotal',
+                  label: '小计',
+                  align: 'right',
+                  render: (item) => formatCents(item.quantity * item.unitPriceCents)
+                }
+              ]}
+              emptyText="订单暂未包含商品。"
+              getRowKey={(item) => item.id}
+              rows={order.items}
+            />
+            <div className="yumi-order-items-total">
+              <span>商品合计</span>
+              <strong>{formatCents(itemTotalCents)}</strong>
             </div>
           </YumiSection>
-          <div className="yumi-form-actions yumi-form-actions--end">
-            <YumiButton
-              disabled={props.exporting}
-              onClick={props.onExportOrderTable}
-              variant="secondary"
-            >
-              导出订单表
-            </YumiButton>
-            <YumiButton
-              disabled={props.exporting}
-              onClick={() => props.onExportShippingList()}
-              variant="secondary"
-            >
-              导出发货清单
-            </YumiButton>
-            <YumiButton
-              disabled={props.exporting}
-              onClick={props.onExportOrderDocuments}
-              variant="secondary"
-            >
-              合并导出
-            </YumiButton>
-            <YumiButton onClick={() => props.setContentEditorOpen(true)} variant="secondary">
-              编辑订单内容
-            </YumiButton>
-          </div>
-          {props.contentEditorOpen && (
-            <form className="yumi-form-panel" onSubmit={props.onContentChange}>
-              <h2 className="yumi-form-panel__title">订单内容变更</h2>
-              <div className="yumi-form-grid yumi-form-grid--two">
-                <YumiField>
-                  <YumiFieldLabel required>变更日期</YumiFieldLabel>
-                  <YumiDatePicker
-                    aria-label="变更日期"
-                    onValueChange={props.setContentDate}
-                    value={props.contentDate}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel required>变更说明</YumiFieldLabel>
-                  <YumiTextField
-                    onChange={(event) => props.setContentDescription(event.target.value)}
-                    required
-                    value={props.contentDescription}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel>金额调整（元，可正可负）</YumiFieldLabel>
-                  <YumiNumberField
-                    allowDecimal
-                    onChange={(event) => props.setAdjustmentAmount(event.target.value)}
-                    value={props.adjustmentAmount}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel>订单优惠（元）</YumiFieldLabel>
-                  <YumiNumberField
-                    allowDecimal
-                    aria-label="订单优惠（元）"
-                    min="0"
-                    onChange={(event) => props.setContentOrderDiscount(event.target.value)}
-                    value={props.contentOrderDiscount}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel required={Boolean(props.adjustmentAmount)}>
-                    金额调整原因
-                  </YumiFieldLabel>
-                  <YumiTextField
-                    onChange={(event) => props.setAdjustmentReason(event.target.value)}
-                    required={Boolean(props.adjustmentAmount)}
-                    value={props.adjustmentReason}
-                  />
-                </YumiField>
-              </div>
-              <OrderLines
-                title="变更后的商品"
-                lines={props.contentLines}
-                products={products}
-                onChange={props.updateContentLine}
-                onAdd={props.onAddContentLine}
-                onRemove={props.onRemoveContentLine}
+          <YumiSection title="订单档案">
+            <YumiFormSection title="客户与订单">
+              <YumiDetailList
+                ariaLabel="客户与订单资料"
+                items={[
+                  { label: '客户', value: order.customerSnapshot.name },
+                  { label: '订单日期', value: order.createdAt?.slice(0, 10) ?? '—' },
+                  { label: '订单备注', value: order.notes ?? '—' }
+                ]}
               />
-              <div className="yumi-form-actions">
-                <YumiButton
-                  loading={props.submitting === 'content'}
-                  type="submit"
-                  variant="primary"
-                >
-                  保存内容变更
-                </YumiButton>
-              </div>
-              {contentChanges.length > 0 && (
-                <p className="yumi-form-hint">
-                  已记录 {contentChanges.length} 次内容变更，历史不会被覆盖。
-                </p>
-              )}
+            </YumiFormSection>
+            <YumiFormSection title="交付与生产">
+              <YumiDetailList
+                ariaLabel="交付与生产资料"
+                items={[
+                  { label: '预计发货', value: order.expectedShipDate ?? '未设置' },
+                  { label: '制作截止', value: order.productionDeadline ?? '未计算' },
+                  { label: '预留制作', value: `${order.reservedDays} 天` }
+                ]}
+              />
+            </YumiFormSection>
+          </YumiSection>
+          <YumiSection
+            actions={
+              <YumiButton onClick={() => props.onViewChange('fulfillment')} variant="ghost">
+                查看全部发货
+              </YumiButton>
+            }
+            description="默认展示最近三笔批次记录；本批清单导出和作废仍仅在发货页对应批次行处理。"
+            title="最近发货"
+          >
+            <YumiDataTable
+              ariaLabel="最近发货记录"
+              columns={[
+                { key: 'date', label: '发货日期', render: (shipment) => shipment.shippedOn },
+                {
+                  key: 'items',
+                  label: '本批商品与数量',
+                  render: (shipment) => getShipmentSummary(shipment)
+                },
+                {
+                  key: 'logistics',
+                  label: '物流信息',
+                  render: (shipment) =>
+                    `${shipment.carrier ?? '未填写承运商'}${shipment.trackingNumber ? ` · ${shipment.trackingNumber}` : ''}`
+                },
+                {
+                  key: 'status',
+                  label: '批次状态',
+                  render: (shipment) => (
+                    <YumiStatusTag tone={shipment.status === 'voided' ? 'neutral' : 'success'}>
+                      {shipment.status === 'voided' ? '已作废' : '已发货'}
+                    </YumiStatusTag>
+                  )
+                }
+              ]}
+              emptyText="尚未登记发货批次。"
+              getRowKey={(shipment) => shipment.id}
+              rows={recentShipments}
+            />
+          </YumiSection>
+          <YumiSheet
+            description="订单内容的修改将保留历史记录，不会覆盖原始内容。"
+            onOpenChange={props.setContentEditorOpen}
+            open={props.contentEditorOpen}
+            title="编辑订单"
+          >
+            <form className="yumi-form-panel yumi-sheet-form" onSubmit={props.onContentChange}>
+              <YumiFormSection title="订单内容变更">
+                <div className="yumi-form-grid yumi-form-grid--two">
+                  <YumiField>
+                    <YumiFieldLabel required>变更日期</YumiFieldLabel>
+                    <YumiDatePicker
+                      aria-label="变更日期"
+                      onValueChange={props.setContentDate}
+                      value={props.contentDate}
+                    />
+                  </YumiField>
+                  <YumiField>
+                    <YumiFieldLabel required>变更说明</YumiFieldLabel>
+                    <YumiTextField
+                      onChange={(event) => props.setContentDescription(event.target.value)}
+                      required
+                      value={props.contentDescription}
+                    />
+                  </YumiField>
+                  <YumiField>
+                    <YumiFieldLabel>金额调整（元，可正可负）</YumiFieldLabel>
+                    <YumiNumberField
+                      allowDecimal
+                      onChange={(event) => props.setAdjustmentAmount(event.target.value)}
+                      value={props.adjustmentAmount}
+                    />
+                  </YumiField>
+                  <YumiField>
+                    <YumiFieldLabel>订单优惠（元）</YumiFieldLabel>
+                    <YumiNumberField
+                      allowDecimal
+                      aria-label="订单优惠（元）"
+                      min="0"
+                      onChange={(event) => props.setContentOrderDiscount(event.target.value)}
+                      value={props.contentOrderDiscount}
+                    />
+                  </YumiField>
+                  <YumiField>
+                    <YumiFieldLabel required={Boolean(props.adjustmentAmount)}>
+                      金额调整原因
+                    </YumiFieldLabel>
+                    <YumiTextField
+                      onChange={(event) => props.setAdjustmentReason(event.target.value)}
+                      required={Boolean(props.adjustmentAmount)}
+                      value={props.adjustmentReason}
+                    />
+                  </YumiField>
+                </div>
+                <OrderLines
+                  title="变更后的商品"
+                  lines={props.contentLines}
+                  products={products}
+                  onChange={props.updateContentLine}
+                  onAdd={props.onAddContentLine}
+                  onRemove={props.onRemoveContentLine}
+                />
+                <div className="yumi-form-actions">
+                  <YumiButton
+                    loading={props.submitting === 'content'}
+                    type="submit"
+                    variant="primary"
+                  >
+                    保存内容变更
+                  </YumiButton>
+                </div>
+                {contentChanges.length > 0 && (
+                  <YumiFormMessage>
+                    已记录 {contentChanges.length} 次内容变更，历史不会被覆盖。
+                  </YumiFormMessage>
+                )}
+              </YumiFormSection>
             </form>
-          )}
+          </YumiSheet>
         </>
       )}
 
       {activeView === 'fulfillment' && (
         <>
           <YumiSection
-            description="每次发货只登记这一批；订单未发完时，后续可继续新增批次。历史批次只读。"
-            title="发货批次"
-          >
-            <div className="yumi-form-actions yumi-form-actions--between">
-              <p className="yumi-form-hint">
-                同一批可选择多个商品；系统会按每个商品当前可发数量校验。
-              </p>
+            actions={
               <YumiButton onClick={() => props.setShipmentSheetOpen(true)} variant="primary">
                 新增发货
               </YumiButton>
-            </div>
-            {shipments.length === 0 ? (
-              <div className="yumi-empty">尚未登记发货批次。</div>
-            ) : (
-              <YumiBusinessList>
-                {shipments.map((shipment) => (
-                  <YumiBusinessListItem
-                    key={shipment.id}
-                    meta={shipment.trackingNumber ?? '未填写运单号'}
-                    metrics={[
-                      {
-                        label: '本批商品',
-                        value: shipment.items.reduce((sum, item) => sum + item.quantity, 0)
-                      }
-                    ]}
-                    status={<YumiStatusTag tone="success">已发货</YumiStatusTag>}
-                    summary={getShipmentSummary(shipment)}
-                    title={`${shipment.shippedOn} · ${shipment.carrier ?? '未填写承运商'}`}
-                  >
-                    <YumiButton
-                      disabled={props.exporting}
-                      onClick={() => props.onExportShippingList(shipment.id)}
-                      variant="secondary"
-                    >
-                      导出本批清单
-                    </YumiButton>
-                  </YumiBusinessListItem>
-                ))}
-              </YumiBusinessList>
-            )}
+            }
+            description="每次发货只登记这一批；订单未发完时，后续可继续新增批次。历史批次只读，本批清单只从对应批次导出。"
+            title="发货批次"
+          >
+            <YumiListSurface ariaLabel="发货批次记录">
+              <YumiListToolbar
+                ariaLabel="发货批次列表工具"
+                countLabel={`共 ${sortedShipments.length} 个批次`}
+              />
+              <YumiDataTable
+                ariaLabel="发货批次列表"
+                columns={[
+                  {
+                    key: 'batch',
+                    label: '发货批次',
+                    render: (shipment) => (
+                      <div className="yumi-list-cell">
+                        <strong>批次 {shipment.id}</strong>
+                        <span>创建于 {shipment.createdAt.slice(0, 16).replace('T', ' ')}</span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'shipment-logistics',
+                    label: '发货日期 / 物流',
+                    render: (shipment) => (
+                      <div className="yumi-list-cell">
+                        <strong>{shipment.shippedOn}</strong>
+                        <span>
+                          {shipment.carrier ?? '未填写承运商'}
+                          {shipment.trackingNumber ? ` · ${shipment.trackingNumber}` : ''}
+                        </span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'items',
+                    label: '本批商品与数量',
+                    render: (shipment) => (
+                      <div className="yumi-list-cell">
+                        <strong>{getShipmentSummary(shipment)}</strong>
+                        <span>
+                          本批合计 {shipment.items.reduce((sum, item) => sum + item.quantity, 0)} 件
+                        </span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'status',
+                    label: '批次状态',
+                    render: (shipment) => (
+                      <YumiStatusTag tone={shipment.status === 'voided' ? 'neutral' : 'success'}>
+                        {shipment.status === 'voided' ? '已作废' : '已发货'}
+                      </YumiStatusTag>
+                    )
+                  },
+                  {
+                    align: 'right',
+                    key: 'actions',
+                    label: '操作',
+                    render: (shipment) => (
+                      <div className="yumi-list-cell yumi-list-cell--actions">
+                        <YumiButton
+                          disabled={props.exporting}
+                          onClick={() => props.onExportShippingList(shipment.id)}
+                          size="small"
+                          variant="secondary"
+                        >
+                          导出本批清单
+                        </YumiButton>
+                        {shipment.status !== 'voided' && (
+                          <YumiButton
+                            onClick={() => props.onShipmentVoidStart(shipment.id)}
+                            size="small"
+                            variant="ghost"
+                          >
+                            作废批次
+                          </YumiButton>
+                        )}
+                      </div>
+                    )
+                  }
+                ]}
+                emptyText="尚未登记发货批次。"
+                getRowKey={(shipment) => shipment.id}
+                rows={sortedShipments}
+              />
+            </YumiListSurface>
           </YumiSection>
           <YumiSheet
             description="选择本批要发的商品和数量；只有已完成打包、进入待发货的数量可以登记发货。"
@@ -1556,9 +1930,9 @@ function OrderDetail(props: {
                 />
               </YumiField>
               <div className="yumi-form-actions yumi-form-actions--between">
-                <p className="yumi-form-hint">
+                <YumiFormMessage>
                   同一批可选择多个商品；提交后会保留为只读的历史批次。
-                </p>
+                </YumiFormMessage>
                 <YumiButton
                   loading={props.submitting === 'shipment'}
                   type="submit"
@@ -1569,30 +1943,115 @@ function OrderDetail(props: {
               </div>
             </form>
           </YumiSheet>
+          <YumiSheet
+            description="作废后会回退本批发货数量，并在历史中保留作废原因。"
+            onOpenChange={props.onShipmentVoidSheetChange}
+            open={props.shipmentVoidSheetOpen}
+            title="作废发货批次"
+          >
+            <form className="yumi-form-panel yumi-sheet-form" onSubmit={props.onVoidShipment}>
+              <YumiField>
+                <YumiFieldLabel required>作废日期</YumiFieldLabel>
+                <YumiDatePicker
+                  aria-label="作废日期"
+                  onValueChange={props.setShipmentVoidDate}
+                  value={props.shipmentVoidDate}
+                />
+              </YumiField>
+              <YumiField>
+                <YumiFieldLabel required>作废原因</YumiFieldLabel>
+                <YumiTextArea
+                  aria-label="作废原因"
+                  onChange={(event) => props.setShipmentVoidReason(event.target.value)}
+                  required
+                  value={props.shipmentVoidReason}
+                />
+              </YumiField>
+              <div className="yumi-form-actions">
+                <YumiButton
+                  loading={props.submitting === 'shipment-void'}
+                  type="submit"
+                  variant="danger"
+                >
+                  确认作废
+                </YumiButton>
+              </div>
+            </form>
+          </YumiSheet>
+          <YumiConfirmDialog
+            cancelLabel="继续修改"
+            confirmLabel="确认作废批次"
+            description="确认后会回退本批发货数量，并保留本次作废原因和历史留痕；如信息有误，请继续修改。"
+            onConfirm={props.onConfirmVoidShipment}
+            onOpenChange={props.onShipmentVoidConfirmChange}
+            open={props.shipmentVoidConfirmOpen}
+            title="确认作废发货批次？"
+          />
         </>
       )}
 
       {activeView === 'funds' && (
         <>
           <YumiSection
-            description="资金登记与冲正都只在资金视图处理，订单金额与已登记流水会保留历史。"
+            actions={
+              <YumiButton onClick={() => props.onFundSheetChange('record')} variant="primary">
+                登记收款/退款
+              </YumiButton>
+            }
+            description="按发生日期查看资金流水；收款、退款和冲正均保留历史，冲正只能从对应原流水发起。"
             title="订单资金"
           >
-            {funds.length === 0 ? (
-              <div className="yumi-empty">尚未登记订单资金流水。</div>
-            ) : (
-              <YumiBusinessList>
-                {funds.map((fund) => (
-                  <YumiBusinessListItem
-                    key={fund.id}
-                    meta={fund.paymentMethod ?? '未填写支付方式'}
-                    metrics={[
-                      {
-                        label: fund.direction === 'income' ? '流入' : '流出',
-                        value: formatCents(fund.amountCents)
-                      }
-                    ]}
-                    status={
+            <YumiListSurface ariaLabel="订单资金流水">
+              <YumiListToolbar
+                ariaLabel="订单资金列表工具"
+                countLabel={`共 ${sortedFunds.length} 笔流水`}
+              />
+              <YumiDataTable
+                ariaLabel="订单资金流水列表"
+                columns={[
+                  {
+                    key: 'occurred-on',
+                    label: '发生日期',
+                    render: (fund) => fund.occurredOn
+                  },
+                  {
+                    key: 'business-type',
+                    label: '业务类型 / 说明',
+                    render: (fund) => (
+                      <div className="yumi-list-cell">
+                        <strong>
+                          {fund.reversalOfEntryId
+                            ? '冲正记录'
+                            : fund.businessType === 'payment'
+                              ? '收款'
+                              : fund.businessType === 'refund'
+                                ? '退款'
+                                : '售后收费'}
+                        </strong>
+                        <span>{fund.note ?? '无备注'}</span>
+                      </div>
+                    )
+                  },
+                  {
+                    align: 'right',
+                    key: 'amount',
+                    label: '金额',
+                    render: (fund) => (
+                      <strong>
+                        {fund.direction === 'income' ? '+ ' : '− '}
+                        {formatCents(Math.abs(fund.amountCents))}
+                      </strong>
+                    )
+                  },
+                  {
+                    key: 'payment-method',
+                    label: '支付方式',
+                    render: (fund) => fund.paymentMethod ?? '—'
+                  },
+                  {
+                    key: 'status',
+                    label: '状态',
+                    render: (fund) => (
                       <YumiStatusTag
                         tone={
                           fund.reversalOfEntryId
@@ -1602,18 +2061,31 @@ function OrderDetail(props: {
                               : 'warning'
                         }
                       >
-                        {fund.reversalOfEntryId
-                          ? '冲正记录'
-                          : fund.businessType === 'payment'
-                            ? '收款'
-                            : fund.businessType === 'refund'
-                              ? '退款'
-                              : '售后收费'}
+                        {fund.reversalOfEntryId ? '已冲正' : '已生效'}
                       </YumiStatusTag>
-                    }
-                    actions={
-                      fund.attachmentId ? (
-                        <>
+                    )
+                  },
+                  {
+                    align: 'right',
+                    key: 'actions',
+                    label: '操作',
+                    render: (fund) => (
+                      <div className="yumi-list-cell yumi-list-cell--actions">
+                        {!fund.reversalOfEntryId && (
+                          <YumiButton
+                            onClick={() => {
+                              props.setCorrectionOriginalId(fund.id)
+                              props.setCorrectionType(fund.businessType)
+                              props.setCorrectionAmount(centsToYuan(Math.abs(fund.amountCents)))
+                              props.onFundSheetChange('correction')
+                            }}
+                            size="small"
+                            variant="ghost"
+                          >
+                            更正
+                          </YumiButton>
+                        )}
+                        {fund.attachmentId ? (
                           <YumiButton
                             onClick={() => props.onOpenFundProof(fund.id)}
                             size="small"
@@ -1621,36 +2093,33 @@ function OrderDetail(props: {
                           >
                             查看凭证
                           </YumiButton>
-                          {fund.direction === 'income' && (
-                            <YumiButton
-                              onClick={() => props.onReplaceFundProof(fund.id)}
-                              size="small"
-                              variant="ghost"
-                            >
-                              替换凭证
-                            </YumiButton>
-                          )}
-                        </>
-                      ) : fund.direction === 'income' ? (
-                        <YumiButton
-                          onClick={() => props.onReplaceFundProof(fund.id)}
-                          size="small"
-                          variant="ghost"
-                        >
-                          关联凭证
-                        </YumiButton>
-                      ) : undefined
-                    }
-                    summary={fund.note ?? '无备注'}
-                    title={fund.occurredOn}
-                  />
-                ))}
-              </YumiBusinessList>
-            )}
+                        ) : fund.direction === 'income' ? (
+                          <YumiButton
+                            onClick={() => props.onReplaceFundProof(fund.id)}
+                            size="small"
+                            variant="ghost"
+                          >
+                            关联凭证
+                          </YumiButton>
+                        ) : null}
+                      </div>
+                    )
+                  }
+                ]}
+                emptyText="尚未登记订单资金流水。"
+                getRowKey={(fund) => fund.id}
+                rows={sortedFunds}
+              />
+            </YumiListSurface>
           </YumiSection>
-          <div className="yumi-detail-grid">
-            <form className="yumi-form-panel" onSubmit={props.onRecordFund}>
-              <h2 className="yumi-form-panel__title">收款 / 退款</h2>
+
+          <YumiSheet
+            description="记录本次收款、退款或售后收费。"
+            onOpenChange={(open) => props.onFundSheetChange(open ? 'record' : null)}
+            open={props.fundSheet === 'record'}
+            title="登记收款或退款"
+          >
+            <form className="yumi-form-panel yumi-sheet-form" onSubmit={props.onRecordFund}>
               <YumiField>
                 <YumiFieldLabel>业务类型</YumiFieldLabel>
                 <FundTypeSelect
@@ -1698,7 +2167,7 @@ function OrderDetail(props: {
                     )}
                   </div>
                   {props.pendingFundProof && (
-                    <p className="yumi-form-hint">已选择：{props.pendingFundProof.originalName}</p>
+                    <YumiFormMessage>已选择：{props.pendingFundProof.originalName}</YumiFormMessage>
                   )}
                 </YumiField>
               )}
@@ -1715,14 +2184,21 @@ function OrderDetail(props: {
                 </YumiButton>
               </div>
             </form>
-            <form className="yumi-form-panel" onSubmit={props.onCorrection}>
-              <h2 className="yumi-form-panel__title">冲正并更正</h2>
+          </YumiSheet>
+
+          <YumiSheet
+            description="选择原流水后，将自动新增一条冲正记录和一条替代记录。"
+            onOpenChange={(open) => props.onFundSheetChange(open ? 'correction' : null)}
+            open={props.fundSheet === 'correction'}
+            title="冲正并更正"
+          >
+            <form className="yumi-form-panel yumi-sheet-form" onSubmit={props.onCorrection}>
               <YumiField>
                 <YumiFieldLabel required>原资金流水</YumiFieldLabel>
                 <YumiSelect
                   aria-label="原资金流水"
                   onValueChange={props.setCorrectionOriginalId}
-                  options={funds
+                  options={sortedFunds
                     .filter((fund) => !fund.reversalOfEntryId)
                     .map((fund) => ({
                       value: fund.id,
@@ -1744,6 +2220,7 @@ function OrderDetail(props: {
                 <YumiFieldLabel required>替代金额（元）</YumiFieldLabel>
                 <YumiNumberField
                   allowDecimal
+                  aria-label="替代金额（元）"
                   min="0.01"
                   onChange={(event) => props.setCorrectionAmount(event.target.value)}
                   required
@@ -1768,7 +2245,16 @@ function OrderDetail(props: {
                 </YumiButton>
               </div>
             </form>
-          </div>
+          </YumiSheet>
+          <YumiConfirmDialog
+            cancelLabel="继续修改"
+            confirmLabel="确认冲正并更正"
+            description="确认后会新增一条冲正记录和一条替代记录，原流水会保留并建立关联；如金额或日期有误，请继续修改。"
+            onConfirm={props.onConfirmCorrection}
+            onOpenChange={props.onCorrectionConfirmChange}
+            open={props.correctionConfirmOpen}
+            title="确认冲正并更正？"
+          />
         </>
       )}
 

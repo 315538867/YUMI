@@ -9,14 +9,19 @@ import { centsToYuan, formatCents, getErrorMessage, yuanToCents } from '../../co
 import { useProducts } from '../../composables/use-products'
 import { useStudioSettings } from '../../composables/use-studio-settings'
 import {
-  YumiBusinessList,
-  YumiBusinessListItem,
   YumiButton,
+  YumiDataTable,
+  YumiDetailList,
   YumiEmptyState,
   YumiField,
   YumiFieldLabel,
+  YumiFormMessage,
+  YumiFormSection,
+  YumiListSurface,
+  YumiListToolbar,
   YumiNumberField,
   YumiPageHeader,
+  YumiSelect,
   YumiSheet,
   YumiStatusTag,
   YumiTextArea,
@@ -116,6 +121,8 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
   const [detailOpen, setDetailOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   useYumiNotificationMessage(loadError)
   useYumiNotificationMessage(settingsError)
   useYumiNotificationMessage(error)
@@ -124,6 +131,21 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
     () => JSON.stringify(draft) !== JSON.stringify(editing ? toDraft(editing) : emptyDraft()),
     [draft, editing]
   )
+  const visibleProducts = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase()
+    return products.filter((product) => {
+      const matchesStatus =
+        statusFilter === 'all' || (statusFilter === 'enabled' ? product.enabled : !product.enabled)
+      const matchesQuery =
+        !query ||
+        [product.name, product.code, product.category, product.notes]
+          .filter(Boolean)
+          .join(' ')
+          .toLocaleLowerCase()
+          .includes(query)
+      return matchesStatus && matchesQuery
+    })
+  }, [products, searchQuery, statusFilter])
   const updateDraft = (key: keyof ProductDraft, value: string) =>
     setDraft({ ...draft, [key]: value })
   const closeEditor = () => {
@@ -186,58 +208,126 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
   return (
     <div className="yumi-page yumi-reference-workspace">
       <YumiPageHeader
-        actions={
-          <YumiButton onClick={openCreate} variant="primary">
-            新建商品
-          </YumiButton>
-        }
+        actions={{
+          ariaLabel: '商品页面动作',
+          primaryAction: { label: '新建商品', onClick: openCreate }
+        }}
         description="商品参数会在下单时冻结；胶水单价由工作室统一维护，商品只填写实际用量。"
         title="商品"
       />
-      <div className="yumi-primary-list" aria-label="商品列表">
+      <YumiListSurface ariaLabel={`商品列表，共 ${visibleProducts.length} 款`}>
+        <YumiListToolbar
+          ariaLabel="商品列表工具"
+          countLabel={`共 ${visibleProducts.length} 款商品`}
+          filters={
+            <YumiSelect
+              aria-label="商品状态筛选"
+              onValueChange={(value) => setStatusFilter(value as 'all' | 'enabled' | 'disabled')}
+              options={[
+                { label: '全部状态', value: 'all' },
+                { label: '已启用', value: 'enabled' },
+                { label: '已停用', value: 'disabled' }
+              ]}
+              value={statusFilter}
+            />
+          }
+          search={
+            <YumiTextField
+              aria-label="搜索商品"
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="搜索商品、编码或分类"
+              value={searchQuery}
+            />
+          }
+        />
         {loading ? (
-          <div className="yumi-empty">正在加载商品…</div>
+          <YumiEmptyState
+            description="正在读取商品资料，请稍候。"
+            scenario="loading"
+            title="商品资料加载中"
+          />
         ) : products.length === 0 ? (
           <YumiEmptyState
             description="点击右上角“新建商品”后，负责人即可在新增订单时主动选择。"
             scenario="first-use"
             title="还没有商品资料"
           />
-        ) : (
-          <YumiBusinessList>
-            {products.map((product) => (
-              <YumiBusinessListItem
-                key={product.id}
-                metrics={[
-                  { label: '默认售价', value: formatCents(product.basePriceCents) },
-                  { label: '标准制作', value: `${product.standardMakingMinutes} 分钟` },
-                  {
-                    label: '日产能',
-                    value: product.dailyCapacity > 0 ? `${product.dailyCapacity} 件` : '未维护'
-                  }
-                ]}
-                onOpen={() => openDetail(product)}
-                status={
+        ) : visibleProducts.length ? (
+          <YumiDataTable
+            ariaLabel="商品列表"
+            columns={[
+              {
+                key: 'product',
+                label: '商品 / 分类',
+                render: (product) => (
+                  <div className="yumi-list-cell">
+                    <strong>{product.name}</strong>
+                    <span>
+                      {product.code || '未设编码'} · {product.category || '未分类'}
+                    </span>
+                    <span>
+                      材料 {formatMilligramsAsGrams(product.unitWeightMilligrams)} 克 · 损耗{' '}
+                      {product.materialLossRateBasisPoints / 100}%
+                    </span>
+                  </div>
+                )
+              },
+              {
+                key: 'price',
+                label: '默认售价',
+                align: 'right',
+                render: (product) => <strong>{formatCents(product.basePriceCents)}</strong>
+              },
+              {
+                key: 'making',
+                label: '标准制作',
+                render: (product) => `${product.standardMakingMinutes} 分钟`
+              },
+              {
+                key: 'capacity',
+                label: '日产能',
+                render: (product) =>
+                  product.dailyCapacity > 0 ? `${product.dailyCapacity} 件` : '未维护'
+              },
+              {
+                key: 'status',
+                label: '状态',
+                render: (product) => (
                   <YumiStatusTag tone={product.enabled ? 'success' : 'neutral'}>
                     {product.enabled ? '启用' : '停用'}
                   </YumiStatusTag>
-                }
-                summary={`${product.code || '未设编码'} · ${product.category || '未分类'} · 制作提成 ${formatCents(product.makingCommissionCents)}`}
-                title={product.name}
-              >
-                <span>
-                  材料 {formatMilligramsAsGrams(product.unitWeightMilligrams)} 克 · 损耗{' '}
-                  {product.materialLossRateBasisPoints / 100}% · 胶水用量{' '}
-                  {formatMilligramsAsGrams(product.glueWeightMilligrams)} 克 · 包装{' '}
-                  {formatCents(product.packagingCostCents)} · 配饰{' '}
-                  {formatCents(product.accessoryCostCents)}
-                </span>
-                {product.notes ? <span>备注：{product.notes}</span> : null}
-              </YumiBusinessListItem>
-            ))}
-          </YumiBusinessList>
+                )
+              },
+              {
+                key: 'updatedAt',
+                label: '最近更新',
+                render: (product) => product.updatedAt.slice(0, 10)
+              },
+              {
+                align: 'right',
+                key: 'actions',
+                label: '操作',
+                render: (product) => (
+                  <YumiButton
+                    aria-label={`查看商品资料：${product.name}`}
+                    onClick={() => openDetail(product)}
+                    variant="ghost"
+                  >
+                    查看详情
+                  </YumiButton>
+                )
+              }
+            ]}
+            getRowKey={(product) => product.id}
+            rows={visibleProducts}
+          />
+        ) : (
+          <YumiEmptyState
+            description="请调整搜索内容或状态筛选后重试。"
+            title="没有符合筛选条件的商品。"
+          />
         )}
-      </div>
+      </YumiListSurface>
 
       <YumiSheet
         description="商品资料默认只读展示；需要调整参数时再主动进入编辑。"
@@ -259,49 +349,42 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
       >
         {viewing && (
           <div className="yumi-sheet-form">
-            <div className="yumi-detail-grid">
-              <ProductDetailItem label="商品编码" value={viewing.code || '未设编码'} />
-              <ProductDetailItem label="分类" value={viewing.category || '未分类'} />
-              <ProductDetailItem label="默认售价" value={formatCents(viewing.basePriceCents)} />
-              <ProductDetailItem label="状态" value={viewing.enabled ? '启用' : '停用'} />
-              <ProductDetailItem
-                label="单件材料重量"
-                value={`${formatMilligramsAsGrams(viewing.unitWeightMilligrams)} 克`}
+            <YumiDetailList
+              ariaLabel="商品基础资料"
+              items={[
+                { label: '商品编码', value: viewing.code || '未设编码' },
+                { label: '分类', value: viewing.category || '未分类' },
+                { label: '默认售价', value: formatCents(viewing.basePriceCents) },
+                { label: '状态', value: viewing.enabled ? '启用' : '停用' },
+                {
+                  label: '单件材料重量',
+                  value: `${formatMilligramsAsGrams(viewing.unitWeightMilligrams)} 克`
+                },
+                { label: '材料损耗率', value: `${viewing.materialLossRateBasisPoints / 100}%` },
+                {
+                  label: '日产能',
+                  value: viewing.dailyCapacity > 0 ? `${viewing.dailyCapacity} 件/日` : '未维护'
+                },
+                { label: '标准制作', value: `${viewing.standardMakingMinutes} 分钟` }
+              ]}
+            />
+            <YumiFormSection title="制作与成本参数">
+              <YumiDetailList
+                ariaLabel="商品制作与成本参数"
+                items={[
+                  {
+                    label: '胶水用量',
+                    value: `${formatMilligramsAsGrams(viewing.glueWeightMilligrams)} 克`
+                  },
+                  { label: '制作提成', value: formatCents(viewing.makingCommissionCents) },
+                  { label: '包装', value: formatCents(viewing.packagingCostCents) },
+                  { label: '配饰', value: formatCents(viewing.accessoryCostCents) },
+                  { label: '替换袋', value: formatCents(viewing.replacementBagCostCents) },
+                  { label: '内部缝边成本', value: formatCents(viewing.internalEdgeCostCents) }
+                ]}
               />
-              <ProductDetailItem
-                label="材料损耗率"
-                value={`${viewing.materialLossRateBasisPoints / 100}%`}
-              />
-              <ProductDetailItem
-                label="日产能"
-                value={viewing.dailyCapacity > 0 ? `${viewing.dailyCapacity} 件/日` : '未维护'}
-              />
-              <ProductDetailItem label="标准制作" value={`${viewing.standardMakingMinutes} 分钟`} />
-            </div>
-            <section className="yumi-product-editor-section" aria-labelledby="product-cost-heading">
-              <h3 id="product-cost-heading">制作与成本参数</h3>
-              <div className="yumi-detail-grid">
-                <ProductDetailItem
-                  label="胶水用量"
-                  value={`${formatMilligramsAsGrams(viewing.glueWeightMilligrams)} 克`}
-                />
-                <ProductDetailItem
-                  label="制作提成"
-                  value={formatCents(viewing.makingCommissionCents)}
-                />
-                <ProductDetailItem label="包装" value={formatCents(viewing.packagingCostCents)} />
-                <ProductDetailItem label="配饰" value={formatCents(viewing.accessoryCostCents)} />
-                <ProductDetailItem
-                  label="替换袋"
-                  value={formatCents(viewing.replacementBagCostCents)}
-                />
-                <ProductDetailItem
-                  label="内部缝边成本"
-                  value={formatCents(viewing.internalEdgeCostCents)}
-                />
-              </div>
-              {viewing.notes ? <p className="yumi-field-hint">备注：{viewing.notes}</p> : null}
-            </section>
+              {viewing.notes ? <YumiFormMessage tone="hint">备注：{viewing.notes}</YumiFormMessage> : null}
+            </YumiFormSection>
           </div>
         )}
       </YumiSheet>
@@ -335,8 +418,7 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
           id="product-editor-form"
           onSubmit={submit}
         >
-          <section className="yumi-product-editor-section" aria-labelledby="product-basic-heading">
-            <h3 id="product-basic-heading">基础资料</h3>
+          <YumiFormSection title="基础资料">
             <div className="yumi-form-grid yumi-form-grid--two">
               <YumiField>
                 <YumiFieldLabel htmlFor="product-name" required>
@@ -372,13 +454,16 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                 value={draft.basePrice}
               />
             </div>
-          </section>
-          <section className="yumi-product-editor-section" aria-labelledby="product-cost-heading">
-            <h3 id="product-cost-heading">制作与成本参数</h3>
-            <p className="yumi-field-hint">
-              工作室胶水单价：{settingsLoading ? '正在读取…' : gluePrice}
-              。此处仅维护内部核算成本；客户是否缝边、缝边数量和对客单价均在订单中决定。
-            </p>
+          </YumiFormSection>
+          <YumiFormSection
+            description={
+              <>
+                工作室胶水单价：{settingsLoading ? '正在读取…' : gluePrice}
+                。此处仅维护内部核算成本；客户是否缝边、缝边数量和对客单价均在订单中决定。
+              </>
+            }
+            title="制作与成本参数"
+          >
             <div className="yumi-form-grid yumi-form-grid--two">
               <YumiField>
                 <YumiFieldLabel htmlFor="product-unit-weight">单件材料重量（克）</YumiFieldLabel>
@@ -437,13 +522,13 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
               </YumiField>
               <YumiField>
                 <YumiFieldLabel>计算日产能</YumiFieldLabel>
-                <div className="yumi-field-hint">
+                <YumiFormMessage tone="hint">
                   {Number(draft.moldCount) > 0 &&
                   Number(draft.outputPerMoldPerBatch) > 0 &&
                   Number(draft.maxBatchesPerDay) > 0
                     ? `${Math.round(Number(draft.moldCount) * Number(draft.outputPerMoldPerBatch) * Number(draft.maxBatchesPerDay))} 件/日`
                     : '填写完整模具参数后计算'}
-                </div>
+                </YumiFormMessage>
               </YumiField>
               <YumiField>
                 <YumiFieldLabel htmlFor="product-standard-making-minutes">
@@ -486,7 +571,7 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                 value={draft.edgeCost}
               />
             </div>
-          </section>
+          </YumiFormSection>
           <YumiField>
             <YumiFieldLabel htmlFor="product-notes">备注</YumiFieldLabel>
             <YumiTextArea
@@ -497,15 +582,6 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
           </YumiField>
         </form>
       </YumiSheet>
-    </div>
-  )
-}
-
-function ProductDetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span className="yumi-field-label">{label}</span>
-      <p>{value}</p>
     </div>
   )
 }

@@ -1,7 +1,14 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render as renderBase,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
@@ -109,12 +116,19 @@ afterEach(() => {
 })
 
 describe('履约排班双视角交互', () => {
-  it('订单视角用待派件数筛选，在行内展示已派任务并可打开派工抽屉', () => {
+  it('订单视角以具名工具条和固定列排班队列表承载待派与已派任务', () => {
     render(<FulfillmentPage />)
 
+    expect(screen.getByRole('region', { name: '订单排班队列' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: '订单排班队列' })).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '排班队列列表工具' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '排班队列列表' })).toBeVisible()
     expect(screen.getByRole('button', { name: '制作 8' })).toBeVisible()
     expect(screen.getByText('未派 8')).toBeVisible()
     expect(screen.getByRole('button', { name: /小王 12.*待完成/ })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '进入处理：草莓捏捏' }))
+    expect(mocks.selectOrder).toHaveBeenCalledWith('order-1')
 
     fireEvent.click(screen.getByRole('button', { name: '派工制作' }))
     expect(screen.getByRole('dialog', { name: '派工：制作' })).toBeVisible()
@@ -170,6 +184,9 @@ describe('履约排班双视角交互', () => {
     render(<FulfillmentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: '人员周历' }))
+    const weekCalendar = screen.getByRole('region', { name: '人员周历' })
+    expect(weekCalendar).toHaveClass('yumi-section', 'yumi-worker-week')
+    expect(within(weekCalendar).getByRole('group', { name: '人员周历日期导航' })).toBeVisible()
     expect(screen.getByRole('heading', { name: '人员周历' })).toBeVisible()
     expect(screen.getByText('小王')).toBeVisible()
     expect(screen.getByRole('button', { name: /草莓捏捏.*制作.*12.*待完成/ })).toBeVisible()

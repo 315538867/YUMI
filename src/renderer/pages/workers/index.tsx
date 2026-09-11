@@ -3,15 +3,20 @@ import type { V2Worker, V2WorkerWageHistory } from '@shared/contracts/index'
 import { parseYuanToCents } from '@shared/money'
 import { centsToYuan, getErrorMessage, today } from '../../composables/v2-utils'
 import {
-  YumiBusinessList,
-  YumiBusinessListItem,
   YumiButton,
+  YumiDataTable,
   YumiDatePicker,
+  YumiDetailList,
   YumiEmptyState,
   YumiField,
   YumiFieldLabel,
+  YumiFormSection,
+  YumiListSurface,
+  YumiListToolbar,
   YumiNumberField,
   YumiPageHeader,
+  YumiSection,
+  YumiSelect,
   YumiSheet,
   YumiStatusTag,
   YumiTextField,
@@ -19,6 +24,8 @@ import {
 } from '../../components/ui'
 
 interface WorkersPageProps {
+  /** 在工资页面内作为一级标签内容渲染时，收敛为区块而非重复页面头。 */
+  embedded?: boolean
   workers: V2Worker[]
   createWorker(input: {
     name: string
@@ -35,6 +42,7 @@ interface WorkersPageProps {
 }
 
 export function WorkersPage({
+  embedded = false,
   workers,
   createWorker,
   listWageHistory,
@@ -53,6 +61,8 @@ export function WorkersPage({
   const [historyLoading, setHistoryLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [submitting, setSubmitting] = useState<string | null>(null)
   useYumiNotificationMessage(error)
   useYumiNotificationMessage(message, { tone: 'success' })
@@ -62,6 +72,17 @@ export function WorkersPage({
     [effectiveOn, hourlyWage, name, note]
   )
   const profileDirty = adjustingWage && Boolean(historyWage || historyEffectiveOn !== today())
+  const visibleWorkers = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase()
+    return workers.filter((worker) => {
+      const matchesStatus =
+        statusFilter === 'all' || (statusFilter === 'enabled' ? worker.enabled : !worker.enabled)
+      const matchesQuery =
+        !query ||
+        [worker.name, worker.note].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)
+      return matchesStatus && matchesQuery
+    })
+  }, [searchQuery, statusFilter, workers])
 
   useEffect(() => {
     if (!selectedWorker) {
@@ -155,50 +176,123 @@ export function WorkersPage({
   }
 
   const currentWage = history[0] ?? null
+  const pageDescription =
+    '人员与时薪分开维护：时薪变动按负责人填写的生效日期保留历史，不回写既有工资结算。'
+  const openCreate = () => {
+    setError(null)
+    setMessage(null)
+    setCreateOpen(true)
+  }
+  const createAction = (
+    <YumiButton onClick={openCreate} variant="primary">
+      新增人员
+    </YumiButton>
+  )
+  const pageActions = {
+    ariaLabel: '兼职人员页面动作',
+    primaryAction: { label: '新增人员', onClick: openCreate }
+  }
+  const workerList = (
+    <YumiListSurface ariaLabel={`兼职人员列表，共 ${visibleWorkers.length} 位`}>
+      <YumiListToolbar
+        ariaLabel="兼职人员列表工具"
+        countLabel={`共 ${visibleWorkers.length} 位人员`}
+        filters={
+          <YumiSelect
+            aria-label="人员状态筛选"
+            onValueChange={(value) => setStatusFilter(value as 'all' | 'enabled' | 'disabled')}
+            options={[
+              { label: '全部状态', value: 'all' },
+              { label: '已启用', value: 'enabled' },
+              { label: '已停用', value: 'disabled' }
+            ]}
+            value={statusFilter}
+          />
+        }
+        search={
+          <YumiTextField
+            aria-label="搜索兼职人员"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="搜索姓名或备注"
+            value={searchQuery}
+          />
+        }
+      />
+      {workers.length === 0 ? (
+        <YumiEmptyState
+          description="从右上角新增首位兼职人员，并同时记录其初始时薪。"
+          scenario="first-use"
+          title="还没有兼职人员"
+        />
+      ) : visibleWorkers.length ? (
+        <YumiDataTable
+          ariaLabel="兼职人员列表"
+          columns={[
+            {
+              key: 'worker',
+              label: '人员 / 备注',
+              render: (worker) => (
+                <div className="yumi-list-cell">
+                  <strong>{worker.name}</strong>
+                  <span>{worker.note || '暂无备注'}</span>
+                </div>
+              )
+            },
+            {
+              key: 'status',
+              label: '状态',
+              render: (worker) => (
+                <YumiStatusTag tone={worker.enabled ? 'success' : 'neutral'}>
+                  {worker.enabled ? '启用' : '停用'}
+                </YumiStatusTag>
+              )
+            },
+            {
+              key: 'createdAt',
+              label: '建立日期',
+              render: (worker) => worker.createdAt.slice(0, 10)
+            },
+            {
+              align: 'right',
+              key: 'actions',
+              label: '操作',
+              render: (worker) => (
+                <YumiButton
+                  aria-label={`查看人员资料：${worker.name}`}
+                  onClick={() => openProfile(worker)}
+                  variant="ghost"
+                >
+                  查看详情
+                </YumiButton>
+              )
+            }
+          ]}
+          getRowKey={(worker) => worker.id}
+          rows={visibleWorkers}
+        />
+      ) : (
+        <YumiEmptyState
+          description="请调整搜索内容或状态筛选后重试。"
+          title="没有符合筛选条件的人员。"
+        />
+      )}
+    </YumiListSurface>
+  )
 
   return (
-    <div className="yumi-page yumi-workers-workspace">
-      <YumiPageHeader
-        actions={
-          <YumiButton
-            onClick={() => {
-              setError(null)
-              setMessage(null)
-              setCreateOpen(true)
-            }}
-            variant="primary"
-          >
-            新增人员
-          </YumiButton>
-        }
-        description="人员与时薪分开维护：时薪变动按负责人填写的生效日期保留历史，不回写既有工资结算。"
-        title="兼职人员"
-      />
-      <div aria-label="兼职人员列表" className="yumi-primary-list">
-        {workers.length === 0 ? (
-          <YumiEmptyState
-            description="从右上角新增首位兼职人员，并同时记录其初始时薪。"
-            scenario="first-use"
-            title="还没有兼职人员"
-          />
-        ) : (
-          <YumiBusinessList>
-            {workers.map((worker) => (
-              <YumiBusinessListItem
-                key={worker.id}
-                onOpen={() => openProfile(worker)}
-                status={
-                  <YumiStatusTag tone={worker.enabled ? 'success' : 'neutral'}>
-                    {worker.enabled ? '启用' : '停用'}
-                  </YumiStatusTag>
-                }
-                summary={worker.note || '暂无备注'}
-                title={worker.name}
-              />
-            ))}
-          </YumiBusinessList>
-        )}
-      </div>
+    <div
+      className={`yumi-workers-workspace${embedded ? ' yumi-workers-workspace--embedded' : ' yumi-page'}`}
+    >
+      {embedded ? (
+        <YumiSection actions={createAction} description={pageDescription} title="兼职人员">
+          {workerList}
+        </YumiSection>
+      ) : (
+        <>
+          <YumiPageHeader actions={pageActions} description={pageDescription} title="兼职人员" />
+          {workerList}
+        </>
+      )}
 
       <YumiSheet
         description="建立人员时同时记录第一条时薪；后续调整将在人员资料中完成。"
@@ -291,74 +385,94 @@ export function WorkersPage({
         title={selectedWorker ? `人员资料：${selectedWorker.name}` : '人员资料'}
       >
         {selectedWorker ? (
-          <div className="yumi-profile-sheet">
-            <div className="yumi-profile-sheet__summary">
-              <div>
-                <span>当前时薪</span>
-                <strong>
-                  {currentWage
+          <>
+            <YumiDetailList
+              ariaLabel="兼职人员资料"
+              items={[
+                { label: '姓名', value: selectedWorker.name },
+                {
+                  label: '状态',
+                  value: (
+                    <YumiStatusTag tone={selectedWorker.enabled ? 'success' : 'neutral'}>
+                      {selectedWorker.enabled ? '启用' : '停用'}
+                    </YumiStatusTag>
+                  )
+                },
+                { label: '备注', value: selectedWorker.note || '暂无备注' },
+                {
+                  label: '当前时薪',
+                  value: currentWage
                     ? `${centsToYuan(currentWage.hourlyWageCents)} 元 / 小时`
-                    : '暂未记录'}
-                </strong>
-              </div>
-              <YumiStatusTag tone={selectedWorker.enabled ? 'success' : 'neutral'}>
-                {selectedWorker.enabled ? '启用' : '停用'}
-              </YumiStatusTag>
-            </div>
-            <div className="yumi-profile-sheet__section-head">
-              <div>
-                <h3>时薪历史</h3>
-                <p>按生效日期保存，既有工资结算不会被修改。</p>
-              </div>
-              <YumiButton onClick={() => setAdjustingWage((value) => !value)} variant="secondary">
-                {adjustingWage ? '取消调整' : '调整时薪'}
-              </YumiButton>
-            </div>
-            {adjustingWage ? (
-              <form className="yumi-form-panel" onSubmit={handleRecordWage}>
-                <div className="yumi-form-grid yumi-form-grid--two">
-                  <YumiField>
-                    <YumiFieldLabel htmlFor="worker-history-wage" required>
-                      新时薪（元）
-                    </YumiFieldLabel>
-                    <YumiNumberField
-                      allowDecimal
-                      id="worker-history-wage"
-                      onChange={(event) => setHistoryWage(event.target.value)}
-                      required
-                      value={historyWage}
-                    />
-                  </YumiField>
-                  <YumiField>
-                    <YumiFieldLabel required>生效日期</YumiFieldLabel>
-                    <YumiDatePicker
-                      aria-label="时薪生效日期"
-                      onValueChange={setHistoryEffectiveOn}
-                      value={historyEffectiveOn}
-                    />
-                  </YumiField>
-                </div>
-                <div className="yumi-form-actions">
-                  <YumiButton loading={submitting === 'wage'} type="submit" variant="primary">
-                    保存时薪调整
-                  </YumiButton>
-                </div>
-              </form>
-            ) : null}
-            {historyLoading ? (
-              <p className="yumi-form-hint">正在加载时薪历史…</p>
-            ) : history.length === 0 ? (
-              <p className="yumi-form-hint">暂无已记录时薪。</p>
-            ) : (
-              <div className="yumi-history-list">
-                {history.map((item) => (
-                  <p key={item.id}>
-                    {item.effectiveOn} · {centsToYuan(item.hourlyWageCents)} / 小时
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
+                    : '暂未记录'
+                }
+              ]}
+            />
+            <YumiSection
+              actions={
+                <YumiButton onClick={() => setAdjustingWage((value) => !value)} variant="secondary">
+                  {adjustingWage ? '取消调整' : '调整时薪'}
+                </YumiButton>
+              }
+              description="按生效日期保存，既有工资结算不会被修改。"
+              title="时薪历史"
+            >
+              {adjustingWage ? (
+                <YumiFormSection
+                  description="调整只影响生效日期之后的新结算。"
+                  title="登记时薪调整"
+                >
+                  <form className="yumi-form-panel" onSubmit={handleRecordWage}>
+                    <div className="yumi-form-grid yumi-form-grid--two">
+                      <YumiField>
+                        <YumiFieldLabel htmlFor="worker-history-wage" required>
+                          新时薪（元）
+                        </YumiFieldLabel>
+                        <YumiNumberField
+                          allowDecimal
+                          id="worker-history-wage"
+                          onChange={(event) => setHistoryWage(event.target.value)}
+                          required
+                          value={historyWage}
+                        />
+                      </YumiField>
+                      <YumiField>
+                        <YumiFieldLabel required>生效日期</YumiFieldLabel>
+                        <YumiDatePicker
+                          aria-label="时薪生效日期"
+                          onValueChange={setHistoryEffectiveOn}
+                          value={historyEffectiveOn}
+                        />
+                      </YumiField>
+                    </div>
+                    <div className="yumi-form-actions">
+                      <YumiButton loading={submitting === 'wage'} type="submit" variant="primary">
+                        保存时薪调整
+                      </YumiButton>
+                    </div>
+                  </form>
+                </YumiFormSection>
+              ) : null}
+              {historyLoading ? (
+                <YumiEmptyState scenario="loading" title="正在加载时薪历史" />
+              ) : (
+                <YumiDataTable
+                  ariaLabel="时薪历史记录"
+                  columns={[
+                    { key: 'effectiveOn', label: '生效日期', render: (item) => item.effectiveOn },
+                    {
+                      align: 'right',
+                      key: 'hourlyWage',
+                      label: '时薪（元 / 小时）',
+                      render: (item) => centsToYuan(item.hourlyWageCents)
+                    }
+                  ]}
+                  emptyText="暂无已记录时薪。"
+                  getRowKey={(item) => item.id}
+                  rows={history}
+                />
+              )}
+            </YumiSection>
+          </>
         ) : null}
       </YumiSheet>
     </div>

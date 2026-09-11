@@ -11,21 +11,29 @@ import { useBackups } from '../../composables/use-backups'
 import { useFinance } from '../../composables/use-finance'
 import { useStudioSettings } from '../../composables/use-studio-settings'
 import {
-  YumiBusinessList,
-  YumiBusinessListItem,
   YumiButton,
+  YumiDataTable,
+  YumiDetailList,
   YumiConfirmDialog,
   YumiDialog,
   YumiEmptyState,
   YumiField,
   YumiFieldLabel,
+  YumiFormMessage,
+  YumiFormSection,
   YumiNumberField,
+  YumiListSurface,
+  YumiListToolbar,
   YumiPageHeader,
+  YumiPrimaryTabs,
+  YumiSegmentedTabs,
+  YumiSection,
   YumiSelect,
   YumiStatusTag,
   YumiSheet,
   YumiTextArea,
   YumiTextField,
+  type YumiPagePrimaryAction,
   useYumiNotificationMessage
 } from '../../components/ui'
 
@@ -53,6 +61,7 @@ const settingsCopy: Record<SettingsView, { title: string; description: string }>
 export function SettingsPage() {
   const finance = useFinance()
   const studio = useStudioSettings()
+  const backupState = useBackups()
   const [view, setView] = useState<SettingsView>('studio')
   const [libraryView, setLibraryView] = useState<LibraryView>('income')
   const [categoryEditor, setCategoryEditor] = useState<CategoryEditor>(null)
@@ -64,6 +73,7 @@ export function SettingsPage() {
   const [submitting, setSubmitting] = useState<string | null>(null)
   useYumiNotificationMessage(finance.loadError)
   useYumiNotificationMessage(studio.loadError)
+  useYumiNotificationMessage(backupState.error)
   useYumiNotificationMessage(error)
   useYumiNotificationMessage(message, { tone: 'success' })
 
@@ -128,16 +138,23 @@ export function SettingsPage() {
     else setCategoryEditor({ direction: activeCategoryDirection })
   }
 
-  const headerActions =
-    view === 'finance' ? (
-      <YumiButton onClick={openCreate} variant="primary">
-        {libraryView === 'payer' ? '新增垫付人' : `新增${activeCategoryLabel}`}
-      </YumiButton>
-    ) : view === 'studio' ? (
-      <YumiButton onClick={() => setStudioEditorOpen(true)} variant="primary">
-        编辑工作室参数
-      </YumiButton>
-    ) : undefined
+  const primaryAction: YumiPagePrimaryAction =
+    view === 'finance'
+      ? {
+          label: libraryView === 'payer' ? '新增垫付人' : `新增${activeCategoryLabel}`,
+          onClick: openCreate
+        }
+      : view === 'studio'
+        ? { label: '编辑工作室参数', onClick: () => setStudioEditorOpen(true) }
+        : {
+            label: '立即备份',
+            loading: backupState.busy,
+            onClick: () => void backupState.createBackup().catch(() => undefined)
+          }
+  const headerActions = {
+    ariaLabel: `${settingsCopy[view].title}页面动作`,
+    primaryAction
+  }
 
   return (
     <div className="yumi-page yumi-settings-workspace">
@@ -146,38 +163,19 @@ export function SettingsPage() {
         description={settingsCopy[view].description}
         title={settingsCopy[view].title}
       />
-      <nav aria-label="设置区域" className="yumi-page-tabs">
-        <YumiButton
-          aria-pressed={view === 'studio'}
-          onClick={() => {
-            setError(null)
-            setView('studio')
-          }}
-          variant={view === 'studio' ? 'primary' : 'secondary'}
-        >
-          工作室参数
-        </YumiButton>
-        <YumiButton
-          aria-pressed={view === 'finance'}
-          onClick={() => {
-            setError(null)
-            setView('finance')
-          }}
-          variant={view === 'finance' ? 'primary' : 'secondary'}
-        >
-          财务资料
-        </YumiButton>
-        <YumiButton
-          aria-pressed={view === 'protection'}
-          onClick={() => {
-            setError(null)
-            setView('protection')
-          }}
-          variant={view === 'protection' ? 'primary' : 'secondary'}
-        >
-          数据保护
-        </YumiButton>
-      </nav>
+      <YumiPrimaryTabs
+        ariaLabel="设置区域"
+        items={[
+          { id: 'studio', label: '工作室参数' },
+          { id: 'finance', label: '财务资料' },
+          { id: 'protection', label: '数据保护' }
+        ]}
+        onValueChange={(nextView) => {
+          setError(null)
+          setView(nextView)
+        }}
+        value={view}
+      />
       {view === 'studio' && (
         <StudioSettingsPanel loading={studio.loading} settings={studio.settings} />
       )}
@@ -215,43 +213,25 @@ export function SettingsPage() {
 
       {view === 'finance' && (
         <div className="yumi-library-workspace">
-          <nav aria-label="财务资料类型" className="yumi-page-tabs">
-            <YumiButton
-              aria-pressed={libraryView === 'income'}
-              onClick={() => {
-                setError(null)
-                setLibraryView('income')
-              }}
-              variant={libraryView === 'income' ? 'primary' : 'secondary'}
-            >
-              收入类目
-            </YumiButton>
-            <YumiButton
-              aria-pressed={libraryView === 'expense'}
-              onClick={() => {
-                setError(null)
-                setLibraryView('expense')
-              }}
-              variant={libraryView === 'expense' ? 'primary' : 'secondary'}
-            >
-              支出类目
-            </YumiButton>
-            <YumiButton
-              aria-pressed={libraryView === 'payer'}
-              onClick={() => {
-                setError(null)
-                setLibraryView('payer')
-              }}
-              variant={libraryView === 'payer' ? 'primary' : 'secondary'}
-            >
-              私人垫付人
-            </YumiButton>
-          </nav>
+          <YumiSegmentedTabs
+            ariaLabel="财务资料类型"
+            items={[
+              { id: 'income', label: '收入类目' },
+              { id: 'expense', label: '支出类目' },
+              { id: 'payer', label: '私人垫付人' }
+            ]}
+            onValueChange={(nextView) => {
+              setError(null)
+              setLibraryView(nextView)
+            }}
+            value={libraryView}
+          />
           {libraryView === 'payer' ? (
             <ResourceLibraryList
               emptyDescription="建立垫付人后，私人支付的支出才可在财务登记中选择对应来源。"
               emptyTitle="暂无私人垫付人"
               items={finance.advancePayers}
+              listTitle="私人垫付人"
               loading={finance.loading}
               onDelete={(item) => setPendingDelete({ id: item.id, kind: 'payer', name: item.name })}
               onEdit={(item) => setPayerEditor(item)}
@@ -262,6 +242,7 @@ export function SettingsPage() {
               emptyDescription={`建立${activeCategoryLabel}后，财务登记时才可选择对应类目。`}
               emptyTitle={`暂无${activeCategoryLabel}`}
               items={activeCategories}
+              listTitle={activeCategoryLabel}
               loading={finance.loading}
               onDelete={(item) =>
                 setPendingDelete({ id: item.id, kind: 'category', name: item.name })
@@ -275,7 +256,7 @@ export function SettingsPage() {
         </div>
       )}
 
-      {view === 'protection' && <DataProtectionPanel />}
+      {view === 'protection' && <DataProtectionPanel backupState={backupState} />}
 
       <YumiDialog
         footer={
@@ -343,30 +324,37 @@ function StudioSettingsPanel({
   loading: boolean
   settings: V2StudioSettings | null
 }) {
-  if (loading) return <div className="yumi-empty">正在读取工作室参数…</div>
+  if (loading)
+    return (
+      <YumiEmptyState
+        description="正在读取当前工作室参数，请稍候。"
+        scenario="loading"
+        title="工作室参数加载中"
+      />
+    )
   return (
-    <section className="yumi-form-panel yumi-settings-panel" aria-label="工作室参数查看">
-      <div className="yumi-settings-panel__intro">
-        <strong>胶水单价</strong>
-        <p>
-          新建订单时，系统会将当时的单价和商品胶水用量一起冻结到订单快照中；之后调整不会回写历史订单。
-        </p>
-        <strong>订单默认预留天数</strong>
-        <p>新建订单自动带入该天数，创建订单时仍可按实际交期单独调整。</p>
-      </div>
-      <div className="yumi-settings-panel__value" aria-label="当前工作室参数">
-        {settings ? (
-          <>
-            <span>{formatGluePriceYuanPerGram(settings.gluePriceMicroYuanPerGram)} 元 / 克</span>
-            <span>{settings.orderReservedDays} 天</span>
-          </>
-        ) : (
-          '暂无参数'
-        )}
-      </div>
-      <div className="yumi-settings-panel__actions">
-        <span className="yumi-form-hint">如需修改，请点击页面右上角“编辑工作室参数”。</span>
-      </div>
+    <section aria-label="工作室参数查看" className="yumi-form-panel yumi-settings-panel">
+      <YumiFormSection
+        description="胶水单价和订单默认预留天数会带入新建订单快照；之后调整不会回写历史订单。"
+        title="工作室参数"
+      >
+        <YumiDetailList
+          ariaLabel="当前工作室参数"
+          items={[
+            {
+              label: '胶水单价',
+              value: settings
+                ? `${formatGluePriceYuanPerGram(settings.gluePriceMicroYuanPerGram)} 元 / 克`
+                : '暂无参数'
+            },
+            {
+              label: '订单默认预留天数',
+              value: settings ? `${settings.orderReservedDays} 天` : '暂无参数'
+            }
+          ]}
+        />
+        <YumiFormMessage>如需修改，请点击页面右上角“编辑工作室参数”。</YumiFormMessage>
+      </YumiFormSection>
     </section>
   )
 }
@@ -404,7 +392,14 @@ function StudioSettingsForm({
     }
   }
 
-  if (loading) return <div className="yumi-empty">正在读取工作室参数…</div>
+  if (loading)
+    return (
+      <YumiEmptyState
+        description="正在读取当前工作室参数，请稍候。"
+        scenario="loading"
+        title="工作室参数加载中"
+      />
+    )
   return (
     <form
       className="yumi-form-panel yumi-sheet-form"
@@ -437,17 +432,16 @@ function StudioSettingsForm({
           value={orderReservedDays}
         />
       </YumiField>
-      <p className="yumi-form-hint">
+      <YumiFormMessage>
         保存后只影响后续新建订单；已建立订单会保留当时的商品、胶水单价与预留天数快照。
-      </p>
+      </YumiFormMessage>
     </form>
   )
 }
 
-function DataProtectionPanel() {
-  const { backups, loading, busy, error, createBackup, restoreBackup } = useBackups()
+function DataProtectionPanel({ backupState }: { backupState: ReturnType<typeof useBackups> }) {
+  const { backups, loading, busy, restoreBackup } = backupState
   const [restoreTarget, setRestoreTarget] = useState<V2BackupSummary | null>(null)
-  useYumiNotificationMessage(error)
 
   const restore = async () => {
     if (!restoreTarget) return
@@ -458,50 +452,75 @@ function DataProtectionPanel() {
 
   return (
     <div className="yumi-settings-protection">
-      <div className="yumi-settings-protection__toolbar">
-        <p>建议在批量导入、重大调整或版本升级前建立一份完整备份。</p>
-        <YumiButton
-          loading={busy}
-          onClick={() => void createBackup().catch(() => undefined)}
-          variant="primary"
-        >
-          立即备份
-        </YumiButton>
-      </div>
+      <p className="yumi-settings-protection__intro">
+        建议在批量导入、重大调整或版本升级前建立一份完整备份。备份和恢复都以完整记录留痕管理。
+      </p>
       {loading ? (
-        <div className="yumi-empty">正在读取备份记录…</div>
+        <YumiEmptyState
+          description="正在读取历史备份记录，请稍候。"
+          scenario="loading"
+          title="备份记录加载中"
+        />
       ) : backups.length === 0 ? (
         <YumiEmptyState
           description="首次完整备份会同时保存当前数据库和已上传附件。"
           title="还没有备份"
         />
       ) : (
-        <YumiBusinessList>
-          {backups.map((backup) => (
-            <YumiBusinessListItem
-              key={backup.id}
-              meta={
-                <YumiButton
-                  disabled={busy}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setRestoreTarget(backup)
-                  }}
-                  variant="secondary"
-                >
-                  恢复
-                </YumiButton>
-              }
-              status={
-                <YumiStatusTag tone={backup.reason === 'manual' ? 'success' : 'neutral'}>
-                  {backup.reason === 'manual' ? '手动备份' : '恢复前安全备份'}
-                </YumiStatusTag>
-              }
-              summary={`${formatBackupDate(backup.createdAt)} · ${backup.attachmentCount} 个附件 · 版本 ${backup.applicationVersion}`}
-              title="完整数据备份"
+        <YumiSection
+          ariaLabel="备份记录区"
+          description="按创建时间查看可恢复的完整数据备份。"
+          title="备份记录"
+        >
+          <YumiListSurface className="yumi-settings-backup-surface">
+            <YumiListToolbar
+              ariaLabel="备份记录列表工具"
+              countLabel={`共 ${backups.length} 份备份`}
             />
-          ))}
-        </YumiBusinessList>
+            <YumiDataTable<V2BackupSummary>
+              ariaLabel="备份记录列表"
+              columns={[
+                {
+                  key: 'createdAt',
+                  label: '创建时间',
+                  render: (backup) => <strong>{formatBackupDate(backup.createdAt)}</strong>
+                },
+                {
+                  key: 'reason',
+                  label: '备份类型',
+                  render: (backup) => (
+                    <YumiStatusTag tone={backup.reason === 'manual' ? 'success' : 'neutral'}>
+                      {backup.reason === 'manual' ? '手动备份' : '恢复前安全备份'}
+                    </YumiStatusTag>
+                  )
+                },
+                {
+                  key: 'details',
+                  label: '内容',
+                  render: (backup) =>
+                    `${backup.attachmentCount} 个附件 · 版本 ${backup.applicationVersion}`
+                },
+                {
+                  align: 'right',
+                  key: 'actions',
+                  label: '操作',
+                  render: (backup) => (
+                    <YumiButton
+                      aria-label={`恢复${formatBackupDate(backup.createdAt)}的备份`}
+                      disabled={busy}
+                      onClick={() => setRestoreTarget(backup)}
+                      variant="secondary"
+                    >
+                      恢复
+                    </YumiButton>
+                  )
+                }
+              ]}
+              getRowKey={(backup) => backup.id}
+              rows={backups}
+            />
+          </YumiListSurface>
+        </YumiSection>
       )}
       <YumiConfirmDialog
         confirmLabel="恢复此备份"
@@ -531,48 +550,85 @@ function ResourceLibraryList<T extends V2FinanceCategory | V2AdvancePayer>({
   emptyDescription,
   emptyTitle,
   items,
+  listTitle,
   loading,
   onDelete,
+  onEdit,
   summary
 }: {
   emptyDescription: string
   emptyTitle: string
   items: T[]
+  listTitle: string
   loading: boolean
   onDelete(item: T): void
   onEdit(item: T): void
   summary(item: T): string
 }) {
-  if (loading) return <div className="yumi-empty">加载中…</div>
+  if (loading)
+    return (
+      <YumiEmptyState description={`正在读取${listTitle}，请稍候。`} title={`${listTitle}加载中`} />
+    )
   if (items.length === 0)
     return <YumiEmptyState description={emptyDescription} title={emptyTitle} />
   return (
-    <YumiBusinessList>
-      {items.map((item) => (
-        <YumiBusinessListItem
-          key={item.id}
-          meta={
-            <YumiButton
-              onClick={(event) => {
-                event.stopPropagation()
-                onDelete(item)
-              }}
-              variant="ghost"
-            >
-              删除
-            </YumiButton>
-          }
-          onOpen={() => onEdit(item)}
-          status={
-            <YumiStatusTag tone={item.enabled ? 'success' : 'neutral'}>
-              {item.enabled ? '启用' : '已停用'}
-            </YumiStatusTag>
-          }
-          summary={summary(item)}
-          title={item.name}
+    <YumiSection ariaLabel={`${listTitle}记录区`} title={listTitle}>
+      <YumiListSurface className="yumi-settings-library-surface">
+        <YumiListToolbar
+          ariaLabel={`${listTitle}列表工具`}
+          countLabel={`共 ${items.length} 项${listTitle}`}
         />
-      ))}
-    </YumiBusinessList>
+        <YumiDataTable<T>
+          ariaLabel={`${listTitle}列表`}
+          columns={[
+            {
+              key: 'name',
+              label: '名称',
+              render: (item) => <strong>{item.name}</strong>
+            },
+            {
+              key: 'summary',
+              label: '说明',
+              render: (item) => summary(item)
+            },
+            {
+              key: 'status',
+              label: '状态',
+              render: (item) => (
+                <YumiStatusTag tone={item.enabled ? 'success' : 'neutral'}>
+                  {item.enabled ? '启用' : '已停用'}
+                </YumiStatusTag>
+              )
+            },
+            {
+              align: 'right',
+              key: 'actions',
+              label: '操作',
+              render: (item) => (
+                <div className="yumi-settings-table-actions">
+                  <YumiButton
+                    aria-label={`编辑${item.name}`}
+                    onClick={() => onEdit(item)}
+                    variant="secondary"
+                  >
+                    编辑
+                  </YumiButton>
+                  <YumiButton
+                    aria-label={`删除${item.name}`}
+                    onClick={() => onDelete(item)}
+                    variant="ghost"
+                  >
+                    删除
+                  </YumiButton>
+                </div>
+              )
+            }
+          ]}
+          getRowKey={(item) => item.id}
+          rows={items}
+        />
+      </YumiListSurface>
+    </YumiSection>
   )
 }
 

@@ -30,7 +30,9 @@ const yumiV2: V2YumiApi = {
     recordFund: (orderId, input) => ipcRenderer.invoke('v2:orders:record-fund', orderId, input),
     correctFund: (orderId, input) => ipcRenderer.invoke('v2:orders:correct-fund', orderId, input),
     listShipments: (orderId) => ipcRenderer.invoke('v2:orders:shipments:list', orderId),
-    createShipment: (orderId, input) => ipcRenderer.invoke('v2:orders:shipments:create', orderId, input)
+    createShipment: (orderId, input) => ipcRenderer.invoke('v2:orders:shipments:create', orderId, input),
+    voidShipment: (orderId, shipmentId, input) =>
+      ipcRenderer.invoke('v2:orders:shipments:void', orderId, shipmentId, input)
   },
   orderFundProofs: {
     pick: () => ipcRenderer.invoke('v2:order-fund-proofs:pick'),

@@ -1,9 +1,103 @@
 import type { ReactNode } from 'react'
+import { YumiActionMenu, type YumiActionMenuItem } from '../action-menu/yumi-action-menu'
+import { YumiButton } from '../button/yumi-button'
 
 type YumiPageHeaderProps = {
   title: ReactNode
   description?: ReactNode
-  actions?: ReactNode
+  /**
+   * 页头动作必须经过共享层级编排，避免业务页面在右上角自由堆叠按钮。
+   * 区块内的实体/记录操作仍应使用 YumiSection.actions。
+   */
+  actions?: YumiPageActionsProps
+}
+
+type YumiPageActionMenu = {
+  ariaLabel: string
+  disabled?: boolean
+  items: YumiActionMenuItem[]
+  triggerLabel?: ReactNode
+}
+
+type YumiPageButtonAction = {
+  label: ReactNode
+  onClick: () => void | Promise<void>
+  disabled?: boolean
+  loading?: boolean
+}
+
+/** 页面唯一主操作由共享层生成，避免页面传入多个或非 primary 的动作节点。 */
+export type YumiPagePrimaryAction = YumiPageButtonAction
+
+/**
+ * 页面唯一可见的辅助操作；默认是标准次级按钮，返回上级等导航操作可显式使用 ghost。
+ * 其他低频操作应移动到 menu，避免业务页面自由堆叠按钮。
+ */
+export type YumiPageSecondaryAction = YumiPageButtonAction & {
+  variant?: 'secondary' | 'ghost'
+}
+
+export type YumiPageActionsProps = {
+  /** 为页面动作组提供可访问名称，便于区分同页多个动作区域。 */
+  ariaLabel: string
+  /** 与当前页面状态相关的只读信息，例如状态标签；不承载可提交操作。 */
+  context?: ReactNode
+  /** 唯一可见的高频辅助操作，例如刷新、导出或返回；由共享层生成按钮。 */
+  secondaryAction?: YumiPageSecondaryAction
+  /** 低频同级页面操作，统一收纳到“更多操作”。 */
+  menu?: YumiPageActionMenu
+  /** 页面唯一主操作，例如新建或编辑；统一渲染为 primary 按钮。 */
+  primaryAction?: YumiPagePrimaryAction
+}
+
+/**
+ * 固定页面右侧操作层级：上下文信息、可见辅助操作、低频更多操作、唯一主操作。
+ * 业务页面不应再自行按任意顺序拼接页头按钮。
+ */
+export function YumiPageActions({
+  ariaLabel,
+  context,
+  menu,
+  primaryAction,
+  secondaryAction
+}: YumiPageActionsProps) {
+  return (
+    <div aria-label={ariaLabel} className="yumi-page-actions" role="group">
+      {context ? <div className="yumi-page-actions__context">{context}</div> : null}
+      {secondaryAction ? (
+        <div className="yumi-page-actions__secondary">
+          <YumiButton
+            disabled={secondaryAction.disabled}
+            loading={secondaryAction.loading}
+            onClick={secondaryAction.onClick}
+            variant={secondaryAction.variant ?? 'secondary'}
+          >
+            {secondaryAction.label}
+          </YumiButton>
+        </div>
+      ) : null}
+      {menu ? (
+        <YumiActionMenu
+          aria-label={menu.ariaLabel}
+          disabled={menu.disabled}
+          items={menu.items}
+          triggerLabel={menu.triggerLabel}
+        />
+      ) : null}
+      {primaryAction ? (
+        <div className="yumi-page-actions__primary">
+          <YumiButton
+            disabled={primaryAction.disabled}
+            loading={primaryAction.loading}
+            onClick={primaryAction.onClick}
+            variant="primary"
+          >
+            {primaryAction.label}
+          </YumiButton>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export function YumiPageHeader({ actions, description, title }: YumiPageHeaderProps) {
@@ -13,22 +107,103 @@ export function YumiPageHeader({ actions, description, title }: YumiPageHeaderPr
         <h1 className="yumi-page-header__title">{title}</h1>
         {description ? <p className="yumi-page-header__description">{description}</p> : null}
       </div>
-      {actions ? <div className="yumi-page-header__actions">{actions}</div> : null}
+      {actions ? (
+        <div className="yumi-page-header__actions">
+          <YumiPageActions {...actions} />
+        </div>
+      ) : null}
     </header>
   )
 }
 
 type YumiSectionProps = {
   children: ReactNode
+  /** 复杂交互区块可提供地标名称；纯内容区块无需重复标记为 region。 */
+  ariaLabel?: string
+  /** 业务区块只能附加领域样式，标题与操作布局仍由 YumiSection 统一提供。 */
+  className?: string
   description?: ReactNode
   title?: ReactNode
+  /** 仅作用于当前内容区的操作；页面级操作仍应放在 YumiPageHeader。 */
+  actions?: ReactNode
+  /** 区块级摘要状态或统计信息；不承担提交操作。 */
+  status?: ReactNode
 }
 
-export function YumiSection({ children, description, title }: YumiSectionProps) {
+type YumiRecordSummaryProps = {
+  /** 摘要承载的是当前实体的经营状态，复杂详情可作为具名区域供辅助技术快速定位。 */
+  ariaLabel?: string
+  /** 仅用于附加领域样式；卡片、标题、状态与指标的布局由共享组件统一保证。 */
+  className?: string
+  children: ReactNode
+  description?: ReactNode
+  status?: ReactNode
+  title: ReactNode
+}
+
+/**
+ * 实体详情中的经营摘要骨架。
+ * 标题/说明与状态处于同一摘要头部，指标始终以整行承接，避免业务页面恢复两列卡片而让指标只占半行。
+ */
+export function YumiRecordSummary({
+  ariaLabel,
+  children,
+  className,
+  description,
+  status,
+  title
+}: YumiRecordSummaryProps) {
   return (
-    <section className="yumi-section">
+    <section
+      aria-label={ariaLabel}
+      className={['yumi-record-summary', className].filter(Boolean).join(' ')}
+    >
+      <div className="yumi-record-summary__header">
+        <div className="yumi-record-summary__heading-content">
+          <h2 className="yumi-record-summary__heading">{title}</h2>
+          {description ? <p className="yumi-record-summary__description">{description}</p> : null}
+        </div>
+        {status ? <div className="yumi-record-summary__status">{status}</div> : null}
+      </div>
+      <div className="yumi-record-summary__metrics">{children}</div>
+    </section>
+  )
+}
+
+export function YumiSection({
+  actions,
+  ariaLabel,
+  children,
+  className,
+  description,
+  status,
+  title
+}: YumiSectionProps) {
+  const heading = (
+    <div className="yumi-section__heading-content">
       {title ? <h2 className="yumi-section__heading">{title}</h2> : null}
       {description ? <p className="yumi-section__description">{description}</p> : null}
+    </div>
+  )
+
+  const hasHeaderMeta = Boolean(actions || status)
+
+  return (
+    <section
+      aria-label={ariaLabel}
+      className={['yumi-section', className].filter(Boolean).join(' ')}
+    >
+      {hasHeaderMeta ? (
+        <div className="yumi-section__header">
+          {heading}
+          <div className="yumi-section__meta">
+            {status ? <div className="yumi-section__status">{status}</div> : null}
+            {actions ? <div className="yumi-section__actions">{actions}</div> : null}
+          </div>
+        </div>
+      ) : (
+        heading
+      )}
       {children}
     </section>
   )

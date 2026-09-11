@@ -5,6 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock3, X } from 'lucide-react
 import { forwardRef, useEffect, useMemo, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { YumiButton } from '../button/yumi-button'
 import { YumiTextField } from '../field/yumi-field'
+import { useYumiFieldAccessibility, type YumiFieldAccessibilityProps } from '../field/yumi-field-accessibility'
 import {
   formatIsoDate,
   formatIsoDateTime,
@@ -20,21 +21,28 @@ import {
 
 export type { YumiDateRangeValue } from './iso-date'
 
-type DateTriggerProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label' | 'children'> & {
-  'aria-label': string
+type DateTriggerProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & YumiFieldAccessibilityProps & {
   children: ReactNode
   placeholder: string
   value?: string | null
 }
 
 const DateTrigger = forwardRef<HTMLButtonElement, DateTriggerProps>(function DateTrigger(
-  { 'aria-label': ariaLabel, children, className, disabled, placeholder, value, ...triggerProps },
+  { 'aria-describedby': ariaDescribedBy, 'aria-invalid': ariaInvalid, 'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledBy, children, className, disabled, placeholder, value, ...triggerProps },
   ref
 ) {
+  const fieldAccessibility = useYumiFieldAccessibility({
+    'aria-describedby': ariaDescribedBy,
+    'aria-invalid': ariaInvalid,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledBy
+  })
+
   return (
     <button
       {...triggerProps}
       ref={ref}
+      {...fieldAccessibility}
       aria-label={ariaLabel}
       className={['yumi-select__trigger', 'yumi-date-trigger', className].filter(Boolean).join(' ')}
       data-placeholder={value ? undefined : true}
@@ -59,8 +67,7 @@ function BaseCalendar({ children }: { children: ReactNode }) {
   return <div className="yumi-date-popover__calendar">{children}</div>
 }
 
-type YumiDatePickerProps = {
-  'aria-label': string
+type YumiDatePickerProps = YumiFieldAccessibilityProps & {
   className?: string
   disabled?: boolean
   onValueChange(value: string): void
@@ -69,7 +76,10 @@ type YumiDatePickerProps = {
 }
 
 export function YumiDatePicker({
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
   className,
   disabled = false,
   onValueChange,
@@ -82,7 +92,7 @@ export function YumiDatePicker({
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
       <Popover.Trigger asChild>
-        <DateTrigger aria-label={ariaLabel} className={className} disabled={disabled} placeholder={placeholder} value={value}>
+        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={value}>
           {selected ? selected.toLocaleDateString('zh-CN') : null}
         </DateTrigger>
       </Popover.Trigger>
@@ -110,8 +120,7 @@ export function YumiDatePicker({
   )
 }
 
-type YumiMonthPickerProps = {
-  'aria-label': string
+type YumiMonthPickerProps = YumiFieldAccessibilityProps & {
   className?: string
   disabled?: boolean
   onValueChange(value: string): void
@@ -122,7 +131,10 @@ type YumiMonthPickerProps = {
 const monthLabels = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月']
 
 export function YumiMonthPicker({
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
   className,
   disabled = false,
   onValueChange,
@@ -140,7 +152,7 @@ export function YumiMonthPicker({
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
       <Popover.Trigger asChild>
-        <DateTrigger aria-label={ariaLabel} className={className} disabled={disabled} placeholder={placeholder} value={value}>
+        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={value}>
           {selected ? `${selected.getFullYear()}年${String(selected.getMonth() + 1).padStart(2, '0')}月` : null}
         </DateTrigger>
       </Popover.Trigger>
@@ -174,8 +186,7 @@ export function YumiMonthPicker({
   )
 }
 
-type YumiDateRangePickerProps = {
-  'aria-label': string
+type YumiDateRangePickerProps = YumiFieldAccessibilityProps & {
   className?: string
   disabled?: boolean
   onValueChange(value: YumiDateRangeValue | null): void
@@ -215,7 +226,10 @@ function getQuickRanges() {
 }
 
 export function YumiDateRangePicker({
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
   className,
   disabled = false,
   onValueChange,
@@ -243,7 +257,7 @@ export function YumiDateRangePicker({
   return (
     <Popover.Root onOpenChange={(nextOpen) => { setOpen(nextOpen); if (!nextOpen) setRangeError('') }} open={open}>
       <Popover.Trigger asChild>
-        <DateTrigger aria-label={ariaLabel} className={className} disabled={disabled} placeholder={placeholder} value={formatRangeLabel(value)}>
+        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={formatRangeLabel(value)}>
           {formatRangeLabel(value)}
         </DateTrigger>
       </Popover.Trigger>
@@ -279,7 +293,10 @@ type YumiDateTimePickerProps = Omit<YumiDatePickerProps, 'onValueChange'> & {
 }
 
 export function YumiDateTimePicker({
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
   className,
   disabled = false,
   onValueChange,
@@ -301,7 +318,7 @@ export function YumiDateTimePicker({
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
       <Popover.Trigger asChild>
-        <DateTrigger aria-label={ariaLabel} className={className} disabled={disabled} placeholder={placeholder} value={value}>
+        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={value}>
           {selected ? `${selected.toLocaleDateString('zh-CN')} ${time}` : null}
         </DateTrigger>
       </Popover.Trigger>
@@ -328,7 +345,10 @@ type YumiDateTimeRangePickerProps = Omit<YumiDateRangePickerProps, 'onValueChang
 }
 
 export function YumiDateTimeRangePicker({
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
   className,
   disabled = false,
   onValueChange,
@@ -364,7 +384,7 @@ export function YumiDateTimeRangePicker({
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
       <Popover.Trigger asChild>
-        <DateTrigger aria-label={ariaLabel} className={className} disabled={disabled} placeholder={placeholder} value={rangeLabel}>{rangeLabel}</DateTrigger>
+        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={rangeLabel}>{rangeLabel}</DateTrigger>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" className="yumi-date-popover yumi-date-popover--range" sideOffset={6}>

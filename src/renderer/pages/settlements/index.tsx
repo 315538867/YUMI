@@ -14,24 +14,33 @@ import {
 import { useSettlements } from '../../composables/use-settlements'
 import { SettlementDetail } from '../../components/settlement/settlement-detail'
 import {
-  YumiBusinessList,
-  YumiBusinessListItem,
   YumiButton,
+  YumiConfirmDialog,
+  YumiDataTable,
   YumiDatePicker,
   YumiDateRangePicker,
+  YumiEmptyState,
   YumiField,
   YumiFieldLabel,
   YumiNumberField,
+  YumiListSurface,
+  YumiListToolbar,
   YumiPageHeader,
+  YumiPrimaryTabs,
+  YumiSection,
+  YumiSelect,
   YumiSearchSelect,
   YumiSheet,
   YumiStatusTag,
   YumiTextArea,
+  YumiTextField,
   useYumiNotificationMessage
 } from '../../components/ui'
 import { WorkersPage } from '../workers'
 
 type SettlementsWorkspace = 'settlements' | 'refunds' | 'workers'
+type SettlementStatusFilter = 'all' | 'draft' | 'confirmed'
+type RefundStatusFilter = 'all' | 'pending' | 'refunded'
 type SettlementsNavigationTarget = Extract<V2NavigationTarget, { view: 'settlements' }>
 
 interface SettlementsPageProps {
@@ -61,9 +70,15 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
   const [selectedSettlementId, setSelectedSettlementId] = useState('')
   const [selectedRefundId, setSelectedRefundId] = useState('')
   const [showRefundSheet, setShowRefundSheet] = useState(false)
+  const [refundConfirmOpen, setRefundConfirmOpen] = useState(false)
   const [actualRefundAmount, setActualRefundAmount] = useState('')
   const [refundedOn, setRefundedOn] = useState(today())
   const [refundNote, setRefundNote] = useState('')
+  const [settlementSearchQuery, setSettlementSearchQuery] = useState('')
+  const [settlementStatusFilter, setSettlementStatusFilter] =
+    useState<SettlementStatusFilter>('all')
+  const [refundSearchQuery, setRefundSearchQuery] = useState('')
+  const [refundStatusFilter, setRefundStatusFilter] = useState<RefundStatusFilter>('all')
   const [error, setError] = useState<string | null>(null)
   useYumiNotificationMessage(loadError)
   useYumiNotificationMessage(error)
@@ -84,6 +99,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
   useEffect(() => {
     if (!selectedRefundId || refunds.some((refund) => refund.id === selectedRefundId)) return
     setSelectedRefundId('')
+    setRefundConfirmOpen(false)
     setShowRefundSheet(false)
   }, [refunds, selectedRefundId])
   useEffect(() => {
@@ -112,6 +128,36 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
     () => refunds.filter((refund) => refund.status === 'pending'),
     [refunds]
   )
+  const visibleSettlements = useMemo(() => {
+    const query = settlementSearchQuery.trim().toLocaleLowerCase()
+    return settlements.filter((settlement) => {
+      const workerName = workerNames.get(settlement.workerId) ?? settlement.workerId
+      const matchesStatus =
+        settlementStatusFilter === 'all' || settlement.status === settlementStatusFilter
+      const matchesQuery =
+        !query ||
+        [workerName, settlement.periodStartOn, settlement.periodEndOn]
+          .join(' ')
+          .toLocaleLowerCase()
+          .includes(query)
+      return matchesStatus && matchesQuery
+    })
+  }, [settlementSearchQuery, settlementStatusFilter, settlements, workerNames])
+  const visibleRefunds = useMemo(() => {
+    const query = refundSearchQuery.trim().toLocaleLowerCase()
+    return refunds.filter((refund) => {
+      const workerName = workerNames.get(refund.workerId) ?? refund.workerId
+      const matchesStatus = refundStatusFilter === 'all' || refund.status === refundStatusFilter
+      const matchesQuery =
+        !query ||
+        [workerName, refund.originalSettlementId, refund.refundedOn]
+          .filter(Boolean)
+          .join(' ')
+          .toLocaleLowerCase()
+          .includes(query)
+      return matchesStatus && matchesQuery
+    })
+  }, [refundSearchQuery, refundStatusFilter, refunds, workerNames])
 
   const openDraftForm = () => {
     setShowDraftForm(true)
@@ -124,6 +170,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
     setRefundedOn(today())
     setRefundNote(refund.managerNote ?? '')
     setError(null)
+    setRefundConfirmOpen(false)
     setShowRefundSheet(true)
   }
   const handleCreateDraft = async (event: FormEvent) => {
@@ -148,7 +195,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
       setSubmitting(false)
     }
   }
-  const handleResolveRefund = async (event: FormEvent) => {
+  const requestRefundConfirmation = (event: FormEvent) => {
     event.preventDefault()
     if (!selectedRefund) return
     setError(null)
@@ -161,6 +208,13 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
       setError('实际退款不能超过待退款金额。')
       return
     }
+    setRefundConfirmOpen(true)
+  }
+  const confirmRefund = async () => {
+    if (!selectedRefund) return
+    const actualRefundCents = yuanToCents(actualRefundAmount)
+    setRefundConfirmOpen(false)
+    setError(null)
     setSubmitting(true)
     try {
       await resolveRefund(selectedRefund.id, {
@@ -181,125 +235,243 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
     <div className="yumi-settlements-workspace">
       <YumiPageHeader
         actions={
-          <div className="yumi-page-tabs">
-            <YumiButton
-              aria-pressed={workspace === 'settlements'}
-              onClick={() => setWorkspace('settlements')}
-              variant={workspace === 'settlements' ? 'secondary' : 'ghost'}
-            >
-              工资结算
-            </YumiButton>
-            <YumiButton
-              aria-pressed={workspace === 'refunds'}
-              onClick={() => setWorkspace('refunds')}
-              variant={workspace === 'refunds' ? 'secondary' : 'ghost'}
-            >
-              待退款{pendingRefunds.length ? ` ${pendingRefunds.length}` : ''}
-            </YumiButton>
-            <YumiButton
-              aria-pressed={workspace === 'workers'}
-              onClick={() => setWorkspace('workers')}
-              variant={workspace === 'workers' ? 'secondary' : 'ghost'}
-            >
-              人员与时薪
-            </YumiButton>
-            {workspace === 'settlements' && (
-              <YumiButton onClick={openDraftForm} variant="primary">
-                新建结算
-              </YumiButton>
-            )}
-          </div>
+          workspace === 'settlements'
+            ? {
+                ariaLabel: '工资页面动作',
+                primaryAction: { label: '新建结算', onClick: openDraftForm }
+              }
+            : undefined
         }
         description="负责人确认实际工资；已确认工资后发现的不合格，不回写历史实发，改由负责人单独处理退款。"
         title="工资"
       />
+      <YumiPrimaryTabs
+        ariaLabel="工资工作视图"
+        items={[
+          { id: 'settlements', label: '工资结算' },
+          {
+            id: 'refunds',
+            label: `待退款${pendingRefunds.length ? ` ${pendingRefunds.length}` : ''}`
+          },
+          { id: 'workers', label: '人员与时薪' }
+        ]}
+        onValueChange={setWorkspace}
+        value={workspace}
+      />
       {workspace === 'workers' ? (
         <WorkersPage
+          embedded
           workers={workers}
           createWorker={createWorker}
           listWageHistory={listWageHistory}
           recordWageHistory={recordWageHistory}
         />
       ) : workspace === 'refunds' ? (
-        <div aria-label="兼职待退款列表" className="yumi-primary-list">
-          <p className="yumi-workspace-hint">
-            只列出已确认工资后才发现的不合格；负责人登记实际收到的退款，原工资记录保持不变。
-          </p>
-          {loading ? (
-            <div className="yumi-empty">加载待退款记录中…</div>
-          ) : refunds.length === 0 ? (
-            <div className="yumi-empty">暂无兼职退款记录。</div>
-          ) : (
-            <YumiBusinessList>
-              {refunds.map((refund) => (
-                <YumiBusinessListItem
-                  key={refund.id}
-                  meta={
-                    refund.status === 'refunded' && refund.refundedOn
-                      ? `退款日期 ${refund.refundedOn}`
-                      : '等待负责人处理'
-                  }
-                  metrics={[
-                    {
-                      label: refund.status === 'pending' ? '待退款' : '已退款',
-                      value: formatCents(
+        <YumiSection
+          ariaLabel="兼职待退款记录"
+          description="只列出已确认工资后才发现的不合格；负责人登记实际收到的退款，原工资记录保持不变。"
+          title="待退款记录"
+        >
+          <YumiListSurface>
+            <YumiListToolbar
+              ariaLabel="兼职待退款列表工具"
+              countLabel={`共 ${visibleRefunds.length} 笔退款`}
+              filters={
+                <YumiSelect
+                  aria-label="退款状态筛选"
+                  onValueChange={(value) => setRefundStatusFilter(value as RefundStatusFilter)}
+                  options={[
+                    { label: '全部状态', value: 'all' },
+                    { label: '待退款', value: 'pending' },
+                    { label: '已退款', value: 'refunded' }
+                  ]}
+                  value={refundStatusFilter}
+                />
+              }
+              search={
+                <YumiTextField
+                  aria-label="搜索兼职退款"
+                  onChange={(event) => setRefundSearchQuery(event.target.value)}
+                  placeholder="搜索人员或原结算"
+                  value={refundSearchQuery}
+                />
+              }
+            />
+            {loading ? (
+              <YumiEmptyState
+                description="正在读取兼职退款记录，请稍候。"
+                scenario="loading"
+                title="待退款记录加载中"
+              />
+            ) : (
+              <YumiDataTable<V2WorkerRefundRecord>
+                ariaLabel="兼职待退款列表"
+                columns={[
+                  {
+                    key: 'worker',
+                    label: '人员 / 原结算',
+                    render: (refund) => (
+                      <div className="yumi-list-cell">
+                        <strong>{workerNames.get(refund.workerId) ?? refund.workerId}</strong>
+                        <span>原结算 {refund.originalSettlementId}</span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'unqualified',
+                    label: '不合格数量',
+                    render: (refund) => `${refund.unqualifiedQuantity} 件`
+                  },
+                  {
+                    align: 'right',
+                    key: 'amount',
+                    label: '退款金额',
+                    render: (refund) =>
+                      formatCents(
                         refund.status === 'pending'
                           ? refund.requestedRefundCents
                           : (refund.actualRefundCents ?? 0)
                       )
-                    }
-                  ]}
-                  onOpen={refund.status === 'pending' ? () => openRefund(refund) : undefined}
-                  status={
-                    <YumiStatusTag tone={refund.status === 'pending' ? 'warning' : 'success'}>
-                      {refund.status === 'pending' ? '待退款' : '已退款'}
-                    </YumiStatusTag>
+                  },
+                  {
+                    key: 'status',
+                    label: '状态',
+                    render: (refund) => (
+                      <YumiStatusTag tone={refund.status === 'pending' ? 'warning' : 'success'}>
+                        {refund.status === 'pending' ? '待退款' : '已退款'}
+                      </YumiStatusTag>
+                    )
+                  },
+                  {
+                    align: 'right',
+                    key: 'action',
+                    label: '操作',
+                    render: (refund) =>
+                      refund.status === 'pending' ? (
+                        <YumiButton
+                          aria-label={`处理退款：${workerNames.get(refund.workerId) ?? refund.workerId}`}
+                          onClick={() => openRefund(refund)}
+                          variant="secondary"
+                        >
+                          处理退款
+                        </YumiButton>
+                      ) : (
+                        '—'
+                      )
                   }
-                  summary={`不合格 ${refund.unqualifiedQuantity} 件 · 原结算 ${refund.originalSettlementId}`}
-                  title={`${workerNames.get(refund.workerId) ?? refund.workerId} · 已确认工资退款`}
-                />
-              ))}
-            </YumiBusinessList>
-          )}
-        </div>
+                ]}
+                emptyText={refunds.length ? '没有符合当前筛选的退款记录。' : '暂无兼职退款记录。'}
+                getRowKey={(refund) => refund.id}
+                rows={visibleRefunds}
+              />
+            )}
+          </YumiListSurface>
+        </YumiSection>
       ) : (
         <>
-          <div aria-label="工资结算列表" className="yumi-primary-list">
-            {loading ? (
-              <div className="yumi-empty">加载工资结算中…</div>
-            ) : settlements.length === 0 ? (
-              <div className="yumi-empty">尚未建立工资结算。</div>
-            ) : (
-              <YumiBusinessList>
-                {settlements.map((settlement) => (
-                  <YumiBusinessListItem
-                    key={settlement.id}
-                    meta={settlement.id === selectedSettlementId ? '当前查看' : undefined}
-                    metrics={[
-                      {
-                        label: '最终实发',
-                        value:
-                          settlement.finalPaidAmountCents === null
-                            ? '待确认'
-                            : formatCents(settlement.finalPaidAmountCents)
-                      }
-                    ]}
-                    onOpen={() => {
-                      setSelectedSettlementId(settlement.id)
-                      setShowDraftForm(false)
-                    }}
-                    status={
-                      <YumiStatusTag tone={settlement.status === 'draft' ? 'warning' : 'success'}>
-                        {settlement.status === 'draft' ? '草稿' : '已确认'}
-                      </YumiStatusTag>
+          <YumiSection title="工资结算记录">
+            <YumiListSurface>
+              <YumiListToolbar
+                ariaLabel="工资结算列表工具"
+                countLabel={`共 ${visibleSettlements.length} 笔结算`}
+                filters={
+                  <YumiSelect
+                    aria-label="结算状态筛选"
+                    onValueChange={(value) =>
+                      setSettlementStatusFilter(value as SettlementStatusFilter)
                     }
-                    summary={`${settlement.periodStartOn} 至 ${settlement.periodEndOn}`}
-                    title={workerNames.get(settlement.workerId) ?? settlement.workerId}
+                    options={[
+                      { label: '全部状态', value: 'all' },
+                      { label: '草稿', value: 'draft' },
+                      { label: '已确认', value: 'confirmed' }
+                    ]}
+                    value={settlementStatusFilter}
                   />
-                ))}
-              </YumiBusinessList>
-            )}
-          </div>
+                }
+                search={
+                  <YumiTextField
+                    aria-label="搜索工资结算"
+                    onChange={(event) => setSettlementSearchQuery(event.target.value)}
+                    placeholder="搜索人员或结算周期"
+                    value={settlementSearchQuery}
+                  />
+                }
+              />
+              {loading ? (
+                <YumiEmptyState
+                  description="正在读取工资结算记录，请稍候。"
+                  scenario="loading"
+                  title="工资结算加载中"
+                />
+              ) : (
+                <YumiDataTable<V2WorkerSettlementDetail>
+                  ariaLabel="工资结算列表"
+                  columns={[
+                    {
+                      key: 'worker',
+                      label: '兼职人员',
+                      render: (settlement) => (
+                        <div className="yumi-list-cell">
+                          <strong>
+                            {workerNames.get(settlement.workerId) ?? settlement.workerId}
+                          </strong>
+                          <span>
+                            {settlement.id === selectedSettlementId ? '当前查看' : '工资结算记录'}
+                          </span>
+                        </div>
+                      )
+                    },
+                    {
+                      key: 'period',
+                      label: '结算周期',
+                      render: (settlement) =>
+                        `${settlement.periodStartOn} 至 ${settlement.periodEndOn}`
+                    },
+                    {
+                      align: 'right',
+                      key: 'paid',
+                      label: '最终实发',
+                      render: (settlement) =>
+                        settlement.finalPaidAmountCents === null
+                          ? '待确认'
+                          : formatCents(settlement.finalPaidAmountCents)
+                    },
+                    {
+                      key: 'status',
+                      label: '状态',
+                      render: (settlement) => (
+                        <YumiStatusTag tone={settlement.status === 'draft' ? 'warning' : 'success'}>
+                          {settlement.status === 'draft' ? '草稿' : '已确认'}
+                        </YumiStatusTag>
+                      )
+                    },
+                    {
+                      align: 'right',
+                      key: 'action',
+                      label: '操作',
+                      render: (settlement) => (
+                        <YumiButton
+                          aria-label={`查看结算详情：${workerNames.get(settlement.workerId) ?? settlement.workerId}`}
+                          onClick={() => {
+                            setSelectedSettlementId(settlement.id)
+                            setShowDraftForm(false)
+                          }}
+                          variant="secondary"
+                        >
+                          查看详情
+                        </YumiButton>
+                      )
+                    }
+                  ]}
+                  emptyText={
+                    settlements.length ? '没有符合当前筛选的工资结算。' : '尚未建立工资结算。'
+                  }
+                  getRowKey={(settlement) => settlement.id}
+                  rows={visibleSettlements}
+                />
+              )}
+            </YumiListSurface>
+          </YumiSection>
           {selectedSettlement && (
             <SettlementDetail
               settlement={selectedSettlement}
@@ -386,16 +558,20 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
             </YumiButton>
           </div>
         }
-        onOpenChange={setShowRefundSheet}
+        onOpenChange={(open) => {
+          setShowRefundSheet(open)
+          if (!open) setRefundConfirmOpen(false)
+        }}
         open={showRefundSheet && Boolean(selectedRefund)}
         title="登记兼职退款"
       >
-        <form id="worker-refund-form" onSubmit={handleResolveRefund}>
+        <form id="worker-refund-form" onSubmit={requestRefundConfirmation}>
           <div className="yumi-form-grid yumi-form-grid--two">
             <YumiField>
               <YumiFieldLabel required>实际退款金额（元）</YumiFieldLabel>
               <YumiNumberField
                 allowDecimal
+                aria-label="实际退款金额（元）"
                 min="0.01"
                 onChange={(event) => setActualRefundAmount(event.target.value)}
                 required
@@ -414,6 +590,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
           <YumiField>
             <YumiFieldLabel>处理备注</YumiFieldLabel>
             <YumiTextArea
+              aria-label="退款处理备注"
               onChange={(event) => setRefundNote(event.target.value)}
               placeholder="例如：已由兼职人员退回"
               value={refundNote}
@@ -421,6 +598,15 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
           </YumiField>
         </form>
       </YumiSheet>
+      <YumiConfirmDialog
+        confirmLabel="确认登记退款"
+        description="会将本笔待退款标为已退款，原工资结算保持不变。确认后会写入退款金额、日期与处理备注。"
+        destructive={false}
+        onConfirm={confirmRefund}
+        onOpenChange={setRefundConfirmOpen}
+        open={refundConfirmOpen}
+        title="确认登记兼职退款？"
+      />
     </div>
   )
 }

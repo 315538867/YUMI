@@ -197,7 +197,7 @@ describe('YUMI 基础资料按需录入', () => {
           netReceivedCents: 8_000,
           outstandingCents: 4_800,
           shipmentStatus: '未发货',
-          orderStatus: '履约中'
+          orderStatus: '排班中'
         }
       ]
     })
@@ -206,11 +206,12 @@ describe('YUMI 基础资料按需录入', () => {
 
     expect(screen.getByText(/订单会保留当时的客户快照。/)).toBeVisible()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /木木工作室/ }))
+    fireEvent.click(screen.getByRole('button', { name: '查看客户资料：木木工作室' }))
 
     const detail = screen.getByRole('dialog', { name: '客户资料：木木工作室' })
     expect(within(detail).queryByLabelText('默认收货地址')).not.toBeInTheDocument()
     expect(await within(detail).findByText('YUMI-001')).toBeVisible()
+    expect(within(detail).getByText('排班中 · 未发货')).toBeVisible()
     expect(within(detail).getAllByText('¥128.00')).toHaveLength(2)
     fireEvent.click(within(detail).getByRole('button', { name: '查看订单' }))
     expect(onNavigate).toHaveBeenCalledWith({
@@ -221,6 +222,49 @@ describe('YUMI 基础资料按需录入', () => {
     fireEvent.click(within(detail).getByRole('button', { name: '编辑客户' }))
     expect(screen.getByRole('dialog', { name: '编辑客户：木木工作室' })).toBeVisible()
     expect(screen.getByLabelText('默认收货地址')).toHaveValue('上海市静安区')
+  })
+
+  it('客户列表使用统一工具条，并支持关键字与状态筛选', async () => {
+    mocks.customers.customers = [
+      {
+        id: 'customer-1',
+        name: '木木工作室',
+        contact: '王女士',
+        defaultAddress: '上海市静安区',
+        notes: null,
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      },
+      {
+        id: 'customer-2',
+        name: '云朵工坊',
+        contact: '李女士',
+        defaultAddress: null,
+        notes: '暂停接单',
+        enabled: false,
+        createdAt: '2026-09-07T00:00:00.000Z',
+        updatedAt: '2026-09-07T00:00:00.000Z'
+      }
+    ]
+    render(<CustomersPage />)
+
+    expect(screen.getByRole('toolbar', { name: '客户列表工具' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '客户列表' })).toBeVisible()
+    expect(screen.getByText('共 2 位客户')).toBeVisible()
+
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索客户' }), {
+      target: { value: '云朵' }
+    })
+    expect(screen.getByText('云朵工坊')).toBeVisible()
+    expect(screen.queryByText('木木工作室')).not.toBeInTheDocument()
+    expect(screen.getByText('共 1 位客户')).toBeVisible()
+
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索客户' }), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('combobox', { name: '客户状态筛选' }))
+    fireEvent.click(await screen.findByRole('option', { name: '已停用' }))
+    expect(screen.getByText('云朵工坊')).toBeVisible()
+    expect(screen.queryByText('木木工作室')).not.toBeInTheDocument()
   })
 
   it('商品可维护材料损耗与模具日产能参数，并在列表中展示计算结果', () => {
@@ -255,9 +299,12 @@ describe('YUMI 基础资料按需录入', () => {
     ]
     render(<ProductsPage />)
 
+    expect(screen.getByRole('toolbar', { name: '商品列表工具' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '商品列表' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: '搜索商品' })).toBeVisible()
     expect(screen.getByText('40 件')).toBeVisible()
     expect(screen.getByText(/材料 20 克 · 损耗 10%/)).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: /羊毛杯垫/ }))
+    fireEvent.click(screen.getByRole('button', { name: '查看商品资料：羊毛杯垫' }))
     const detail = screen.getByRole('dialog', { name: '商品资料：羊毛杯垫' })
     expect(within(detail).queryByLabelText('单件材料重量（克）')).not.toBeInTheDocument()
     fireEvent.click(within(detail).getByRole('button', { name: '编辑商品' }))
@@ -290,7 +337,7 @@ describe('YUMI 基础资料按需录入', () => {
     render(<SettingsPage />)
 
     fireEvent.click(screen.getByRole('button', { name: '财务资料' }))
-    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除定金收入' }))
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
       '如果资料已被财务流水引用，系统会保留原有数据并拒绝删除。'
     )
@@ -355,13 +402,23 @@ describe('YUMI 人员时薪与动态设置', () => {
     )
 
     expect(screen.getByRole('button', { name: '新增人员' })).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '兼职人员列表工具' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '兼职人员列表' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: '搜索兼职人员' })).toBeVisible()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '首个时薪生效日期' })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /小夏/ }))
+    fireEvent.click(screen.getByRole('button', { name: '查看人员资料：小夏' }))
     const profile = await screen.findByRole('dialog', { name: '人员资料：小夏' })
     await waitFor(() => expect(listWageHistory).toHaveBeenCalledWith('worker-2'))
-    expect(within(profile).getByText('2026-09-01 · 25.00 / 小时')).toBeVisible()
+    expect(within(profile).getByRole('region', { name: '兼职人员资料' })).toHaveClass(
+      'yumi-detail-list'
+    )
+    expect(within(profile).getByRole('heading', { level: 2, name: '时薪历史' })).toBeVisible()
+    expect(within(profile).getByRole('table', { name: '时薪历史记录' })).toBeVisible()
+    expect(profile.querySelector('.yumi-profile-sheet')).not.toBeInTheDocument()
+    expect(within(profile).getByRole('cell', { name: '2026-09-01' })).toBeVisible()
+    expect(within(profile).getByRole('cell', { name: '25.00' })).toBeVisible()
     fireEvent.click(within(profile).getByRole('button', { name: '调整时薪' }))
     expect(within(profile).getByRole('button', { name: '时薪生效日期' })).toBeVisible()
 
@@ -403,7 +460,7 @@ describe('YUMI 人员时薪与动态设置', () => {
     mocks.finance.createCategory.mockResolvedValue({})
     render(<SettingsPage />)
 
-    expect(screen.getByRole('heading', { name: '工作室参数' })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: '工作室参数' })).toBeVisible()
     expect(screen.getByText('0.0034 元 / 克')).toBeVisible()
     expect(screen.queryByText('定金收入')).not.toBeInTheDocument()
 
@@ -425,12 +482,18 @@ describe('YUMI 人员时薪与动态设置', () => {
     fireEvent.click(screen.getByRole('button', { name: '财务资料' }))
     expect(screen.getByRole('heading', { name: '财务资料' })).toBeVisible()
     expect(screen.getByRole('button', { name: '收入类目' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('region', { name: '收入类目记录区' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: '收入类目' })).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '收入类目列表工具' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '收入类目列表' })).toBeVisible()
     expect(screen.getByText('定金收入')).toBeVisible()
     expect(screen.queryByText('工作室房租')).not.toBeInTheDocument()
     expect(screen.queryByText('小林')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '支出类目' }))
     expect(screen.getByRole('button', { name: '支出类目' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('toolbar', { name: '支出类目列表工具' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '支出类目列表' })).toBeVisible()
     expect(screen.getByText('工作室房租')).toBeVisible()
     expect(screen.queryByText('定金收入')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '新增支出类目' })).toBeVisible()
@@ -446,12 +509,17 @@ describe('YUMI 人员时薪与动态设置', () => {
         name: '尾款收入'
       })
     )
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '新增收入类目' })).not.toBeInTheDocument()
+    )
 
     fireEvent.click(screen.getByRole('button', { name: '私人垫付人' }))
     expect(screen.getByRole('button', { name: '私人垫付人' })).toHaveAttribute(
       'aria-pressed',
       'true'
     )
+    expect(screen.getByRole('toolbar', { name: '私人垫付人列表工具' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '私人垫付人列表' })).toBeVisible()
     expect(screen.getByText('小林')).toBeVisible()
     expect(screen.queryByText('定金收入')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '新增垫付人' })).toBeVisible()
@@ -470,8 +538,13 @@ describe('YUMI 人员时薪与动态设置', () => {
     render(<SettingsPage />)
 
     fireEvent.click(screen.getByRole('button', { name: '数据保护' }))
-    expect(await screen.findByText('完整数据备份')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: '恢复' }))
+    expect(await screen.findByRole('region', { name: '备份记录区' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: '备份记录' })).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '备份记录列表工具' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '备份记录列表' })).toBeVisible()
+    expect(screen.getByText('手动备份')).toBeVisible()
+    expect(screen.getByText('3 个附件 · 版本 2.0.0')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /恢复.*备份/ }))
     expect(screen.getByRole('alertdialog')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(mocks.backup.restore).not.toHaveBeenCalled()
@@ -480,7 +553,7 @@ describe('YUMI 人员时薪与动态设置', () => {
     await waitFor(() => expect(mocks.backup.create).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(mocks.backup.list).toHaveBeenCalledTimes(2))
 
-    fireEvent.click(screen.getByRole('button', { name: '恢复' }))
+    fireEvent.click(screen.getByRole('button', { name: /恢复.*备份/ }))
     fireEvent.click(screen.getByRole('button', { name: '恢复此备份' }))
     await waitFor(() =>
       expect(mocks.backup.restore).toHaveBeenCalledWith({

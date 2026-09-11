@@ -120,10 +120,22 @@ export interface V2ShipmentItem extends V2ShipmentItemInput {
   id: string
 }
 
+export type V2ShipmentStatus = 'active' | 'voided'
+
+export interface V2ShipmentVoidInput {
+  voidedOn: BusinessDate
+  reason: string
+}
+
 export interface V2Shipment extends Omit<V2ShipmentInput, 'items'> {
   id: string
   orderId: string
   items: V2ShipmentItem[]
+  /** 旧数据和新建批次都默认为 active，作废记录仍保留在历史中。 */
+  status: V2ShipmentStatus
+  voidedOn: BusinessDate | null
+  voidReason: string | null
+  voidedAt: IsoDateTime | null
   createdAt: IsoDateTime
   updatedAt: IsoDateTime
 }
@@ -166,6 +178,12 @@ export interface V2OrderSummary {
   code: string
   customerName: string
   itemCount: number
+  /** 订单确认件数，由列表用于展示排班/发货进度。 */
+  totalQuantity?: number
+  /** 已登记且未作废批次的发货件数。 */
+  shippedQuantity?: number
+  /** 列表下单日期；旧调用方可能尚未提供，界面回退为更新时间。 */
+  createdAt?: IsoDateTime
   currentAmountCents: Cents
   netReceivedCents: Cents
   outstandingCents: Cents

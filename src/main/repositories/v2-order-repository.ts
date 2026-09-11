@@ -109,6 +109,10 @@ interface ShipmentRow {
   tracking_number: string | null
   note: string | null
   snapshot_json: string | null
+  status: 'active' | 'voided'
+  voided_on: string | null
+  void_reason: string | null
+  voided_at: string | null
   created_at: string
   updated_at: string
 }
@@ -432,11 +436,15 @@ export class V2OrderRepository {
     const rows = this.database.prepare('SELECT * FROM orders ORDER BY updated_at DESC, created_at DESC').all() as OrderRow[]
     return rows.map((row) => {
       const customer = row.customer_id ? this.getCustomer(row.customer_id) : null
+      const orderItems = this.listOrderItems(row.id)
+      const activeShipmentItems = this.listShipments(row.id)
+        .filter((shipment) => shipment.status !== 'voided')
+        .flatMap((shipment) => shipment.items)
       const adjustmentRows = this.database
         .prepare('SELECT amount_cents FROM order_amount_adjustments WHERE order_id = ?')
         .all(row.id) as Array<{ amount_cents: number }>
       const amount = calculateOrderAmountSummary({
-        items: this.listOrderItems(row.id).map((item) => ({
+        items: orderItems.map((item) => ({
           quantity: item.quantity, unitPriceCents: item.unitPriceCents,
           edge: { enabled: item.edgeEnabled, quantity: item.edgeQuantity, unitPriceCents: item.edgeUnitPriceCents },
           itemDiscountCents: item.itemDiscountCents
@@ -449,7 +457,10 @@ export class V2OrderRepository {
         id: row.id,
         code: row.code,
         customerName: customer?.name ?? parseJson<V2CustomerInput>(row.customer_snapshot_json).name,
-        itemCount: this.listOrderItems(row.id).length,
+        itemCount: orderItems.length,
+        totalQuantity: orderItems.reduce((total, item) => total + item.quantity, 0),
+        shippedQuantity: activeShipmentItems.reduce((total, item) => total + item.quantity, 0),
+        createdAt: row.created_at,
         currentAmountCents: amount.currentAmountCents,
         netReceivedCents: funds.netReceivedCents,
         outstandingCents: funds.outstandingCents,
@@ -574,7 +585,7 @@ export class V2OrderRepository {
         `SELECT shipment_items.order_item_id, COALESCE(SUM(shipment_items.quantity), 0) AS quantity
          FROM shipment_items
          JOIN shipments ON shipments.id = shipment_items.shipment_id
-         WHERE shipments.order_id = ?
+         WHERE shipments.order_id = ? AND shipments.status = 'active'
          GROUP BY shipment_items.order_item_id`
       )
       .all(orderId) as Array<{ order_item_id: string; quantity: number }>
@@ -585,12 +596,12 @@ export class V2OrderRepository {
     this.database
       .prepare(
         `INSERT INTO shipments (
-          id, order_id, shipped_on, carrier, tracking_number, note, snapshot_json, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          id, order_id, shipped_on, carrier, tracking_number, note, snapshot_json, status, voided_on, void_reason, voided_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         shipment.id, shipment.orderId, shipment.shippedOn, shipment.carrier ?? null,
-        shipment.trackingNumber ?? null, shipment.note ?? null, JSON.stringify(snapshot), shipment.createdAt, shipment.updatedAt
+        shipment.trackingNumber ?? null, shipment.note ?? null, JSON.stringify(snapshot), shipment.status, shipment.voidedOn, shipment.voidReason, shipment.voidedAt, shipment.createdAt, shipment.updatedAt
       )
     const statement = this.database.prepare(
       'INSERT INTO shipment_items (id, shipment_id, order_item_id, quantity, created_at) VALUES (?, ?, ?, ?, ?)'
@@ -598,6 +609,15 @@ export class V2OrderRepository {
     for (const item of shipment.items) {
       statement.run(item.id, shipment.id, item.orderItemId, item.quantity, shipment.createdAt)
     }
+  }
+
+  voidShipment(orderId: string, shipmentId: string, voidedOn: string, voidReason: string, voidedAt: string): void {
+    const result = this.database.prepare(
+      `UPDATE shipments
+       SET status = 'voided', voided_on = ?, void_reason = ?, voided_at = ?, updated_at = ?
+       WHERE id = ? AND order_id = ? AND status = 'active'`
+    ).run(voidedOn, voidReason, voidedAt, voidedAt, shipmentId, orderId)
+    if (result.changes !== 1) throw new Error('发货批次不存在或已作废')
   }
 
   getShipmentDocumentSnapshot(orderId: string, shipmentId: string): Record<string, unknown> | null {
@@ -631,6 +651,10 @@ export class V2OrderRepository {
       carrier: row.carrier,
       trackingNumber: row.tracking_number,
       note: row.note,
+      status: row.status ?? 'active',
+      voidedOn: row.voided_on ?? null,
+      voidReason: row.void_reason ?? null,
+      voidedAt: row.voided_at ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }))

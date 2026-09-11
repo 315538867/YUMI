@@ -44,7 +44,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 15 })
+    ).toEqual({ version: 16 })
     expect(
       database
         .prepare('PRAGMA table_info(products)')
@@ -168,7 +168,7 @@ describe('V2 独立数据空间', () => {
       name: 'V2 客户'
     })
     expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 15
+      count: 16
     })
     expect(
       upgraded
@@ -282,7 +282,7 @@ describe('V2 独立数据空间', () => {
     })
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 15 })
+    ).toEqual({ version: 16 })
     database.close()
   })
 
@@ -328,7 +328,7 @@ describe('V2 独立数据空间', () => {
     ).toEqual({ edge_cost_cents: 100, internal_edge_cost_cents: 0 })
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 15 })
+    ).toEqual({ version: 16 })
     database.close()
   })
 
@@ -527,7 +527,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 15 })
+    ).toEqual({ version: 16 })
     expect(
       database
         .prepare(
@@ -715,7 +715,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 15 })
+    ).toEqual({ version: 16 })
 
     database
       .prepare(

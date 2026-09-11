@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { V2Worker, V2WorkAssignmentCreateInput } from '@shared/contracts/index'
 import { today } from '../../composables/v2-utils'
 import {
@@ -9,14 +9,17 @@ import {
   type FulfillmentScheduledTask
 } from '../../composables/use-fulfillment'
 import {
-  YumiBusinessList,
-  YumiBusinessListItem,
   YumiButton,
+  YumiDataTable,
+  YumiListSurface,
+  YumiListToolbar,
   YumiDatePicker,
   YumiField,
   YumiFieldLabel,
+  YumiFormMessage,
   YumiNumberField,
   YumiSelect,
+  YumiSection,
   YumiSheet,
   YumiStatusTag,
   YumiTextArea
@@ -52,10 +55,6 @@ export interface DispatchPrefill {
   workerId?: string
 }
 
-function stopRowOpen(event: MouseEvent) {
-  event.stopPropagation()
-}
-
 function taskStatusLabel(status: FulfillmentScheduledTask['status']) {
   return status === 'pending_inspection' ? '待质检' : '待完成'
 }
@@ -76,90 +75,141 @@ export function OrderDispatchBoard(props: {
   onOpenAssignment(prefill: DispatchPrefill): void
   onOpenTask(item: FulfillmentQueueItem, task: FulfillmentScheduledTask): void
 }) {
+  const visibleStagesFor = (item: FulfillmentQueueItem) =>
+    props.stage === 'all'
+      ? stages.filter((stage) => {
+          const schedule = getFulfillmentQueueStageSchedule(item, stage)
+          return (
+            schedule.wipQuantity > 0 ||
+            schedule.tasks.length > 0 ||
+            schedule.overassignedQuantity > 0
+          )
+        })
+      : [props.stage]
+
   return (
-    <YumiBusinessList className="yumi-fulfillment-dispatch-list">
-      {props.items.map((item) => {
-        const visibleStages =
-          props.stage === 'all'
-            ? stages.filter((stage) => {
-                const schedule = getFulfillmentQueueStageSchedule(item, stage)
+    <YumiSection
+      ariaLabel="订单排班队列"
+      description="按订单查看待派与已派任务，进入处理区登记实际进度。"
+      title="订单排班队列"
+    >
+      <YumiListSurface className="yumi-fulfillment-dispatch-surface">
+        <YumiListToolbar
+          ariaLabel="排班队列列表工具"
+          countLabel={`共 ${props.items.length} 个待处理产品`}
+        />
+        <YumiDataTable
+          ariaLabel="排班队列列表"
+          columns={[
+            {
+              key: 'order',
+              label: '订单 / 客户',
+              render: (item) => (
+                <div className="yumi-fulfillment-order-cell">
+                  <strong>{item.orderCode}</strong>
+                  <span>{item.customerName}</span>
+                </div>
+              )
+            },
+            {
+              key: 'product',
+              label: '产品 / 确认数量',
+              render: (item) => (
+                <div className="yumi-fulfillment-product-cell">
+                  <strong>{item.productName}</strong>
+                  <span>确认 {item.confirmedQuantity} 件</span>
+                </div>
+              )
+            },
+            {
+              key: 'stage',
+              label: '排班阶段',
+              render: (item) => (
+                <div className="yumi-fulfillment-stage-tags">
+                  {visibleStagesFor(item).map((stage) => (
+                    <YumiStatusTag key={stage} tone={stageTone(stage)}>
+                      {dispatchStageLabels[stage]}
+                    </YumiStatusTag>
+                  ))}
+                </div>
+              )
+            },
+            {
+              key: 'schedule',
+              label: '待派 / 已派任务',
+              render: (item) => (
+                <div className="yumi-fulfillment-stage-stack">
+                  {visibleStagesFor(item).map((stage) => {
+                    const schedule = getFulfillmentQueueStageSchedule(item, stage)
+                    return (
+                      <section className="yumi-fulfillment-stage" key={stage}>
+                        <div className="yumi-fulfillment-stage__header">
+                          <strong>
+                            {dispatchStageLabels[stage]} {schedule.wipQuantity}
+                          </strong>
+                          {schedule.unassignedQuantity > 0 ? (
+                            <YumiButton
+                              aria-label={`派工${dispatchStageLabels[stage]}`}
+                              onClick={() =>
+                                props.onOpenAssignment({ orderItemId: item.orderItemId, stage })
+                              }
+                              variant="secondary"
+                            >
+                              + 派工
+                            </YumiButton>
+                          ) : null}
+                        </div>
+                        {schedule.unassignedQuantity > 0 ? (
+                          <p className="yumi-fulfillment-stage__unassigned">
+                            未派 {schedule.unassignedQuantity}
+                          </p>
+                        ) : null}
+                        {schedule.overassignedQuantity > 0 ? (
+                          <p className="yumi-fulfillment-stage__overassigned">
+                            超派 {schedule.overassignedQuantity}，请核对安排
+                          </p>
+                        ) : null}
+                        {schedule.tasks.map((task) => (
+                          <YumiButton
+                            aria-label={`${task.workerName} ${task.plannedQuantity} ${task.assignedOn} ${taskStatusLabel(task.status)}`}
+                            className="yumi-fulfillment-task-card"
+                            key={task.taskId}
+                            onClick={() => props.onOpenTask(item, task)}
+                            variant="ghost"
+                          >
+                            已派 {task.workerName} {task.plannedQuantity} · {task.assignedOn} ·{' '}
+                            {taskStatusLabel(task.status)}
+                          </YumiButton>
+                        ))}
+                      </section>
+                    )
+                  })}
+                </div>
+              )
+            },
+            {
+              key: 'action',
+              label: '操作',
+              align: 'right',
+              render: (item) => {
+                const primaryStage = visibleStagesFor(item)[0] ?? 'making'
                 return (
-                  schedule.wipQuantity > 0 ||
-                  schedule.tasks.length > 0 ||
-                  schedule.overassignedQuantity > 0
+                  <YumiButton
+                    aria-label={`进入处理：${item.productName}`}
+                    onClick={() => props.onOpenItem(item, primaryStage)}
+                    variant="secondary"
+                  >
+                    进入处理
+                  </YumiButton>
                 )
-              })
-            : [props.stage]
-        const primaryStage = visibleStages[0] ?? 'making'
-        return (
-          <YumiBusinessListItem
-            className="yumi-fulfillment-dispatch-item"
-            key={item.orderItemId}
-            meta={`${item.orderCode} · ${item.customerName}`}
-            onOpen={() => props.onOpenItem(item, primaryStage)}
-            status={
-              <YumiStatusTag tone={stageTone(primaryStage)}>
-                {dispatchStageLabels[primaryStage]}
-              </YumiStatusTag>
+              }
             }
-            summary={`${item.productName} · 确认 ${item.confirmedQuantity} · 点击进入产品操作台`}
-            title={item.orderCode}
-          >
-            <div className="yumi-fulfillment-stage-stack">
-              {visibleStages.map((stage) => {
-                const schedule = getFulfillmentQueueStageSchedule(item, stage)
-                return (
-                  <section className="yumi-fulfillment-stage" key={stage} onClick={stopRowOpen}>
-                    <div className="yumi-fulfillment-stage__header">
-                      <strong>
-                        {dispatchStageLabels[stage]} {schedule.wipQuantity}
-                      </strong>
-                      {schedule.unassignedQuantity > 0 ? (
-                        <YumiButton
-                          aria-label={`派工${dispatchStageLabels[stage]}`}
-                          onClick={(event) => {
-                            stopRowOpen(event)
-                            props.onOpenAssignment({ orderItemId: item.orderItemId, stage })
-                          }}
-                          variant="secondary"
-                        >
-                          + 派工
-                        </YumiButton>
-                      ) : null}
-                    </div>
-                    {schedule.unassignedQuantity > 0 ? (
-                      <p className="yumi-fulfillment-stage__unassigned">
-                        未派 {schedule.unassignedQuantity}
-                      </p>
-                    ) : null}
-                    {schedule.overassignedQuantity > 0 ? (
-                      <p className="yumi-fulfillment-stage__overassigned">
-                        超派 {schedule.overassignedQuantity}，请核对安排
-                      </p>
-                    ) : null}
-                    {schedule.tasks.map((task) => (
-                      <YumiButton
-                        aria-label={`${task.workerName} ${task.plannedQuantity} ${task.assignedOn} ${taskStatusLabel(task.status)}`}
-                        className="yumi-fulfillment-task-card"
-                        key={task.taskId}
-                        onClick={(event) => {
-                          stopRowOpen(event)
-                          props.onOpenTask(item, task)
-                        }}
-                        variant="ghost"
-                      >
-                        已派 {task.workerName} {task.plannedQuantity} · {task.assignedOn} ·{' '}
-                        {taskStatusLabel(task.status)}
-                      </YumiButton>
-                    ))}
-                  </section>
-                )
-              })}
-            </div>
-          </YumiBusinessListItem>
-        )
-      })}
-    </YumiBusinessList>
+          ]}
+          getRowKey={(item) => item.orderItemId}
+          rows={props.items}
+        />
+      </YumiListSurface>
+    </YumiSection>
   )
 }
 
@@ -215,15 +265,9 @@ export function WorkerWeekSchedule(props: {
   }, [props.workers, tasks])
 
   return (
-    <section className="yumi-worker-week" aria-label="人员周历">
-      <div className="yumi-worker-week__header">
-        <div>
-          <h2>人员周历</h2>
-          <p>
-            {weekStart} 至 {dates[6]} · 仅显示待完成与待质检任务
-          </p>
-        </div>
-        <div className="yumi-page-tabs">
+    <YumiSection
+      actions={
+        <div aria-label="人员周历日期导航" className="yumi-worker-week__actions" role="group">
           <YumiButton
             onClick={() => setWeekStart((current) => addDays(current, -7))}
             variant="ghost"
@@ -240,7 +284,12 @@ export function WorkerWeekSchedule(props: {
             下一周
           </YumiButton>
         </div>
-      </div>
+      }
+      ariaLabel="人员周历"
+      className="yumi-worker-week"
+      description={`${weekStart} 至 ${dates[6]} · 仅显示待完成与待质检任务`}
+      title="人员周历"
+    >
       <div className="yumi-worker-week__scroller">
         <div
           className="yumi-worker-week__grid"
@@ -295,7 +344,7 @@ export function WorkerWeekSchedule(props: {
           ))}
         </div>
       </div>
-    </section>
+    </YumiSection>
   )
 }
 
@@ -406,9 +455,7 @@ export function WorkAssignmentSheet(props: {
     >
       <form className="yumi-form-panel yumi-sheet-form" onSubmit={handleSubmit}>
         {error ? (
-          <p className="yumi-form-error" role="alert">
-            {error}
-          </p>
+          <YumiFormMessage tone="error">{error}</YumiFormMessage>
         ) : null}
         <div className="yumi-form-grid yumi-form-grid--two">
           <YumiField>
@@ -459,7 +506,7 @@ export function WorkAssignmentSheet(props: {
               value={quantity}
             />
             {schedule ? (
-              <p className="yumi-form-hint">待派上限：{schedule.unassignedQuantity} 件</p>
+              <YumiFormMessage>待派上限：{schedule.unassignedQuantity} 件</YumiFormMessage>
             ) : null}
           </YumiField>
           {isMaking ? (

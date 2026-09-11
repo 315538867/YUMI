@@ -300,6 +300,54 @@ describe('V2OrderService', () => {
       'shipment.created'
     ])
   })
+  it('作废批次时保留历史、恢复可发数量并记录逆向履约事件', () => {
+    const { orderService: service, fulfillmentService } = createServices()
+    const product = createProduct(service, '可作废发货商品')
+    const order = service.createOrder({
+      customer: { name: '小周' },
+      items: [{ productId: product.id, quantity: 10, unitPriceCents: 2_000 }]
+    })
+    fulfillmentService.recordOpeningWip({
+      orderItemId: order.items[0].id,
+      targetStage: 'ready_to_ship',
+      quantity: 10,
+      occurredOn: '2026-09-07',
+      note: '待发货库存'
+    })
+    const shipment = service.createShipment(order.id, {
+      shippedOn: '2026-09-08',
+      items: [{ orderItemId: order.items[0].id, quantity: 4 }]
+    })
+
+    const voided = service.voidShipment(order.id, shipment.id, {
+      voidedOn: '2026-09-09',
+      reason: '物流揽收前取消'
+    })
+
+    expect(voided).toMatchObject({
+      id: shipment.id,
+      status: 'voided',
+      voidedOn: '2026-09-09',
+      voidReason: '物流揽收前取消'
+    })
+    expect(service.listShipments(order.id)).toEqual([
+      expect.objectContaining({ id: shipment.id, status: 'voided', voidedOn: '2026-09-09' })
+    ])
+    expect(fulfillmentService.getOrderItemFulfillment(order.items[0].id).stages).toMatchObject({
+      readyToShip: 10,
+      shipped: 0
+    })
+    expect(() => service.voidShipment(order.id, shipment.id, {
+      voidedOn: '2026-09-09',
+      reason: '重复操作'
+    })).toThrow('已作废')
+    expect(service.createShipment(order.id, {
+      shippedOn: '2026-09-10',
+      items: [{ orderItemId: order.items[0].id, quantity: 10 }]
+    })).toMatchObject({ status: 'active' })
+    expect(service.listAuditLogs(order.id).map((log) => log.action)).toContain('shipment.voided')
+  })
+
   it('保存商品材料损耗与模具参数，并冻结到订单商品快照', () => {
     const service = createService()
     const product = service.createProduct({

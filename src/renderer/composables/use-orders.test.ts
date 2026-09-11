@@ -3,7 +3,7 @@ import type { V2Order, V2OrderItemFulfillment, V2Shipment } from '@shared/contra
 import { buildShipmentItemAvailability } from './use-orders'
 
 describe('buildShipmentItemAvailability', () => {
-  it('以履约中的待发货数量为本批上限，同时保留确认、已发和待发数据', () => {
+  it('以排班中的待发货数量为本批上限，同时保留确认、已发和待发数据', () => {
     const order = {
       id: 'order-1',
       items: [

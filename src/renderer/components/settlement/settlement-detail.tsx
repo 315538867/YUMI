@@ -12,10 +12,14 @@ import {
 } from '../../composables/v2-utils'
 import {
   YumiButton,
+  YumiDataTable,
   YumiDatePicker,
   YumiField,
   YumiFieldLabel,
+  YumiFormMessage,
+  YumiMetricStrip,
   YumiNumberField,
+  YumiRecordSummary,
   YumiSection,
   YumiStatusTag,
   YumiTextArea,
@@ -146,73 +150,71 @@ export function SettlementDetail(props: SettlementDetailProps) {
   const isDraft = props.settlement.status === 'draft'
   return (
     <div className="yumi-settlement-detail">
-      <YumiSection title="工资结算明细">
-        <div className="yumi-settlement-detail__header">
-          <div>
-            <strong>{props.workerName}</strong>
-            <p>
-              {props.settlement.periodStartOn} 至 {props.settlement.periodEndOn}
-            </p>
-          </div>
+      <YumiRecordSummary
+        ariaLabel="工资结算摘要"
+        description={`${props.settlement.periodStartOn} 至 ${props.settlement.periodEndOn}`}
+        status={
           <YumiStatusTag tone={isDraft ? 'warning' : 'success'}>
             {isDraft ? '草稿' : '已确认'}
           </YumiStatusTag>
-        </div>
-        <div className="yumi-settlement-reference-grid">
-          <article>
-            <span>排班口径</span>
-            <strong>{props.settlement.scheduledMinutes} 分钟</strong>
-            <p>{formatCents(props.settlement.scheduledReferenceWageCents)}</p>
-          </article>
-          <article>
-            <span>考勤口径</span>
-            <strong>{props.settlement.attendanceMinutes ?? '未填'} 分钟</strong>
-            <p>{formatCents(props.settlement.attendanceReferenceWageCents)}</p>
-          </article>
-          <article>
-            <span>合格提成 / 实际扣款</span>
-            <strong>{formatCents(props.settlement.qualifiedCommissionCents)}</strong>
-            <p>扣 {formatCents(props.settlement.actualDeductionCents)}</p>
-          </article>
-          <article>
-            <span>本期后续顺延</span>
-            <strong>{formatCents(props.settlement.continuingCarryoverCents)}</strong>
-            <p>其他调整 {formatCents(props.settlement.otherAdjustmentCents)}</p>
-          </article>
-        </div>
-      </YumiSection>
+        }
+        title={props.workerName}
+      >
+        <YumiMetricStrip
+          ariaLabel="工资结算经营摘要"
+          items={[
+            {
+              label: '排班口径',
+              value: `${props.settlement.scheduledMinutes} 分钟 · ${formatCents(props.settlement.scheduledReferenceWageCents)}`
+            },
+            {
+              label: '考勤口径',
+              value: `${props.settlement.attendanceMinutes ?? '未填'} 分钟 · ${formatCents(props.settlement.attendanceReferenceWageCents)}`
+            },
+            {
+              label: '合格提成 / 实际扣款',
+              value: `${formatCents(props.settlement.qualifiedCommissionCents)} · 扣 ${formatCents(props.settlement.actualDeductionCents)}`
+            },
+            {
+              label: '本期后续顺延',
+              value: `${formatCents(props.settlement.continuingCarryoverCents)} · 其他调整 ${formatCents(props.settlement.otherAdjustmentCents)}`
+            }
+          ]}
+        />
+      </YumiRecordSummary>
 
       <div className="yumi-settlement-sources">
         <YumiSection title="任务来源">
-          <div className="yumi-source-list">
-            {props.settlement.tasks.length === 0 ? (
-              <p>本期无已完成任务。</p>
-            ) : (
-              props.settlement.tasks.map((task) => (
-                <p key={task.id}>
-                  任务 {task.processTaskId} · 排班 {task.scheduledMinutes} 分钟 · 合格{' '}
-                  {task.qualifiedQuantity} 件 · 提成 {formatCents(task.qualifiedCommissionCents)}
-                </p>
-              ))
-            )}
-          </div>
+          <YumiDataTable
+            ariaLabel="任务来源记录"
+            columns={[
+              {
+                key: 'summary',
+                label: '任务记录',
+                render: (task) =>
+                  `任务 ${task.processTaskId} · 排班 ${task.scheduledMinutes} 分钟 · 合格 ${task.qualifiedQuantity} 件 · 提成 ${formatCents(task.qualifiedCommissionCents)}`
+              }
+            ]}
+            emptyText="本期无已完成任务。"
+            getRowKey={(task) => task.id}
+            rows={props.settlement.tasks}
+          />
         </YumiSection>
         <YumiSection title="扣款来源">
-          <div className="yumi-source-list">
-            {props.settlement.deductions.length === 0 ? (
-              <p>本期无不合格扣款。</p>
-            ) : (
-              props.settlement.deductions.map((deduction) => (
-                <p key={deduction.id}>
-                  {deduction.occurredOn} ·{' '}
-                  {deduction.processType === 'making' ? '制作' : '捏毛装袋'} 不合格{' '}
-                  {deduction.unqualifiedQuantity} 件 · 扣款{' '}
-                  {formatCents(deduction.totalDeductionCents)} · 本期抵扣{' '}
-                  {formatCents(allocationByDeductionId.get(deduction.id) ?? 0)}
-                </p>
-              ))
-            )}
-          </div>
+          <YumiDataTable
+            ariaLabel="扣款来源记录"
+            columns={[
+              {
+                key: 'summary',
+                label: '扣款记录',
+                render: (deduction) =>
+                  `${deduction.occurredOn} · ${deduction.processType === 'making' ? '制作' : '捏毛装袋'} 不合格 ${deduction.unqualifiedQuantity} 件 · 扣款 ${formatCents(deduction.totalDeductionCents)} · 本期抵扣 ${formatCents(allocationByDeductionId.get(deduction.id) ?? 0)}`
+              }
+            ]}
+            emptyText="本期无不合格扣款。"
+            getRowKey={(deduction) => deduction.id}
+            rows={props.settlement.deductions}
+          />
         </YumiSection>
       </div>
 
@@ -290,10 +292,10 @@ export function SettlementDetail(props: SettlementDetailProps) {
             />
           </YumiField>
           {isDraft && !confirmReady && (
-            <p className="yumi-form-hint">请填写最终实发金额并选择实际付款日期后再确认。</p>
+            <YumiFormMessage>请填写最终实发金额并选择实际付款日期后再确认。</YumiFormMessage>
           )}
           {props.settlement.financialEntryId && (
-            <p className="yumi-form-hint">实际工资流水：{props.settlement.financialEntryId}</p>
+            <YumiFormMessage>实际工资流水：{props.settlement.financialEntryId}</YumiFormMessage>
           )}
           {isDraft && (
             <div className="yumi-form-actions">

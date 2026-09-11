@@ -29,8 +29,8 @@ const mocks = vi.hoisted(() => {
   }
   return {
     createShipment: vi.fn().mockResolvedValue({ id: 'shipment-new' }),
+    voidShipment: vi.fn().mockResolvedValue({ id: 'shipment-old', status: 'voided' }),
     exportOrderTable: vi.fn().mockResolvedValue({ savedPath: '/tmp/订单表.xlsx' }),
-    exportOrderDocuments: vi.fn().mockResolvedValue({ savedPath: '/tmp/订单与发货单.xlsx' }),
     exportShippingList: vi.fn().mockResolvedValue({ savedPath: '/tmp/发货清单.xlsx' }),
     quickCustomer: {
       id: 'customer-new',
@@ -70,12 +70,18 @@ const mocks = vi.hoisted(() => {
         id: 'order-1',
         code: 'YD-001',
         customerName: '小满',
+        itemCount: 2,
+        totalQuantity: 180,
+        shippedQuantity: 30,
+        createdAt: '2026-09-07T10:00:00.000Z',
+        expectedShipDate: '2026-09-12',
         currentAmountCents: 10000,
         outstandingCents: 0,
         updatedAt: '2026-09-08T10:00:00.000Z'
       }
     ],
     selectedOrder,
+    funds: [],
     shipments: [
       {
         id: 'shipment-old',
@@ -159,7 +165,7 @@ vi.mock('../../composables/use-orders', () => ({
     loading: false,
     loadError: null,
     selectedOrder: mocks.selectedOrder,
-    funds: [],
+    funds: mocks.funds,
     contentChanges: [],
     shipments: mocks.shipments,
     fulfillmentItems: [],
@@ -174,8 +180,8 @@ vi.mock('../../composables/use-orders', () => ({
     attachFundProof: mocks.attachFundProof,
     openFundProof: mocks.openFundProof,
     createShipment: mocks.createShipment,
+    voidShipment: mocks.voidShipment,
     exportOrderTable: mocks.exportOrderTable,
-    exportOrderDocuments: mocks.exportOrderDocuments,
     exportShippingList: mocks.exportShippingList
   })
 }))
@@ -216,22 +222,83 @@ afterEach(() => {
   cleanup()
   mocks.createOrder.mockClear()
   mocks.createShipment.mockClear()
+  mocks.voidShipment.mockClear()
+  mocks.recordFund.mockClear()
+  mocks.correctFund.mockClear()
   mocks.selectOrder.mockClear()
   mocks.quickCreateCustomer.mockClear()
   mocks.quickCreateProduct.mockClear()
   mocks.exportOrderTable.mockClear()
-  mocks.exportOrderDocuments.mockClear()
   mocks.exportShippingList.mockClear()
+  mocks.funds = []
+})
+
+describe('订单列表信息架构', () => {
+  it('以筛选工具条和固定列业务表呈现订单，并展示资金与排班进度', () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    expect(screen.getByRole('heading', { name: '订单' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: '搜索订单' })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: '资金状态筛选' })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: '交付排班筛选' })).toBeVisible()
+    expect(screen.getByText('共 1 张订单')).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '订单号 / 客户' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '订单金额' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '资金状态' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '排班进度' })).toBeVisible()
+    expect(screen.getByText('已发 30 / 180 件')).toBeVisible()
+    expect(screen.getByRole('button', { name: '查看详情' })).toBeVisible()
+  })
+
+  it('按订单号或客户筛选列表，避免在业务表中保留无关行', () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+    const search = screen.getByRole('textbox', { name: '搜索订单' })
+
+    fireEvent.change(search, { target: { value: '不存在的订单' } })
+    expect(screen.getByText('没有符合筛选条件的订单。')).toBeVisible()
+
+    fireEvent.change(search, { target: { value: '小满' } })
+    expect(screen.getByText('YD-001')).toBeVisible()
+  })
+})
+
+
+describe('订单详情概览信息架构', () => {
+  it('以连续指标、商品表、两组档案和最近发货组成默认只读概览', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+
+    expect(await screen.findByRole('button', { name: '导出订单表' })).toBeVisible()
+    expect(screen.getByText('累计收款')).toBeVisible()
+    expect(screen.getByText('待收款')).toBeVisible()
+    expect(screen.getByText('发货进度')).toBeVisible()
+    expect(screen.getByRole('table', { name: '订单商品列表' })).toBeVisible()
+    expect(screen.getByText('商品合计')).toBeVisible()
+    expect(screen.getByRole('region', { name: '客户与订单资料' })).toHaveClass('yumi-detail-list')
+    expect(screen.getByRole('region', { name: '交付与生产资料' })).toHaveClass('yumi-detail-list')
+    expect(screen.getByText('客户与订单')).toBeVisible()
+    expect(screen.getByText('交付与生产')).toBeVisible()
+    expect(screen.getByText('最近发货')).toBeVisible()
+    expect(screen.getByText('订单档案')).toBeVisible()
+    expect(document.querySelector('.yumi-order-archive-grid')).not.toBeInTheDocument()
+    expect(document.querySelector('.yumi-order-archive')).not.toBeInTheDocument()
+    expect(screen.getByRole('table', { name: '最近发货记录' })).toBeVisible()
+    expect(screen.getByText('顺丰 · SF001')).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '查看全部发货' }))
+    expect(await screen.findByRole('table', { name: '发货批次列表' })).toBeVisible()
+  })
 })
 
 describe('订单分批发货交互', () => {
   it('在独立抽屉中按商品当前可发数校验，并允许订单未发完时登记一批多商品', async () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /YD-001/ }))
-    fireEvent.click(await screen.findByRole('button', { name: '履约' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    fireEvent.click(await screen.findByRole('button', { name: '发货' }))
     expect(screen.getByText(/历史批次只读/)).toBeVisible()
-    expect(screen.getByText('2026-09-07 · 顺丰')).toBeVisible()
+    expect(screen.getByText('顺丰 · SF001')).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: '新增发货' }))
     expect(screen.getByRole('dialog', { name: '登记分批发货' })).toBeInTheDocument()
@@ -269,24 +336,150 @@ describe('订单分批发货交互', () => {
     )
   })
 
-  it('从订单详情按当前订单导出独立与合并单据', async () => {
+  it('发货页以具名批次表展示记录，并将本批清单操作保留在批次行', async () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /YD-001/ }))
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    fireEvent.click(await screen.findByRole('button', { name: '发货' }))
 
-    fireEvent.click(await screen.findByRole('button', { name: '导出订单表' }))
-    await waitFor(() => expect(mocks.exportOrderTable).toHaveBeenCalledWith('order-1'))
-
-    fireEvent.click(screen.getByRole('button', { name: '导出发货清单' }))
-    await waitFor(() => expect(mocks.exportShippingList).toHaveBeenCalledWith('order-1', undefined))
-
-    fireEvent.click(screen.getByRole('button', { name: '合并导出' }))
-    await waitFor(() =>
-      expect(mocks.exportOrderDocuments).toHaveBeenCalledWith('order-1', undefined)
-    )
-    expect(await screen.findByText(/已导出订单表与发货清单/)).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '发货批次列表工具' })).toHaveTextContent('共 1 个批次')
+    expect(screen.getByRole('table', { name: '发货批次列表' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '发货日期 / 物流' })).toBeVisible()
+    expect(screen.getByText('草莓捏捏 × 30')).toBeVisible()
+    expect(screen.getByRole('button', { name: '导出本批清单' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '作废批次' })).toBeVisible()
   })
 
+  it('作废发货批次先展示影响说明，明确确认后才写入作废记录', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    fireEvent.click(await screen.findByRole('button', { name: '发货' }))
+    fireEvent.click(screen.getByRole('button', { name: '作废批次' }))
+    expect(screen.getByRole('dialog', { name: '作废发货批次' })).toBeVisible()
+
+    fireEvent.change(screen.getByRole('textbox', { name: '作废原因' }), {
+      target: { value: '物流信息录入错误' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '确认作废' }))
+
+    expect(await screen.findByRole('alertdialog', { name: '确认作废发货批次？' })).toHaveTextContent(
+      '会回退本批发货数量'
+    )
+    expect(mocks.voidShipment).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '确认作废批次' }))
+    await waitFor(() =>
+      expect(mocks.voidShipment).toHaveBeenCalledWith('order-1', 'shipment-old', {
+        voidedOn: expect.any(String),
+        reason: '物流信息录入错误'
+      })
+    )
+  })
+
+  it('将订单级导出收拢到详情页头，并将非关键实体操作收纳到更多操作', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    expect(await screen.findByRole('button', { name: '导出订单表' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '更多操作' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '发货汇总' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '导出发货清单' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
+    const moreActions = await screen.findByRole('menu', { name: '订单详情更多操作' })
+    expect(moreActions).toHaveTextContent('返回订单列表')
+    expect(moreActions).toHaveTextContent('发货汇总')
+  })
+
+  it('资金页默认展示流水，登记表单仅在操作抽屉中打开', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    fireEvent.click(await screen.findByRole('button', { name: '资金' }))
+
+    expect(screen.queryByRole('dialog', { name: '登记收款或退款' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '登记收款/退款' }))
+    expect(screen.getByRole('dialog', { name: '登记收款或退款' })).toBeInTheDocument()
+  })
+
+  it('资金页以具名流水表展示记录，冲正只能从原流水行发起', async () => {
+    mocks.funds = [
+      {
+        id: 'fund-payment',
+        orderId: 'order-1',
+        businessType: 'payment',
+        amountCents: 3_000,
+        occurredOn: '2026-09-09',
+        paymentMethod: '银行转账',
+        attachmentId: null,
+        note: '首付款',
+        direction: 'income',
+        reversalOfEntryId: null,
+        attachment: null,
+        createdAt: '2026-09-09T09:00:00.000Z'
+      }
+    ]
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    fireEvent.click(await screen.findByRole('button', { name: '资金' }))
+
+    expect(screen.getByRole('toolbar', { name: '订单资金列表工具' })).toHaveTextContent('共 1 笔流水')
+    expect(screen.getByRole('table', { name: '订单资金流水列表' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '业务类型 / 说明' })).toBeVisible()
+    expect(screen.getByText('首付款')).toBeVisible()
+    expect(screen.getByRole('button', { name: '更正' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '冲正并更正' })).not.toBeInTheDocument()
+  })
+
+  it('冲正资金流水先显示不可逆影响，确认后才生成冲正和替代记录', async () => {
+    mocks.funds = [
+      {
+        id: 'fund-payment',
+        orderId: 'order-1',
+        businessType: 'payment',
+        amountCents: 3_000,
+        occurredOn: '2026-09-09',
+        paymentMethod: '银行转账',
+        attachmentId: null,
+        note: '首付款',
+        direction: 'income',
+        reversalOfEntryId: null,
+        attachment: null,
+        createdAt: '2026-09-09T09:00:00.000Z'
+      }
+    ]
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    fireEvent.click(await screen.findByRole('button', { name: '资金' }))
+    fireEvent.click(screen.getByRole('button', { name: '更正' }))
+    expect(screen.getByRole('dialog', { name: '冲正并更正' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('combobox', { name: '原资金流水' }))
+    fireEvent.click(screen.getByRole('option', { name: /payment · ¥30\.00 · 2026-09-09/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: '替代金额（元）' }), { target: { value: '20' } })
+    fireEvent.click(screen.getByRole('button', { name: '冲正并更正' }))
+
+    expect(await screen.findByRole('alertdialog', { name: '确认冲正并更正？' })).toHaveTextContent(
+      '新增一条冲正记录和一条替代记录'
+    )
+    expect(mocks.correctFund).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '确认冲正并更正' }))
+    await waitFor(() =>
+      expect(mocks.correctFund).toHaveBeenCalledWith('order-1', {
+        originalEntryId: 'fund-payment',
+        reversalOccurredOn: expect.any(String),
+        replacement: {
+          businessType: 'payment',
+          amountCents: 2_000,
+          occurredOn: expect.any(String)
+        }
+      })
+    )
+  }, 15_000)
   it('登记收款时可选择凭证，并将附件关联到资金流水', async () => {
     mocks.pickFundProof.mockResolvedValueOnce({
       id: 'proof-1',
@@ -299,8 +492,9 @@ describe('订单分批发货交互', () => {
     mocks.recordFund.mockResolvedValueOnce({ id: 'fund-new' })
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /YD-001/ }))
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
     fireEvent.click(await screen.findByRole('button', { name: '资金' }))
+    fireEvent.click(screen.getByRole('button', { name: '登记收款/退款' }))
     fireEvent.click(screen.getByRole('button', { name: '选择收款凭证' }))
 
     await waitFor(() => expect(mocks.pickFundProof).toHaveBeenCalledTimes(1))

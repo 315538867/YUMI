@@ -50,14 +50,12 @@ describe('工资负责人确认', () => {
   it('仅在负责人填入实发金额和付款日期后允许确认，并先保存草稿再确认记账', async () => {
     const detail = settlement()
     const updateDraft = vi.fn().mockResolvedValue(detail)
-    const confirmSettlement = vi
-      .fn()
-      .mockResolvedValue({
-        ...detail,
-        status: 'confirmed',
-        finalPaidAmountCents: 13_500,
-        financialEntryId: 'finance-1'
-      })
+    const confirmSettlement = vi.fn().mockResolvedValue({
+      ...detail,
+      status: 'confirmed',
+      finalPaidAmountCents: 13_500,
+      financialEntryId: 'finance-1'
+    })
 
     render(
       <SettlementDetail
@@ -135,8 +133,11 @@ describe('工资负责人确认', () => {
       />
     )
 
-    expect(screen.getByText('排班口径').closest('article')).toHaveTextContent('360 分钟¥120.00')
-    expect(screen.getByText('考勤口径').closest('article')).toHaveTextContent('420 分钟¥140.00')
+    const summary = screen.getByRole('region', { name: '工资结算经营摘要' })
+    expect(summary).toHaveTextContent('排班口径')
+    expect(summary).toHaveTextContent('360 分钟 · ¥120.00')
+    expect(summary).toHaveTextContent('考勤口径')
+    expect(summary).toHaveTextContent('420 分钟 · ¥140.00')
     expect(screen.getByRole('textbox', { name: '最终实发（元）' })).toHaveValue('135.00')
     expect(screen.getByText('实际工资流水：finance-wage-1')).toBeVisible()
     expect(screen.queryByRole('button', { name: '确认并记账' })).not.toBeInTheDocument()

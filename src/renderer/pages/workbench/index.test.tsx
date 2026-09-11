@@ -69,6 +69,11 @@ describe('负责人工作台页面', () => {
     const onNavigate = vi.fn()
     render(<WorkbenchPage onNavigate={onNavigate} />)
 
+    expect(screen.getByRole('region', { name: '工作台事项' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: '需要我决定' })).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '工作台事项列表工具' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '工作台事项列表' })).toBeVisible()
+    expect(screen.getByText('共 1 项待处理事项')).toBeVisible()
     expect(screen.getByText('确认质检结果')).toBeVisible()
     expect(screen.queryByText('登记发货')).not.toBeInTheDocument()
 
@@ -76,7 +81,7 @@ describe('负责人工作台页面', () => {
     expect(screen.getByText('登记发货')).toBeVisible()
     expect(screen.queryByText('确认质检结果')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /登记发货/ }))
+    fireEvent.click(screen.getByRole('button', { name: '处理事项：登记发货' }))
     expect(onNavigate).toHaveBeenCalledWith({
       view: 'fulfillment',
       orderItemId: 'item-1',

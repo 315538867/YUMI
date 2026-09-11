@@ -80,7 +80,7 @@ export function useReports() {
     setExportMessage(null)
     try {
       const result = await window.yumiV2.reports.exportShippingList()
-      setExportMessage(result.savedPath ? `已导出发货清单：${result.savedPath}` : '已取消导出。')
+      setExportMessage(result.savedPath ? `已导出发货汇总：${result.savedPath}` : '已取消导出。')
       return result
     } catch (error) {
       const message = getErrorMessage(error)

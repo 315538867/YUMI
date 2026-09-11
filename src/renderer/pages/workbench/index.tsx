@@ -3,11 +3,14 @@ import type { V2NavigationTarget, V2WorkbenchItem } from '@shared/contracts/inde
 import { useWorkbench } from '../../composables/use-workbench'
 import { formatCents } from '../../composables/v2-utils'
 import {
-  YumiBusinessList,
-  YumiBusinessListItem,
+  YumiDataTable,
+  YumiListSurface,
+  YumiListToolbar,
   YumiButton,
   YumiEmptyState,
   YumiPageHeader,
+  YumiPrimaryTabs,
+  YumiSection,
   YumiStatusTag,
   useYumiNotificationMessage
 } from '../../components/ui'
@@ -61,16 +64,22 @@ export function WorkbenchPage({
   return (
     <section className="yumi-page yumi-workbench-page">
       <YumiPageHeader
-        description="只显示由订单、履约、售后、工资和财务事实生成的当前处理入口。"
+        description="只显示由订单、排班、售后、工资和财务事实生成的当前处理入口。"
         title="工作台"
-        actions={
-          <YumiButton onClick={() => void reload()} variant="secondary">
-            刷新
-          </YumiButton>
-        }
+        actions={{
+          ariaLabel: '工作台页面动作',
+          secondaryAction: {
+            label: '刷新',
+            onClick: () => void reload()
+          }
+        }}
       />
       {loading ? (
-        <YumiEmptyState description="正在汇总当前需要处理的业务事实。" title="读取工作台中…" />
+        <YumiEmptyState
+          description="正在汇总当前需要处理的业务事实。"
+          scenario="loading"
+          title="读取工作台中…"
+        />
       ) : null}
       {!loading && snapshot?.firstUseGuide ? (
         <YumiEmptyState
@@ -89,18 +98,15 @@ export function WorkbenchPage({
       ) : null}
       {!loading && !snapshot?.firstUseGuide ? (
         <>
-          <nav aria-label="工作台事项视图" className="yumi-page-tabs">
-            {(['decision', 'advance'] as WorkbenchView[]).map((view) => (
-              <YumiButton
-                aria-pressed={activeView === view}
-                key={view}
-                onClick={() => chooseView(view)}
-                variant={activeView === view ? 'secondary' : 'ghost'}
-              >
-                {viewLabels[view]}（{view === 'decision' ? decisionCount : advanceCount}）
-              </YumiButton>
-            ))}
-          </nav>
+          <YumiPrimaryTabs
+            ariaLabel="工作台事项视图"
+            items={[
+              { id: 'decision', label: `${viewLabels.decision}（${decisionCount}）` },
+              { id: 'advance', label: `${viewLabels.advance}（${advanceCount}）` }
+            ]}
+            onValueChange={chooseView}
+            value={activeView}
+          />
           {items.length === 0 ? (
             <YumiEmptyState
               description={
@@ -111,32 +117,67 @@ export function WorkbenchPage({
               title={activeView === 'decision' ? '暂时不需要你决定' : '暂时没有待推进事项'}
             />
           ) : (
-            <YumiBusinessList>
-              {items.map((item) => {
-                const status = statusFor(item.priority)
-                const amountOrQuantity = formatAmountOrQuantity(item)
-                return (
-                  <YumiBusinessListItem
-                    key={item.id}
-                    meta={item.dueHint ?? '进入实际处理区'}
-                    metrics={
-                      amountOrQuantity
-                        ? [
-                            {
-                              label: item.quantityOrAmount?.kind === 'amount' ? '金额' : '数量',
-                              value: amountOrQuantity
-                            }
-                          ]
-                        : []
+            <YumiSection
+              ariaLabel="工作台事项"
+              description="按当前视图集中处理由业务事实生成的待办事项。"
+              title={viewLabels[activeView]}
+            >
+              <YumiListSurface>
+                <YumiListToolbar
+                  ariaLabel="工作台事项列表工具"
+                  countLabel={`共 ${items.length} 项待处理事项`}
+                />
+                <YumiDataTable
+                  ariaLabel="工作台事项列表"
+                  columns={[
+                    {
+                      key: 'subject',
+                      label: '待处理事项',
+                      render: (item) => (
+                        <div className="yumi-list-cell">
+                          <strong>{item.subject.title}</strong>
+                          <span>{item.subject.description ?? '进入实际处理区继续处理'}</span>
+                        </div>
+                      )
+                    },
+                    {
+                      key: 'priority',
+                      label: '优先级',
+                      render: (item) => {
+                        const status = statusFor(item.priority)
+                        return <YumiStatusTag tone={status.tone}>{status.label}</YumiStatusTag>
+                      }
+                    },
+                    {
+                      key: 'amountOrQuantity',
+                      label: '金额 / 数量',
+                      render: (item) => formatAmountOrQuantity(item) ?? '—'
+                    },
+                    {
+                      key: 'dueHint',
+                      label: '处理时点',
+                      render: (item) => item.dueHint ?? '进入实际处理区'
+                    },
+                    {
+                      align: 'right',
+                      key: 'actions',
+                      label: '操作',
+                      render: (item) => (
+                        <YumiButton
+                          aria-label={`处理事项：${item.subject.title}`}
+                          onClick={() => onNavigate(item.navigationTarget)}
+                          variant="secondary"
+                        >
+                          进入处理
+                        </YumiButton>
+                      )
                     }
-                    onOpen={() => onNavigate(item.navigationTarget)}
-                    status={<YumiStatusTag tone={status.tone}>{status.label}</YumiStatusTag>}
-                    summary={item.subject.description ?? '进入实际处理区继续处理'}
-                    title={item.subject.title}
-                  />
-                )
-              })}
-            </YumiBusinessList>
+                  ]}
+                  getRowKey={(item) => item.id}
+                  rows={items}
+                />
+              </YumiListSurface>
+            </YumiSection>
           )}
         </>
       ) : null}

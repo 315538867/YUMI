@@ -77,8 +77,8 @@ app.whenReady().then(() => {
         async exportShippingList(input) {
           const workbook = await currentRuntime.reportExportService.exportShippingListWorkbook(input)
           const result = await dialog.showSaveDialog({
-            title: '导出发货清单',
-            defaultPath: 'yumi-发货清单.xlsx',
+            title: input?.shipmentId ? '导出本批发货清单' : '导出发货汇总',
+            defaultPath: input?.shipmentId ? 'yumi-本批发货清单.xlsx' : 'yumi-发货汇总.xlsx',
             filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
           })
           if (result.canceled || !result.filePath) return { savedPath: null }

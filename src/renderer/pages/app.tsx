@@ -27,7 +27,7 @@ const navigationGroups: Array<{ label: string; items: NavigationItem[] }> = [
     label: '业务运营',
     items: [
       { id: 'orders', label: '订单', icon: CircleDollarSign },
-      { id: 'fulfillment', label: '履约', icon: ClipboardList },
+      { id: 'fulfillment', label: '排班', icon: ClipboardList },
       { id: 'settlements', label: '工资', icon: WalletCards }
     ]
   },

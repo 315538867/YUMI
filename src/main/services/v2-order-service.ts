@@ -30,7 +30,8 @@ import type {
   V2ProductOrderSnapshot,
   V2ProductUpdateInput,
   V2Shipment,
-  V2ShipmentInput
+  V2ShipmentInput,
+  V2ShipmentVoidInput
 } from '@shared/contracts/index'
 
 interface V2Clock {
@@ -396,7 +397,8 @@ export class V2OrderService {
         id: this.clock.createId(), orderId, shippedOn: input.shippedOn,
         items: input.items.map((item) => ({ id: this.clock.createId(), ...item })),
         carrier: nullableText(input.carrier), trackingNumber: nullableText(input.trackingNumber),
-        note: nullableText(input.note), createdAt: now, updatedAt: now
+        note: nullableText(input.note), status: 'active', voidedOn: null, voidReason: null, voidedAt: null,
+        createdAt: now, updatedAt: now
       }
       const shipmentEvents = shipment.items.map((item) => ({
         id: this.clock.createId(), orderItemId: item.orderItemId, eventType: 'shipment' as const,
@@ -459,6 +461,52 @@ export class V2OrderService {
       shipmentEvents.forEach((event) => this.fulfillmentRepository.insertFulfillmentEvent(event))
       this.recordAudit('shipment.created', 'order', orderId, undefined, shipment, now, { shipmentId: shipment.id })
       return shipment
+    })
+  }
+
+  voidShipment(orderId: string, shipmentId: string, input: V2ShipmentVoidInput): V2Shipment {
+    const voidedOn = requireBusinessDate(input.voidedOn, '作废日期')
+    const voidReason = requireText(input.reason, '作废原因')
+    return this.repository.transaction(() => {
+      this.requireOrder(orderId)
+      const shipment = this.repository.listShipments(orderId).find((item) => item.id === requireId(shipmentId, '发货批次标识'))
+      if (!shipment) throw new DomainValidationError('发货批次不存在')
+      if (shipment.status === 'voided') throw new DomainValidationError('发货批次已作废')
+      if (voidedOn < shipment.shippedOn) throw new DomainValidationError('作废日期不能早于发货日期')
+
+      const now = this.clock.now()
+      const reversalEvents = shipment.items.map((item) => {
+        const existingEvents = this.fulfillmentRepository.listFulfillmentEvents(item.orderItemId)
+        return {
+          id: this.clock.createId(), orderItemId: item.orderItemId, eventType: 'manager_adjustment' as const,
+          quantity: item.quantity, sourceStage: 'shipped' as const, targetStage: 'ready_to_ship' as const,
+          sourceRecordType: 'shipment_void', sourceRecordId: shipment.id, occurredOn: voidedOn,
+          note: `作废发货批次：${voidReason}`,
+          createdAt: createFulfillmentEventTimestamp(now, voidedOn, existingEvents)
+        }
+      })
+      for (const event of reversalEvents) {
+        const item = this.requireOrder(orderId).items.find((candidate) => candidate.id === event.orderItemId)!
+        const events = this.fulfillmentRepository.listFulfillmentEvents(event.orderItemId)
+        const nextEvents = [...events, event].sort((left, right) =>
+          left.occurredOn === right.occurredOn
+            ? left.createdAt.localeCompare(right.createdAt)
+            : left.occurredOn.localeCompare(right.occurredOn)
+        )
+        nextEvents.reduce((state, current) => applyFulfillmentEvent(state, current), createFulfillmentState(item.quantity))
+      }
+      this.repository.voidShipment(orderId, shipment.id, voidedOn, voidReason, now)
+      reversalEvents.forEach((event) => this.fulfillmentRepository.insertFulfillmentEvent(event))
+      const voided: V2Shipment = {
+        ...shipment,
+        status: 'voided',
+        voidedOn,
+        voidReason,
+        voidedAt: now,
+        updatedAt: now
+      }
+      this.recordAudit('shipment.voided', 'order', orderId, shipment, voided, now, { shipmentId: shipment.id })
+      return voided
     })
   }
 

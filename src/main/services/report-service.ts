@@ -32,11 +32,11 @@ import type {
   V2ShippingListExportRow
 } from '@shared/contracts/reports'
 
-
 const RISK_BUSINESS_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 function requireRiskBusinessDate(value: string, label: string): string {
-  if (!RISK_BUSINESS_DATE.test(value)) throw new DomainValidationError(`${label}格式必须为 YYYY-MM-DD`)
+  if (!RISK_BUSINESS_DATE.test(value))
+    throw new DomainValidationError(`${label}格式必须为 YYYY-MM-DD`)
   const date = new Date(`${value}T00:00:00Z`)
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
     throw new DomainValidationError(`${label}无效`)
@@ -45,14 +45,18 @@ function requireRiskBusinessDate(value: string, label: string): string {
 }
 
 function countCalendarDays(startOn: string, endOn: string): number {
-  return Math.round((Date.parse(`${endOn}T00:00:00Z`) - Date.parse(`${startOn}T00:00:00Z`)) / 86_400_000)
+  return Math.round(
+    (Date.parse(`${endOn}T00:00:00Z`) - Date.parse(`${startOn}T00:00:00Z`)) / 86_400_000
+  )
 }
 
 function countInclusiveDays(startOn: string, endOn: string): number {
   return countCalendarDays(startOn, endOn) + 1
 }
 
-function riskLevelRank(level: V2CapacityRiskReportRow['level'] | V2DeliveryRiskReportRow['level']): number {
+function riskLevelRank(
+  level: V2CapacityRiskReportRow['level'] | V2DeliveryRiskReportRow['level']
+): number {
   return { normal: 0, warning: 1, critical: 2, unplanned: 3 }[level]
 }
 
@@ -192,17 +196,23 @@ export class ReportService {
       current.shippedQuantity += row.stages.shipped
       totals.set(row.orderId, current)
     }
-    return new Map([...totals].map(([orderId, total]) => {
-      const shipmentStatus: V2CustomerOrderShipmentStatus = total.shippedQuantity <= 0
-        ? '未发货'
-        : total.shippedQuantity >= total.confirmedQuantity
-          ? '已发货'
-          : '部分发货'
-      return [orderId, {
-        shipmentStatus,
-        orderStatus: shipmentStatus === '已发货' ? '已完成' : '履约中'
-      }]
-    }))
+    return new Map(
+      [...totals].map(([orderId, total]) => {
+        const shipmentStatus: V2CustomerOrderShipmentStatus =
+          total.shippedQuantity <= 0
+            ? '未发货'
+            : total.shippedQuantity >= total.confirmedQuantity
+              ? '已发货'
+              : '部分发货'
+        return [
+          orderId,
+          {
+            shipmentStatus,
+            orderStatus: shipmentStatus === '已发货' ? '已完成' : '排班中'
+          }
+        ]
+      })
+    )
   }
 
   listCustomerOrderInsights(): V2CustomerOrderInsights[] {
@@ -211,7 +221,11 @@ export class ReportService {
     return this.repository.listCustomersForOrderInsights().map((customer) => {
       const orders = businessRows
         .filter((row) => row.customerId === customer.id)
-        .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.orderId.localeCompare(left.orderId))
+        .sort(
+          (left, right) =>
+            right.createdAt.localeCompare(left.createdAt) ||
+            right.orderId.localeCompare(left.orderId)
+        )
         .map((row) => ({
           orderId: row.orderId,
           orderCode: row.orderCode,
@@ -221,7 +235,7 @@ export class ReportService {
           outstandingCents: row.outstandingCents,
           ...(fulfillmentStatuses.get(row.orderId) ?? {
             shipmentStatus: '未发货' as const,
-            orderStatus: '履约中' as const
+            orderStatus: '排班中' as const
           })
         }))
       return {
@@ -274,7 +288,12 @@ export class ReportService {
     const calendarDays = countInclusiveDays(startOn, endOn)
     const grouped = new Map<string, V2CapacityRiskReportRow>()
     for (const source of this.repository.listRiskOrderItemSources()) {
-      if (!source.expectedShipDate || source.expectedShipDate < startOn || source.expectedShipDate > endOn) continue
+      if (
+        !source.expectedShipDate ||
+        source.expectedShipDate < startOn ||
+        source.expectedShipDate > endOn
+      )
+        continue
       const state = source.events.reduce(
         (current, event) => applyFulfillmentEvent(current, event),
         createFulfillmentState(source.confirmedQuantity)
@@ -309,9 +328,12 @@ export class ReportService {
       const available = row.availableCapacityQuantity
       row.gapQuantity = Math.max(row.demandQuantity - available, 0)
       const relevantQuantity = Math.max(row.demandQuantity, row.scheduledQuantity)
-      row.utilizationBasisPoints = available > 0
-        ? Math.ceil((relevantQuantity * 10_000) / available)
-        : relevantQuantity > 0 ? 10_000 : 0
+      row.utilizationBasisPoints =
+        available > 0
+          ? Math.ceil((relevantQuantity * 10_000) / available)
+          : relevantQuantity > 0
+            ? 10_000
+            : 0
       const sources: string[] = []
       if (row.dailyCapacity <= 0) sources.push('未维护有效模具日产能')
       if (row.gapQuantity > 0) sources.push('订单需求超过周期产能')
@@ -325,8 +347,12 @@ export class ReportService {
       return row
     })
     return {
-      rows: rows.sort((left, right) => riskLevelRank(right.level) - riskLevelRank(left.level)
-        || right.gapQuantity - left.gapQuantity || left.productName.localeCompare(right.productName))
+      rows: rows.sort(
+        (left, right) =>
+          riskLevelRank(right.level) - riskLevelRank(left.level) ||
+          right.gapQuantity - left.gapQuantity ||
+          left.productName.localeCompare(right.productName)
+      )
     }
   }
 
@@ -351,7 +377,10 @@ export class ReportService {
         continue
       }
       const productionDeadline = source.expectedShipDate
-        ? calculateOrderSchedule({ expectedShipDate: source.expectedShipDate, reservedDays: source.reservedDays }).productionDeadline
+        ? calculateOrderSchedule({
+            expectedShipDate: source.expectedShipDate,
+            reservedDays: source.reservedDays
+          }).productionDeadline
         : null
       const row: V2DeliveryRiskReportRow = {
         orderId: source.orderId,
@@ -380,9 +409,14 @@ export class ReportService {
       grouped.set(source.orderId, row)
     }
     return {
-      rows: [...grouped.values()].sort((left, right) => riskLevelRank(right.level) - riskLevelRank(left.level)
-        || (left.productionDeadline ?? '9999-12-31').localeCompare(right.productionDeadline ?? '9999-12-31')
-        || left.orderCode.localeCompare(right.orderCode))
+      rows: [...grouped.values()].sort(
+        (left, right) =>
+          riskLevelRank(right.level) - riskLevelRank(left.level) ||
+          (left.productionDeadline ?? '9999-12-31').localeCompare(
+            right.productionDeadline ?? '9999-12-31'
+          ) ||
+          left.orderCode.localeCompare(right.orderCode)
+      )
     }
   }
 
@@ -498,41 +532,57 @@ export class ReportService {
    * 避免后续订单/客户/商品变化改写历史发货文件。
    */
   getShippingList(input: V2ShippingListExportInput = {}): V2ShippingListExportRow[] {
-    return this.repository.listShippingListSources(input.shipmentId, input.orderId).map((source) => {
-      const documentSnapshot = source.shipmentSnapshotJson
-        ? parseJson<ShipmentDocumentSnapshot>(source.shipmentSnapshotJson)
-        : null
-      const itemSnapshot = documentSnapshot?.items?.find(
-        (item) => item.orderItemId === source.orderItemId
-      )
-      const customer = documentSnapshot?.order?.customerSnapshot ??
-        parseJson<CustomerSnapshot>(source.customerSnapshotJson)
-      const orderedQuantity = itemSnapshot?.orderedQuantity ?? source.orderedQuantity
-      const shippedQuantity = Math.min(
-        itemSnapshot?.shippedQuantity ?? source.shippedQuantity,
-        orderedQuantity
-      )
-      const product = itemSnapshot?.productSnapshot ??
-        parseJson<V2ProductOrderSnapshot>(source.productSnapshotJson)
-      return {
-        orderCode: documentSnapshot?.order?.code ?? source.orderCode,
-        customerName: customer.name?.trim() || '未命名客户',
-        customerContact: customer.contact ?? null,
-        customerAddress: customer.defaultAddress ?? null,
-        productName: product.name,
-        productImageAttachmentId: product.imageAttachmentId ?? null,
-        productNotes: product.notes ?? null,
-        unitWeightMilligrams: product.unitWeightMilligrams ?? null,
-        expectedShipDate: (documentSnapshot?.order?.expectedShipDate ?? source.expectedShipDate) as V2ShippingListExportRow['expectedShipDate'],
-        orderedQuantity,
-        thisShipmentQuantity: itemSnapshot?.thisShipmentQuantity ?? null,
-        shippedQuantity,
-        remainingQuantity: itemSnapshot?.remainingQuantity ?? Math.max(orderedQuantity - shippedQuantity, 0),
-        latestShippedOn: (documentSnapshot?.shipment?.shippedOn ?? source.latestShippedOn) as V2ShippingListExportRow['latestShippedOn'],
-        carrier: documentSnapshot?.shipment?.carrier ?? source.carrier,
-        trackingNumber: documentSnapshot?.shipment?.trackingNumber ?? source.trackingNumber
-      }
-    })
+    return this.repository
+      .listShippingListSources(input.shipmentId, input.orderId)
+      .map((source) => {
+        const documentSnapshot = source.shipmentSnapshotJson
+          ? parseJson<ShipmentDocumentSnapshot>(source.shipmentSnapshotJson)
+          : null
+        const itemSnapshot = documentSnapshot?.items?.find(
+          (item) => item.orderItemId === source.orderItemId
+        )
+        const customer =
+          documentSnapshot?.order?.customerSnapshot ??
+          parseJson<CustomerSnapshot>(source.customerSnapshotJson)
+        const orderedQuantity = itemSnapshot?.orderedQuantity ?? source.orderedQuantity
+        // 已作废批次仍读取冻结的本批数量，但累计已发/待发必须按当前有效批次计算。
+        // 有效批次清单则保持该批创建当时的累计值，避免后续批次改写历史文件。
+        const activeShippedQuantity = Math.min(source.shippedQuantity, orderedQuantity)
+        const historicalShippedQuantity = Math.min(
+          itemSnapshot?.shippedQuantity ?? activeShippedQuantity,
+          orderedQuantity
+        )
+        const shippedQuantity =
+          input.shipmentId && source.shipmentStatus !== 'voided'
+            ? historicalShippedQuantity
+            : activeShippedQuantity
+        const product =
+          itemSnapshot?.productSnapshot ??
+          parseJson<V2ProductOrderSnapshot>(source.productSnapshotJson)
+        return {
+          orderCode: documentSnapshot?.order?.code ?? source.orderCode,
+          customerName: customer.name?.trim() || '未命名客户',
+          customerContact: customer.contact ?? null,
+          customerAddress: customer.defaultAddress ?? null,
+          productName: product.name,
+          productImageAttachmentId: product.imageAttachmentId ?? null,
+          productNotes: product.notes ?? null,
+          unitWeightMilligrams: product.unitWeightMilligrams ?? null,
+          expectedShipDate: (documentSnapshot?.order?.expectedShipDate ??
+            source.expectedShipDate) as V2ShippingListExportRow['expectedShipDate'],
+          orderedQuantity,
+          thisShipmentQuantity: itemSnapshot?.thisShipmentQuantity ?? null,
+          shippedQuantity,
+          remainingQuantity: Math.max(orderedQuantity - shippedQuantity, 0),
+          latestShippedOn: (documentSnapshot?.shipment?.shippedOn ??
+            source.latestShippedOn) as V2ShippingListExportRow['latestShippedOn'],
+          carrier: documentSnapshot?.shipment?.carrier ?? source.carrier,
+          trackingNumber: documentSnapshot?.shipment?.trackingNumber ?? source.trackingNumber,
+          shipmentStatus: source.shipmentStatus,
+          voidedOn: source.voidedOn as V2ShippingListExportRow['voidedOn'],
+          voidReason: source.voidReason
+        }
+      })
   }
 
   /** 发货清单始终保留订单的全部商品；指定批次时仅“本批发货”使用该批冻结数量。 */
@@ -550,6 +600,9 @@ export class ReportService {
         shippedOn: input.shipmentId ? row.latestShippedOn : null,
         carrier: input.shipmentId ? row.carrier : null,
         trackingNumber: input.shipmentId ? row.trackingNumber : null,
+        shipmentStatus: input.shipmentId ? (row.shipmentStatus ?? 'active') : null,
+        voidedOn: input.shipmentId ? (row.voidedOn ?? null) : null,
+        voidReason: input.shipmentId ? (row.voidReason ?? null) : null,
         items: []
       }
       document.items.push({

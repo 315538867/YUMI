@@ -14,7 +14,8 @@ import type {
   V2OrderSummary,
   V2Product,
   V2Shipment,
-  V2ShipmentInput
+  V2ShipmentInput,
+  V2ShipmentVoidInput
 } from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
@@ -37,6 +38,7 @@ export function buildShipmentItemAvailability(
 ): ShipmentItemAvailability[] {
   const shippedByOrderItem = new Map<string, number>()
   for (const shipment of shipments) {
+    if (shipment.status === 'voided') continue
     for (const item of shipment.items) {
       shippedByOrderItem.set(
         item.orderItemId,
@@ -198,6 +200,15 @@ export function useOrders() {
     [reload]
   )
 
+  const voidShipment = useCallback(
+    async (orderId: string, shipmentId: string, input: V2ShipmentVoidInput) => {
+      const shipment = await window.yumiV2.orders.voidShipment(orderId, shipmentId, input)
+      await reload(orderId)
+      return shipment
+    },
+    [reload]
+  )
+
   const exportOrderTable = useCallback(
     (orderId?: string | null) => window.yumiV2.reports.exportOrderTable(orderId ? { orderId } : undefined),
     []
@@ -235,6 +246,7 @@ export function useOrders() {
     attachFundProof,
     openFundProof,
     createShipment,
+    voidShipment,
     exportOrderTable,
     exportOrderDocuments,
     exportShippingList

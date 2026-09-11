@@ -7,15 +7,20 @@ import type {
 import { formatCents, getErrorMessage, today, yuanToCents } from '../../composables/v2-utils'
 import { useFinance } from '../../composables/use-finance'
 import {
-  YumiBusinessList,
-  YumiBusinessListItem,
   YumiButton,
+  YumiDataTable,
   YumiDatePicker,
+  YumiEmptyState,
   YumiField,
   YumiFieldLabel,
+  YumiFormMessage,
+  YumiListSurface,
+  YumiListToolbar,
+  YumiMetricStrip,
   YumiMonthPicker,
   YumiNumberField,
   YumiPageHeader,
+  YumiPrimaryTabs,
   YumiSearchSelect,
   YumiSection,
   YumiSelect,
@@ -219,46 +224,30 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
   return (
     <div className="yumi-finance-workspace">
       <YumiPageHeader
-        actions={
-          <>
-            <YumiStatusTag tone="success">负责人手动登记</YumiStatusTag>
-            <YumiButton
-              onClick={() => {
-                setShowEntryForm(true)
-                setError(null)
-              }}
-              variant="primary"
-            >
-              登记收支
-            </YumiButton>
-          </>
-        }
+        actions={{
+          ariaLabel: '财务页面动作',
+          context: <YumiStatusTag tone="success">负责人手动登记</YumiStatusTag>,
+          primaryAction: {
+            label: '登记收支',
+            onClick: () => {
+              setShowEntryForm(true)
+              setError(null)
+            }
+          }
+        }}
         description="按实际付款日期入账；私人垫付形成待报销项，报销付款只进入现金流水，不重复计入经营费用。"
         title="财务"
       />
-      <nav aria-label="财务工作视图" className="yumi-page-tabs">
-        {workspaceViews.map((view) => (
-          <YumiButton
-            aria-pressed={workspaceView === view.id}
-            key={view.id}
-            onClick={() => setWorkspaceView(view.id)}
-            variant={workspaceView === view.id ? 'primary' : 'ghost'}
-          >
-            {view.label}
-          </YumiButton>
-        ))}
-      </nav>
+      <YumiPrimaryTabs
+        ariaLabel="财务工作视图"
+        items={workspaceViews}
+        onValueChange={setWorkspaceView}
+        value={workspaceView}
+      />
 
       {workspaceView === 'overview' && (
         <YumiSection
-          description="只按实际收付款日期归属月份；报销付款不重复计入经营支出。"
-          title="本月经营结果"
-        >
-          <div className="yumi-finance-filters">
-            <YumiField>
-              <YumiFieldLabel>统计月份</YumiFieldLabel>
-              <YumiMonthPicker aria-label="统计月份" onValueChange={setMonth} value={month} />
-            </YumiField>
+          actions={
             <YumiButton
               disabled={loading}
               onClick={() => void refreshOverview()}
@@ -266,33 +255,45 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
             >
               刷新
             </YumiButton>
-          </div>
-          <div className="yumi-finance-summary-grid">
-            <FinanceMetric label="实际收入" value={monthlySummary?.incomeCents ?? 0} />
-            <FinanceMetric
-              label="经营支出"
-              tone="danger"
-              value={monthlySummary?.operatingExpenseCents ?? 0}
-            />
-            <FinanceMetric
-              label="经营结果"
-              tone={(monthlySummary?.operatingResultCents ?? 0) >= 0 ? 'success' : 'danger'}
-              value={monthlySummary?.operatingResultCents ?? 0}
-            />
-          </div>
+          }
+          description="只按实际收付款日期归属月份；报销付款不重复计入经营支出。"
+          title="本月经营结果"
+        >
+          <YumiListToolbar
+            ariaLabel="经营结果筛选工具"
+            filters={
+              <YumiField>
+                <YumiFieldLabel>统计月份</YumiFieldLabel>
+                <YumiMonthPicker aria-label="统计月份" onValueChange={setMonth} value={month} />
+              </YumiField>
+            }
+          />
+          <YumiMetricStrip
+            ariaLabel="本月经营结果指标"
+            items={[
+              {
+                label: '实际收入',
+                tone: 'success',
+                value: formatCents(monthlySummary?.incomeCents ?? 0)
+              },
+              {
+                label: '经营支出',
+                tone: 'danger',
+                value: formatCents(monthlySummary?.operatingExpenseCents ?? 0)
+              },
+              {
+                label: '经营结果',
+                tone: (monthlySummary?.operatingResultCents ?? 0) >= 0 ? 'success' : 'danger',
+                value: formatCents(monthlySummary?.operatingResultCents ?? 0)
+              }
+            ]}
+          />
         </YumiSection>
       )}
 
       {workspaceView === 'cashflow' && (
         <YumiSection
-          description="包含公账收入、支出和报销付款；报销付款仅反映实际现金流。"
-          title="当月现金流水"
-        >
-          <div className="yumi-finance-filters">
-            <YumiField>
-              <YumiFieldLabel>查看月份</YumiFieldLabel>
-              <YumiMonthPicker aria-label="现金流水月份" onValueChange={setMonth} value={month} />
-            </YumiField>
+          actions={
             <YumiButton
               disabled={loading}
               onClick={() => void refreshOverview()}
@@ -300,83 +301,188 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
             >
               刷新
             </YumiButton>
-          </div>
-          {loading ? (
-            <div className="yumi-empty">加载当月流水中…</div>
-          ) : entries.length === 0 ? (
-            <div className="yumi-empty">该月尚无现金流水。</div>
-          ) : (
-            <YumiBusinessList>
-              {entries.map((entry) => (
-                <FinanceEntryRow entry={entry} key={entry.id} />
-              ))}
-            </YumiBusinessList>
-          )}
+          }
+          description="包含公账收入、支出和报销付款；报销付款仅反映实际现金流。"
+          title="当月现金流水"
+        >
+          <YumiListSurface ariaLabel="现金流水记录">
+            <YumiListToolbar
+              ariaLabel="现金流水列表工具"
+              countLabel={`共 ${entries.length} 笔流水`}
+              filters={
+                <YumiField>
+                  <YumiFieldLabel>查看月份</YumiFieldLabel>
+                  <YumiMonthPicker
+                    aria-label="现金流水月份"
+                    onValueChange={setMonth}
+                    value={month}
+                  />
+                </YumiField>
+              }
+            />
+            {loading ? (
+              <YumiEmptyState
+                description="正在读取当月资金流水，请稍候。"
+                scenario="loading"
+                title="资金流水加载中"
+              />
+            ) : (
+              <YumiDataTable<V2FinancialEntry>
+                ariaLabel="现金流水列表"
+                columns={[
+                  {
+                    key: 'occurredOn',
+                    label: '发生日期',
+                    render: (entry) => entry.occurredOn
+                  },
+                  {
+                    key: 'business',
+                    label: '业务类型 / 说明',
+                    render: (entry) => (
+                      <div className="yumi-list-cell">
+                        <strong>{entry.categoryName ?? entry.businessType}</strong>
+                        <span>
+                          {getFinanceEntryDetail(entry)}
+                          {entry.note ? ` · ${entry.note}` : ''}
+                        </span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'payment',
+                    label: '支付方式',
+                    render: (entry) => entry.paymentMethod ?? '未填写'
+                  },
+                  {
+                    key: 'status',
+                    label: '状态',
+                    render: (entry) => (
+                      <YumiStatusTag tone={entry.direction === 'income' ? 'success' : 'warning'}>
+                        {entry.direction === 'income' ? '收入' : '支出'}
+                      </YumiStatusTag>
+                    )
+                  },
+                  {
+                    align: 'right',
+                    key: 'amount',
+                    label: '金额',
+                    render: (entry) => (
+                      <strong>
+                        {entry.direction === 'income' ? '+' : '-'}
+                        {formatCents(entry.amountCents)}
+                      </strong>
+                    )
+                  }
+                ]}
+                emptyText="该月尚无现金流水。"
+                getRowKey={(entry) => entry.id}
+                rows={entries}
+              />
+            )}
+          </YumiListSurface>
         </YumiSection>
       )}
 
       {workspaceView === 'reimbursements' && (
         <YumiSection
+          actions={
+            <>
+              <YumiButton
+                disabled={loading}
+                onClick={() => void refreshOverview()}
+                variant="secondary"
+              >
+                刷新
+              </YumiButton>
+              <YumiButton
+                disabled={selectedReimbursementIds.length === 0}
+                onClick={() => {
+                  setError(null)
+                  setShowReimbursementForm(true)
+                }}
+                variant="primary"
+              >
+                批量报销（已选择 {selectedReimbursementIds.length} 笔）
+              </YumiButton>
+            </>
+          }
           description="先在同一列表选择待报销项，再统一填写报销日期、支付方式和备注；提交时会原子地校验并创建全部流水。"
           title="待报销私人垫付"
         >
-          <div className="yumi-finance-reimburse-controls">
-            <YumiField>
-              <YumiFieldLabel>截至日期</YumiFieldLabel>
-              <YumiDatePicker aria-label="待报销截至日期" onValueChange={setAsOf} value={asOf} />
-            </YumiField>
-            <YumiButton
-              disabled={loading}
-              onClick={() => void refreshOverview()}
-              variant="secondary"
-            >
-              刷新
-            </YumiButton>
-            <YumiButton
-              disabled={selectedReimbursementIds.length === 0}
-              onClick={() => {
-                setError(null)
-                setShowReimbursementForm(true)
-              }}
-              variant="primary"
-            >
-              批量报销（已选择 {selectedReimbursementIds.length} 笔）
-            </YumiButton>
-          </div>
-          {pendingReimbursements.length === 0 ? (
-            <div className="yumi-empty">截至所选日期没有待报销的私人垫付。</div>
-          ) : (
-            <YumiBusinessList>
-              {pendingReimbursements.map((item) => {
-                const selected = selectedReimbursementIds.includes(item.financialEntryId)
-                return (
-                  <YumiBusinessListItem
-                    key={item.financialEntryId}
-                    meta={
+          <YumiListSurface ariaLabel="待报销记录">
+            <YumiListToolbar
+              ariaLabel="待报销列表工具"
+              countLabel={`共 ${pendingReimbursements.length} 笔待报销`}
+              filters={
+                <YumiField>
+                  <YumiFieldLabel>截至日期</YumiFieldLabel>
+                  <YumiDatePicker
+                    aria-label="待报销截至日期"
+                    onValueChange={setAsOf}
+                    value={asOf}
+                  />
+                </YumiField>
+              }
+            />
+            <YumiDataTable
+              ariaLabel="待报销列表"
+              columns={[
+                {
+                  key: 'advancePayer',
+                  label: '垫付人 / 费用',
+                  render: (item) => (
+                    <div className="yumi-list-cell">
+                      <strong>{item.advancePayerName ?? '未命名垫付人'}</strong>
+                      <span>
+                        {item.categoryName ?? '未分类'}
+                        {item.note ? ` · ${item.note}` : ''}
+                      </span>
+                    </div>
+                  )
+                },
+                {
+                  key: 'occurredOn',
+                  label: '垫付日期',
+                  render: (item) => item.occurredOn
+                },
+                {
+                  align: 'right',
+                  key: 'amount',
+                  label: '待报销金额',
+                  render: (item) => <strong>{formatCents(item.amountCents)}</strong>
+                },
+                {
+                  key: 'status',
+                  label: '状态',
+                  render: () => <YumiStatusTag tone="warning">待报销</YumiStatusTag>
+                },
+                {
+                  align: 'right',
+                  key: 'action',
+                  label: '操作',
+                  render: (item) => {
+                    const selected = selectedReimbursementIds.includes(item.financialEntryId)
+                    return (
                       <YumiButton
                         aria-pressed={selected}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          toggleReimbursement(item.financialEntryId)
-                        }}
+                        onClick={() => toggleReimbursement(item.financialEntryId)}
                         variant={selected ? 'primary' : 'secondary'}
                       >
                         {selected ? '已选择' : '选择'}
                       </YumiButton>
-                    }
-                    metrics={[{ label: '待报销金额', value: formatCents(item.amountCents) }]}
-                    status={<YumiStatusTag tone="warning">待报销</YumiStatusTag>}
-                    summary={`${item.occurredOn} · ${item.categoryName ?? '未分类'} · ${item.note || '无备注'}`}
-                    title={item.advancePayerName ?? '未命名垫付人'}
-                  />
-                )
-              })}
-            </YumiBusinessList>
-          )}
+                    )
+                  }
+                }
+              ]}
+              emptyText="截至所选日期没有待报销的私人垫付。"
+              getRowKey={(item) => item.financialEntryId}
+              rows={pendingReimbursements}
+            />
+          </YumiListSurface>
           {selectedReimbursementIds.length > 0 && (
-            <p className="yumi-finance-selection-summary">
+            <YumiFormMessage>
               已选择 {selectedReimbursementIds.length} 笔，合计 {formatCents(selectedCents)}。
-            </p>
+            </YumiFormMessage>
           )}
         </YumiSection>
       )}
@@ -557,49 +663,11 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
   )
 }
 
-function FinanceMetric({
-  label,
-  tone = 'neutral',
-  value
-}: {
-  label: string
-  tone?: 'neutral' | 'brand' | 'success' | 'danger'
-  value: number
-}) {
-  return (
-    <article className={`yumi-finance-metric yumi-finance-metric--${tone}`}>
-      <span>{label}</span>
-      <strong>{formatCents(value)}</strong>
-    </article>
-  )
-}
-
-function FinanceEntryRow({ entry }: { entry: V2FinancialEntry }) {
-  const detail =
-    entry.direction === 'income'
-      ? '收入'
-      : entry.sourceType === 'reimbursement'
-        ? '报销付款（不重复计入经营支出）'
-        : entry.paymentSource === 'private_advance'
-          ? `私人垫付 · ${entry.advancePayerName ?? '未命名垫付人'}`
-          : entry.paymentSource === 'business_account'
-            ? '公账支出'
-            : entry.businessType
-  return (
-    <YumiBusinessListItem
-      metrics={[
-        {
-          label: entry.direction === 'income' ? '入账金额' : '支出金额',
-          value: `${entry.direction === 'income' ? '+' : '-'}${formatCents(entry.amountCents)}`
-        }
-      ]}
-      status={
-        <YumiStatusTag tone={entry.direction === 'income' ? 'success' : 'warning'}>
-          {entry.direction === 'income' ? '收入' : '支出'}
-        </YumiStatusTag>
-      }
-      summary={`${entry.occurredOn} · ${detail}${entry.note ? ` · ${entry.note}` : ''}`}
-      title={entry.categoryName ?? entry.businessType}
-    />
-  )
+function getFinanceEntryDetail(entry: V2FinancialEntry) {
+  if (entry.direction === 'income') return '收入'
+  if (entry.sourceType === 'reimbursement') return '报销付款（不重复计入经营支出）'
+  if (entry.paymentSource === 'private_advance') {
+    return `私人垫付 · ${entry.advancePayerName ?? '未命名垫付人'}`
+  }
+  return entry.paymentSource === 'business_account' ? '公账支出' : entry.businessType
 }

@@ -13,6 +13,46 @@ installDomInteractionPolyfills()
 afterEach(cleanup)
 
 describe('AfterSalesPanel', () => {
+  it('售后记录以具名表格展示，新增和收费关联仍分别归属区块与具体记录', async () => {
+    const listCases = vi.fn().mockResolvedValue([
+      {
+        id: 'case-1',
+        orderId: 'order-1',
+        shipmentId: null,
+        occurredOn: '2026-09-08',
+        reasonDescription: '包装破损',
+        customerRequest: '补发包装',
+        responsibilityDescription: '工作室承担包装失误',
+        handlingDescription: '重新包装后补发',
+        status: 'processing',
+        customerChargeNote: null,
+        accountingCostCents: 1234,
+        note: '已联系客户',
+        chargeFinancialEntryIds: [],
+        createdAt: '2026-09-08T10:00:00.000Z',
+        updatedAt: '2026-09-08T10:00:00.000Z'
+      }
+    ])
+    render(
+      <AfterSalesPanel
+        createCase={vi.fn().mockResolvedValue({})}
+        funds={[]}
+        linkCharge={vi.fn().mockResolvedValue(undefined)}
+        listCases={listCases}
+        orderId="order-1"
+        shipments={[]}
+        updateCase={vi.fn().mockResolvedValue({})}
+      />
+    )
+
+    expect(await screen.findByRole('table', { name: '售后记录列表' })).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '售后记录工具条' })).toBeVisible()
+    expect(screen.getByText('共 1 条售后记录')).toBeVisible()
+    expect(screen.getByText('包装破损')).toBeVisible()
+    expect(screen.getByRole('button', { name: '新增售后记录' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '关联实际收费' })).toBeVisible()
+  })
+
   it('打开按需录入抽屉，但在负责人未完成责任判断和处理方式前不会自动创建售后记录', async () => {
     const listCases = vi.fn().mockResolvedValue([])
     const createCase = vi.fn().mockResolvedValue({})

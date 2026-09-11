@@ -7,13 +7,15 @@ import type {
 } from '@shared/contracts/index'
 import { formatCents, getErrorMessage, today, yuanToCents } from '../../composables/v2-utils'
 import {
-  YumiBusinessList,
-  YumiBusinessListItem,
   YumiButton,
+  YumiDataTable,
   YumiConfirmDialog,
   YumiDatePicker,
   YumiField,
   YumiFieldLabel,
+  YumiFormMessage,
+  YumiListSurface,
+  YumiListToolbar,
   YumiNumberField,
   YumiSearchSelect,
   YumiSection,
@@ -255,25 +257,74 @@ export function AfterSalesPanel({
   return (
     <div className="yumi-after-sales-panel">
       <YumiSection
+        actions={
+          <>
+            <YumiStatusTag tone="warning">负责人决定</YumiStatusTag>
+            <YumiButton onClick={openCreateForm} variant="primary">
+              新增售后记录
+            </YumiButton>
+          </>
+        }
         description="负责人记录原发货、责任、处理判断、成本与收费约定；系统不会自动定责、收费或创建返工任务。"
         title="售后处理"
       >
-        <div className="yumi-after-sales-heading-actions">
-          <YumiStatusTag tone="warning">负责人决定</YumiStatusTag>
-          <YumiButton onClick={openCreateForm} variant="primary">
-            新增售后记录
-          </YumiButton>
-        </div>
-        {cases.length === 0 ? (
-          <div className="yumi-empty">暂未记录售后处理。</div>
-        ) : (
-          <YumiBusinessList>
-            {cases.map((item) => {
-              const originalShipment = item.shipmentId ? shipmentById.get(item.shipmentId) : null
-              return (
-                <YumiBusinessListItem
-                  key={item.id}
-                  meta={
+        <YumiListSurface ariaLabel="售后记录">
+          <YumiListToolbar
+            ariaLabel="售后记录工具条"
+            countLabel={`共 ${cases.length} 条售后记录`}
+          />
+          <YumiDataTable<V2AfterSalesCase>
+            ariaLabel="售后记录列表"
+            columns={[
+              {
+                key: 'occurredOn',
+                label: '发生日期',
+                render: (item) => item.occurredOn
+              },
+              {
+                key: 'case',
+                label: '问题 / 处理',
+                render: (item) => (
+                  <div className="yumi-list-cell">
+                    <strong>{item.reasonDescription}</strong>
+                    <span>
+                      责任：{item.responsibilityDescription} · 处理：{item.handlingDescription}
+                    </span>
+                    {item.customerRequest ? <span>客户诉求：{item.customerRequest}</span> : null}
+                  </div>
+                )
+              },
+              {
+                key: 'shipment',
+                label: '原发货批次',
+                render: (item) => {
+                  const originalShipment = item.shipmentId
+                    ? shipmentById.get(item.shipmentId)
+                    : null
+                  return originalShipment ? shipmentContext(originalShipment) : '未关联批次'
+                }
+              },
+              {
+                align: 'right',
+                key: 'cost',
+                label: '核算成本',
+                render: (item) => <strong>{formatCents(item.accountingCostCents)}</strong>
+              },
+              {
+                key: 'status',
+                label: '状态',
+                render: (item) => (
+                  <YumiStatusTag tone={statusTone(item.status)}>
+                    {statusLabel(item.status)}
+                  </YumiStatusTag>
+                )
+              },
+              {
+                align: 'right',
+                key: 'action',
+                label: '操作',
+                render: (item) => (
+                  <div className="yumi-list-cell yumi-list-cell--actions">
                     <YumiSelect
                       aria-label={`${item.occurredOn}售后状态`}
                       disabled={submitting === item.id}
@@ -283,46 +334,26 @@ export function AfterSalesPanel({
                       options={statusOptions}
                       value={item.status}
                     />
-                  }
-                  metrics={[
-                    { label: '核算成本', value: formatCents(item.accountingCostCents) },
-                    { label: '已关联收费', value: `${item.chargeFinancialEntryIds.length} 笔` }
-                  ]}
-                  status={
-                    <YumiStatusTag tone={statusTone(item.status)}>
-                      {statusLabel(item.status)}
-                    </YumiStatusTag>
-                  }
-                  summary={`责任：${item.responsibilityDescription} · 处理：${item.handlingDescription}`}
-                  title={item.reasonDescription}
-                >
-                  <span>发生：{item.occurredOn}</span>
-                  {originalShipment ? (
-                    <span>原发货：{shipmentContext(originalShipment)}</span>
-                  ) : (
-                    <span>原发货：未关联批次</span>
-                  )}
-                  {item.customerRequest ? <span>客户诉求：{item.customerRequest}</span> : null}
-                  {item.customerChargeNote ? (
-                    <span>收费约定：{item.customerChargeNote}</span>
-                  ) : null}
-                  {item.note ? <span>备注：{item.note}</span> : null}
-                  <YumiButton
-                    onClick={() => {
-                      setChargeCaseId(item.id)
-                      setChargeEntryId('')
-                      setShowChargeForm(true)
-                      setError(null)
-                    }}
-                    variant="ghost"
-                  >
-                    关联实际收费
-                  </YumiButton>
-                </YumiBusinessListItem>
-              )
-            })}
-          </YumiBusinessList>
-        )}
+                    <YumiButton
+                      onClick={() => {
+                        setChargeCaseId(item.id)
+                        setChargeEntryId('')
+                        setShowChargeForm(true)
+                        setError(null)
+                      }}
+                      variant="ghost"
+                    >
+                      关联实际收费
+                    </YumiButton>
+                  </div>
+                )
+              }
+            ]}
+            emptyText="暂未记录售后处理。"
+            getRowKey={(item) => item.id}
+            rows={cases}
+          />
+        </YumiListSurface>
       </YumiSection>
 
       <YumiSheet
@@ -381,9 +412,9 @@ export function AfterSalesPanel({
               <span>{shipmentContext(selectedShipment)}</span>
             </div>
           ) : (
-            <p className="yumi-form-hint">
+            <YumiFormMessage>
               如本次售后源于已发货商品，请选择原发货批次，后续处理会保留该上下文。
-            </p>
+            </YumiFormMessage>
           )}
           <YumiField>
             <YumiFieldLabel required>问题原因</YumiFieldLabel>
@@ -495,9 +526,9 @@ export function AfterSalesPanel({
             />
           </YumiField>
           {availableCharges.length === 0 ? (
-            <p className="yumi-form-hint">
+            <YumiFormMessage>
               请先在订单的“收款 / 退款”中登记实际到账的售后收费，再返回这里关联。
-            </p>
+            </YumiFormMessage>
           ) : null}
         </div>
       </YumiSheet>

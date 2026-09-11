@@ -257,11 +257,20 @@ export class ReportRepository {
     carrier: string | null
     trackingNumber: string | null
     shipmentSnapshotJson: string | null
+    shipmentStatus: 'active' | 'voided' | null
+    voidedOn: string | null
+    voidReason: string | null
   }> {
     const shipment = shipmentId
       ? (this.database.prepare(
-          'SELECT order_id, snapshot_json FROM shipments WHERE id = ?'
-        ).get(shipmentId) as { order_id: string; snapshot_json: string | null } | undefined)
+          'SELECT order_id, snapshot_json, status, voided_on, void_reason FROM shipments WHERE id = ?'
+        ).get(shipmentId) as {
+          order_id: string
+          snapshot_json: string | null
+          status: 'active' | 'voided'
+          voided_on: string | null
+          void_reason: string | null
+        } | undefined)
       : undefined
     if (shipmentId && !shipment) throw new DomainValidationError('发货批次不存在')
     if (shipment && orderId?.trim() && shipment.order_id !== orderId.trim()) {
@@ -269,17 +278,17 @@ export class ReportRepository {
     }
     const selectedOrderId = shipment?.order_id ?? orderId?.trim() ?? null
     const batchFields = shipment
-      ? `, ? AS shipment_snapshot_json`
-      : `, NULL AS shipment_snapshot_json`
+      ? `, ? AS shipment_snapshot_json, ? AS shipment_status, ? AS voided_on, ? AS void_reason`
+      : `, NULL AS shipment_snapshot_json, NULL AS shipment_status, NULL AS voided_on, NULL AS void_reason`
     const orderFilter = selectedOrderId ? 'WHERE orders.id = ?' : ''
     const statement = this.database.prepare(
       `SELECT order_items.id AS order_item_id, orders.code AS order_code,
               orders.customer_snapshot_json, orders.expected_ship_date,
               order_items.product_snapshot_json, order_items.quantity AS ordered_quantity,
-              COALESCE(SUM(shipment_items.quantity), 0) AS shipped_quantity,
-              MAX(shipments.shipped_on) AS latest_shipped_on,
-              GROUP_CONCAT(DISTINCT shipments.carrier) AS carrier,
-              GROUP_CONCAT(DISTINCT shipments.tracking_number) AS tracking_number
+              COALESCE(SUM(CASE WHEN shipments.status = 'active' THEN shipment_items.quantity ELSE 0 END), 0) AS shipped_quantity,
+              MAX(CASE WHEN shipments.status = 'active' THEN shipments.shipped_on END) AS latest_shipped_on,
+              GROUP_CONCAT(DISTINCT CASE WHEN shipments.status = 'active' THEN shipments.carrier END) AS carrier,
+              GROUP_CONCAT(DISTINCT CASE WHEN shipments.status = 'active' THEN shipments.tracking_number END) AS tracking_number
               ${batchFields}
        FROM order_items
        INNER JOIN orders ON orders.id = order_items.order_id
@@ -290,7 +299,9 @@ export class ReportRepository {
        ORDER BY orders.expected_ship_date IS NULL, orders.expected_ship_date ASC, orders.code ASC, order_items.line_no ASC`
     )
     const rows = shipment
-      ? statement.all(shipment.snapshot_json, selectedOrderId)
+      ? statement.all(
+          shipment.snapshot_json, shipment.status, shipment.voided_on, shipment.void_reason, selectedOrderId
+        )
       : selectedOrderId
         ? statement.all(selectedOrderId)
         : statement.all()
@@ -308,7 +319,10 @@ export class ReportRepository {
         carrier: source.carrier === null ? null : String(source.carrier),
         trackingNumber: source.tracking_number === null ? null : String(source.tracking_number),
         shipmentSnapshotJson:
-          source.shipment_snapshot_json === null ? null : String(source.shipment_snapshot_json)
+          source.shipment_snapshot_json === null ? null : String(source.shipment_snapshot_json),
+        shipmentStatus: source.shipment_status === null ? null : source.shipment_status as 'active' | 'voided',
+        voidedOn: source.voided_on === null ? null : String(source.voided_on),
+        voidReason: source.void_reason === null ? null : String(source.void_reason)
       }
     })
   }

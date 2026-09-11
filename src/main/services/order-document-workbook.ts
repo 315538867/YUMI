@@ -52,6 +52,10 @@ export interface ShippingListDocument {
     shippedOn: string | null
     carrier: string | null
     trackingNumber: string | null
+    /** 指定批次导出时保留作废历史；缺失时兼容旧调用并按有效批次处理。 */
+    status?: 'active' | 'voided'
+    voidedOn?: string | null
+    voidReason?: string | null
   } | null
   items: Array<{
     productName: string
@@ -292,10 +296,16 @@ function buildOrderTableSheet(
 function buildShippingListSheet(
   workbook: ExcelJS.Workbook,
   name: string,
-  document: ShippingListDocument
+  document: ShippingListDocument,
+  isSummary = false
 ): void {
   const sheet = prepareSheet(workbook, name, [11, 22, 14, 12, 12, 12, 12, 22])
-  addTitle(sheet, 'YUMI 发货清单', 8)
+  const isVoidedHistory = document.shipment?.status === 'voided'
+  addTitle(
+    sheet,
+    isSummary ? 'YUMI 发货汇总' : isVoidedHistory ? 'YUMI 已作废发货清单' : 'YUMI 发货清单',
+    8
+  )
   addMetaRow(sheet, 2, [
     { label: '客户', value: text(document.customer.name) },
     { label: '联系方式', value: text(document.customer.contact) }
@@ -304,23 +314,41 @@ function buildShippingListSheet(
     { label: '订单号', value: document.orderCode },
     { label: '生成日期', value: document.generatedAt }
   ], 8)
+  const shipmentInfo = document.shipment
+    ? `${text(document.shipment.shippedOn)} / ${text(document.shipment.carrier)} / ${text(document.shipment.trackingNumber)}`
+    : '—'
+  const voidedInfo = isVoidedHistory
+    ? `已作废 ${text(document.shipment?.voidedOn)}${document.shipment?.voidReason ? ` · ${document.shipment.voidReason}` : ''}`
+    : shipmentInfo
   addMetaRow(sheet, 4, [
     { label: '收货地址', value: text(document.customer.address) },
-    { label: '发货信息', value: document.shipment
-      ? `${text(document.shipment.shippedOn)} / ${text(document.shipment.carrier)} / ${text(document.shipment.trackingNumber)}`
-      : '全量发货视图' }
+    {
+      label: isSummary ? '汇总口径' : '发货信息',
+      value: isSummary ? '仅统计有效发货批次' : voidedInfo
+    }
   ], 8)
-  styleHeader(sheet, 7, ['图片', '商品名称', '单件重量(克)', '本批发货', '订单数量', '累计已发', '待发数量', '商品备注'])
+  const headers = isSummary
+    ? ['图片', '商品名称', '单件重量(克)', '订单数量', '有效累计已发', '待发数量', '商品备注', '订单号']
+    : ['图片', '商品名称', '单件重量(克)', '本批发货', '订单数量', '累计已发', '待发数量', '商品备注']
+  styleHeader(sheet, 7, headers)
 
   let row = 8
   for (const item of document.items) {
     sheet.getCell(row, 2).value = item.productName
     sheet.getCell(row, 3).value = weightGrams(item.unitWeightMilligrams)
-    sheet.getCell(row, 4).value = item.thisShipmentQuantity ?? ''
-    sheet.getCell(row, 5).value = item.orderedQuantity
-    sheet.getCell(row, 6).value = item.shippedQuantity
-    sheet.getCell(row, 7).value = item.remainingQuantity
-    sheet.getCell(row, 8).value = text(item.notes)
+    if (isSummary) {
+      sheet.getCell(row, 4).value = item.orderedQuantity
+      sheet.getCell(row, 5).value = item.shippedQuantity
+      sheet.getCell(row, 6).value = item.remainingQuantity
+      sheet.getCell(row, 7).value = text(item.notes)
+      sheet.getCell(row, 8).value = document.orderCode
+    } else {
+      sheet.getCell(row, 4).value = item.thisShipmentQuantity ?? ''
+      sheet.getCell(row, 5).value = item.orderedQuantity
+      sheet.getCell(row, 6).value = item.shippedQuantity
+      sheet.getCell(row, 7).value = item.remainingQuantity
+      sheet.getCell(row, 8).value = text(item.notes)
+    }
     styleDataRow(sheet, row, 8)
     addImage(workbook, sheet, row, item.image)
     row += 1
@@ -360,7 +388,14 @@ export async function buildOrderTableWorkbook(documents: OrderTableDocument[]): 
 export async function buildShippingListWorkbook(documents: ShippingListDocument[]): Promise<Buffer> {
   const workbook = createWorkbook()
   const source = shippingListSource(documents)
-  source.forEach((document, index) => buildShippingListSheet(workbook, sheetName('发货清单', index, source.length), document))
+  const isSummary = source.every((document) => document.shipment === null)
+  const baseName = isSummary ? '发货汇总' : '发货清单'
+  source.forEach((document, index) => buildShippingListSheet(
+    workbook,
+    sheetName(baseName, index, source.length),
+    document,
+    isSummary
+  ))
   return Buffer.from(await workbook.xlsx.writeBuffer())
 }
 

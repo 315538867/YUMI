@@ -50,10 +50,15 @@ export class V2ReportExportService {
   }
 
   async exportOrderDocumentsWorkbook(input: V2OrderDocumentsExportInput): Promise<Uint8Array> {
-    const [orderDocuments, shippingDocuments] = await Promise.all([
-      this.hydrateOrderDocuments(this.reports.getOrderTableDocuments?.({ orderId: input.orderId }) ?? []),
-      this.hydrateShippingListDocuments(this.reports.getShippingListDocuments?.(input) ?? [])
-    ])
+    const orderDocuments = await this.hydrateOrderDocuments(
+      this.reports.getOrderTableDocuments?.({ orderId: input.orderId }) ?? []
+    )
+    // 合并单据只能对应已指定的发货批次，避免在没有批次语义时伪造“发货清单”。
+    if (!input.shipmentId) return buildOrderTableWorkbook(orderDocuments)
+
+    const shippingDocuments = await this.hydrateShippingListDocuments(
+      this.reports.getShippingListDocuments?.(input) ?? []
+    )
     return buildOrderAndShippingWorkbook(orderDocuments, shippingDocuments)
   }
 
@@ -100,7 +105,14 @@ export class V2ReportExportService {
       },
       generatedAt: document.generatedAt,
       shipment: document.shippedOn || document.carrier || document.trackingNumber
-        ? { shippedOn: document.shippedOn, carrier: document.carrier, trackingNumber: document.trackingNumber }
+        ? {
+            shippedOn: document.shippedOn,
+            carrier: document.carrier,
+            trackingNumber: document.trackingNumber,
+            status: document.shipmentStatus ?? 'active',
+            voidedOn: document.voidedOn ?? null,
+            voidReason: document.voidReason ?? null
+          }
         : null,
       items: await Promise.all(document.items.map(async (item) => ({
         ...item,

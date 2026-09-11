@@ -10,7 +10,8 @@ import type {
   V2OrderFundInput,
   V2OrderSummary,
   V2Shipment,
-  V2ShipmentInput
+  V2ShipmentInput,
+  V2ShipmentVoidInput
 } from './orders'
 import type { V2Product, V2ProductInput, V2ProductUpdateInput } from './products'
 import type { V2StudioSettings, V2StudioSettingsUpdateInput } from './settings'
@@ -72,6 +73,7 @@ export interface V2YumiApi {
     correctFund(orderId: string, input: V2OrderFundCorrectionInput): Promise<{ reversal: V2OrderFund; replacement: V2OrderFund }>
     listShipments(orderId: string): Promise<V2Shipment[]>
     createShipment(orderId: string, input: V2ShipmentInput): Promise<V2Shipment>
+    voidShipment(orderId: string, shipmentId: string, input: V2ShipmentVoidInput): Promise<V2Shipment>
   }
   orderFundProofs: {
     pick(): Promise<V2AttachmentReference | null>

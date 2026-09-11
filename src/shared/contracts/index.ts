@@ -50,7 +50,9 @@ export type {
   V2Shipment,
   V2ShipmentItem,
   V2ShipmentInput,
-  V2ShipmentItemInput
+  V2ShipmentItemInput,
+  V2ShipmentStatus,
+  V2ShipmentVoidInput
 } from './orders'
 
 export type {

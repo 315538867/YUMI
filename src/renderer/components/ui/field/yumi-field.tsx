@@ -1,4 +1,7 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
+import { Check } from 'lucide-react'
+import { Children, forwardRef, isValidElement, useContext, useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
+import { YumiFormMessage } from '../form-message'
+import { YumiFieldContext, useYumiFieldAccessibility } from './yumi-field-accessibility'
 
 export type YumiFieldLabelProps = {
   children: ReactNode
@@ -8,11 +11,13 @@ export type YumiFieldLabelProps = {
 }
 
 export function YumiFieldLabel({ children, hint, htmlFor, required = false }: YumiFieldLabelProps) {
+  const field = useContext(YumiFieldContext)
+
   return (
-    <label className="yumi-field__label" htmlFor={htmlFor}>
+    <label className="yumi-field__label" htmlFor={htmlFor} id={field?.labelId}>
       {children}
       {required ? <span aria-hidden="true" className="yumi-field__required">*</span> : null}
-      {hint ? <span className="yumi-field__hint">{hint}</span> : null}
+      {hint ? <span className="yumi-field__label-hint">{hint}</span> : null}
     </label>
   )
 }
@@ -25,13 +30,35 @@ export const YumiTextField = forwardRef<HTMLInputElement, YumiTextFieldProps>(fu
   { className, error, ...props },
   ref
 ) {
+  const fieldAccessibility = useYumiFieldAccessibility(props)
+
   return (
     <input
       {...props}
       ref={ref}
-      aria-invalid={Boolean(error) || props['aria-invalid']}
+      {...fieldAccessibility}
+      aria-invalid={Boolean(error) || fieldAccessibility['aria-invalid']}
       className={['yumi-input', className].filter(Boolean).join(' ')}
     />
+  )
+})
+
+export type YumiCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
+  children: ReactNode
+}
+
+export const YumiCheckbox = forwardRef<HTMLInputElement, YumiCheckboxProps>(function YumiCheckbox(
+  { children, className, ...props },
+  ref
+) {
+  return (
+    <label className={['yumi-checkbox', className].filter(Boolean).join(' ')}>
+      <input {...props} ref={ref} className="yumi-checkbox__input" type="checkbox" />
+      <span aria-hidden="true" className="yumi-checkbox__control">
+        <Check className="yumi-checkbox__check" size={13} />
+      </span>
+      <span className="yumi-checkbox__label">{children}</span>
+    </label>
   )
 })
 
@@ -52,11 +79,14 @@ export const YumiTextArea = forwardRef<HTMLTextAreaElement, YumiTextAreaProps>(f
   { className, error, ...props },
   ref
 ) {
+  const fieldAccessibility = useYumiFieldAccessibility(props)
+
   return (
     <textarea
       {...props}
       ref={ref}
-      aria-invalid={Boolean(error) || props['aria-invalid']}
+      {...fieldAccessibility}
+      aria-invalid={Boolean(error) || fieldAccessibility['aria-invalid']}
       className={['yumi-textarea', className].filter(Boolean).join(' ')}
     />
   )
@@ -69,10 +99,32 @@ export type YumiFieldProps = {
 }
 
 export function YumiField({ children, error, hint }: YumiFieldProps) {
+  const fieldLabelId = useId()
+  const fieldDescriptionId = useId()
+  const hasDirectLabel = Children.toArray(children).some(
+    (child) => isValidElement(child) && child.type === YumiFieldLabel
+  )
+  const description = error ?? hint
+  const fieldContext: YumiFieldContextValue = {
+    descriptionId: description ? fieldDescriptionId : undefined,
+    invalid: Boolean(error),
+    labelId: hasDirectLabel ? fieldLabelId : undefined
+  }
+
   return (
-    <div className="yumi-field">
-      {children}
-      {error ? <span className="yumi-field__error">{error}</span> : hint ? <span className="yumi-field__hint">{hint}</span> : null}
-    </div>
+    <YumiFieldContext.Provider value={fieldContext}>
+      <div className="yumi-field">
+        {children}
+        {error ? (
+          <YumiFormMessage id={fieldDescriptionId} tone="error">
+            {error}
+          </YumiFormMessage>
+        ) : hint ? (
+          <YumiFormMessage id={fieldDescriptionId} tone="hint">
+            {hint}
+          </YumiFormMessage>
+        ) : null}
+      </div>
+    </YumiFieldContext.Provider>
   )
 }

@@ -30,7 +30,7 @@ export interface V2OrderBusinessReport {
 }
 
 export type V2CustomerOrderShipmentStatus = '未发货' | '部分发货' | '已发货'
-export type V2CustomerOrderStatus = '履约中' | '已完成'
+export type V2CustomerOrderStatus = '排班中' | '已完成'
 
 /** 客户详情和客户经营报表共用，orderId 可直接作为订单详情深链。 */
 export interface V2CustomerOrderHistoryRow {
@@ -154,6 +154,10 @@ export interface V2ShippingListDocument {
   shippedOn: BusinessDate | null
   carrier: string | null
   trackingNumber: string | null
+  /** 指定批次导出时用于保留作废历史标识；汇总导出为空。 */
+  shipmentStatus?: 'active' | 'voided' | null
+  voidedOn?: BusinessDate | null
+  voidReason?: string | null
   items: Array<{
     productName: string
     imageAttachmentId: string | null
@@ -197,6 +201,9 @@ export interface V2ShippingListExportRow {
   latestShippedOn: BusinessDate | null
   carrier: string | null
   trackingNumber: string | null
+  shipmentStatus?: 'active' | 'voided' | null
+  voidedOn?: BusinessDate | null
+  voidReason?: string | null
 }
 
 export interface V2ReportExportInput {

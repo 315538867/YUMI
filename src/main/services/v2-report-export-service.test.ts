@@ -198,6 +198,20 @@ describe('V2 经营报表导出', () => {
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['订单表', '发货清单'])
   })
 
+  it('未指定发货批次时，合并导出入口只保留订单表，不伪造发货清单', async () => {
+    const getOrderTableDocuments = vi.fn(() => [])
+    const getShippingListDocuments = vi.fn(() => [])
+    const service = new V2ReportExportService({ getOrderTableDocuments, getShippingListDocuments } as never)
+
+    const workbook = await new ExcelJS.Workbook().xlsx.load(
+      await service.exportOrderDocumentsWorkbook({ orderId: 'order-1' })
+    )
+
+    expect(getOrderTableDocuments).toHaveBeenCalledWith({ orderId: 'order-1' })
+    expect(getShippingListDocuments).not.toHaveBeenCalled()
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['订单表'])
+  })
+
   it('图片附件缺失时仍可完成正式订单表导出', async () => {
     const imageResolver = vi.fn(async () => {
       throw new Error('附件不存在')

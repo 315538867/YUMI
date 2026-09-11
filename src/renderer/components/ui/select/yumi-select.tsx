@@ -2,6 +2,7 @@ import * as Popover from '@radix-ui/react-popover'
 import * as Select from '@radix-ui/react-select'
 import { Check, ChevronDown, Plus, Search } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
+import { useYumiFieldAccessibility, type YumiFieldAccessibilityProps } from '../field/yumi-field-accessibility'
 
 export type YumiSelectOption = {
   disabled?: boolean
@@ -10,8 +11,7 @@ export type YumiSelectOption = {
   value: string
 }
 
-type SharedSelectProps = {
-  'aria-label': string
+type SharedSelectProps = YumiFieldAccessibilityProps & {
   className?: string
   disabled?: boolean
   options: YumiSelectOption[]
@@ -21,7 +21,10 @@ type SharedSelectProps = {
 }
 
 export function YumiSelect({
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
   className,
   disabled = false,
   onValueChange,
@@ -29,9 +32,16 @@ export function YumiSelect({
   placeholder = '请选择',
   value
 }: SharedSelectProps) {
+  const fieldAccessibility = useYumiFieldAccessibility({
+    'aria-describedby': ariaDescribedBy,
+    'aria-invalid': ariaInvalid,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledBy
+  })
+
   return (
     <Select.Root disabled={disabled} onValueChange={onValueChange} value={value}>
-      <Select.Trigger aria-label={ariaLabel} className={['yumi-select__trigger', className].filter(Boolean).join(' ')}>
+      <Select.Trigger {...fieldAccessibility} aria-label={ariaLabel} className={['yumi-select__trigger', className].filter(Boolean).join(' ')}>
         <Select.Value placeholder={placeholder} />
         <Select.Icon><ChevronDown aria-hidden="true" size={16} /></Select.Icon>
       </Select.Trigger>
@@ -60,7 +70,10 @@ type YumiSearchSelectProps = SharedSelectProps & {
 }
 
 export function YumiSearchSelect({
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
   className,
   createLabel = (query) => `新建“${query}”`,
   disabled = false,
@@ -71,6 +84,12 @@ export function YumiSearchSelect({
   placeholder = '搜索或选择',
   value
 }: YumiSearchSelectProps) {
+  const fieldAccessibility = useYumiFieldAccessibility({
+    'aria-describedby': ariaDescribedBy,
+    'aria-invalid': ariaInvalid,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledBy
+  })
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const selected = options.find((option) => option.value === value)
@@ -89,9 +108,10 @@ export function YumiSearchSelect({
     <Popover.Root onOpenChange={handleOpenChange} open={open}>
       <Popover.Trigger asChild>
         <button
+          {...fieldAccessibility}
+          aria-label={ariaLabel}
           aria-expanded={open}
           aria-haspopup="listbox"
-          aria-label={ariaLabel}
           className={['yumi-select__trigger', className].filter(Boolean).join(' ')}
           data-placeholder={selected ? undefined : true}
           disabled={disabled}
@@ -107,7 +127,7 @@ export function YumiSearchSelect({
           <div className="yumi-select__search-wrap">
             <Search aria-hidden="true" size={16} />
             <input
-              aria-label={`搜索${ariaLabel}`}
+              aria-label={ariaLabel ? `搜索${ariaLabel}` : '搜索选项'}
               autoFocus
               className="yumi-select__search"
               onChange={(event) => setQuery(event.target.value)}
@@ -115,7 +135,7 @@ export function YumiSearchSelect({
               value={query}
             />
           </div>
-          <div aria-label={`${ariaLabel}选项`} className="yumi-select__options" role="listbox">
+          <div aria-label={ariaLabel ? `${ariaLabel}选项` : '选项列表'} className="yumi-select__options" role="listbox">
             {filteredOptions.map((option) => (
               <button
                 aria-selected={option.value === value}
