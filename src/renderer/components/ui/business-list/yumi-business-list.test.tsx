@@ -12,7 +12,13 @@ describe('YumiBusinessList', () => {
     const onOpen = vi.fn()
     render(
       <YumiBusinessList>
-        <YumiBusinessListItem meta="更新于 2026-09-08" onOpen={onOpen} status="待发货" summary="星云兔 · 200 件" title="YM-20260908-001" />
+        <YumiBusinessListItem
+          meta="更新于 2026-09-08"
+          onOpen={onOpen}
+          status="待发货"
+          summary="星云兔 · 200 件"
+          title="YM-20260908-001"
+        />
       </YumiBusinessList>
     )
 

@@ -114,6 +114,28 @@ describe('V2 报表服务', () => {
       )
       .run(draftId, worker.id, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
 
+    expect(reports.getOrderBusinessDetail(order.id)).toMatchObject({
+      summary: expect.objectContaining({
+        orderId: order.id,
+        currentAmountCents: 1_000,
+        knownAccountingCostCents: 180,
+        knownMarginCents: 520
+      }),
+      orderDiscountCents: 0,
+      adjustmentsCents: 0,
+      items: [
+        expect.objectContaining({
+          orderItemId: order.items[0].id,
+          productName: '草莓小熊',
+          quantity: 2,
+          orderRevenueCents: 1_000,
+          productCostCents: 100,
+          knownGrossMarginCents: 900,
+          knownGrossMarginRateBasisPoints: 9_000
+        })
+      ]
+    })
+
     expect(reports.getOrderBusiness()).toMatchObject({
       totalNetReceivedCents: 700,
       totalKnownAccountingCostCents: 180,
@@ -203,6 +225,66 @@ describe('V2 报表服务', () => {
         stages: { making: 0, fluffingBagging: 0, packing: 0, readyToShip: 1, shipped: 0 }
       })
     ])
+  })
+
+  it('按订单和发货批次预览只读清单快照，并拒绝不存在或不归属的批次', () => {
+    const database = createV2Database(':memory:')
+    databases.push(database)
+    const orders = new V2OrderService(new V2OrderRepository(database))
+    const fulfillment = new FulfillmentService(new V2FulfillmentRepository(database))
+    const reports = new ReportService(database)
+    const product = orders.createProduct({
+      name: '预览快照云朵',
+      basePriceCents: 1_000,
+      materialCostCents: 0,
+      packagingCostCents: 0,
+      accessoryCostCents: 0,
+      replacementBagCostCents: 0,
+      internalEdgeCostCents: 0,
+      standardMakingMinutes: 10,
+      makingCommissionCents: 0,
+      makingGlueCostCents: 0
+    })
+    const order = orders.createOrder({
+      customer: { name: '预览客户', contact: '微信 preview', defaultAddress: '上海市' },
+      items: [{ productId: product.id, quantity: 2, unitPriceCents: 1_000 }]
+    })
+    fulfillment.recordOpeningWip({
+      orderItemId: order.items[0].id,
+      targetStage: 'ready_to_ship',
+      quantity: 2,
+      occurredOn: '2026-09-09',
+      note: '可发货'
+    })
+    const shipment = orders.createShipment(order.id, {
+      shippedOn: '2026-09-09',
+      carrier: '顺丰',
+      trackingNumber: 'SF-PREVIEW-001',
+      items: [{ orderItemId: order.items[0].id, quantity: 1 }]
+    })
+    const previewService = reports as ReportService & {
+      getShippingListPreview(input: {
+        orderId: string
+        shipmentId: string
+      }): ReturnType<ReportService['getShippingListDocuments']>[number]
+    }
+
+    expect(
+      previewService.getShippingListPreview({ orderId: order.id, shipmentId: shipment.id })
+    ).toMatchObject({
+      orderCode: order.code,
+      customerName: '预览客户',
+      carrier: '顺丰',
+      trackingNumber: 'SF-PREVIEW-001',
+      shipmentStatus: 'active',
+      items: [expect.objectContaining({ productName: '预览快照云朵', thisShipmentQuantity: 1 })]
+    })
+    expect(() =>
+      previewService.getShippingListPreview({ orderId: 'other-order', shipmentId: shipment.id })
+    ).toThrow('发货批次不属于指定订单')
+    expect(() =>
+      previewService.getShippingListPreview({ orderId: order.id, shipmentId: 'missing-shipment' })
+    ).toThrow('发货批次不存在')
   })
 
   it('按指定发货批次导出时保留创建当时的订单、客户和数量快照', () => {
@@ -437,6 +519,32 @@ describe('订单与发货单导出事实', () => {
         ]
       })
     ])
+    const shipmentCountBeforePreview = database
+      .prepare('SELECT COUNT(*) AS count FROM shipments')
+      .get()
+    const shipmentItemCountBeforePreview = database
+      .prepare('SELECT COUNT(*) AS count FROM shipment_items')
+      .get()
+    expect(
+      reports.getShippingListPreview({ orderId: order.id, shipmentId: shipment.id })
+    ).toMatchObject({
+      shipmentStatus: 'voided',
+      voidedOn: '2026-09-10',
+      voidReason: '地址变更',
+      items: [
+        expect.objectContaining({
+          thisShipmentQuantity: 1,
+          shippedQuantity: 0,
+          remainingQuantity: 2
+        })
+      ]
+    })
+    expect(database.prepare('SELECT COUNT(*) AS count FROM shipments').get()).toEqual(
+      shipmentCountBeforePreview
+    )
+    expect(database.prepare('SELECT COUNT(*) AS count FROM shipment_items').get()).toEqual(
+      shipmentItemCountBeforePreview
+    )
   })
 
   it('按客户隔离订单历史和资金统计，并保留订单详情深链标识', () => {

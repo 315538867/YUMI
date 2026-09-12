@@ -13,9 +13,12 @@ import type {
   V2OrderFundProofOpenResult,
   V2OrderSummary,
   V2Product,
+  V2Worker,
+  V2WorkAssignment,
   V2Shipment,
   V2ShipmentInput,
-  V2ShipmentVoidInput
+  V2ShipmentVoidInput,
+  V2ShippingListDocument
 } from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
@@ -183,11 +186,13 @@ export function useOrders() {
     []
   )
   const attachFundProof = useCallback(
-    (fundId: string, attachmentId: string) => window.yumiV2.orderFundProofs.attach(fundId, attachmentId),
+    (fundId: string, attachmentId: string) =>
+      window.yumiV2.orderFundProofs.attach(fundId, attachmentId),
     []
   )
   const openFundProof = useCallback(
-    (fundId: string): Promise<V2OrderFundProofOpenResult> => window.yumiV2.orderFundProofs.open(fundId),
+    (fundId: string): Promise<V2OrderFundProofOpenResult> =>
+      window.yumiV2.orderFundProofs.open(fundId),
     []
   )
 
@@ -210,16 +215,48 @@ export function useOrders() {
   )
 
   const exportOrderTable = useCallback(
-    (orderId?: string | null) => window.yumiV2.reports.exportOrderTable(orderId ? { orderId } : undefined),
+    (orderId?: string | null) =>
+      window.yumiV2.reports.exportOrderTable(orderId ? { orderId } : undefined),
     []
   )
   const exportOrderDocuments = useCallback(
-    (orderId: string, shipmentId?: string | null) => window.yumiV2.reports.exportOrderDocuments({ orderId, shipmentId }),
+    (orderId: string, shipmentId?: string | null) =>
+      window.yumiV2.reports.exportOrderDocuments({ orderId, shipmentId }),
     []
   )
   const exportShippingList = useCallback(
     (orderId?: string | null, shipmentId?: string | null) =>
       window.yumiV2.reports.exportShippingList({ orderId, shipmentId }),
+    []
+  )
+  /** 只读取批次创建时冻结的清单快照；不得从当前订单资料重建。 */
+  const getShippingListPreview = useCallback(
+    (orderId: string, shipmentId: string): Promise<V2ShippingListDocument> =>
+      window.yumiV2.reports.getShippingListPreview({ orderId, shipmentId }),
+    []
+  )
+  /**
+   * 订单排班页只读取既有派工和人员资料：派工按订单商品逐项查询后去重，
+   * 不在订单详情维护第二份任务状态。
+   */
+  const getOrderSchedule = useCallback(async (orderItemIds: string[]) => {
+    const [assignmentGroups, workers] = await Promise.all([
+      Promise.all(
+        orderItemIds.map((orderItemId) =>
+          window.yumiV2.fulfillment.listWorkAssignments({ orderItemId })
+        )
+      ),
+      window.yumiV2.workers.list()
+    ])
+    const assignments = [
+      ...new Map(assignmentGroups.flat().map((item) => [item.id, item])).values()
+    ]
+    return { assignments: assignments as V2WorkAssignment[], workers: workers as V2Worker[] }
+  }, [])
+
+  const getOrderBusiness = useCallback(() => window.yumiV2.reports.getOrderBusiness(), [])
+  const getOrderBusinessDetail = useCallback(
+    (orderId: string) => window.yumiV2.reports.getOrderBusinessDetail(orderId),
     []
   )
 
@@ -249,6 +286,10 @@ export function useOrders() {
     voidShipment,
     exportOrderTable,
     exportOrderDocuments,
-    exportShippingList
+    exportShippingList,
+    getShippingListPreview,
+    getOrderSchedule,
+    getOrderBusiness,
+    getOrderBusinessDetail
   }
 }

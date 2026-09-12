@@ -1,4 +1,4 @@
-import { calculateOrderAmountSummary } from '@main/domain/order-amounts'
+import { calculateOrderAmountSummary, calculateOrderItemAmounts } from '@main/domain/order-amounts'
 import { summarizeMonthlyFinance } from '@main/domain/finance'
 import { createFulfillmentState, applyFulfillmentEvent } from '@main/domain/fulfillment'
 import { calculateOrderFundSummary } from '@main/domain/order-funds'
@@ -21,6 +21,7 @@ import type {
   V2DeliveryRiskReportRow,
   V2FulfillmentProgressReport,
   V2MonthlyOperationReport,
+  V2OrderBusinessDetail,
   V2OrderBusinessReport,
   V2OrderBusinessReportRow,
   V2OrderDocumentsExportInput,
@@ -29,6 +30,7 @@ import type {
   V2OrderTableExportRow,
   V2ShippingListDocument,
   V2ShippingListExportInput,
+  V2ShippingListPreviewInput,
   V2ShippingListExportRow
 } from '@shared/contracts/reports'
 
@@ -91,6 +93,12 @@ function parseJson<T>(value: string): T {
   return JSON.parse(value) as T
 }
 
+function requireText(value: string, label: string): string {
+  const normalized = value.trim()
+  if (!normalized) throw new DomainValidationError(`${label}不能为空`)
+  return normalized
+}
+
 function toStageBalances(state: ReturnType<typeof createFulfillmentState>) {
   return {
     making: state.making,
@@ -122,44 +130,69 @@ export class ReportService {
     this.repository = new ReportRepository(database)
   }
 
-  private getOrderBusinessRows(): OrderBusinessRowWithContext[] {
-    return this.repository.listOrderBusinessSources().map((source) => {
-      const amount = calculateOrderAmountSummary({
-        items: source.itemSnapshots.map((item) => ({
-          quantity: item.quantity,
-          unitPriceCents: item.unitPriceCents,
-          edge: {
-            enabled: item.edgeEnabled,
-            quantity: item.edgeQuantity,
-            unitPriceCents: item.edgeUnitPriceCents
-          },
-          itemDiscountCents: item.itemDiscountCents
-        })),
-        orderDiscountCents: source.orderDiscountCents,
-        adjustmentsCents: source.adjustmentsCents
+  private buildOrderBusinessDetail(
+    source: ReturnType<ReportRepository['listOrderBusinessSources']>[number]
+  ): V2OrderBusinessDetail {
+    const itemAmounts = source.itemSnapshots.map((item) =>
+      calculateOrderItemAmounts({
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
+        edge: {
+          enabled: item.edgeEnabled,
+          quantity: item.edgeQuantity,
+          unitPriceCents: item.edgeUnitPriceCents
+        },
+        itemDiscountCents: item.itemDiscountCents
       })
-      const funds = calculateOrderFundSummary({
-        currentAmountCents: amount.currentAmountCents,
-        entries: source.funds
-      })
-      const productCostCents = source.itemSnapshots.reduce(
-        (total, item) =>
-          total +
-          calculateProductSnapshotCostCents(
-            parseJson<V2ProductOrderSnapshot>(item.productSnapshotJson),
-            item.quantity,
-            item.edgeEnabled ? item.edgeQuantity : 0
-          ),
-        0
+    )
+    const amount = calculateOrderAmountSummary({
+      items: source.itemSnapshots.map((item) => ({
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
+        edge: {
+          enabled: item.edgeEnabled,
+          quantity: item.edgeQuantity,
+          unitPriceCents: item.edgeUnitPriceCents
+        },
+        itemDiscountCents: item.itemDiscountCents
+      })),
+      orderDiscountCents: source.orderDiscountCents,
+      adjustmentsCents: source.adjustmentsCents
+    })
+    const funds = calculateOrderFundSummary({
+      currentAmountCents: amount.currentAmountCents,
+      entries: source.funds
+    })
+    const items = source.itemSnapshots.map((item, index) => {
+      const productSnapshot = parseJson<V2ProductOrderSnapshot>(item.productSnapshotJson)
+      const productCostCents = calculateProductSnapshotCostCents(
+        productSnapshot,
+        item.quantity,
+        item.edgeEnabled ? item.edgeQuantity : 0
       )
-      const knownAccountingCostCents = productCostCents + source.afterSalesCostCents
+      const orderRevenueCents = itemAmounts[index].lineAmountCents
+      const knownGrossMarginCents = orderRevenueCents - productCostCents
       return {
+        orderItemId: item.id,
+        productName: productSnapshot.name?.trim() || '未命名商品',
+        quantity: item.quantity,
+        orderRevenueCents,
+        productCostCents,
+        knownGrossMarginCents,
+        knownGrossMarginRateBasisPoints:
+          orderRevenueCents > 0
+            ? Math.round((knownGrossMarginCents * 10_000) / orderRevenueCents)
+            : null
+      }
+    })
+    const productCostCents = items.reduce((total, item) => total + item.productCostCents, 0)
+    const knownAccountingCostCents = productCostCents + source.afterSalesCostCents
+    return {
+      summary: {
         orderId: source.id,
         orderCode: source.code,
-        customerId: source.customerId,
         customerName:
           parseJson<CustomerSnapshot>(source.customerSnapshotJson).name?.trim() || '未命名客户',
-        createdAt: source.createdAt,
         currentAmountCents: amount.currentAmountCents,
         netReceivedCents: funds.netReceivedCents,
         outstandingCents: funds.outstandingCents,
@@ -167,8 +200,24 @@ export class ReportService {
         afterSalesCostCents: source.afterSalesCostCents,
         knownAccountingCostCents,
         knownMarginCents: funds.netReceivedCents - knownAccountingCostCents
-      }
-    })
+      },
+      orderDiscountCents: amount.orderDiscountCents,
+      adjustmentsCents: amount.adjustmentsCents,
+      items
+    }
+  }
+
+  private getOrderBusinessRows(): OrderBusinessRowWithContext[] {
+    return this.repository.listOrderBusinessSources().map((source) => ({
+      ...this.buildOrderBusinessDetail(source).summary,
+      customerId: source.customerId,
+      createdAt: source.createdAt
+    }))
+  }
+
+  getOrderBusinessDetail(orderId: string): V2OrderBusinessDetail | null {
+    const source = this.repository.listOrderBusinessSources().find((item) => item.id === orderId)
+    return source ? this.buildOrderBusinessDetail(source) : null
   }
 
   getOrderBusiness(): V2OrderBusinessReport {
@@ -618,6 +667,15 @@ export class ReportService {
       grouped.set(row.orderCode, document)
     }
     return [...grouped.values()]
+  }
+
+  /** 预览与导出共用已落库的发货批次快照，避免后续订单变更改写历史清单。 */
+  getShippingListPreview(input: V2ShippingListPreviewInput): V2ShippingListDocument {
+    const orderId = requireText(input.orderId, '订单标识')
+    const shipmentId = requireText(input.shipmentId, '发货批次标识')
+    const document = this.getShippingListDocuments({ orderId, shipmentId })[0]
+    if (!document) throw new DomainValidationError('该发货批次没有可预览的清单内容')
+    return document
   }
 
   getMonthlyOperation(month: string): V2MonthlyOperationReport {

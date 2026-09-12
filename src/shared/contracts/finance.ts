@@ -2,11 +2,7 @@ import type { BusinessDate, Cents, IsoDateTime } from './common'
 
 export type V2FinanceDirection = 'income' | 'expense'
 export type V2FinanceEntrySourceType =
-  | 'order_fund'
-  | 'worker_settlement'
-  | 'manual_income'
-  | 'manual_expense'
-  | 'reimbursement'
+  'order_fund' | 'worker_settlement' | 'manual_income' | 'manual_expense' | 'reimbursement'
 export type V2ExpensePaymentSource = 'business_account' | 'private_advance'
 
 export interface V2FinanceCategory {

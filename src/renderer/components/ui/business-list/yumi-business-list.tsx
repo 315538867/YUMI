@@ -7,7 +7,9 @@ type YumiBusinessListProps = {
 }
 
 export function YumiBusinessList({ children, className }: YumiBusinessListProps) {
-  return <div className={['yumi-business-list', className].filter(Boolean).join(' ')}>{children}</div>
+  return (
+    <div className={['yumi-business-list', className].filter(Boolean).join(' ')}>{children}</div>
+  )
 }
 
 export type YumiBusinessMetric = { label: ReactNode; value: ReactNode }
@@ -46,7 +48,13 @@ export function YumiBusinessListItem({
   return (
     <div
       aria-label={`${title}${summary ? `，${summary}` : ''}`}
-      className={['yumi-business-list__item', interactive ? 'yumi-business-list__item--interactive' : '', className].filter(Boolean).join(' ')}
+      className={[
+        'yumi-business-list__item',
+        interactive ? 'yumi-business-list__item--interactive' : '',
+        className
+      ]
+        .filter(Boolean)
+        .join(' ')}
       onClick={interactive ? triggerOpen : undefined}
       onKeyDown={handleKeyDown}
       role={interactive ? 'button' : undefined}
@@ -62,7 +70,12 @@ export function YumiBusinessListItem({
       </div>
       {metrics.length ? (
         <div className="yumi-business-list__metrics">
-          {metrics.map((metric, index) => <div key={index}><span>{metric.label}</span><strong>{metric.value}</strong></div>)}
+          {metrics.map((metric, index) => (
+            <div key={index}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+            </div>
+          ))}
         </div>
       ) : null}
       {actions ? <div className="yumi-business-list__actions">{actions}</div> : null}

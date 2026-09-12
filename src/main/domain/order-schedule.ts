@@ -32,9 +32,13 @@ function requireReservedDays(value: number, label = '预留天数'): number {
   return value
 }
 
-export function validateOrderScheduleInput(input: Pick<OrderScheduleInput, 'reservedDays' | 'defaultReservedDays'>): void {
-  if (input.defaultReservedDays !== undefined) requireReservedDays(input.defaultReservedDays, '工作室默认预留天数')
-  if (input.reservedDays !== undefined && input.reservedDays !== null) requireReservedDays(input.reservedDays)
+export function validateOrderScheduleInput(
+  input: Pick<OrderScheduleInput, 'reservedDays' | 'defaultReservedDays'>
+): void {
+  if (input.defaultReservedDays !== undefined)
+    requireReservedDays(input.defaultReservedDays, '工作室默认预留天数')
+  if (input.reservedDays !== undefined && input.reservedDays !== null)
+    requireReservedDays(input.reservedDays)
 }
 
 export function calculateOrderSchedule(input: OrderScheduleInput): OrderSchedule {

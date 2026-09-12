@@ -21,12 +21,14 @@ describe('V2 备份与恢复', () => {
 
     const storage = resolveV2StoragePaths(userDataDirectory)
     const database = createV2Database(storage.databasePath)
-    database.prepare("INSERT INTO customers (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)").run(
-      'customer-original',
-      '恢复前的初始客户',
-      '2026-09-07T00:00:00.000Z',
-      '2026-09-07T00:00:00.000Z'
-    )
+    database
+      .prepare('INSERT INTO customers (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run(
+        'customer-original',
+        '恢复前的初始客户',
+        '2026-09-07T00:00:00.000Z',
+        '2026-09-07T00:00:00.000Z'
+      )
     await mkdir(storage.attachmentDirectory)
     await writeFile(join(storage.attachmentDirectory, 'receipt.txt'), 'v2-original-attachment')
 
@@ -40,7 +42,7 @@ describe('V2 备份与恢复', () => {
     )
 
     database
-      .prepare("INSERT INTO customers (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)")
+      .prepare('INSERT INTO customers (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
       .run(
         'customer-later',
         '恢复前新增客户',
@@ -49,7 +51,10 @@ describe('V2 备份与恢复', () => {
       )
     await writeFile(join(storage.attachmentDirectory, 'later.txt'), 'v2-later-attachment')
     // prepareRestore 会先创建当前状态的安全备份，因此连接仍需保持打开。
-    const restorePlan = await backup.prepareRestore({ backupPath: sourceBackup.backupPath, confirmed: true })
+    const restorePlan = await backup.prepareRestore({
+      backupPath: sourceBackup.backupPath,
+      confirmed: true
+    })
     database.close()
     await backup.applyRestore(restorePlan)
 

@@ -17,7 +17,14 @@ const options = [
 describe('YumiSelect', () => {
   it('支持键盘选择并将焦点回归到触发器', () => {
     const onValueChange = vi.fn()
-    render(<YumiSelect aria-label="客户" onValueChange={onValueChange} options={options} placeholder="选择客户" />)
+    render(
+      <YumiSelect
+        aria-label="客户"
+        onValueChange={onValueChange}
+        options={options}
+        placeholder="选择客户"
+      />
+    )
 
     const trigger = screen.getByRole('combobox', { name: '客户' })
     trigger.focus()
@@ -42,7 +49,9 @@ describe('YumiSelect', () => {
     )
 
     fireEvent.click(screen.getByRole('combobox', { name: '客户' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '搜索客户' }), { target: { value: '新客户' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索客户' }), {
+      target: { value: '新客户' }
+    })
 
     expect(screen.getByText('没有匹配的客户')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '新建“新客户”' }))

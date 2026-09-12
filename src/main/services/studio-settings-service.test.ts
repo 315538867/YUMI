@@ -13,10 +13,16 @@ describe('StudioSettingsService', () => {
   it('未配置时使用默认预留天数，更新后可供新订单读取', () => {
     const database = createV2Database(':memory:')
     databases.push(database)
-    const service = new StudioSettingsService(database, new V2OrderRepository(database), () => '2026-09-09T00:00:00.000Z')
+    const service = new StudioSettingsService(
+      database,
+      new V2OrderRepository(database),
+      () => '2026-09-09T00:00:00.000Z'
+    )
 
     expect(service.get()).toMatchObject({ gluePriceMicroYuanPerGram: 0, orderReservedDays: 2 })
-    expect(service.update({ gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 4 })).toMatchObject({
+    expect(
+      service.update({ gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 4 })
+    ).toMatchObject({
       gluePriceMicroYuanPerGram: 3_400,
       orderReservedDays: 4,
       updatedAt: '2026-09-09T00:00:00.000Z'
@@ -29,7 +35,11 @@ describe('StudioSettingsService', () => {
     databases.push(database)
     const service = new StudioSettingsService(database, new V2OrderRepository(database))
 
-    expect(() => service.update({ gluePriceMicroYuanPerGram: 0, orderReservedDays: -1 })).toThrow('工作室默认预留天数必须是非负安全整数')
-    expect(() => service.update({ gluePriceMicroYuanPerGram: 0, orderReservedDays: 1.5 })).toThrow('工作室默认预留天数必须是非负安全整数')
+    expect(() => service.update({ gluePriceMicroYuanPerGram: 0, orderReservedDays: -1 })).toThrow(
+      '工作室默认预留天数必须是非负安全整数'
+    )
+    expect(() => service.update({ gluePriceMicroYuanPerGram: 0, orderReservedDays: 1.5 })).toThrow(
+      '工作室默认预留天数必须是非负安全整数'
+    )
   })
 })

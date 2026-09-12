@@ -15,7 +15,10 @@ import {
   type FulfillmentState
 } from '@main/domain/fulfillment'
 import { DomainValidationError } from '@main/domain/errors'
-import { V2FulfillmentRepository, type V2OrderItemFulfillmentSource } from '@main/repositories/fulfillment-repository'
+import {
+  V2FulfillmentRepository,
+  type V2OrderItemFulfillmentSource
+} from '@main/repositories/fulfillment-repository'
 import type {
   V2FulfillmentAdjustmentInput,
   V2FulfillmentEvent,
@@ -25,6 +28,7 @@ import type {
   V2ProcessResultInput,
   V2ProcessTask,
   V2ProcessTaskInput,
+  V2ProcessTaskReassignmentInput,
   V2QualityInspection,
   V2QualityInspectionInput,
   V2WorkAssignment,
@@ -64,9 +68,13 @@ function requireBusinessDate(value: string, label: string): string {
   return value
 }
 
-function requireOptionalNonNegativeCents(value: number | null | undefined, label: string): number | null {
+function requireOptionalNonNegativeCents(
+  value: number | null | undefined,
+  label: string
+): number | null {
   if (value === null || value === undefined) return null
-  if (!Number.isInteger(value) || value < 0) throw new DomainValidationError(`${label}必须是非负整数分`)
+  if (!Number.isInteger(value) || value < 0)
+    throw new DomainValidationError(`${label}必须是非负整数分`)
   return value
 }
 
@@ -90,25 +98,96 @@ export class FulfillmentService {
     const workerId = requireText(input.workerId, '兼职人员标识')
     const assignedOn = requireBusinessDate(input.assignedOn, '安排日期')
     if (!processTypes.includes(input.processType)) throw new DomainValidationError('工序类型不合法')
-    if (!Array.isArray(input.tasks) || input.tasks.length === 0) throw new DomainValidationError('工作安排至少需要一条任务')
+    if (!Array.isArray(input.tasks) || input.tasks.length === 0)
+      throw new DomainValidationError('工作安排至少需要一条任务')
 
     return this.repository.transaction(() => {
       const now = this.clock.now()
       const assignmentId = this.clock.createId()
       this.repository.insertWorkAssignment({
-        id: assignmentId, workerId, assignedOn, processType: input.processType, status: 'scheduled',
-        note: nullableText(input.note), createdAt: now, updatedAt: now
+        id: assignmentId,
+        workerId,
+        assignedOn,
+        processType: input.processType,
+        status: 'scheduled',
+        note: nullableText(input.note),
+        createdAt: now,
+        updatedAt: now
       })
-      const tasks = input.tasks.map((taskInput) => this.createTask(assignmentId, input.processType, taskInput, now))
+      const tasks = input.tasks.map((taskInput) =>
+        this.createTask(assignmentId, input.processType, taskInput, now)
+      )
       tasks.forEach((task) => this.repository.insertTask(task))
       const assignment = this.repository.getWorkAssignment(assignmentId)!
-      this.recordAudit('fulfillment.assignment_created', 'work_assignment', assignmentId, undefined, assignment, now)
+      this.recordAudit(
+        'fulfillment.assignment_created',
+        'work_assignment',
+        assignmentId,
+        undefined,
+        assignment,
+        now
+      )
       return assignment
     })
   }
 
   getWorkAssignment(id: string): V2WorkAssignment | null {
     return this.repository.getWorkAssignment(requireText(id, '工作安排标识'))
+  }
+
+  reassignProcessTask(
+    processTaskId: string,
+    input: V2ProcessTaskReassignmentInput
+  ): V2WorkAssignment {
+    const workerId = requireText(input.workerId, '新负责人')
+    const effectiveOn = requireBusinessDate(input.effectiveOn, '生效日期')
+    const reason = requireText(input.reason, '调整原因')
+
+    return this.repository.transaction(() => {
+      const originalTask = this.requireTask(requireText(processTaskId, '工序任务标识'))
+      if (originalTask.status !== 'pending')
+        throw new DomainValidationError('只有待处理任务可以调整负责人')
+      const originalAssignment = this.repository.getWorkAssignment(originalTask.workAssignmentId)
+      if (!originalAssignment) throw new DomainValidationError('原工作安排不存在')
+      if (originalAssignment.workerId === workerId)
+        throw new DomainValidationError('新负责人不能与原负责人相同')
+
+      const now = this.clock.now()
+      const assignmentId = this.clock.createId()
+      const taskId = this.clock.createId()
+      this.repository.insertWorkAssignment({
+        id: assignmentId,
+        workerId,
+        assignedOn: effectiveOn,
+        processType: originalTask.processType,
+        status: 'scheduled',
+        note: reason,
+        createdAt: now,
+        updatedAt: now
+      })
+      this.repository.insertTask({
+        ...originalTask,
+        id: taskId,
+        workAssignmentId: assignmentId,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now
+      })
+      this.repository.updateTaskStatus(originalTask.id, 'cancelled', now)
+      this.repository.completeWorkAssignmentWhenResolved(originalTask.workAssignmentId, now)
+
+      const replacement = this.repository.getWorkAssignment(assignmentId)!
+      this.recordAudit(
+        'fulfillment.task_reassigned',
+        'process_task',
+        originalTask.id,
+        { assignment: originalAssignment, task: originalTask },
+        { assignment: replacement, task: replacement.tasks[0] },
+        now,
+        { reason }
+      )
+      return replacement
+    })
   }
 
   listWorkAssignments(query?: V2WorkAssignmentQuery): V2WorkAssignment[] {
@@ -122,14 +201,23 @@ export class FulfillmentService {
   }
 
   submitProcessResult(processTaskId: string, input: V2ProcessResultInput): V2ProcessResult {
-    validateProcessResult({ completedQuantity: input.completedQuantity, actualMinutes: input.actualMinutes })
+    validateProcessResult({
+      completedQuantity: input.completedQuantity,
+      actualMinutes: input.actualMinutes
+    })
     const submittedOn = requireBusinessDate(input.submittedOn, '完成提交日期')
     return this.repository.transaction(() => {
       const task = this.requireTask(processTaskId)
-      if (task.status !== 'pending') throw new DomainValidationError('只有待完成任务可以提交完成结果')
+      if (task.status !== 'pending')
+        throw new DomainValidationError('只有待完成任务可以提交完成结果')
       const result: V2ProcessResult = {
-        id: this.clock.createId(), processTaskId: task.id, completedQuantity: input.completedQuantity,
-        actualMinutes: input.actualMinutes ?? null, submittedOn, note: nullableText(input.note), createdAt: this.clock.now()
+        id: this.clock.createId(),
+        processTaskId: task.id,
+        completedQuantity: input.completedQuantity,
+        actualMinutes: input.actualMinutes ?? null,
+        submittedOn,
+        note: nullableText(input.note),
+        createdAt: this.clock.now()
       }
       this.repository.insertProcessResult(result)
       const now = this.clock.now()
@@ -138,7 +226,11 @@ export class FulfillmentService {
         const event = this.toPersistedEvent(
           orderItemId,
           createPackingCompletedEvent(result.completedQuantity),
-          'process_result', result.id, result.submittedOn, result.note, now
+          'process_result',
+          result.id,
+          result.submittedOn,
+          result.note,
+          now
         )
         this.assertEventCanApply(event)
         this.repository.insertFulfillmentEvent(event)
@@ -150,12 +242,23 @@ export class FulfillmentService {
       } else {
         this.repository.updateTaskStatus(task.id, 'pending_inspection', now)
       }
-      this.recordAudit('fulfillment.result_submitted', 'process_result', result.id, undefined, result, now, { processTaskId: task.id })
+      this.recordAudit(
+        'fulfillment.result_submitted',
+        'process_result',
+        result.id,
+        undefined,
+        result,
+        now,
+        { processTaskId: task.id }
+      )
       return result
     })
   }
 
-  confirmQualityInspection(processResultId: string, input: V2QualityInspectionInput): V2QualityInspection {
+  confirmQualityInspection(
+    processResultId: string,
+    input: V2QualityInspectionInput
+  ): V2QualityInspection {
     const inspectedOn = requireBusinessDate(input.inspectedOn, '质检日期')
     return this.repository.transaction(() => {
       const result = this.requireResult(processResultId)
@@ -169,27 +272,56 @@ export class FulfillmentService {
         unqualifiedQuantity: input.unqualifiedQuantity,
         alreadyInspected: Boolean(this.repository.getQualityInspectionByResult(result.id))
       })
-      if (task.status !== 'pending_inspection') throw new DomainValidationError('任务当前不处于待质检状态')
+      if (task.status !== 'pending_inspection')
+        throw new DomainValidationError('任务当前不处于待质检状态')
       const now = this.clock.now()
       const inspection: V2QualityInspection = {
-        id: this.clock.createId(), processResultId: result.id, processTaskId: task.id,
-        qualifiedQuantity: input.qualifiedQuantity, unqualifiedQuantity: input.unqualifiedQuantity,
-        inspectedOn, reasonNote: nullableText(input.reasonNote), requiresRework: Boolean(input.requiresRework),
-        note: nullableText(input.note), createdAt: now
+        id: this.clock.createId(),
+        processResultId: result.id,
+        processTaskId: task.id,
+        qualifiedQuantity: input.qualifiedQuantity,
+        unqualifiedQuantity: input.unqualifiedQuantity,
+        inspectedOn,
+        reasonNote: nullableText(input.reasonNote),
+        requiresRework: Boolean(input.requiresRework),
+        note: nullableText(input.note),
+        createdAt: now
       }
       this.repository.insertQualityInspection(inspection)
       if (inspection.qualifiedQuantity > 0) {
         const orderItemId = this.requireOrderItemId(task)
-        const draft = task.sourceType === 'after_sales_replacement'
-          ? { eventType: 'after_sales_replacement' as const, quantity: inspection.qualifiedQuantity, sourceStage: null, targetStage: 'fluffing_bagging' as const }
-          : createQualityQualifiedEvent(task.processType, inspection.qualifiedQuantity)
-        const event = this.toPersistedEvent(orderItemId, draft, 'quality_inspection', inspection.id, inspectedOn, inspection.note, now)
+        const draft =
+          task.sourceType === 'after_sales_replacement'
+            ? {
+                eventType: 'after_sales_replacement' as const,
+                quantity: inspection.qualifiedQuantity,
+                sourceStage: null,
+                targetStage: 'fluffing_bagging' as const
+              }
+            : createQualityQualifiedEvent(task.processType, inspection.qualifiedQuantity)
+        const event = this.toPersistedEvent(
+          orderItemId,
+          draft,
+          'quality_inspection',
+          inspection.id,
+          inspectedOn,
+          inspection.note,
+          now
+        )
         this.assertEventCanApply(event)
         this.repository.insertFulfillmentEvent(event)
       }
       this.repository.updateTaskStatus(task.id, 'confirmed', now)
       this.repository.completeWorkAssignmentWhenResolved(task.workAssignmentId, now)
-      this.recordAudit('fulfillment.inspection_confirmed', 'quality_inspection', inspection.id, undefined, inspection, now, { processTaskId: task.id })
+      this.recordAudit(
+        'fulfillment.inspection_confirmed',
+        'quality_inspection',
+        inspection.id,
+        undefined,
+        inspection,
+        now,
+        { processTaskId: task.id }
+      )
       return inspection
     })
   }
@@ -200,12 +332,32 @@ export class FulfillmentService {
       this.requireOrderItem(input.orderItemId)
       const now = this.clock.now()
       const draft = createOpeningWipEvent(input.targetStage, input.quantity)
-      const event = this.toPersistedEvent(input.orderItemId, draft, 'opening_wip_record', null, occurredOn, nullableText(input.note), now)
+      const event = this.toPersistedEvent(
+        input.orderItemId,
+        draft,
+        'opening_wip_record',
+        null,
+        occurredOn,
+        nullableText(input.note),
+        now
+      )
       this.assertEventCanApply(event)
       this.repository.insertFulfillmentEvent(event)
-      this.repository.insertOpeningWipRecord(this.clock.createId(), { ...input, occurredOn, note: nullableText(input.note) }, event.id, now)
+      this.repository.insertOpeningWipRecord(
+        this.clock.createId(),
+        { ...input, occurredOn, note: nullableText(input.note) },
+        event.id,
+        now
+      )
       const summary = this.getOrderItemFulfillment(input.orderItemId)
-      this.recordAudit('fulfillment.opening_wip_recorded', 'opening_wip_record', event.id, undefined, event, now)
+      this.recordAudit(
+        'fulfillment.opening_wip_recorded',
+        'opening_wip_record',
+        event.id,
+        undefined,
+        event,
+        now
+      )
       return summary
     })
   }
@@ -213,23 +365,43 @@ export class FulfillmentService {
   adjustStageQuantity(input: V2FulfillmentAdjustmentInput): V2OrderItemFulfillment {
     const occurredOn = requireBusinessDate(input.occurredOn, '负责人调整日期')
     const note = requireText(input.note, '负责人调整说明')
-    if (!input.sourceStage && !input.targetStage) throw new DomainValidationError('负责人调整至少指定来源阶段或目标阶段')
-    if (input.sourceStage && !fulfillmentStages.includes(input.sourceStage)) throw new DomainValidationError('来源阶段不合法')
-    if (input.targetStage && !fulfillmentStages.includes(input.targetStage)) throw new DomainValidationError('目标阶段不合法')
-    if (input.sourceStage && input.sourceStage === input.targetStage) throw new DomainValidationError('负责人调整的来源阶段和目标阶段不能相同')
+    if (!input.sourceStage && !input.targetStage)
+      throw new DomainValidationError('负责人调整至少指定来源阶段或目标阶段')
+    if (input.sourceStage && !fulfillmentStages.includes(input.sourceStage))
+      throw new DomainValidationError('来源阶段不合法')
+    if (input.targetStage && !fulfillmentStages.includes(input.targetStage))
+      throw new DomainValidationError('目标阶段不合法')
+    if (input.sourceStage && input.sourceStage === input.targetStage)
+      throw new DomainValidationError('负责人调整的来源阶段和目标阶段不能相同')
 
     return this.repository.transaction(() => {
       this.requireOrderItem(input.orderItemId)
       const now = this.clock.now()
       const event = this.toPersistedEvent(
         input.orderItemId,
-        { eventType: 'manager_adjustment', quantity: input.quantity, sourceStage: input.sourceStage ?? null, targetStage: input.targetStage ?? null },
-        'manager_adjustment', null, occurredOn, note, now
+        {
+          eventType: 'manager_adjustment',
+          quantity: input.quantity,
+          sourceStage: input.sourceStage ?? null,
+          targetStage: input.targetStage ?? null
+        },
+        'manager_adjustment',
+        null,
+        occurredOn,
+        note,
+        now
       )
       this.assertEventCanApply(event)
       this.repository.insertFulfillmentEvent(event)
       const summary = this.getOrderItemFulfillment(input.orderItemId)
-      this.recordAudit('fulfillment.manager_adjusted', 'fulfillment_event', event.id, undefined, event, now)
+      this.recordAudit(
+        'fulfillment.manager_adjusted',
+        'fulfillment_event',
+        event.id,
+        undefined,
+        event,
+        now
+      )
       return summary
     })
   }
@@ -237,8 +409,17 @@ export class FulfillmentService {
   getOrderItemFulfillment(orderItemId: string): V2OrderItemFulfillment {
     const item = this.requireOrderItem(orderItemId)
     const events = this.repository.listFulfillmentEvents(item.id)
-    const state = events.reduce<FulfillmentState>((current, event) => applyFulfillmentEvent(current, event), createFulfillmentState(item.quantity))
-    return { orderItemId: item.id, orderId: item.orderId, confirmedQuantity: item.quantity, stages: asState(state), events }
+    const state = events.reduce<FulfillmentState>(
+      (current, event) => applyFulfillmentEvent(current, event),
+      createFulfillmentState(item.quantity)
+    )
+    return {
+      orderItemId: item.id,
+      orderId: item.orderId,
+      confirmedQuantity: item.quantity,
+      stages: asState(state),
+      events
+    }
   }
 
   private createTask(
@@ -247,10 +428,13 @@ export class FulfillmentService {
     input: V2ProcessTaskInput,
     now: string
   ): V2ProcessTask {
-    if (!processTaskSources.includes(input.sourceType)) throw new DomainValidationError('任务来源不合法')
+    if (!processTaskSources.includes(input.sourceType))
+      throw new DomainValidationError('任务来源不合法')
     const orderItem = input.orderItemId ? this.requireOrderItem(input.orderItemId) : null
-    if (processType !== 'shipping' && !orderItem) throw new DomainValidationError('该工序任务必须关联订单产品')
-    if (processType === 'making' && !orderItem) throw new DomainValidationError('制作任务必须关联订单产品')
+    if (processType !== 'shipping' && !orderItem)
+      throw new DomainValidationError('该工序任务必须关联订单产品')
+    if (processType === 'making' && !orderItem)
+      throw new DomainValidationError('制作任务必须关联订单产品')
     if (input.sourceType === 'after_sales_replacement' && processType !== 'making') {
       throw new DomainValidationError('售后补发任务必须从制作工序开始')
     }
@@ -260,34 +444,75 @@ export class FulfillmentService {
     if (processType === 'making') {
       const quantity = input.plannedQuantity ?? null
       const standardMakingMinutes = orderItem!.productSnapshot.standardMakingMinutes
-      calculateTaskPlannedMinutes({ processType, plannedQuantity: quantity, standardMakingMinutes, extraMinutes })
+      calculateTaskPlannedMinutes({
+        processType,
+        plannedQuantity: quantity,
+        standardMakingMinutes,
+        extraMinutes
+      })
       plannedMinutes = quantity! * standardMakingMinutes
     } else {
       plannedMinutes = input.plannedMinutes ?? 0
-      calculateTaskPlannedMinutes({ processType, plannedQuantity: input.plannedQuantity, plannedMinutes, extraMinutes })
+      calculateTaskPlannedMinutes({
+        processType,
+        plannedQuantity: input.plannedQuantity,
+        plannedMinutes,
+        extraMinutes
+      })
     }
 
     const hourlyWageCents = requireOptionalNonNegativeCents(input.hourlyWageCents, '时薪')
-    const pieceRateCents = processType === 'making'
-      ? input.pieceRateCents ?? orderItem!.productSnapshot.makingCommissionCents
-      : requireOptionalNonNegativeCents(input.pieceRateCents, '计件提成')
     const productSnapshot = processType === 'making' ? orderItem!.productSnapshot : null
-    const hasGlueFormula = productSnapshot?.gluePriceMicroYuanPerGram !== undefined
-      && productSnapshot.glueWeightMilligrams !== undefined
-    const gluePriceMicroYuanPerGram = hasGlueFormula ? productSnapshot!.gluePriceMicroYuanPerGram! : null
+    const snapshotPieceRateCents =
+      processType === 'making'
+        ? orderItem!.productSnapshot.makingCommissionCents
+        : processType === 'fluffing_bagging'
+          ? (orderItem!.productSnapshot.fluffingBaggingCommissionCents ?? 0)
+          : null
+    const pieceRateCents =
+      snapshotPieceRateCents === null
+        ? requireOptionalNonNegativeCents(input.pieceRateCents, '计件提成')
+        : (input.pieceRateCents ?? snapshotPieceRateCents)
+    const hasGlueFormula =
+      productSnapshot?.gluePriceMicroYuanPerGram !== undefined &&
+      productSnapshot.glueWeightMilligrams !== undefined
+    const gluePriceMicroYuanPerGram = hasGlueFormula
+      ? productSnapshot!.gluePriceMicroYuanPerGram!
+      : null
     const glueWeightMilligrams = hasGlueFormula ? productSnapshot!.glueWeightMilligrams! : null
-    const glueCostCents = processType === 'making'
-      ? hasGlueFormula ? null : input.glueCostCents ?? productSnapshot!.makingGlueCostCents
-      : requireOptionalNonNegativeCents(input.glueCostCents, '胶水成本')
+    const glueCostCents =
+      processType === 'making'
+        ? hasGlueFormula
+          ? null
+          : (input.glueCostCents ?? productSnapshot!.makingGlueCostCents)
+        : requireOptionalNonNegativeCents(input.glueCostCents, '胶水成本')
     requireOptionalNonNegativeCents(pieceRateCents, '计件提成')
     requireOptionalNonNegativeCents(glueCostCents, '胶水成本')
 
     return {
-      id: this.clock.createId(), workAssignmentId: assignmentId, orderItemId: orderItem?.id ?? null,
-      processType, sourceType: input.sourceType, plannedQuantity: input.plannedQuantity ?? null,
-      plannedMinutes, extraMinutes, scheduledMinutes: plannedMinutes + extraMinutes, status: 'pending',
-      hourlyWageCents, pieceRateCents, glueCostCents, gluePriceMicroYuanPerGram, glueWeightMilligrams,
-      rateSnapshot: input.rateSnapshot ?? null, note: nullableText(input.note), createdAt: now, updatedAt: now
+      id: this.clock.createId(),
+      workAssignmentId: assignmentId,
+      orderItemId: orderItem?.id ?? null,
+      processType,
+      sourceType: input.sourceType,
+      plannedQuantity: input.plannedQuantity ?? null,
+      plannedMinutes,
+      extraMinutes,
+      scheduledMinutes: plannedMinutes + extraMinutes,
+      status: 'pending',
+      hourlyWageCents,
+      pieceRateCents,
+      glueCostCents,
+      gluePriceMicroYuanPerGram,
+      glueWeightMilligrams,
+      rateSnapshot:
+        input.rateSnapshot ??
+        (processType === 'fluffing_bagging'
+          ? { fluffingBaggingCommissionCents: snapshotPieceRateCents! }
+          : null),
+      note: nullableText(input.note),
+      createdAt: now,
+      updatedAt: now
     }
   }
 
@@ -301,9 +526,17 @@ export class FulfillmentService {
     createdAt: string
   ): V2FulfillmentEvent {
     return {
-      id: this.clock.createId(), orderItemId, eventType: draft.eventType, quantity: draft.quantity,
-      sourceStage: draft.sourceStage ?? null, targetStage: draft.targetStage ?? null,
-      sourceRecordType, sourceRecordId, occurredOn, note, createdAt
+      id: this.clock.createId(),
+      orderItemId,
+      eventType: draft.eventType,
+      quantity: draft.quantity,
+      sourceStage: draft.sourceStage ?? null,
+      targetStage: draft.targetStage ?? null,
+      sourceRecordType,
+      sourceRecordId,
+      occurredOn,
+      note,
+      createdAt
     }
   }
 
@@ -314,7 +547,10 @@ export class FulfillmentService {
     // 同一天的事件按落库先后处理；待写入事件必须排在已存在的同日事件之后，
     // 不能以随机 UUID 作为时间并列时的顺序依据。
     events.splice(firstFutureEvent === -1 ? events.length : firstFutureEvent, 0, event)
-    events.reduce<FulfillmentState>((current, currentEvent) => applyFulfillmentEvent(current, currentEvent), createFulfillmentState(item.quantity))
+    events.reduce<FulfillmentState>(
+      (current, currentEvent) => applyFulfillmentEvent(current, currentEvent),
+      createFulfillmentState(item.quantity)
+    )
   }
 
   private requireOrderItem(orderItemId: string): V2OrderItemFulfillmentSource {
@@ -336,7 +572,8 @@ export class FulfillmentService {
   }
 
   private requireOrderItemId(task: V2ProcessTask): string {
-    if (!task.orderItemId) throw new DomainValidationError('该工序任务未关联订单产品，不能推动履约数量')
+    if (!task.orderItemId)
+      throw new DomainValidationError('该工序任务未关联订单产品，不能推动履约数量')
     return task.orderItemId
   }
 
@@ -350,7 +587,14 @@ export class FulfillmentService {
     metadata?: unknown
   ): void {
     this.repository.insertAudit({
-      id: this.clock.createId(), action, entityType, entityId, before, after, metadata, createdAt
+      id: this.clock.createId(),
+      action,
+      entityType,
+      entityId,
+      before,
+      after,
+      metadata,
+      createdAt
     })
   }
 }

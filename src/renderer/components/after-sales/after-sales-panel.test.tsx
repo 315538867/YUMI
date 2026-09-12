@@ -36,7 +36,22 @@ describe('AfterSalesPanel', () => {
     render(
       <AfterSalesPanel
         createCase={vi.fn().mockResolvedValue({})}
-        funds={[]}
+        funds={[
+          {
+            id: 'fund-refund-1',
+            orderId: 'order-1',
+            businessType: 'refund',
+            amountCents: 880,
+            occurredOn: '2026-09-09',
+            paymentMethod: '微信',
+            attachmentId: null,
+            note: '包装破损退款',
+            direction: 'expense',
+            reversalOfEntryId: null,
+            attachment: null,
+            createdAt: '2026-09-09T10:00:00.000Z'
+          }
+        ]}
         linkCharge={vi.fn().mockResolvedValue(undefined)}
         listCases={listCases}
         orderId="order-1"
@@ -48,8 +63,20 @@ describe('AfterSalesPanel', () => {
     expect(await screen.findByRole('table', { name: '售后记录列表' })).toBeVisible()
     expect(screen.getByRole('toolbar', { name: '售后记录工具条' })).toBeVisible()
     expect(screen.getByText('共 1 条售后记录')).toBeVisible()
+    expect(screen.getByRole('heading', { name: '售后记录' })).toBeVisible()
+    expect(
+      screen.getByText('退货、补发和退款等处理按售后单留痕，并将已知成本回写到订单盈利。')
+    ).toBeVisible()
+    expect(screen.getByText('售后单')).toBeVisible()
+    expect(screen.getByText('已核算成本')).toBeVisible()
+    expect(screen.getByText('会进入订单盈利口径')).toBeVisible()
+    expect(screen.getByText('退款金额')).toBeVisible()
+    expect(screen.getByText('待处理')).toBeVisible()
+    expect(screen.getAllByText('1 笔')).toHaveLength(2)
+    expect(screen.getAllByText('¥12.34')).toHaveLength(2)
+    expect(screen.getByText('¥8.80')).toBeVisible()
     expect(screen.getByText('包装破损')).toBeVisible()
-    expect(screen.getByRole('button', { name: '新增售后记录' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '新建售后' })).toBeVisible()
     expect(screen.getByRole('button', { name: '关联实际收费' })).toBeVisible()
   })
 
@@ -69,9 +96,9 @@ describe('AfterSalesPanel', () => {
     )
 
     await waitFor(() => expect(listCases).toHaveBeenCalledWith({ orderId: 'order-1' }))
-    fireEvent.click(screen.getByRole('button', { name: '新增售后记录' }))
+    fireEvent.click(screen.getByRole('button', { name: '新建售后' }))
 
-    expect(screen.getByRole('dialog', { name: '新增售后记录' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '新建售后' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '确认负责人判断' }))
 
     expect(await screen.findByRole('alert', { hidden: true })).toHaveTextContent(
@@ -109,7 +136,7 @@ it('负责人先核对原发货上下文，再明确确认处理判断；确认�
   )
 
   await waitFor(() => expect(listCases).toHaveBeenCalledWith({ orderId: 'order-1' }))
-  fireEvent.click(screen.getByRole('button', { name: '新增售后记录' }))
+  fireEvent.click(screen.getByRole('button', { name: '新建售后' }))
   fireEvent.click(screen.getByRole('combobox', { name: '关联发货批次' }))
   fireEvent.click(screen.getByRole('option', { name: '2026-09-07 · SF001' }))
 

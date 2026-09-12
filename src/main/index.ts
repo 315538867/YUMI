@@ -38,8 +38,15 @@ app.whenReady().then(() => {
     return result
   }
   registerV2Ipc(
-    currentRuntime.orderService, currentRuntime.studioSettingsService, currentRuntime.workbenchService, currentRuntime.fulfillmentService, currentRuntime.settlementService,
-    currentRuntime.financeService, currentRuntime.afterSalesService, currentRuntime.reportService, {
+    currentRuntime.orderService,
+    currentRuntime.studioSettingsService,
+    currentRuntime.workbenchService,
+    currentRuntime.fulfillmentService,
+    currentRuntime.settlementService,
+    currentRuntime.financeService,
+    currentRuntime.afterSalesService,
+    currentRuntime.reportService,
+    {
       exporter: {
         async exportCurrentReport(input) {
           const workbook = currentRuntime.reportExportService.exportWorkbook(input)
@@ -64,7 +71,8 @@ app.whenReady().then(() => {
           return { savedPath: result.filePath }
         },
         async exportOrderDocuments(input) {
-          const workbook = await currentRuntime.reportExportService.exportOrderDocumentsWorkbook(input)
+          const workbook =
+            await currentRuntime.reportExportService.exportOrderDocumentsWorkbook(input)
           const result = await dialog.showSaveDialog({
             title: '合并导出订单表与发货清单',
             defaultPath: `yumi-${input.orderId ?? '全部'}-订单与发货单.xlsx`,
@@ -75,7 +83,8 @@ app.whenReady().then(() => {
           return { savedPath: result.filePath }
         },
         async exportShippingList(input) {
-          const workbook = await currentRuntime.reportExportService.exportShippingListWorkbook(input)
+          const workbook =
+            await currentRuntime.reportExportService.exportShippingListWorkbook(input)
           const result = await dialog.showSaveDialog({
             title: input?.shipmentId ? '导出本批发货清单' : '导出发货汇总',
             defaultPath: input?.shipmentId ? 'yumi-本批发货清单.xlsx' : 'yumi-发货汇总.xlsx',
@@ -86,10 +95,12 @@ app.whenReady().then(() => {
           return { savedPath: result.filePath }
         }
       }
-    }, {
+    },
+    {
       service: currentRuntime.backupService,
       restore
-    }, {
+    },
+    {
       service: currentRuntime.orderFundAttachmentService,
       async pickFile() {
         const result = await dialog.showOpenDialog({
@@ -103,7 +114,8 @@ app.whenReady().then(() => {
         return result.canceled || !result.filePaths[0] ? null : result.filePaths[0]
       },
       openFile: (filePath) => shell.openPath(filePath)
-    })
+    }
+  )
   createMainWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()

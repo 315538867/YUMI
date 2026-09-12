@@ -20,10 +20,7 @@ export type {
   V2CustomerQuery,
   V2CustomerUpdateInput
 } from './customers'
-export type {
-  V2StudioSettings,
-  V2StudioSettingsUpdateInput
-} from './settings'
+export type { V2StudioSettings, V2StudioSettingsUpdateInput } from './settings'
 export type {
   V2Product,
   V2ProductInput,
@@ -147,6 +144,7 @@ export type {
   V2RiskLevel,
   V2ShippingListDocument,
   V2ShippingListExportInput,
+  V2ShippingListPreviewInput,
   V2ShippingListExportRow
 } from './reports'
 

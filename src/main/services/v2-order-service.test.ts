@@ -79,12 +79,52 @@ describe('V2OrderService', () => {
     expect(service.listAuditLogs(order.id).map((log) => log.action)).toEqual(['order.created'])
   })
 
+  it('冻结商品的捏毛装袋提成，并让后续商品改价只作用于新订单快照', () => {
+    const service = createService()
+    const product = service.createProduct({
+      name: '捏毛提成测试商品',
+      basePriceCents: 5_000,
+      packagingCostCents: 100,
+      accessoryCostCents: 0,
+      replacementBagCostCents: 0,
+      internalEdgeCostCents: 0,
+      standardMakingMinutes: 12,
+      makingCommissionCents: 300,
+      fluffingBaggingCommissionCents: 85
+    } as Parameters<typeof service.createProduct>[0] & { fluffingBaggingCommissionCents: number })
+
+    const firstOrder = service.createOrder({
+      customer: { name: '小雨' },
+      items: [{ productId: product.id, quantity: 1, unitPriceCents: 5_000 }]
+    })
+    expect(firstOrder.items[0].productSnapshot).toMatchObject({
+      fluffingBaggingCommissionCents: 85
+    })
+
+    const updatedProduct = service.updateProduct({
+      ...product,
+      fluffingBaggingCommissionCents: 120
+    } as Parameters<typeof service.updateProduct>[0] & { fluffingBaggingCommissionCents: number })
+    expect(updatedProduct).toMatchObject({ fluffingBaggingCommissionCents: 120 })
+    expect(service.getOrder(firstOrder.id)?.items[0].productSnapshot).toMatchObject({
+      fluffingBaggingCommissionCents: 85
+    })
+
+    const secondOrder = service.createOrder({
+      customer: { name: '小雨' },
+      items: [{ productId: product.id, quantity: 1, unitPriceCents: 5_000 }]
+    })
+    expect(secondOrder.items[0].productSnapshot).toMatchObject({
+      fluffingBaggingCommissionCents: 120
+    })
+  })
+
   it('在同一事务内记录内容变更和可选金额调整，并保留变更前后快照', () => {
     const service = createService()
     const product = createProduct(service, '奶油兔')
     const order = service.createOrder({
       customer: { name: '小林' },
-      items: [{ productId: product.id, quantity: 2, unitPriceCents: 5_000 }],
+      items: [{ productId: product.id, quantity: 2, unitPriceCents: 5_000 }]
     })
 
     const changed = service.changeOrderContent(order.id, {
@@ -111,7 +151,7 @@ describe('V2OrderService', () => {
     const product = createProduct(service, '小熊')
     const order = service.createOrder({
       customer: { name: '阿月' },
-      items: [{ productId: product.id, quantity: 1, unitPriceCents: 10_000 }],
+      items: [{ productId: product.id, quantity: 1, unitPriceCents: 10_000 }]
     })
     const payment = service.recordOrderFund(order.id, {
       businessType: 'payment',
@@ -141,27 +181,38 @@ describe('V2OrderService', () => {
       netReceivedCents: 7_500,
       outstandingCents: 2_500
     })
-    expect(() => service.correctOrderFund(order.id, {
-      originalEntryId: payment.id,
-      reversalOccurredOn: '2026-09-08',
-      replacement: {
-        businessType: 'payment', amountCents: 7_500, occurredOn: '2026-09-08'
-      }
-    })).toThrow('已被冲正')
+    expect(() =>
+      service.correctOrderFund(order.id, {
+        originalEntryId: payment.id,
+        reversalOccurredOn: '2026-09-08',
+        replacement: {
+          businessType: 'payment',
+          amountCents: 7_500,
+          occurredOn: '2026-09-08'
+        }
+      })
+    ).toThrow('已被冲正')
     const freshOrder = service.createOrder({
       customer: { name: '待校验凭证' },
       items: [{ productId: product.id, quantity: 1, unitPriceCents: 10_000 }]
     })
     const freshPayment = service.recordOrderFund(freshOrder.id, {
-      businessType: 'payment', amountCents: 8_000, occurredOn: '2026-09-07'
+      businessType: 'payment',
+      amountCents: 8_000,
+      occurredOn: '2026-09-07'
     })
-    expect(() => service.correctOrderFund(freshOrder.id, {
-      originalEntryId: freshPayment.id,
-      reversalOccurredOn: '2026-09-08',
-      replacement: {
-        businessType: 'payment', amountCents: 7_500, occurredOn: '2026-09-08', attachmentId: 'missing-proof'
-      }
-    })).toThrow('收款凭证不存在或类型不正确')
+    expect(() =>
+      service.correctOrderFund(freshOrder.id, {
+        originalEntryId: freshPayment.id,
+        reversalOccurredOn: '2026-09-08',
+        replacement: {
+          businessType: 'payment',
+          amountCents: 7_500,
+          occurredOn: '2026-09-08',
+          attachmentId: 'missing-proof'
+        }
+      })
+    ).toThrow('收款凭证不存在或类型不正确')
   })
 
   it('允许同一批次并行发出多个商品，并分别保留每个商品的剩余可发数量', () => {
@@ -173,20 +224,28 @@ describe('V2OrderService', () => {
       items: [
         { productId: strawberry.id, quantity: 5, unitPriceCents: 2_000 },
         { productId: cloud.id, quantity: 4, unitPriceCents: 2_500 }
-      ],
+      ]
     })
 
     fulfillmentService.recordOpeningWip({
-      orderItemId: order.items[0].id, targetStage: 'ready_to_ship', quantity: 5,
-      occurredOn: '2026-09-07', note: '系统启用前已打包'
+      orderItemId: order.items[0].id,
+      targetStage: 'ready_to_ship',
+      quantity: 5,
+      occurredOn: '2026-09-07',
+      note: '系统启用前已打包'
     })
     fulfillmentService.recordOpeningWip({
-      orderItemId: order.items[1].id, targetStage: 'ready_to_ship', quantity: 4,
-      occurredOn: '2026-09-07', note: '系统启用前已打包'
+      orderItemId: order.items[1].id,
+      targetStage: 'ready_to_ship',
+      quantity: 4,
+      occurredOn: '2026-09-07',
+      note: '系统启用前已打包'
     })
 
     const shipment = service.createShipment(order.id, {
-      shippedOn: '2026-09-08', carrier: '顺丰', trackingNo: 'SF-001',
+      shippedOn: '2026-09-08',
+      carrier: '顺丰',
+      trackingNo: 'SF-001',
       items: [
         { orderItemId: order.items[0].id, quantity: 3 },
         { orderItemId: order.items[1].id, quantity: 2 }
@@ -197,18 +256,24 @@ describe('V2OrderService', () => {
       expect.objectContaining({ orderItemId: order.items[0].id, quantity: 3 }),
       expect.objectContaining({ orderItemId: order.items[1].id, quantity: 2 })
     ])
-    expect(fulfillmentService.getOrderItemFulfillment(order.items[0].id).stages)
-      .toMatchObject({ readyToShip: 2, shipped: 3 })
-    expect(fulfillmentService.getOrderItemFulfillment(order.items[1].id).stages)
-      .toMatchObject({ readyToShip: 2, shipped: 2 })
+    expect(fulfillmentService.getOrderItemFulfillment(order.items[0].id).stages).toMatchObject({
+      readyToShip: 2,
+      shipped: 3
+    })
+    expect(fulfillmentService.getOrderItemFulfillment(order.items[1].id).stages).toMatchObject({
+      readyToShip: 2,
+      shipped: 2
+    })
 
-    expect(() => service.createShipment(order.id, {
-      shippedOn: '2026-09-08',
-      items: [
-        { orderItemId: order.items[0].id, quantity: 3 },
-        { orderItemId: order.items[1].id, quantity: 1 }
-      ]
-    })).toThrow('本次发货数量超过待发货可用数量')
+    expect(() =>
+      service.createShipment(order.id, {
+        shippedOn: '2026-09-08',
+        items: [
+          { orderItemId: order.items[0].id, quantity: 3 },
+          { orderItemId: order.items[1].id, quantity: 1 }
+        ]
+      })
+    ).toThrow('本次发货数量超过待发货可用数量')
     expect(service.listShipments(order.id)).toHaveLength(1)
   })
 
@@ -224,18 +289,30 @@ describe('V2OrderService', () => {
         { productId: cloud.id, quantity: 4, unitPriceCents: 2_500 }
       ]
     })
-    order.items.forEach((item) => fulfillmentService.recordOpeningWip({
-      orderItemId: item.id, targetStage: 'ready_to_ship', quantity: item.quantity,
-      occurredOn: '2026-09-07', note: '可发货库存'
-    }))
+    order.items.forEach((item) =>
+      fulfillmentService.recordOpeningWip({
+        orderItemId: item.id,
+        targetStage: 'ready_to_ship',
+        quantity: item.quantity,
+        occurredOn: '2026-09-07',
+        note: '可发货库存'
+      })
+    )
 
     const firstShipment = service.createShipment(order.id, {
-      shippedOn: '2026-09-08', carrier: '顺丰', trackingNumber: 'SF-001',
+      shippedOn: '2026-09-08',
+      carrier: '顺丰',
+      trackingNumber: 'SF-001',
       items: [{ orderItemId: order.items[0].id, quantity: 2 }]
     })
     service.createShipment(order.id, {
-      shippedOn: '2026-09-09', carrier: '京东', trackingNumber: 'JD-002',
-      items: [{ orderItemId: order.items[0].id, quantity: 1 }, { orderItemId: order.items[1].id, quantity: 4 }]
+      shippedOn: '2026-09-09',
+      carrier: '京东',
+      trackingNumber: 'JD-002',
+      items: [
+        { orderItemId: order.items[0].id, quantity: 1 },
+        { orderItemId: order.items[1].id, quantity: 4 }
+      ]
     })
 
     expect(repository.getShipmentDocumentSnapshot(order.id, firstShipment.id)).toMatchObject({
@@ -247,12 +324,18 @@ describe('V2OrderService', () => {
       },
       items: [
         expect.objectContaining({
-          orderItemId: order.items[0].id, orderedQuantity: 5, thisShipmentQuantity: 2,
-          shippedQuantity: 2, remainingQuantity: 3
+          orderItemId: order.items[0].id,
+          orderedQuantity: 5,
+          thisShipmentQuantity: 2,
+          shippedQuantity: 2,
+          remainingQuantity: 3
         }),
         expect.objectContaining({
-          orderItemId: order.items[1].id, orderedQuantity: 4, thisShipmentQuantity: 0,
-          shippedQuantity: 0, remainingQuantity: 4
+          orderItemId: order.items[1].id,
+          orderedQuantity: 4,
+          thisShipmentQuantity: 0,
+          shippedQuantity: 0,
+          remainingQuantity: 4
         })
       ]
     })
@@ -263,13 +346,15 @@ describe('V2OrderService', () => {
     const product = createProduct(service, '葡萄')
     const order = service.createOrder({
       customer: { name: '小苏' },
-      items: [{ productId: product.id, quantity: 10, unitPriceCents: 2_000 }],
+      items: [{ productId: product.id, quantity: 10, unitPriceCents: 2_000 }]
     })
 
-    expect(() => service.createShipment(order.id, {
-      shippedOn: '2026-09-07',
-      items: [{ orderItemId: order.items[0].id, quantity: 1 }]
-    })).toThrow('待发货可用数量')
+    expect(() =>
+      service.createShipment(order.id, {
+        shippedOn: '2026-09-07',
+        items: [{ orderItemId: order.items[0].id, quantity: 1 }]
+      })
+    ).toThrow('待发货可用数量')
 
     fulfillmentService.recordOpeningWip({
       orderItemId: order.items[0].id,
@@ -283,16 +368,20 @@ describe('V2OrderService', () => {
       items: [{ orderItemId: order.items[0].id, quantity: 6 }],
       carrier: '顺丰'
     })
-    expect(firstShipment.items).toEqual([expect.objectContaining({ orderItemId: order.items[0].id, quantity: 6 })])
+    expect(firstShipment.items).toEqual([
+      expect.objectContaining({ orderItemId: order.items[0].id, quantity: 6 })
+    ])
     expect(fulfillmentService.getOrderItemFulfillment(order.items[0].id).stages).toMatchObject({
       readyToShip: 4,
       shipped: 6
     })
 
-    expect(() => service.createShipment(order.id, {
-      shippedOn: '2026-09-07',
-      items: [{ orderItemId: order.items[0].id, quantity: 5 }]
-    })).toThrow('本次发货数量超过待发货可用数量')
+    expect(() =>
+      service.createShipment(order.id, {
+        shippedOn: '2026-09-07',
+        items: [{ orderItemId: order.items[0].id, quantity: 5 }]
+      })
+    ).toThrow('本次发货数量超过待发货可用数量')
 
     expect(service.listShipments(order.id)).toHaveLength(1)
     expect(service.listAuditLogs(order.id).map((log) => log.action)).toEqual([
@@ -337,14 +426,18 @@ describe('V2OrderService', () => {
       readyToShip: 10,
       shipped: 0
     })
-    expect(() => service.voidShipment(order.id, shipment.id, {
-      voidedOn: '2026-09-09',
-      reason: '重复操作'
-    })).toThrow('已作废')
-    expect(service.createShipment(order.id, {
-      shippedOn: '2026-09-10',
-      items: [{ orderItemId: order.items[0].id, quantity: 10 }]
-    })).toMatchObject({ status: 'active' })
+    expect(() =>
+      service.voidShipment(order.id, shipment.id, {
+        voidedOn: '2026-09-09',
+        reason: '重复操作'
+      })
+    ).toThrow('已作废')
+    expect(
+      service.createShipment(order.id, {
+        shippedOn: '2026-09-10',
+        items: [{ orderItemId: order.items[0].id, quantity: 10 }]
+      })
+    ).toMatchObject({ status: 'active' })
     expect(service.listAuditLogs(order.id).map((log) => log.action)).toContain('shipment.voided')
   })
 
@@ -412,21 +505,23 @@ describe('V2OrderService', () => {
 
   it('拒绝超出边界的商品材料和模具产能参数', () => {
     const service = createService()
-    expect(() => service.createProduct({
-      name: '非法商品',
-      basePriceCents: 5_000,
-      packagingCostCents: 200,
-      accessoryCostCents: 100,
-      replacementBagCostCents: 50,
-      internalEdgeCostCents: 80,
-      standardMakingMinutes: 20,
-      makingCommissionCents: 500,
-      unitWeightMilligrams: 20_000,
-      materialLossRateBasisPoints: 10_001,
-      moldCount: 20,
-      outputPerMoldPerBatch: 1,
-      maxBatchesPerDay: 2
-    })).toThrow('损耗率必须小于 100%')
+    expect(() =>
+      service.createProduct({
+        name: '非法商品',
+        basePriceCents: 5_000,
+        packagingCostCents: 200,
+        accessoryCostCents: 100,
+        replacementBagCostCents: 50,
+        internalEdgeCostCents: 80,
+        standardMakingMinutes: 20,
+        makingCommissionCents: 500,
+        unitWeightMilligrams: 20_000,
+        materialLossRateBasisPoints: 10_001,
+        moldCount: 20,
+        outputPerMoldPerBatch: 1,
+        maxBatchesPerDay: 2
+      })
+    ).toThrow('损耗率必须小于 100%')
   })
 
   it('保存订单预留天数并派生制作截止日期，订单优惠继续按非负金额校验', () => {
@@ -448,17 +543,21 @@ describe('V2OrderService', () => {
     })
     expect(defaultOrder).toMatchObject({ reservedDays: 2, productionDeadline: '2026-09-13' })
     expect(order.amount.orderDiscountCents).toBe(500)
-    expect(() => service.createOrder({
-      customer: { name: '小周' },
-      expectedShipDate: '2026-09-15',
-      reservedDays: -1,
-      items: [{ productId: product.id, quantity: 1, unitPriceCents: 2_000 }]
-    })).toThrow('预留天数必须是非负整数')
-    expect(() => service.createOrder({
-      customer: { name: '小周' },
-      expectedShipDate: '2026-09-15',
-      orderDiscountCents: -1,
-      items: [{ productId: product.id, quantity: 1, unitPriceCents: 2_000 }]
-    })).toThrow('订单优惠不能为负数')
+    expect(() =>
+      service.createOrder({
+        customer: { name: '小周' },
+        expectedShipDate: '2026-09-15',
+        reservedDays: -1,
+        items: [{ productId: product.id, quantity: 1, unitPriceCents: 2_000 }]
+      })
+    ).toThrow('预留天数必须是非负整数')
+    expect(() =>
+      service.createOrder({
+        customer: { name: '小周' },
+        expectedShipDate: '2026-09-15',
+        orderDiscountCents: -1,
+        items: [{ productId: product.id, quantity: 1, unitPriceCents: 2_000 }]
+      })
+    ).toThrow('订单优惠不能为负数')
   })
 })

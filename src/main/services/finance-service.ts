@@ -71,7 +71,10 @@ function toEntry(insert: FinanceEntryInsert): V2FinancialEntry {
 export class FinanceService {
   private readonly repository: FinanceRepository
 
-  constructor(database: V2Database, private readonly clock: FinanceClock = defaultClock) {
+  constructor(
+    database: V2Database,
+    private readonly clock: FinanceClock = defaultClock
+  ) {
     this.repository = new FinanceRepository(database)
   }
 
@@ -85,9 +88,23 @@ export class FinanceService {
     const name = requireText(input.name, '类目名称')
     return this.repository.transaction(() => {
       const now = this.clock.now()
-      const category: V2FinanceCategory = { id: this.clock.createId(), direction, name, enabled: true, createdAt: now, updatedAt: now }
+      const category: V2FinanceCategory = {
+        id: this.clock.createId(),
+        direction,
+        name,
+        enabled: true,
+        createdAt: now,
+        updatedAt: now
+      }
       this.repository.insertCategory(category)
-      this.audit('finance.category_created', 'finance_category', category.id, undefined, category, now)
+      this.audit(
+        'finance.category_created',
+        'finance_category',
+        category.id,
+        undefined,
+        category,
+        now
+      )
       return category
     })
   }
@@ -102,7 +119,14 @@ export class FinanceService {
         updatedAt: this.clock.now()
       }
       this.repository.updateCategory(category)
-      this.audit('finance.category_updated', 'finance_category', category.id, before, category, category.updatedAt)
+      this.audit(
+        'finance.category_updated',
+        'finance_category',
+        category.id,
+        before,
+        category,
+        category.updatedAt
+      )
       return category
     })
   }
@@ -110,9 +134,17 @@ export class FinanceService {
   deleteCategory(id: string): void {
     this.repository.transaction(() => {
       const before = this.requireCategory(id)
-      if (this.repository.isCategoryReferenced(before.id)) throw new DomainValidationError('收支类目已被财务流水引用，不能删除')
+      if (this.repository.isCategoryReferenced(before.id))
+        throw new DomainValidationError('收支类目已被财务流水引用，不能删除')
       this.repository.deleteCategory(before.id)
-      this.audit('finance.category_deleted', 'finance_category', before.id, before, undefined, this.clock.now())
+      this.audit(
+        'finance.category_deleted',
+        'finance_category',
+        before.id,
+        before,
+        undefined,
+        this.clock.now()
+      )
     })
   }
 
@@ -125,7 +157,12 @@ export class FinanceService {
     return this.repository.transaction(() => {
       const now = this.clock.now()
       const payer: V2AdvancePayer = {
-        id: this.clock.createId(), name, enabled: true, note: nullableText(input.note), createdAt: now, updatedAt: now
+        id: this.clock.createId(),
+        name,
+        enabled: true,
+        note: nullableText(input.note),
+        createdAt: now,
+        updatedAt: now
       }
       this.repository.insertAdvancePayer(payer)
       this.audit('finance.advance_payer_created', 'advance_payer', payer.id, undefined, payer, now)
@@ -140,10 +177,18 @@ export class FinanceService {
         ...before,
         name: input.name === undefined ? before.name : requireText(input.name, '垫付人名称'),
         enabled: input.enabled === undefined ? before.enabled : Boolean(input.enabled),
-        note: input.note === undefined ? before.note : nullableText(input.note), updatedAt: this.clock.now()
+        note: input.note === undefined ? before.note : nullableText(input.note),
+        updatedAt: this.clock.now()
       }
       this.repository.updateAdvancePayer(payer)
-      this.audit('finance.advance_payer_updated', 'advance_payer', payer.id, before, payer, payer.updatedAt)
+      this.audit(
+        'finance.advance_payer_updated',
+        'advance_payer',
+        payer.id,
+        before,
+        payer,
+        payer.updatedAt
+      )
       return payer
     })
   }
@@ -151,9 +196,17 @@ export class FinanceService {
   deleteAdvancePayer(id: string): void {
     this.repository.transaction(() => {
       const before = this.requireAdvancePayer(id)
-      if (this.repository.isAdvancePayerReferenced(before.id)) throw new DomainValidationError('垫付人已被财务流水引用，不能删除')
+      if (this.repository.isAdvancePayerReferenced(before.id))
+        throw new DomainValidationError('垫付人已被财务流水引用，不能删除')
       this.repository.deleteAdvancePayer(before.id)
-      this.audit('finance.advance_payer_deleted', 'advance_payer', before.id, before, undefined, this.clock.now())
+      this.audit(
+        'finance.advance_payer_deleted',
+        'advance_payer',
+        before.id,
+        before,
+        undefined,
+        this.clock.now()
+      )
     })
   }
 
@@ -163,8 +216,13 @@ export class FinanceService {
 
   createManualIncome(input: V2ManualIncomeInput): V2FinancialEntry {
     return this.createManualEntry('manual_income', {
-      amountCents: input.amountCents, occurredOn: input.occurredOn, categoryId: input.categoryId,
-      paymentSource: null, advancePayerId: null, paymentMethod: input.paymentMethod, note: input.note
+      amountCents: input.amountCents,
+      occurredOn: input.occurredOn,
+      categoryId: input.categoryId,
+      paymentSource: null,
+      advancePayerId: null,
+      paymentMethod: input.paymentMethod,
+      note: input.note
     })
   }
 
@@ -174,25 +232,39 @@ export class FinanceService {
 
   listPendingReimbursements(asOf: string): V2PendingReimbursement[] {
     const entries = this.repository.listFinancialEntries({ sourceType: 'manual_expense' })
-    const advances = entries.filter((entry) => entry.paymentSource === 'private_advance' && entry.advancePayerId)
+    const advances = entries.filter(
+      (entry) => entry.paymentSource === 'private_advance' && entry.advancePayerId
+    )
     calculatePendingReimbursementCents({
       asOf,
       advances: advances.map((entry) => ({
-        id: entry.id, sourceType: 'manual_expense' as const, direction: 'expense' as const,
-        amountCents: entry.amountCents, occurredOn: entry.occurredOn, paymentSource: 'private_advance' as const,
+        id: entry.id,
+        sourceType: 'manual_expense' as const,
+        direction: 'expense' as const,
+        amountCents: entry.amountCents,
+        occurredOn: entry.occurredOn,
+        paymentSource: 'private_advance' as const,
         advancePayerId: entry.advancePayerId!
       })),
       reimbursements: this.repository.listReimbursementReferences()
     })
     const reimbursedIds = new Set(
-      this.repository.listReimbursementReferences().filter((item) => item.reimbursedOn <= asOf).map((item) => item.advanceFinancialEntryId)
+      this.repository
+        .listReimbursementReferences()
+        .filter((item) => item.reimbursedOn <= asOf)
+        .map((item) => item.advanceFinancialEntryId)
     )
     return advances
       .filter((entry) => entry.occurredOn <= asOf && !reimbursedIds.has(entry.id))
       .map((entry) => ({
-        financialEntryId: entry.id, amountCents: entry.amountCents, occurredOn: entry.occurredOn,
-        categoryId: entry.categoryId, categoryName: entry.categoryName, advancePayerId: entry.advancePayerId!,
-        advancePayerName: entry.advancePayerName, note: entry.note
+        financialEntryId: entry.id,
+        amountCents: entry.amountCents,
+        occurredOn: entry.occurredOn,
+        categoryId: entry.categoryId,
+        categoryName: entry.categoryName,
+        advancePayerId: entry.advancePayerId!,
+        advancePayerName: entry.advancePayerName,
+        note: entry.note
       }))
   }
 
@@ -233,18 +305,42 @@ export class FinanceService {
       const now = this.clock.now()
       const entries = advances.map((advance) => {
         const entryInsert: FinanceEntryInsert = {
-          id: this.clock.createId(), sourceType: 'reimbursement', direction: 'expense', businessType: 'advance_reimbursement',
-          amountCents: advance.amountCents, occurredOn: input.reimbursedOn, paymentMethod: nullableText(input.paymentMethod),
-          paymentSource: 'business_account', categoryId: null, advancePayerId: null, orderId: null, attachmentId: null,
-          reversalOfEntryId: null, note: nullableText(input.note), createdAt: now
+          id: this.clock.createId(),
+          sourceType: 'reimbursement',
+          direction: 'expense',
+          businessType: 'advance_reimbursement',
+          amountCents: advance.amountCents,
+          occurredOn: input.reimbursedOn,
+          paymentMethod: nullableText(input.paymentMethod),
+          paymentSource: 'business_account',
+          categoryId: null,
+          advancePayerId: null,
+          orderId: null,
+          attachmentId: null,
+          reversalOfEntryId: null,
+          note: nullableText(input.note),
+          createdAt: now
         }
         this.repository.insertFinancialEntry(entryInsert)
-        this.repository.insertReimbursementLink(this.clock.createId(), advance.id, entryInsert.id, now)
+        this.repository.insertReimbursementLink(
+          this.clock.createId(),
+          advance.id,
+          entryInsert.id,
+          now
+        )
         const result = toEntry(entryInsert)
-        this.audit('finance.reimbursement_created', 'financial_entry', result.id, undefined, result, now, {
-          advanceFinancialEntryId: advance.id,
-          batchSize: advances.length
-        })
+        this.audit(
+          'finance.reimbursement_created',
+          'financial_entry',
+          result.id,
+          undefined,
+          result,
+          now,
+          {
+            advanceFinancialEntryId: advance.id,
+            batchSize: advances.length
+          }
+        )
         return result
       })
       return {
@@ -259,36 +355,77 @@ export class FinanceService {
     return summarizeMonthlyFinance({
       month,
       entries: entries.map((entry) => ({
-        id: entry.id, sourceType: entry.sourceType, direction: entry.direction,
-        amountCents: entry.amountCents, occurredOn: entry.occurredOn
+        id: entry.id,
+        sourceType: entry.sourceType,
+        direction: entry.direction,
+        amountCents: entry.amountCents,
+        occurredOn: entry.occurredOn
       }))
     })
   }
 
   private createManualEntry(
     sourceType: 'manual_income' | 'manual_expense',
-    input: Pick<V2ManualExpenseInput, 'amountCents' | 'occurredOn' | 'categoryId' | 'paymentSource' | 'advancePayerId' | 'paymentMethod' | 'note'>
+    input: Pick<
+      V2ManualExpenseInput,
+      | 'amountCents'
+      | 'occurredOn'
+      | 'categoryId'
+      | 'paymentSource'
+      | 'advancePayerId'
+      | 'paymentMethod'
+      | 'note'
+    >
   ): V2FinancialEntry {
     return this.repository.transaction(() => {
       const category = this.requireCategory(input.categoryId)
-      const payer = input.advancePayerId ? this.repository.getAdvancePayer(requireId(input.advancePayerId, '垫付人标识')) : null
+      const payer = input.advancePayerId
+        ? this.repository.getAdvancePayer(requireId(input.advancePayerId, '垫付人标识'))
+        : null
       validateManualFinanceEntry({
-        sourceType, direction: sourceType === 'manual_income' ? 'income' : 'expense', amountCents: input.amountCents,
-        occurredOn: input.occurredOn, categoryDirection: category.direction, categoryEnabled: category.enabled,
-        paymentSource: input.paymentSource, advancePayerId: input.advancePayerId ?? null,
-        advancePayerEnabled: payer?.enabled ?? null, orderId: null
+        sourceType,
+        direction: sourceType === 'manual_income' ? 'income' : 'expense',
+        amountCents: input.amountCents,
+        occurredOn: input.occurredOn,
+        categoryDirection: category.direction,
+        categoryEnabled: category.enabled,
+        paymentSource: input.paymentSource,
+        advancePayerId: input.advancePayerId ?? null,
+        advancePayerEnabled: payer?.enabled ?? null,
+        orderId: null
       })
       const now = this.clock.now()
       const entryInsert: FinanceEntryInsert = {
-        id: this.clock.createId(), sourceType, direction: sourceType === 'manual_income' ? 'income' : 'expense',
-        businessType: sourceType === 'manual_income' ? 'daily_income' : 'daily_expense', amountCents: input.amountCents,
-        occurredOn: input.occurredOn, paymentMethod: nullableText(input.paymentMethod), paymentSource: input.paymentSource,
-        categoryId: category.id, advancePayerId: input.advancePayerId ?? null, orderId: null, attachmentId: null,
-        reversalOfEntryId: null, note: nullableText(input.note), createdAt: now
+        id: this.clock.createId(),
+        sourceType,
+        direction: sourceType === 'manual_income' ? 'income' : 'expense',
+        businessType: sourceType === 'manual_income' ? 'daily_income' : 'daily_expense',
+        amountCents: input.amountCents,
+        occurredOn: input.occurredOn,
+        paymentMethod: nullableText(input.paymentMethod),
+        paymentSource: input.paymentSource,
+        categoryId: category.id,
+        advancePayerId: input.advancePayerId ?? null,
+        orderId: null,
+        attachmentId: null,
+        reversalOfEntryId: null,
+        note: nullableText(input.note),
+        createdAt: now
       }
       this.repository.insertFinancialEntry(entryInsert)
-      const result = { ...toEntry(entryInsert), categoryName: category.name, advancePayerName: payer?.name ?? null }
-      this.audit('finance.manual_entry_created', 'financial_entry', result.id, undefined, result, now)
+      const result = {
+        ...toEntry(entryInsert),
+        categoryName: category.name,
+        advancePayerName: payer?.name ?? null
+      }
+      this.audit(
+        'finance.manual_entry_created',
+        'financial_entry',
+        result.id,
+        undefined,
+        result,
+        now
+      )
       return result
     })
   }
@@ -305,9 +442,24 @@ export class FinanceService {
     return payer
   }
 
-  private audit(action: string, entityType: string, entityId: string, before: unknown, after: unknown, createdAt: string, metadata?: unknown): void {
+  private audit(
+    action: string,
+    entityType: string,
+    entityId: string,
+    before: unknown,
+    after: unknown,
+    createdAt: string,
+    metadata?: unknown
+  ): void {
     this.repository.insertAudit({
-      id: this.clock.createId(), action, entityType, entityId, before, after, metadata, createdAt
+      id: this.clock.createId(),
+      action,
+      entityType,
+      entityId,
+      before,
+      after,
+      metadata,
+      createdAt
     })
   }
 }

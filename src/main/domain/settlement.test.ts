@@ -10,14 +10,16 @@ import {
 
 describe('V2 兼职工资结算领域规则', () => {
   it('两套工资参考只因工作分钟不同而产生时薪差异', () => {
-    expect(calculateSettlementReferenceWages({
-      scheduledMinutes: 360,
-      attendanceMinutes: 480,
-      hourlyWageCents: 2_000,
-      qualifiedCommissionCents: 3_000,
-      deductionCents: 1_500,
-      otherAdjustmentCents: 200
-    })).toEqual({
+    expect(
+      calculateSettlementReferenceWages({
+        scheduledMinutes: 360,
+        attendanceMinutes: 480,
+        hourlyWageCents: 2_000,
+        qualifiedCommissionCents: 3_000,
+        deductionCents: 1_500,
+        otherAdjustmentCents: 200
+      })
+    ).toEqual({
       scheduledHourlyWageCents: 12_000,
       attendanceHourlyWageCents: 16_000,
       scheduledPreDeductionWageCents: 15_200,
@@ -28,13 +30,15 @@ describe('V2 兼职工资结算领域规则', () => {
   })
 
   it('制作不合格扣除提成、标准分钟时薪和胶水成本', () => {
-    expect(calculateMakingDefectDeduction({
-      unqualifiedQuantity: 3,
-      pieceRateCents: 300,
-      standardMakingMinutes: 12,
-      hourlyWageCents: 2_000,
-      glueDeductionCentsPerUnit: 50
-    })).toEqual({
+    expect(
+      calculateMakingDefectDeduction({
+        unqualifiedQuantity: 3,
+        pieceRateCents: 300,
+        standardMakingMinutes: 12,
+        hourlyWageCents: 2_000,
+        glueDeductionCentsPerUnit: 50
+      })
+    ).toEqual({
       unqualifiedQuantity: 3,
       commissionDeductionCents: 900,
       hourlyWageDeductionCents: 1_200,
@@ -44,26 +48,30 @@ describe('V2 兼职工资结算领域规则', () => {
   })
 
   it('制作不合格对带有胶水公式快照的任务按整批精确扣胶水', () => {
-    expect(calculateMakingDefectDeduction({
-      unqualifiedQuantity: 100,
-      pieceRateCents: 0,
-      standardMakingMinutes: 0,
-      hourlyWageCents: 0,
-      glueDeductionCents: 850
-    })).toMatchObject({
+    expect(
+      calculateMakingDefectDeduction({
+        unqualifiedQuantity: 100,
+        pieceRateCents: 0,
+        standardMakingMinutes: 0,
+        hourlyWageCents: 0,
+        glueDeductionCents: 850
+      })
+    ).toMatchObject({
       glueDeductionCents: 850,
       totalDeductionCents: 850
     })
   })
 
   it('捏毛装袋不合格按计划分钟比例扣除提成和时薪', () => {
-    expect(calculateFluffingDefectDeduction({
-      unqualifiedQuantity: 2,
-      plannedQuantity: 6,
-      plannedMinutes: 90,
-      pieceRateCents: 100,
-      hourlyWageCents: 2_000
-    })).toEqual({
+    expect(
+      calculateFluffingDefectDeduction({
+        unqualifiedQuantity: 2,
+        plannedQuantity: 6,
+        plannedMinutes: 90,
+        pieceRateCents: 100,
+        hourlyWageCents: 2_000
+      })
+    ).toEqual({
       unqualifiedQuantity: 2,
       deductedMinutes: 30,
       commissionDeductionCents: 200,
@@ -74,12 +82,14 @@ describe('V2 兼职工资结算领域规则', () => {
   })
 
   it('制作、捏毛装袋的返工或补发合格结果按新任务正常计提成，打包和发货不计提成', () => {
-    expect(calculateQualifiedCommissionCents([
-      { processType: 'making', qualifiedQuantity: 2, pieceRateCents: 300 },
-      { processType: 'fluffing_bagging', qualifiedQuantity: 3, pieceRateCents: 100 },
-      { processType: 'packing', qualifiedQuantity: 5, pieceRateCents: 500 },
-      { processType: 'shipping', qualifiedQuantity: 5, pieceRateCents: 500 }
-    ])).toBe(900)
+    expect(
+      calculateQualifiedCommissionCents([
+        { processType: 'making', qualifiedQuantity: 2, pieceRateCents: 300 },
+        { processType: 'fluffing_bagging', qualifiedQuantity: 3, pieceRateCents: 100 },
+        { processType: 'packing', qualifiedQuantity: 5, pieceRateCents: 500 },
+        { processType: 'shipping', qualifiedQuantity: 5, pieceRateCents: 500 }
+      ])
+    ).toBe(900)
   })
 
   it('默认抵扣上限取排班口径的扣前应发，按发生顺序扣除并将不足部分顺延', () => {
@@ -104,14 +114,16 @@ describe('V2 兼职工资结算领域规则', () => {
   })
 
   it('任何工资参考与最终实发都不允许为负数', () => {
-    expect(calculateSettlementReferenceWages({
-      scheduledMinutes: 30,
-      attendanceMinutes: 0,
-      hourlyWageCents: 2_000,
-      qualifiedCommissionCents: 0,
-      deductionCents: 9_999,
-      otherAdjustmentCents: -3_000
-    })).toMatchObject({
+    expect(
+      calculateSettlementReferenceWages({
+        scheduledMinutes: 30,
+        attendanceMinutes: 0,
+        hourlyWageCents: 2_000,
+        qualifiedCommissionCents: 0,
+        deductionCents: 9_999,
+        otherAdjustmentCents: -3_000
+      })
+    ).toMatchObject({
       scheduledReferenceWageCents: 0,
       attendanceReferenceWageCents: 0
     })

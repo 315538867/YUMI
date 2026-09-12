@@ -1,6 +1,7 @@
 import { requirePositive } from './errors'
 
-export type ScheduleRiskCode = 'MOLD_DAILY_CAPACITY_EXCEEDED' | 'DEADLINE_RISK' | 'ORDER_QUANTITY_EXCEEDED'
+export type ScheduleRiskCode =
+  'MOLD_DAILY_CAPACITY_EXCEEDED' | 'DEADLINE_RISK' | 'ORDER_QUANTITY_EXCEEDED'
 
 export interface ScheduleRisk {
   code: ScheduleRiskCode
@@ -56,7 +57,10 @@ export function previewShiftRisks(input: ShiftPreviewInput): ShiftPreviewResult 
     requirePositive(task.completedQuantity, '已完成数量', true)
     requirePositive(task.dailyCapacity, '商品日产能')
     requirePositive(task.otherPlannedQuantityForDay, '当日已排数量', true)
-    return { orderItemId: task.orderItemId, baseMinutes: Math.ceil(task.plannedQuantity * task.standardMinutesPerUnit) }
+    return {
+      orderItemId: task.orderItemId,
+      baseMinutes: Math.ceil(task.plannedQuantity * task.standardMinutesPerUnit)
+    }
   })
   const baseTaskMinutes = taskBaseMinutes.reduce((total, task) => total + task.baseMinutes, 0)
   for (const task of input.tasks) {
@@ -69,7 +73,11 @@ export function previewShiftRisks(input: ShiftPreviewInput): ShiftPreviewResult 
       })
     }
     if (input.date > task.dueDate && task.plannedQuantity > task.completedQuantity) {
-      risks.push({ code: 'DEADLINE_RISK', level: 'critical', message: '该任务排在订单最晚完成制作日期之后。' })
+      risks.push({
+        code: 'DEADLINE_RISK',
+        level: 'critical',
+        message: '该任务排在订单最晚完成制作日期之后。'
+      })
     }
   }
   return {

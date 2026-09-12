@@ -12,6 +12,7 @@ export interface OrderBusinessSource {
   orderDiscountCents: number
   adjustmentsCents: number[]
   itemSnapshots: Array<{
+    id: string
     quantity: number
     edgeEnabled: boolean
     edgeQuantity: number
@@ -124,7 +125,7 @@ export class ReportRepository {
       'SELECT amount_cents FROM order_amount_adjustments WHERE order_id = ? ORDER BY created_at ASC, id ASC'
     )
     const items = this.database.prepare(
-      `SELECT quantity, unit_price_cents, edge_enabled, edge_quantity, edge_unit_price_cents,
+      `SELECT id, quantity, unit_price_cents, edge_enabled, edge_quantity, edge_unit_price_cents,
               item_discount_cents, product_snapshot_json
        FROM order_items WHERE order_id = ? ORDER BY line_no ASC, id ASC`
     )
@@ -156,8 +157,10 @@ export class ReportRepository {
           edge_unit_price_cents: number
           item_discount_cents: number
           product_snapshot_json: string
+          id: string
         }>
       ).map((item) => ({
+        id: item.id,
         quantity: item.quantity,
         unitPriceCents: item.unit_price_cents,
         edgeEnabled: Boolean(item.edge_enabled),
@@ -220,7 +223,9 @@ export class ReportRepository {
        GROUP BY orders.id
        ORDER BY orders.created_at DESC, orders.id DESC`
     )
-    const rows = (orderId?.trim() ? statement.all(orderId.trim()) : statement.all()) as Array<Record<string, unknown>>
+    const rows = (orderId?.trim() ? statement.all(orderId.trim()) : statement.all()) as Array<
+      Record<string, unknown>
+    >
     const details = this.listOrderBusinessSources()
     return rows.map((row) => {
       const detail = details.find((item) => item.id === String(row.id))
@@ -245,7 +250,10 @@ export class ReportRepository {
    * 指定批次时，始终读取该批创建时写入的订单快照；未指定时则提供当前全量发货视图。
    * 这样后续批次、客户资料或商品资料发生变化，不会改写历史发货清单。
    */
-  listShippingListSources(shipmentId?: string | null, orderId?: string | null): Array<{
+  listShippingListSources(
+    shipmentId?: string | null,
+    orderId?: string | null
+  ): Array<{
     orderItemId: string
     orderCode: string
     customerSnapshotJson: string
@@ -262,15 +270,19 @@ export class ReportRepository {
     voidReason: string | null
   }> {
     const shipment = shipmentId
-      ? (this.database.prepare(
-          'SELECT order_id, snapshot_json, status, voided_on, void_reason FROM shipments WHERE id = ?'
-        ).get(shipmentId) as {
-          order_id: string
-          snapshot_json: string | null
-          status: 'active' | 'voided'
-          voided_on: string | null
-          void_reason: string | null
-        } | undefined)
+      ? (this.database
+          .prepare(
+            'SELECT order_id, snapshot_json, status, voided_on, void_reason FROM shipments WHERE id = ?'
+          )
+          .get(shipmentId) as
+          | {
+              order_id: string
+              snapshot_json: string | null
+              status: 'active' | 'voided'
+              voided_on: string | null
+              void_reason: string | null
+            }
+          | undefined)
       : undefined
     if (shipmentId && !shipment) throw new DomainValidationError('发货批次不存在')
     if (shipment && orderId?.trim() && shipment.order_id !== orderId.trim()) {
@@ -300,7 +312,11 @@ export class ReportRepository {
     )
     const rows = shipment
       ? statement.all(
-          shipment.snapshot_json, shipment.status, shipment.voided_on, shipment.void_reason, selectedOrderId
+          shipment.snapshot_json,
+          shipment.status,
+          shipment.voided_on,
+          shipment.void_reason,
+          selectedOrderId
         )
       : selectedOrderId
         ? statement.all(selectedOrderId)
@@ -312,15 +328,18 @@ export class ReportRepository {
         orderCode: String(source.order_code),
         customerSnapshotJson: String(source.customer_snapshot_json),
         productSnapshotJson: String(source.product_snapshot_json),
-        expectedShipDate: source.expected_ship_date === null ? null : String(source.expected_ship_date),
+        expectedShipDate:
+          source.expected_ship_date === null ? null : String(source.expected_ship_date),
         orderedQuantity: Number(source.ordered_quantity),
         shippedQuantity: Number(source.shipped_quantity),
-        latestShippedOn: source.latest_shipped_on === null ? null : String(source.latest_shipped_on),
+        latestShippedOn:
+          source.latest_shipped_on === null ? null : String(source.latest_shipped_on),
         carrier: source.carrier === null ? null : String(source.carrier),
         trackingNumber: source.tracking_number === null ? null : String(source.tracking_number),
         shipmentSnapshotJson:
           source.shipment_snapshot_json === null ? null : String(source.shipment_snapshot_json),
-        shipmentStatus: source.shipment_status === null ? null : source.shipment_status as 'active' | 'voided',
+        shipmentStatus:
+          source.shipment_status === null ? null : (source.shipment_status as 'active' | 'voided'),
         voidedOn: source.voided_on === null ? null : String(source.voided_on),
         voidReason: source.void_reason === null ? null : String(source.void_reason)
       }
@@ -374,17 +393,17 @@ export class ReportRepository {
          ORDER BY orders.updated_at DESC, items.line_no ASC, items.id ASC`
       )
       .all() as Array<{
-        order_item_id: string
-        order_id: string
-        product_id: string
-        quantity: number
-        product_snapshot_json: string
-        order_code: string
-        expected_ship_date: string | null
-        reserved_days: number
-        daily_capacity: number
-        product_enabled: number
-      }>
+      order_item_id: string
+      order_id: string
+      product_id: string
+      quantity: number
+      product_snapshot_json: string
+      order_code: string
+      expected_ship_date: string | null
+      reserved_days: number
+      daily_capacity: number
+      product_enabled: number
+    }>
     const events = this.database.prepare(
       `SELECT id, order_item_id, event_type, quantity, source_stage, target_stage, source_record_type, source_record_id,
               occurred_on, note, created_at
@@ -411,10 +430,12 @@ export class ReportRepository {
       expectedShipDate: row.expected_ship_date,
       reservedDays: row.reserved_days,
       dailyCapacity: row.product_enabled ? row.daily_capacity : 0,
-      scheduledMakingTasks: (tasks.all(row.order_item_id) as Array<{
-        assigned_on: string
-        planned_quantity: number
-      }>).map((task) => ({ assignedOn: task.assigned_on, plannedQuantity: task.planned_quantity })),
+      scheduledMakingTasks: (
+        tasks.all(row.order_item_id) as Array<{
+          assigned_on: string
+          planned_quantity: number
+        }>
+      ).map((task) => ({ assignedOn: task.assigned_on, plannedQuantity: task.planned_quantity })),
       events: (events.all(row.order_item_id) as EventRow[]).map(mapEvent)
     }))
   }

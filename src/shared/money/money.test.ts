@@ -11,24 +11,30 @@ import {
 
 describe('金额与用量精度', () => {
   it('按总克重计算 0.0034 元每克的胶水成本', () => {
-    expect(calculateGlueCostCents({
-      gluePriceMicroYuanPerGram: parseGluePriceYuanPerGram('0.0034'),
-      glueWeightMilligrams: parseGramsToMilligrams('25'),
-      quantity: 100
-    })).toBe(850)
+    expect(
+      calculateGlueCostCents({
+        gluePriceMicroYuanPerGram: parseGluePriceYuanPerGram('0.0034'),
+        glueWeightMilligrams: parseGramsToMilligrams('25'),
+        quantity: 100
+      })
+    ).toBe(850)
   })
 
   it('在总额边界舍入而不是先对单件舍入', () => {
-    expect(calculateGlueCostCents({
-      gluePriceMicroYuanPerGram: parseGluePriceYuanPerGram('0.0034'),
-      glueWeightMilligrams: parseGramsToMilligrams('25'),
-      quantity: 1
-    })).toBe(9)
-    expect(calculateGlueCostCents({
-      gluePriceMicroYuanPerGram: parseGluePriceYuanPerGram('0.0034'),
-      glueWeightMilligrams: parseGramsToMilligrams('25'),
-      quantity: 100
-    })).toBe(850)
+    expect(
+      calculateGlueCostCents({
+        gluePriceMicroYuanPerGram: parseGluePriceYuanPerGram('0.0034'),
+        glueWeightMilligrams: parseGramsToMilligrams('25'),
+        quantity: 1
+      })
+    ).toBe(9)
+    expect(
+      calculateGlueCostCents({
+        gluePriceMicroYuanPerGram: parseGluePriceYuanPerGram('0.0034'),
+        glueWeightMilligrams: parseGramsToMilligrams('25'),
+        quantity: 100
+      })
+    ).toBe(850)
   })
 
   it('所有时薪和比例金额均在整数分边界以 HALF_UP 计算', () => {

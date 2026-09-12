@@ -37,7 +37,12 @@ export {
   type YumiPagePrimaryAction,
   type YumiPageSecondaryAction
 } from './page-header/yumi-page-header'
-export { YumiPrimaryTabs, YumiSegmentedTabs, type YumiTabItem } from './tabs/yumi-tabs'
+export {
+  YumiPrimaryTabs,
+  YumiSegmentedTabs,
+  type YumiDensity,
+  type YumiTabItem
+} from './tabs/yumi-tabs'
 export { YumiSearchSelect, YumiSelect, type YumiSelectOption } from './select/yumi-select'
 export {
   YumiDatePicker,
@@ -49,6 +54,14 @@ export {
 } from './date-picker/yumi-date-picker'
 export { YumiConfirmDialog, YumiDialog } from './dialog/yumi-dialog'
 export { YumiSheet } from './sheet/yumi-sheet'
+export { YumiEntitySummary } from './entity-summary/yumi-entity-summary'
+export {
+  YumiRecordActionBar,
+  type YumiRecordAction
+} from './record-action-bar/yumi-record-action-bar'
+export { YumiSnapshotNotice } from './snapshot-notice/yumi-snapshot-notice'
+export { YumiTaskRateSummary } from './task-rate-summary/yumi-task-rate-summary'
+export { YumiDocumentPreview } from './document-preview/yumi-document-preview'
 export { YumiStatusTag, type YumiStatusTone } from './status-tag/yumi-status-tag'
 
 export {

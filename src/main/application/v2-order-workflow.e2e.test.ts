@@ -25,10 +25,18 @@ describe('V2 订单核心链路', () => {
     const service = runtime.orderService
     const customer = service.createCustomer({ name: '阿月', contact: '微信号' })
     const product = service.createProduct({
-      name: '草莓捏捏', code: 'NY-001', category: '水果', basePriceCents: 8_000,
-      materialCostCents: 1_500, packagingCostCents: 300, accessoryCostCents: 200,
-      replacementBagCostCents: 50, internalEdgeCostCents: 100, standardMakingMinutes: 15,
-      makingCommissionCents: 500, makingGlueCostCents: 80
+      name: '草莓捏捏',
+      code: 'NY-001',
+      category: '水果',
+      basePriceCents: 8_000,
+      materialCostCents: 1_500,
+      packagingCostCents: 300,
+      accessoryCostCents: 200,
+      replacementBagCostCents: 50,
+      internalEdgeCostCents: 100,
+      standardMakingMinutes: 15,
+      makingCommissionCents: 500,
+      makingGlueCostCents: 80
     })
     const order = service.createOrder({
       customerId: customer.id,
@@ -37,17 +45,38 @@ describe('V2 订单核心链路', () => {
       expectedShipDate: '2026-09-15'
     })
 
-    service.updateCustomer({ id: customer.id, name: '阿月（更新）', contact: '新微信', enabled: true })
-    service.updateProduct({
-      id: product.id, name: '草莓捏捏（更新）', code: product.code, category: product.category,
-      basePriceCents: 9_000, materialCostCents: product.materialCostCents,
-      packagingCostCents: product.packagingCostCents, accessoryCostCents: product.accessoryCostCents,
-      replacementBagCostCents: product.replacementBagCostCents, internalEdgeCostCents: product.internalEdgeCostCents,
-      standardMakingMinutes: product.standardMakingMinutes, makingCommissionCents: product.makingCommissionCents,
-      makingGlueCostCents: product.makingGlueCostCents, enabled: true
+    service.updateCustomer({
+      id: customer.id,
+      name: '阿月（更新）',
+      contact: '新微信',
+      enabled: true
     })
-    service.recordOrderFund(order.id, { businessType: 'payment', amountCents: 15_000, occurredOn: '2026-09-07' })
-    service.recordOrderFund(order.id, { businessType: 'refund', amountCents: 1_000, occurredOn: '2026-09-08' })
+    service.updateProduct({
+      id: product.id,
+      name: '草莓捏捏（更新）',
+      code: product.code,
+      category: product.category,
+      basePriceCents: 9_000,
+      materialCostCents: product.materialCostCents,
+      packagingCostCents: product.packagingCostCents,
+      accessoryCostCents: product.accessoryCostCents,
+      replacementBagCostCents: product.replacementBagCostCents,
+      internalEdgeCostCents: product.internalEdgeCostCents,
+      standardMakingMinutes: product.standardMakingMinutes,
+      makingCommissionCents: product.makingCommissionCents,
+      makingGlueCostCents: product.makingGlueCostCents,
+      enabled: true
+    })
+    service.recordOrderFund(order.id, {
+      businessType: 'payment',
+      amountCents: 15_000,
+      occurredOn: '2026-09-07'
+    })
+    service.recordOrderFund(order.id, {
+      businessType: 'refund',
+      amountCents: 1_000,
+      occurredOn: '2026-09-08'
+    })
     runtime.fulfillmentService.recordOpeningWip({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
@@ -69,13 +98,20 @@ describe('V2 订单核心链路', () => {
       customerSnapshot: { name: '阿月', contact: '微信号' },
       items: [{ productSnapshot: { name: '草莓捏捏', basePriceCents: 8_000 } }],
       amount: { currentAmountCents: 24_000 },
-      funds: { receivedCents: 15_000, refundedCents: 1_000, netReceivedCents: 14_000, outstandingCents: 10_000 }
+      funds: {
+        receivedCents: 15_000,
+        refundedCents: 1_000,
+        netReceivedCents: 14_000,
+        outstandingCents: 10_000
+      }
     })
     expect(service.listShipments(order.id).map((shipment) => shipment.items)).toEqual([
       [expect.objectContaining({ orderItemId: order.items[0].id, quantity: 2 })],
       [expect.objectContaining({ orderItemId: order.items[0].id, quantity: 1 })]
     ])
-    expect(runtime.fulfillmentService.getOrderItemFulfillment(order.items[0].id).stages).toMatchObject({
+    expect(
+      runtime.fulfillmentService.getOrderItemFulfillment(order.items[0].id).stages
+    ).toMatchObject({
       readyToShip: 0,
       shipped: 3
     })
@@ -90,8 +126,12 @@ describe('V2 订单核心链路', () => {
 
     expect(runtime.orderService.listCustomers().map((item) => item.name)).toEqual(['阿月（更新）'])
     expect(runtime.orderService.getOrder(order.id)?.funds.outstandingCents).toBe(10_000)
-    await expect(readFile(join(runtime.storage.attachmentDirectory, 'order-note.txt'), 'utf8')).resolves.toBe('V2 attachment')
-    await expect(readFile(join(runtime.storage.attachmentDirectory, 'later.txt'), 'utf8')).rejects.toThrow()
+    await expect(
+      readFile(join(runtime.storage.attachmentDirectory, 'order-note.txt'), 'utf8')
+    ).resolves.toBe('V2 attachment')
+    await expect(
+      readFile(join(runtime.storage.attachmentDirectory, 'later.txt'), 'utf8')
+    ).rejects.toThrow()
     await expect(readFile(v1DatabasePath, 'utf8')).resolves.toBe('v1-only')
     await expect(readFile(v1AttachmentPath, 'utf8')).resolves.toBe('v1-attachment')
   })

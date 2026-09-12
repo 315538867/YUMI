@@ -37,7 +37,7 @@ vi.mock('../../composables/use-work-assignments', () => ({
             id: 'task-1',
             note: null,
             orderItemId: 'item-1',
-            pieceRateCents: null,
+            pieceRateCents: 1_250,
             plannedMinutes: 120,
             plannedQuantity: 8,
             processType: 'making',
@@ -95,6 +95,12 @@ describe('工作安排记录骨架', () => {
     const assignmentDetail = screen.getByRole('dialog', { name: '工作安排详情' })
     expect(assignmentDetail).toBeVisible()
     expect(within(assignmentDetail).getByText(/计划 120 分钟/)).toBeVisible()
+    expect(
+      within(assignmentDetail).getByRole('note', { name: '制作任务冻结计件提成' })
+    ).toHaveTextContent('¥12.50')
+    expect(
+      within(assignmentDetail).getByRole('note', { name: '制作任务冻结计件提成' })
+    ).toHaveTextContent('后续商品改价不影响本任务结算')
     expect(within(assignmentDetail).getByRole('textbox', { name: '完成数量' })).toBeVisible()
   })
 })

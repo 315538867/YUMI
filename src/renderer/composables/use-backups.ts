@@ -25,7 +25,9 @@ export function useBackups() {
     }
   }, [])
 
-  useEffect(() => { void reload().catch(() => undefined) }, [reload])
+  useEffect(() => {
+    void reload().catch(() => undefined)
+  }, [reload])
 
   const createBackup = useCallback(async () => {
     setBusy(true)

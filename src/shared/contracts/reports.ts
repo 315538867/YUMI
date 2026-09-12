@@ -18,6 +18,26 @@ export interface V2OrderBusinessReportRow {
   knownMarginCents: Cents
 }
 
+/** 订单盈利详情中的单商品行；订单级优惠与金额调整不强行摊分到商品行。 */
+export interface V2OrderBusinessItemReportRow {
+  orderItemId: string
+  productName: string
+  quantity: number
+  orderRevenueCents: Cents
+  productCostCents: Cents
+  knownGrossMarginCents: Cents
+  /** 毛利率以万分比表达；商品行收入为 0 时不计算。 */
+  knownGrossMarginRateBasisPoints: number | null
+}
+
+/** 订单详情页盈利页专用：由后端按冻结商品快照逐行计算，避免渲染层重算经营成本。 */
+export interface V2OrderBusinessDetail {
+  summary: V2OrderBusinessReportRow
+  orderDiscountCents: Cents
+  adjustmentsCents: Cents
+  items: V2OrderBusinessItemReportRow[]
+}
+
 export interface V2OrderBusinessReport {
   rows: V2OrderBusinessReportRow[]
   totalCurrentAmountCents: Cents
@@ -177,6 +197,12 @@ export interface V2OrderTableExportInput {
 
 export interface V2ShippingListExportInput extends V2OrderTableExportInput {
   shipmentId?: string | null
+}
+
+/** 仅读取指定订单下指定发货批次创建时冻结的清单快照。 */
+export interface V2ShippingListPreviewInput {
+  orderId: string
+  shipmentId: string
 }
 
 export interface V2OrderDocumentsExportInput extends V2OrderTableExportInput {

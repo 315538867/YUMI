@@ -26,14 +26,21 @@ interface AttachmentRow {
 
 function inferMimeType(filePath: string): string | null {
   switch (extname(filePath).toLowerCase()) {
-    case '.pdf': return 'application/pdf'
-    case '.png': return 'image/png'
+    case '.pdf':
+      return 'application/pdf'
+    case '.png':
+      return 'image/png'
     case '.jpg':
-    case '.jpeg': return 'image/jpeg'
-    case '.gif': return 'image/gif'
-    case '.webp': return 'image/webp'
-    case '.txt': return 'text/plain'
-    default: return null
+    case '.jpeg':
+      return 'image/jpeg'
+    case '.gif':
+      return 'image/gif'
+    case '.webp':
+      return 'image/webp'
+    case '.txt':
+      return 'text/plain'
+    default:
+      return null
   }
 }
 
@@ -83,10 +90,21 @@ export class OrderFundAttachmentService {
     }
     copyFileSync(source, target)
     try {
-      this.database.prepare(`
+      this.database
+        .prepare(
+          `
         INSERT INTO attachments (id, kind, original_name, storage_key, mime_type, size_bytes, created_at)
         VALUES (?, 'order_fund_proof', ?, ?, ?, ?, ?)
-      `).run(row.id, row.original_name, row.storage_key, row.mime_type, row.size_bytes, row.created_at)
+      `
+        )
+        .run(
+          row.id,
+          row.original_name,
+          row.storage_key,
+          row.mime_type,
+          row.size_bytes,
+          row.created_at
+        )
     } catch (error) {
       rmSync(target, { force: true })
       throw error
@@ -107,46 +125,63 @@ export class OrderFundAttachmentService {
 
   attachToFund(fundId: string, attachmentId: string): void {
     this.database.transaction(() => {
-      const fund = this.database.prepare(`
+      const fund = this.database
+        .prepare(
+          `
         SELECT id, order_id, amount_cents, occurred_on, payment_method, business_type, attachment_id
         FROM financial_entries
         WHERE id = ? AND source_type = 'order_fund' AND direction = 'income'
-      `).get(fundId) as {
-        id: string
-        order_id: string
-        amount_cents: number
-        occurred_on: string
-        payment_method: string | null
-        business_type: string
-        attachment_id: string | null
-      } | undefined
+      `
+        )
+        .get(fundId) as
+        | {
+            id: string
+            order_id: string
+            amount_cents: number
+            occurred_on: string
+            payment_method: string | null
+            business_type: string
+            attachment_id: string | null
+          }
+        | undefined
       if (!fund) throw new DomainValidationError('只能为订单收款流水关联凭证')
-      if (!this.isOrderFundProof(attachmentId)) throw new DomainValidationError('收款凭证不存在或类型不正确')
+      if (!this.isOrderFundProof(attachmentId))
+        throw new DomainValidationError('收款凭证不存在或类型不正确')
 
-      this.database.prepare('UPDATE financial_entries SET attachment_id = ? WHERE id = ?').run(attachmentId, fundId)
+      this.database
+        .prepare('UPDATE financial_entries SET attachment_id = ? WHERE id = ?')
+        .run(attachmentId, fundId)
       const action = fund.attachment_id ? 'order_fund.proof_replaced' : 'order_fund.proof_attached'
-      this.database.prepare(`
+      this.database
+        .prepare(
+          `
         INSERT INTO audit_logs (id, action, entity_type, entity_id, before_json, after_json, metadata_json, created_at)
         VALUES (?, ?, 'financial_entry', ?, ?, ?, ?, ?)
-      `).run(
-        this.clock.createId(),
-        action,
-        fundId,
-        JSON.stringify({ attachmentId: fund.attachment_id }),
-        JSON.stringify({ attachmentId }),
-        JSON.stringify({ orderId: fund.order_id }),
-        this.clock.now()
-      )
+      `
+        )
+        .run(
+          this.clock.createId(),
+          action,
+          fundId,
+          JSON.stringify({ attachmentId: fund.attachment_id }),
+          JSON.stringify({ attachmentId }),
+          JSON.stringify({ orderId: fund.order_id }),
+          this.clock.now()
+        )
     })()
   }
 
   getFundProof(fundId: string): V2OrderFundProof | null {
-    const row = this.database.prepare(`
+    const row = this.database
+      .prepare(
+        `
       SELECT a.id, a.original_name, a.storage_key, a.mime_type, a.size_bytes, a.created_at
       FROM financial_entries entry
       JOIN attachments a ON a.id = entry.attachment_id
       WHERE entry.id = ? AND entry.source_type = 'order_fund'
-    `).get(fundId) as AttachmentRow | undefined
+    `
+      )
+      .get(fundId) as AttachmentRow | undefined
     if (!row) return null
     return {
       ...mapReference(row),
@@ -161,16 +196,28 @@ export class OrderFundAttachmentService {
   }
 
   private getAttachment(attachmentId: string): AttachmentRow | null {
-    return (this.database.prepare(`
+    return (
+      (this.database
+        .prepare(
+          `
       SELECT id, original_name, storage_key, mime_type, size_bytes, created_at
       FROM attachments WHERE id = ?
-    `).get(attachmentId) as AttachmentRow | undefined) ?? null
+    `
+        )
+        .get(attachmentId) as AttachmentRow | undefined) ?? null
+    )
   }
 
   private isOrderFundProof(attachmentId: string): boolean {
-    return Boolean(this.database.prepare(`
+    return Boolean(
+      this.database
+        .prepare(
+          `
       SELECT 1 FROM attachments WHERE id = ? AND kind = 'order_fund_proof'
-    `).get(attachmentId))
+    `
+        )
+        .get(attachmentId)
+    )
   }
 
   private resolveStoragePath(storageKey: string): string {

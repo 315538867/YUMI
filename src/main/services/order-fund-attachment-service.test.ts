@@ -13,7 +13,9 @@ describe('OrderFundAttachmentService', () => {
 
   afterEach(() => {
     databases.splice(0).forEach((database) => database.close())
-    directories.splice(0).forEach((directory) => rmSync(directory, { force: true, recursive: true }))
+    directories
+      .splice(0)
+      .forEach((directory) => rmSync(directory, { force: true, recursive: true }))
   })
 
   function createFixture() {
@@ -70,28 +72,39 @@ describe('OrderFundAttachmentService', () => {
       attachmentId: firstAttachment.id,
       note: '定金'
     })
-    const factsBefore = database.prepare(`
+    const factsBefore = database
+      .prepare(
+        `
       SELECT amount_cents, occurred_on, payment_method, business_type
       FROM financial_entries WHERE id = ?
-    `).get(fund.id)
+    `
+      )
+      .get(fund.id)
 
     const replacement = attachments.prepareFromFile(replacementSource)
     attachments.attachToFund(fund.id, replacement.id)
 
-    expect(database.prepare(`
+    expect(
+      database
+        .prepare(
+          `
       SELECT amount_cents, occurred_on, payment_method, business_type
       FROM financial_entries WHERE id = ?
-    `).get(fund.id)).toEqual(factsBefore)
+    `
+        )
+        .get(fund.id)
+    ).toEqual(factsBefore)
     expect(attachments.getFundProof(fund.id)).toMatchObject({
       id: replacement.id,
       originalName: '尾款凭证.txt',
       status: 'available'
     })
     expect(readFileSync(join(directory, replacement.storageKey), 'utf8')).toBe('balance-proof')
-    expect(database.prepare('SELECT action FROM audit_logs WHERE entity_id = ? ORDER BY created_at, id').all(fund.id)).toEqual([
-      { action: 'order.fund_recorded' },
-      { action: 'order_fund.proof_replaced' }
-    ])
+    expect(
+      database
+        .prepare('SELECT action FROM audit_logs WHERE entity_id = ? ORDER BY created_at, id')
+        .all(fund.id)
+    ).toEqual([{ action: 'order.fund_recorded' }, { action: 'order_fund.proof_replaced' }])
   })
 
   it('标记缺失的收款凭证，但保持资金流水可读取', () => {
@@ -111,6 +124,8 @@ describe('OrderFundAttachmentService', () => {
       id: attachment.id,
       status: 'missing'
     })
-    expect(orderService.listOrderFunds(order.id)).toMatchObject([{ id: fund.id, amountCents: 2_000 }])
+    expect(orderService.listOrderFunds(order.id)).toMatchObject([
+      { id: fund.id, amountCents: 2_000 }
+    ])
   })
 })

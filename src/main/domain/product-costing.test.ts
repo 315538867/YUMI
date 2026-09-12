@@ -39,6 +39,19 @@ describe('calculateProductSnapshotCostCents', () => {
     ).toBe(11_250)
   })
 
+  it('产品成本不计入运费、制作提成或捏毛装袋提成', () => {
+    expect(
+      calculateProductSnapshotCostCents(
+        {
+          ...modernSnapshot,
+          makingCommissionCents: 9_999,
+          fluffingBaggingCommissionCents: 8_888
+        },
+        2
+      )
+    ).toBe(67)
+  })
+
   it('缺少新字段的历史快照仍沿用旧成本字段', () => {
     const legacySnapshot = {
       ...modernSnapshot,

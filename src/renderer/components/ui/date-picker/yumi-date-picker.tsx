@@ -2,10 +2,20 @@ import * as Popover from '@radix-ui/react-popover'
 import { DayPicker, type DateRange } from '@daypicker/react'
 import { zhCN } from '@daypicker/react/locale'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, X } from 'lucide-react'
-import { forwardRef, useEffect, useMemo, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useMemo,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode
+} from 'react'
 import { YumiButton } from '../button/yumi-button'
 import { YumiTextField } from '../field/yumi-field'
-import { useYumiFieldAccessibility, type YumiFieldAccessibilityProps } from '../field/yumi-field-accessibility'
+import {
+  useYumiFieldAccessibility,
+  type YumiFieldAccessibilityProps
+} from '../field/yumi-field-accessibility'
 import {
   formatIsoDate,
   formatIsoDateTime,
@@ -21,14 +31,26 @@ import {
 
 export type { YumiDateRangeValue } from './iso-date'
 
-type DateTriggerProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & YumiFieldAccessibilityProps & {
-  children: ReactNode
-  placeholder: string
-  value?: string | null
-}
+type DateTriggerProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> &
+  YumiFieldAccessibilityProps & {
+    children: ReactNode
+    placeholder: string
+    value?: string | null
+  }
 
 const DateTrigger = forwardRef<HTMLButtonElement, DateTriggerProps>(function DateTrigger(
-  { 'aria-describedby': ariaDescribedBy, 'aria-invalid': ariaInvalid, 'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledBy, children, className, disabled, placeholder, value, ...triggerProps },
+  {
+    'aria-describedby': ariaDescribedBy,
+    'aria-invalid': ariaInvalid,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledBy,
+    children,
+    className,
+    disabled,
+    placeholder,
+    value,
+    ...triggerProps
+  },
   ref
 ) {
   const fieldAccessibility = useYumiFieldAccessibility({
@@ -58,7 +80,10 @@ const DateTrigger = forwardRef<HTMLButtonElement, DateTriggerProps>(function Dat
 function CalendarFooter({ onClear }: { onClear?: () => void }) {
   return onClear ? (
     <div className="yumi-date-popover__footer">
-      <YumiButton onClick={onClear} variant="ghost"><X aria-hidden="true" size={15} />清除</YumiButton>
+      <YumiButton onClick={onClear} variant="ghost">
+        <X aria-hidden="true" size={15} />
+        清除
+      </YumiButton>
     </div>
   ) : null
 }
@@ -92,7 +117,16 @@ export function YumiDatePicker({
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
       <Popover.Trigger asChild>
-        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={value}>
+        <DateTrigger
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+          className={className}
+          disabled={disabled}
+          placeholder={placeholder}
+          value={value}
+        >
           {selected ? selected.toLocaleDateString('zh-CN') : null}
         </DateTrigger>
       </Popover.Trigger>
@@ -113,7 +147,12 @@ export function YumiDatePicker({
               weekStartsOn={1}
             />
           </BaseCalendar>
-          <CalendarFooter onClear={() => { onValueChange(''); setOpen(false) }} />
+          <CalendarFooter
+            onClear={() => {
+              onValueChange('')
+              setOpen(false)
+            }}
+          />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -128,7 +167,20 @@ type YumiMonthPickerProps = YumiFieldAccessibilityProps & {
   value?: string | null
 }
 
-const monthLabels = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月']
+const monthLabels = [
+  '一月',
+  '二月',
+  '三月',
+  '四月',
+  '五月',
+  '六月',
+  '七月',
+  '八月',
+  '九月',
+  '十月',
+  '十一月',
+  '十二月'
+]
 
 export function YumiMonthPicker({
   'aria-describedby': ariaDescribedBy,
@@ -152,16 +204,43 @@ export function YumiMonthPicker({
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
       <Popover.Trigger asChild>
-        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={value}>
-          {selected ? `${selected.getFullYear()}年${String(selected.getMonth() + 1).padStart(2, '0')}月` : null}
+        <DateTrigger
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+          className={className}
+          disabled={disabled}
+          placeholder={placeholder}
+          value={value}
+        >
+          {selected
+            ? `${selected.getFullYear()}年${String(selected.getMonth() + 1).padStart(2, '0')}月`
+            : null}
         </DateTrigger>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="start" className="yumi-date-popover yumi-date-popover--month" sideOffset={6}>
+        <Popover.Content
+          align="start"
+          className="yumi-date-popover yumi-date-popover--month"
+          sideOffset={6}
+        >
           <div className="yumi-date-popover__caption">
-            <YumiButton aria-label="上一年" onClick={() => setYear((current) => current - 1)} variant="ghost"><ChevronLeft aria-hidden="true" size={16} /></YumiButton>
+            <YumiButton
+              aria-label="上一年"
+              onClick={() => setYear((current) => current - 1)}
+              variant="ghost"
+            >
+              <ChevronLeft aria-hidden="true" size={16} />
+            </YumiButton>
             <strong>{year} 年</strong>
-            <YumiButton aria-label="下一年" onClick={() => setYear((current) => current + 1)} variant="ghost"><ChevronRight aria-hidden="true" size={16} /></YumiButton>
+            <YumiButton
+              aria-label="下一年"
+              onClick={() => setYear((current) => current + 1)}
+              variant="ghost"
+            >
+              <ChevronRight aria-hidden="true" size={16} />
+            </YumiButton>
           </div>
           <div className="yumi-month-grid">
             {monthLabels.map((label, index) => {
@@ -171,7 +250,10 @@ export function YumiMonthPicker({
                   aria-pressed={nextValue === value}
                   className="yumi-month-grid__item"
                   key={label}
-                  onClick={() => { onValueChange(nextValue); setOpen(false) }}
+                  onClick={() => {
+                    onValueChange(nextValue)
+                    setOpen(false)
+                  }}
                   type="button"
                 >
                   {label}
@@ -179,7 +261,12 @@ export function YumiMonthPicker({
               )
             })}
           </div>
-          <CalendarFooter onClear={() => { onValueChange(''); setOpen(false) }} />
+          <CalendarFooter
+            onClear={() => {
+              onValueChange('')
+              setOpen(false)
+            }}
+          />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -221,7 +308,10 @@ function getQuickRanges() {
   return [
     { label: '本周', value: { end: formatIsoDate(weekEnd), start: formatIsoDate(weekStart) } },
     { label: '本月', value: { end: formatIsoDate(monthEnd), start: formatIsoDate(monthStart) } },
-    { label: '上月', value: { end: formatIsoDate(previousMonthEnd), start: formatIsoDate(previousMonthStart) } }
+    {
+      label: '上月',
+      value: { end: formatIsoDate(previousMonthEnd), start: formatIsoDate(previousMonthStart) }
+    }
   ]
 }
 
@@ -255,17 +345,45 @@ export function YumiDateRangePicker({
   }
 
   return (
-    <Popover.Root onOpenChange={(nextOpen) => { setOpen(nextOpen); if (!nextOpen) setRangeError('') }} open={open}>
+    <Popover.Root
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (!nextOpen) setRangeError('')
+      }}
+      open={open}
+    >
       <Popover.Trigger asChild>
-        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={formatRangeLabel(value)}>
+        <DateTrigger
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+          className={className}
+          disabled={disabled}
+          placeholder={placeholder}
+          value={formatRangeLabel(value)}
+        >
           {formatRangeLabel(value)}
         </DateTrigger>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="start" className="yumi-date-popover yumi-date-popover--range" sideOffset={6}>
+        <Popover.Content
+          align="start"
+          className="yumi-date-popover yumi-date-popover--range"
+          sideOffset={6}
+        >
           <div className="yumi-date-popover__quick-ranges">
             {getQuickRanges().map((quickRange) => (
-              <YumiButton key={quickRange.label} onClick={() => { onValueChange(quickRange.value); setOpen(false) }} variant="ghost">{quickRange.label}</YumiButton>
+              <YumiButton
+                key={quickRange.label}
+                onClick={() => {
+                  onValueChange(quickRange.value)
+                  setOpen(false)
+                }}
+                variant="ghost"
+              >
+                {quickRange.label}
+              </YumiButton>
             ))}
           </div>
           <BaseCalendar>
@@ -274,14 +392,23 @@ export function YumiDateRangePicker({
               locale={zhCN}
               mode="range"
               numberOfMonths={2}
-              onSelect={(range) => { setDraft(range); commit(range) }}
+              onSelect={(range) => {
+                setDraft(range)
+                commit(range)
+              }}
               selected={draft}
               showOutsideDays
               weekStartsOn={1}
             />
           </BaseCalendar>
           {rangeError ? <p className="yumi-date-popover__error">{rangeError}</p> : null}
-          <CalendarFooter onClear={() => { setDraft(undefined); onValueChange(null); setOpen(false) }} />
+          <CalendarFooter
+            onClear={() => {
+              setDraft(undefined)
+              onValueChange(null)
+              setOpen(false)
+            }}
+          />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -318,22 +445,51 @@ export function YumiDateTimePicker({
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
       <Popover.Trigger asChild>
-        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={value}>
+        <DateTrigger
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+          className={className}
+          disabled={disabled}
+          placeholder={placeholder}
+          value={value}
+        >
           {selected ? `${selected.toLocaleDateString('zh-CN')} ${time}` : null}
         </DateTrigger>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" className="yumi-date-popover" sideOffset={6}>
           <BaseCalendar>
-            <DayPicker fixedWeeks locale={zhCN} mode="single" onSelect={(date) => date && applyDate(date)} selected={selected} showOutsideDays weekStartsOn={1} />
+            <DayPicker
+              fixedWeeks
+              locale={zhCN}
+              mode="single"
+              onSelect={(date) => date && applyDate(date)}
+              selected={selected}
+              showOutsideDays
+              weekStartsOn={1}
+            />
           </BaseCalendar>
           <label className="yumi-date-popover__time-field">
             <Clock3 aria-hidden="true" size={16} />
             <span>时间</span>
-            <YumiTextField aria-label="时间，格式为 HH:MM" onChange={(event) => setTime(event.target.value)} placeholder="HH:MM" value={time} />
+            <YumiTextField
+              aria-label="时间，格式为 HH:MM"
+              onChange={(event) => setTime(event.target.value)}
+              placeholder="HH:MM"
+              value={time}
+            />
           </label>
-          {!isValidTime(time) ? <p className="yumi-date-popover__error">请输入 00:00 至 23:59 的时间</p> : null}
-          <CalendarFooter onClear={() => { onValueChange(''); setOpen(false) }} />
+          {!isValidTime(time) ? (
+            <p className="yumi-date-popover__error">请输入 00:00 至 23:59 的时间</p>
+          ) : null}
+          <CalendarFooter
+            onClear={() => {
+              onValueChange('')
+              setOpen(false)
+            }}
+          />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -372,10 +528,15 @@ export function YumiDateTimeRangePicker({
     return start.date && end.date ? `${start.date} ${start.time} 至 ${end.date} ${end.time}` : ''
   }, [value])
 
-  const canApply = Boolean(draft?.from && draft.to && isValidTime(startTime) && isValidTime(endTime))
+  const canApply = Boolean(
+    draft?.from && draft.to && isValidTime(startTime) && isValidTime(endTime)
+  )
   const apply = () => {
     if (!draft?.from || !draft.to || !canApply) return
-    const nextValue = { end: formatIsoDateTime(draft.to, endTime), start: formatIsoDateTime(draft.from, startTime) }
+    const nextValue = {
+      end: formatIsoDateTime(draft.to, endTime),
+      start: formatIsoDateTime(draft.from, startTime)
+    }
     if (nextValue.end <= nextValue.start) return
     onValueChange(nextValue)
     setOpen(false)
@@ -384,20 +545,69 @@ export function YumiDateTimeRangePicker({
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
       <Popover.Trigger asChild>
-        <DateTrigger aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} className={className} disabled={disabled} placeholder={placeholder} value={rangeLabel}>{rangeLabel}</DateTrigger>
+        <DateTrigger
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+          className={className}
+          disabled={disabled}
+          placeholder={placeholder}
+          value={rangeLabel}
+        >
+          {rangeLabel}
+        </DateTrigger>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="start" className="yumi-date-popover yumi-date-popover--range" sideOffset={6}>
+        <Popover.Content
+          align="start"
+          className="yumi-date-popover yumi-date-popover--range"
+          sideOffset={6}
+        >
           <BaseCalendar>
-            <DayPicker fixedWeeks locale={zhCN} mode="range" numberOfMonths={2} onSelect={setDraft} selected={draft} showOutsideDays weekStartsOn={1} />
+            <DayPicker
+              fixedWeeks
+              locale={zhCN}
+              mode="range"
+              numberOfMonths={2}
+              onSelect={setDraft}
+              selected={draft}
+              showOutsideDays
+              weekStartsOn={1}
+            />
           </BaseCalendar>
           <div className="yumi-date-popover__time-range">
-            <label><span>开始时间</span><YumiTextField aria-label="开始时间，格式为 HH:MM" onChange={(event) => setStartTime(event.target.value)} value={startTime} /></label>
-            <label><span>结束时间</span><YumiTextField aria-label="结束时间，格式为 HH:MM" onChange={(event) => setEndTime(event.target.value)} value={endTime} /></label>
+            <label>
+              <span>开始时间</span>
+              <YumiTextField
+                aria-label="开始时间，格式为 HH:MM"
+                onChange={(event) => setStartTime(event.target.value)}
+                value={startTime}
+              />
+            </label>
+            <label>
+              <span>结束时间</span>
+              <YumiTextField
+                aria-label="结束时间，格式为 HH:MM"
+                onChange={(event) => setEndTime(event.target.value)}
+                value={endTime}
+              />
+            </label>
           </div>
           <div className="yumi-date-popover__footer">
-            <YumiButton onClick={() => { setDraft(undefined); onValueChange(null); setOpen(false) }} variant="ghost">清除</YumiButton>
-            <YumiButton disabled={!canApply} onClick={apply} variant="primary">应用范围</YumiButton>
+            <YumiButton
+              onClick={() => {
+                setDraft(undefined)
+                onValueChange(null)
+                setOpen(false)
+              }}
+              variant="ghost"
+            >
+              清除
+            </YumiButton>
+            <YumiButton disabled={!canApply} onClick={apply} variant="primary">
+              应用范围
+            </YumiButton>
           </div>
         </Popover.Content>
       </Popover.Portal>

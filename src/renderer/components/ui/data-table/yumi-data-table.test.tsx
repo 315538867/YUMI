@@ -29,4 +29,39 @@ describe('YumiDataTable', () => {
     expect(screen.getByRole('columnheader', { name: '订单编号' })).toHaveAttribute('scope', 'col')
     expect(screen.getByRole('status')).toHaveTextContent('没有符合条件的历史订单。')
   })
+
+  it('为金额列提供紧凑密度和明确的右对齐数字单元格', () => {
+    render(
+      <YumiDataTable
+        ariaLabel="订单资金流水"
+        columns={[
+          {
+            key: 'business',
+            label: '业务类型',
+            render: (row: { business: string; amount: string }) => row.business
+          },
+          {
+            align: 'right',
+            key: 'amount',
+            label: '金额',
+            render: (row: { business: string; amount: string }) => row.amount
+          }
+        ]}
+        density="compact"
+        getRowKey={(row) => row.business}
+        rows={[{ amount: '¥3,000.00', business: '收款' }]}
+      />
+    )
+
+    const table = screen.getByRole('table', { name: '订单资金流水' })
+    expect(table.closest('.yumi-data-table-wrap')).toHaveClass('yumi-data-table-wrap--compact')
+    expect(screen.getByRole('columnheader', { name: '金额' })).toHaveClass(
+      'yumi-data-table__right',
+      'yumi-data-table__numeric'
+    )
+    expect(screen.getByText('¥3,000.00')).toHaveClass(
+      'yumi-data-table__right',
+      'yumi-data-table__numeric'
+    )
+  })
 })

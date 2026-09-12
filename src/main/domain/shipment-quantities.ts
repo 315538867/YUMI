@@ -34,7 +34,12 @@ export function calculateShipmentQuantities(
   confirmedQuantity: number,
   shippedQuantity: number,
   availableQuantity?: number
-): { confirmedQuantity: number; shippedQuantity: number; pendingQuantity: number; availableQuantity?: number } {
+): {
+  confirmedQuantity: number
+  shippedQuantity: number
+  pendingQuantity: number
+  availableQuantity?: number
+} {
   validateShipmentQuantity({
     confirmedQuantity,
     shippedQuantity,

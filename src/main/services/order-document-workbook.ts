@@ -157,7 +157,12 @@ function addMetaRow(
   }
 }
 
-function addNotesRow(sheet: ExcelJS.Worksheet, row: number, notes: string | null, columnCount: number): void {
+function addNotesRow(
+  sheet: ExcelJS.Worksheet,
+  row: number,
+  notes: string | null,
+  columnCount: number
+): void {
   const label = sheet.getCell(row, 1)
   label.value = '备注'
   label.font = { bold: true, color: { argb: palette.heading } }
@@ -168,7 +173,8 @@ function addNotesRow(sheet: ExcelJS.Worksheet, row: number, notes: string | null
   value.value = text(notes)
   value.border = thinBorder
   value.alignment = { wrapText: true, vertical: 'middle' }
-  for (let column = 3; column <= columnCount; column += 1) sheet.getCell(row, column).border = thinBorder
+  for (let column = 3; column <= columnCount; column += 1)
+    sheet.getCell(row, column).border = thinBorder
   sheet.getRow(row).height = 28
 }
 
@@ -188,7 +194,11 @@ function styleDataRow(sheet: ExcelJS.Worksheet, row: number, columnCount: number
   for (let column = 1; column <= columnCount; column += 1) {
     const cell = sheet.getCell(row, column)
     cell.border = thinBorder
-    cell.alignment = { horizontal: column === 2 || column === columnCount ? 'left' : 'center', vertical: 'middle', wrapText: true }
+    cell.alignment = {
+      horizontal: column === 2 || column === columnCount ? 'left' : 'center',
+      vertical: 'middle',
+      wrapText: true
+    }
   }
   sheet.getRow(row).height = 46
 }
@@ -227,20 +237,41 @@ function buildOrderTableSheet(
 ): void {
   const sheet = prepareSheet(workbook, name, [11, 20, 9, 10, 12, 12, 12, 12, 12, 12, 10, 13, 20])
   addTitle(sheet, 'YUMI 订单表', 13)
-  addMetaRow(sheet, 2, [
-    { label: '客户', value: text(document.customer.name) },
-    { label: '联系方式', value: text(document.customer.contact) },
-    { label: '收货地址', value: text(document.customer.address) }
-  ], 13)
-  addMetaRow(sheet, 3, [
-    { label: '订单号', value: document.orderCode },
-    { label: '下单日期', value: document.createdAt },
-    { label: '制作截止', value: text(document.expectedShipDate) }
-  ], 13)
+  addMetaRow(
+    sheet,
+    2,
+    [
+      { label: '客户', value: text(document.customer.name) },
+      { label: '联系方式', value: text(document.customer.contact) },
+      { label: '收货地址', value: text(document.customer.address) }
+    ],
+    13
+  )
+  addMetaRow(
+    sheet,
+    3,
+    [
+      { label: '订单号', value: document.orderCode },
+      { label: '下单日期', value: document.createdAt },
+      { label: '制作截止', value: text(document.expectedShipDate) }
+    ],
+    13
+  )
   addNotesRow(sheet, 4, document.notes, 13)
   styleHeader(sheet, 7, [
-    '图片', '商品名称', '缝边', '缝边数量', '缝边单价(元)', '缝边金额(元)', '单件重量(克)',
-    '成交单价(元)', '商品金额(元)', '明细优惠(元)', '订购数量', '金额(元)', '商品备注'
+    '图片',
+    '商品名称',
+    '缝边',
+    '缝边数量',
+    '缝边单价(元)',
+    '缝边金额(元)',
+    '单件重量(克)',
+    '成交单价(元)',
+    '商品金额(元)',
+    '明细优惠(元)',
+    '订购数量',
+    '金额(元)',
+    '商品备注'
   ])
 
   let row = 8
@@ -287,7 +318,11 @@ function buildOrderTableSheet(
     if (isMoney) applyMoneyFormat(valueCell)
     for (let column = 1; column <= 13; column += 1) {
       sheet.getCell(totalRow, column).border = thinBorder
-      sheet.getCell(totalRow, column).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: palette.total } }
+      sheet.getCell(totalRow, column).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: palette.total }
+      }
     }
   })
   sheet.pageSetup.printArea = `A1:M${row + 7}`
@@ -306,30 +341,63 @@ function buildShippingListSheet(
     isSummary ? 'YUMI 发货汇总' : isVoidedHistory ? 'YUMI 已作废发货清单' : 'YUMI 发货清单',
     8
   )
-  addMetaRow(sheet, 2, [
-    { label: '客户', value: text(document.customer.name) },
-    { label: '联系方式', value: text(document.customer.contact) }
-  ], 8)
-  addMetaRow(sheet, 3, [
-    { label: '订单号', value: document.orderCode },
-    { label: '生成日期', value: document.generatedAt }
-  ], 8)
+  addMetaRow(
+    sheet,
+    2,
+    [
+      { label: '客户', value: text(document.customer.name) },
+      { label: '联系方式', value: text(document.customer.contact) }
+    ],
+    8
+  )
+  addMetaRow(
+    sheet,
+    3,
+    [
+      { label: '订单号', value: document.orderCode },
+      { label: '生成日期', value: document.generatedAt }
+    ],
+    8
+  )
   const shipmentInfo = document.shipment
     ? `${text(document.shipment.shippedOn)} / ${text(document.shipment.carrier)} / ${text(document.shipment.trackingNumber)}`
     : '—'
   const voidedInfo = isVoidedHistory
     ? `已作废 ${text(document.shipment?.voidedOn)}${document.shipment?.voidReason ? ` · ${document.shipment.voidReason}` : ''}`
     : shipmentInfo
-  addMetaRow(sheet, 4, [
-    { label: '收货地址', value: text(document.customer.address) },
-    {
-      label: isSummary ? '汇总口径' : '发货信息',
-      value: isSummary ? '仅统计有效发货批次' : voidedInfo
-    }
-  ], 8)
+  addMetaRow(
+    sheet,
+    4,
+    [
+      { label: '收货地址', value: text(document.customer.address) },
+      {
+        label: isSummary ? '汇总口径' : '发货信息',
+        value: isSummary ? '仅统计有效发货批次' : voidedInfo
+      }
+    ],
+    8
+  )
   const headers = isSummary
-    ? ['图片', '商品名称', '单件重量(克)', '订单数量', '有效累计已发', '待发数量', '商品备注', '订单号']
-    : ['图片', '商品名称', '单件重量(克)', '本批发货', '订单数量', '累计已发', '待发数量', '商品备注']
+    ? [
+        '图片',
+        '商品名称',
+        '单件重量(克)',
+        '订单数量',
+        '有效累计已发',
+        '待发数量',
+        '商品备注',
+        '订单号'
+      ]
+    : [
+        '图片',
+        '商品名称',
+        '单件重量(克)',
+        '本批发货',
+        '订单数量',
+        '累计已发',
+        '待发数量',
+        '商品备注'
+      ]
   styleHeader(sheet, 7, headers)
 
   let row = 8
@@ -364,38 +432,61 @@ function createWorkbook(): ExcelJS.Workbook {
 }
 
 function orderTableSource(documents: OrderTableDocument[]): OrderTableDocument[] {
-  return documents.length > 0 ? documents : [{
-    orderCode: '暂无订单', customer: { name: '—', contact: null, address: null }, createdAt: '—', expectedShipDate: null,
-    notes: null, items: [], totals: {
-      totalQuantity: 0, itemAmountCents: 0, edgeAmountCents: 0, itemDiscountCents: 0, orderDiscountCents: 0, orderAmountCents: 0
-    }
-  }]
+  return documents.length > 0
+    ? documents
+    : [
+        {
+          orderCode: '暂无订单',
+          customer: { name: '—', contact: null, address: null },
+          createdAt: '—',
+          expectedShipDate: null,
+          notes: null,
+          items: [],
+          totals: {
+            totalQuantity: 0,
+            itemAmountCents: 0,
+            edgeAmountCents: 0,
+            itemDiscountCents: 0,
+            orderDiscountCents: 0,
+            orderAmountCents: 0
+          }
+        }
+      ]
 }
 
 function shippingListSource(documents: ShippingListDocument[]): ShippingListDocument[] {
-  return documents.length > 0 ? documents : [{
-    orderCode: '暂无订单', customer: { name: '—', contact: null, address: null }, generatedAt: '—', shipment: null, items: []
-  }]
+  return documents.length > 0
+    ? documents
+    : [
+        {
+          orderCode: '暂无订单',
+          customer: { name: '—', contact: null, address: null },
+          generatedAt: '—',
+          shipment: null,
+          items: []
+        }
+      ]
 }
 
 export async function buildOrderTableWorkbook(documents: OrderTableDocument[]): Promise<Buffer> {
   const workbook = createWorkbook()
   const source = orderTableSource(documents)
-  source.forEach((document, index) => buildOrderTableSheet(workbook, sheetName('订单表', index, source.length), document))
+  source.forEach((document, index) =>
+    buildOrderTableSheet(workbook, sheetName('订单表', index, source.length), document)
+  )
   return Buffer.from(await workbook.xlsx.writeBuffer())
 }
 
-export async function buildShippingListWorkbook(documents: ShippingListDocument[]): Promise<Buffer> {
+export async function buildShippingListWorkbook(
+  documents: ShippingListDocument[]
+): Promise<Buffer> {
   const workbook = createWorkbook()
   const source = shippingListSource(documents)
   const isSummary = source.every((document) => document.shipment === null)
   const baseName = isSummary ? '发货汇总' : '发货清单'
-  source.forEach((document, index) => buildShippingListSheet(
-    workbook,
-    sheetName(baseName, index, source.length),
-    document,
-    isSummary
-  ))
+  source.forEach((document, index) =>
+    buildShippingListSheet(workbook, sheetName(baseName, index, source.length), document, isSummary)
+  )
   return Buffer.from(await workbook.xlsx.writeBuffer())
 }
 
@@ -407,7 +498,11 @@ export async function buildOrderAndShippingWorkbook(
   const workbook = createWorkbook()
   const orders = orderTableSource(orderDocuments)
   const shipments = shippingListSource(shippingDocuments)
-  orders.forEach((document, index) => buildOrderTableSheet(workbook, sheetName('订单表', index, orders.length), document))
-  shipments.forEach((document, index) => buildShippingListSheet(workbook, sheetName('发货清单', index, shipments.length), document))
+  orders.forEach((document, index) =>
+    buildOrderTableSheet(workbook, sheetName('订单表', index, orders.length), document)
+  )
+  shipments.forEach((document, index) =>
+    buildShippingListSheet(workbook, sheetName('发货清单', index, shipments.length), document)
+  )
   return Buffer.from(await workbook.xlsx.writeBuffer())
 }

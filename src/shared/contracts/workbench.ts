@@ -2,10 +2,24 @@ import type { BusinessDate, Cents } from './common'
 
 /** 应用内导航仅描述真实处理位置，不携带或写入业务状态。 */
 export type V2NavigationTarget =
-  | { view: 'orders'; orderId?: string; orderView?: 'overview' | 'fulfillment' | 'funds' | 'after_sales' }
-  | { view: 'fulfillment'; orderId?: string; orderItemId?: string; processTaskId?: string; focus?: 'queue' | 'inspection' | 'shipment' }
+  | {
+      view: 'orders'
+      orderId?: string
+      orderView?: 'overview' | 'fulfillment' | 'funds' | 'after_sales'
+    }
+  | {
+      view: 'fulfillment'
+      orderId?: string
+      orderItemId?: string
+      processTaskId?: string
+      focus?: 'queue' | 'inspection' | 'shipment'
+    }
   | { view: 'settlements'; settlementId?: string; focus?: 'draft' | 'confirm' | 'refund' }
-  | { view: 'finance'; financeView?: 'overview' | 'cashflow' | 'reimbursements'; financialEntryId?: string }
+  | {
+      view: 'finance'
+      financeView?: 'overview' | 'cashflow' | 'reimbursements'
+      financialEntryId?: string
+    }
   | { view: 'customers'; customerId?: string }
   | { view: 'products'; productId?: string }
 

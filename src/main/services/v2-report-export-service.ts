@@ -1,5 +1,10 @@
 import * as XLSX from 'xlsx'
-import type { V2OrderDocumentsExportInput, V2OrderTableExportInput, V2ReportExportInput, V2ShippingListExportInput } from '@shared/contracts/reports'
+import type {
+  V2OrderDocumentsExportInput,
+  V2OrderTableExportInput,
+  V2ReportExportInput,
+  V2ShippingListExportInput
+} from '@shared/contracts/reports'
 import {
   buildOrderAndShippingWorkbook,
   buildOrderTableWorkbook,
@@ -33,12 +38,24 @@ export class V2ReportExportService {
       | 'listConfirmedSettlements'
       | 'getMonthlyOperation'
     > &
-      Partial<Pick<ReportService, 'getOrderTable' | 'getShippingList' | 'getOrderTableDocuments' | 'getShippingListDocuments'>>,
-    private readonly resolveImage: (attachmentId: string) => Promise<DocumentImage | null> = async () => null
+      Partial<
+        Pick<
+          ReportService,
+          | 'getOrderTable'
+          | 'getShippingList'
+          | 'getOrderTableDocuments'
+          | 'getShippingListDocuments'
+        >
+      >,
+    private readonly resolveImage: (
+      attachmentId: string
+    ) => Promise<DocumentImage | null> = async () => null
   ) {}
 
   async exportOrderTableWorkbook(input: V2OrderTableExportInput = {}): Promise<Uint8Array> {
-    const documents = await this.hydrateOrderDocuments(this.reports.getOrderTableDocuments?.(input) ?? [])
+    const documents = await this.hydrateOrderDocuments(
+      this.reports.getOrderTableDocuments?.(input) ?? []
+    )
     return buildOrderTableWorkbook(documents)
   }
 
@@ -75,50 +92,59 @@ export class V2ReportExportService {
   private async hydrateOrderDocuments(
     documents: NonNullable<ReturnType<ReportService['getOrderTableDocuments']>>
   ): Promise<OrderTableDocument[]> {
-    return Promise.all(documents.map(async (document) => ({
-      orderCode: document.orderCode,
-      customer: {
-        name: document.customerName,
-        contact: document.customerContact,
-        address: document.customerAddress
-      },
-      createdAt: document.createdAt,
-      expectedShipDate: document.expectedShipDate,
-      notes: document.notes,
-      items: await Promise.all(document.items.map(async (item) => ({
-        ...item,
-        image: await this.resolveDocumentImage(item.imageAttachmentId)
-      }))),
-      totals: document.totals
-    })))
+    return Promise.all(
+      documents.map(async (document) => ({
+        orderCode: document.orderCode,
+        customer: {
+          name: document.customerName,
+          contact: document.customerContact,
+          address: document.customerAddress
+        },
+        createdAt: document.createdAt,
+        expectedShipDate: document.expectedShipDate,
+        notes: document.notes,
+        items: await Promise.all(
+          document.items.map(async (item) => ({
+            ...item,
+            image: await this.resolveDocumentImage(item.imageAttachmentId)
+          }))
+        ),
+        totals: document.totals
+      }))
+    )
   }
 
   private async hydrateShippingListDocuments(
     documents: NonNullable<ReturnType<ReportService['getShippingListDocuments']>>
   ): Promise<ShippingListDocument[]> {
-    return Promise.all(documents.map(async (document) => ({
-      orderCode: document.orderCode,
-      customer: {
-        name: document.customerName,
-        contact: document.customerContact,
-        address: document.customerAddress
-      },
-      generatedAt: document.generatedAt,
-      shipment: document.shippedOn || document.carrier || document.trackingNumber
-        ? {
-            shippedOn: document.shippedOn,
-            carrier: document.carrier,
-            trackingNumber: document.trackingNumber,
-            status: document.shipmentStatus ?? 'active',
-            voidedOn: document.voidedOn ?? null,
-            voidReason: document.voidReason ?? null
-          }
-        : null,
-      items: await Promise.all(document.items.map(async (item) => ({
-        ...item,
-        image: await this.resolveDocumentImage(item.imageAttachmentId)
-      })))
-    })))
+    return Promise.all(
+      documents.map(async (document) => ({
+        orderCode: document.orderCode,
+        customer: {
+          name: document.customerName,
+          contact: document.customerContact,
+          address: document.customerAddress
+        },
+        generatedAt: document.generatedAt,
+        shipment:
+          document.shippedOn || document.carrier || document.trackingNumber
+            ? {
+                shippedOn: document.shippedOn,
+                carrier: document.carrier,
+                trackingNumber: document.trackingNumber,
+                status: document.shipmentStatus ?? 'active',
+                voidedOn: document.voidedOn ?? null,
+                voidReason: document.voidReason ?? null
+              }
+            : null,
+        items: await Promise.all(
+          document.items.map(async (item) => ({
+            ...item,
+            image: await this.resolveDocumentImage(item.imageAttachmentId)
+          }))
+        )
+      }))
+    )
   }
 
   exportWorkbook(input: V2ReportExportInput): Uint8Array {

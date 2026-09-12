@@ -53,7 +53,10 @@ function assertPositiveInteger(value: number, label: string): void {
   }
 }
 
-export function normalizeOrderEdge(edge: V2OrderEdgeInput | undefined, quantity: number): NormalizedOrderEdge {
+export function normalizeOrderEdge(
+  edge: V2OrderEdgeInput | undefined,
+  quantity: number
+): NormalizedOrderEdge {
   if (!edge?.enabled) return { enabled: false, quantity: 0, unitPriceCents: 0 }
   const edgeQuantity = edge.quantity ?? quantity
   assertPositiveInteger(edgeQuantity, '缝边数量')

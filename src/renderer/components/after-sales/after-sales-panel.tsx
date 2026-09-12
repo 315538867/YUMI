@@ -16,6 +16,7 @@ import {
   YumiFormMessage,
   YumiListSurface,
   YumiListToolbar,
+  YumiMetricStrip,
   YumiNumberField,
   YumiSearchSelect,
   YumiSection,
@@ -140,6 +141,17 @@ export function AfterSalesPanel({
     () => new Map(shipments.map((shipment) => [shipment.id, shipment])),
     [shipments]
   )
+  const summary = useMemo(
+    () => ({
+      accountingCostCents: cases.reduce((total, item) => total + item.accountingCostCents, 0),
+      refundCents: funds
+        .filter((fund) => fund.businessType === 'refund' && !fund.reversalOfEntryId)
+        .reduce((total, fund) => total + Math.abs(fund.amountCents), 0),
+      pendingCount: cases.filter((item) => item.status === 'open' || item.status === 'processing')
+        .length
+    }),
+    [cases, funds]
+  )
   const reload = useCallback(async () => {
     const next = await listCases({ orderId })
     setCases(next)
@@ -256,17 +268,26 @@ export function AfterSalesPanel({
 
   return (
     <div className="yumi-after-sales-panel">
+      <YumiMetricStrip
+        items={[
+          { label: '售后单', value: `${cases.length} 笔` },
+          {
+            label: '已核算成本',
+            note: '会进入订单盈利口径',
+            value: formatCents(summary.accountingCostCents)
+          },
+          { label: '退款金额', value: formatCents(summary.refundCents) },
+          { label: '待处理', value: `${summary.pendingCount} 笔` }
+        ]}
+      />
       <YumiSection
         actions={
-          <>
-            <YumiStatusTag tone="warning">负责人决定</YumiStatusTag>
-            <YumiButton onClick={openCreateForm} variant="primary">
-              新增售后记录
-            </YumiButton>
-          </>
+          <YumiButton onClick={openCreateForm} variant="primary">
+            新建售后
+          </YumiButton>
         }
-        description="负责人记录原发货、责任、处理判断、成本与收费约定；系统不会自动定责、收费或创建返工任务。"
-        title="售后处理"
+        description="退货、补发和退款等处理按售后单留痕，并将已知成本回写到订单盈利。"
+        title="售后记录"
       >
         <YumiListSurface ariaLabel="售后记录">
           <YumiListToolbar
@@ -357,7 +378,7 @@ export function AfterSalesPanel({
       </YumiSection>
 
       <YumiSheet
-        description="先记录负责人判断，再由负责人明确确认保存；不会根据责任、原因或处理文字自动创建返工、补发或收费。"
+        description="先记录负责人判断，再由负责人明确确认保存。系统不会自动定责、收费或创建返工任务；补发也必须由负责人另行确认和创建。"
         dirty={draftDirty}
         footer={
           <>
@@ -371,7 +392,7 @@ export function AfterSalesPanel({
         }
         onOpenChange={closeCreateForm}
         open={showCreateForm}
-        title="新增售后记录"
+        title="新建售后"
       >
         <form
           className="yumi-form-panel yumi-sheet-form"

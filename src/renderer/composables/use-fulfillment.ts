@@ -28,6 +28,8 @@ export interface FulfillmentScheduledTask {
   processType: 'making' | 'fluffing_bagging' | 'packing' | 'shipping'
   stage: FulfillmentTaskStage
   plannedQuantity: number
+  /** 任务创建时已冻结的计件提成；不能回读当前商品费率。 */
+  pieceRateCents: number | null
   status: Extract<V2ProcessTaskStatus, 'pending' | 'pending_inspection'>
 }
 
@@ -158,6 +160,7 @@ export function buildFulfillmentQueue(
         processType: task.processType,
         stage,
         plannedQuantity: task.plannedQuantity,
+        pieceRateCents: task.pieceRateCents,
         status: task.status
       }
       const schedule = item.stageSchedules[stage]
@@ -362,6 +365,15 @@ export function useFulfillment() {
     [reload]
   )
 
+  const reassignProcessTask = useCallback(
+    async (...args: Parameters<typeof window.yumiV2.fulfillment.reassignProcessTask>) => {
+      const assignment = await window.yumiV2.fulfillment.reassignProcessTask(...args)
+      await reload()
+      return assignment
+    },
+    [reload]
+  )
+
   const adjustStageQuantity = useCallback(
     async (input: V2FulfillmentAdjustmentInput) => {
       const result = await window.yumiV2.fulfillment.adjustStageQuantity(input)
@@ -383,6 +395,7 @@ export function useFulfillment() {
     selectOrder,
     createWorkAssignment,
     recordOpeningWip,
+    reassignProcessTask,
     adjustStageQuantity
   }
 }

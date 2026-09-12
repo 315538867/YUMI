@@ -115,6 +115,7 @@ function createProductSnapshot(
     internalEdgeCostCents: product.internalEdgeCostCents,
     standardMakingMinutes: product.standardMakingMinutes,
     makingCommissionCents: product.makingCommissionCents,
+    fluffingBaggingCommissionCents: product.fluffingBaggingCommissionCents,
     makingGlueCostCents: product.makingGlueCostCents,
     glueWeightMilligrams: product.glueWeightMilligrams,
     gluePriceMicroYuanPerGram,
@@ -155,7 +156,11 @@ export class V2OrderService {
   }
 
   updateCustomer(input: V2CustomerUpdateInput): V2Customer {
-    const normalized = { ...this.normalizeCustomer(input), id: requireId(input.id, '客户标识'), enabled: input.enabled }
+    const normalized = {
+      ...this.normalizeCustomer(input),
+      id: requireId(input.id, '客户标识'),
+      enabled: input.enabled
+    }
     return this.repository.transaction(() => {
       const before = this.requireCustomer(normalized.id)
       const now = this.clock.now()
@@ -181,7 +186,11 @@ export class V2OrderService {
   }
 
   updateProduct(input: V2ProductUpdateInput): V2Product {
-    const normalized = { ...this.normalizeProduct(input), id: requireId(input.id, '商品标识'), enabled: input.enabled }
+    const normalized = {
+      ...this.normalizeProduct(input),
+      id: requireId(input.id, '商品标识'),
+      enabled: input.enabled
+    }
     return this.repository.transaction(() => {
       const before = this.requireProduct(normalized.id)
       const now = this.clock.now()
@@ -207,7 +216,11 @@ export class V2OrderService {
       const orderId = this.clock.createId()
       const customer = input.customerId
         ? this.requireCustomer(input.customerId)
-        : this.repository.insertCustomer(this.clock.createId(), this.normalizeCustomer(input.customer), now)
+        : this.repository.insertCustomer(
+            this.clock.createId(),
+            this.normalizeCustomer(input.customer),
+            now
+          )
       const customerSnapshot: V2CustomerInput = {
         name: customer.name,
         contact: customer.contact,
@@ -215,21 +228,27 @@ export class V2OrderService {
         notes: customer.notes
       }
       const items = this.buildOrderItems(orderId, input.items, now)
-      const code = input.code?.trim() || `YUMI-${now.slice(0, 10).replaceAll('-', '')}-${orderId.slice(0, 8).toUpperCase()}`
+      const code =
+        input.code?.trim() ||
+        `YUMI-${now.slice(0, 10).replaceAll('-', '')}-${orderId.slice(0, 8).toUpperCase()}`
       this.repository.insertOrder({
         id: orderId,
         code: requireText(code, '订单编号'),
         customerId: customer.id,
         customerSnapshot,
         orderDiscountCents: input.orderDiscountCents ?? 0,
-        expectedShipDate: input.expectedShipDate ? requireBusinessDate(input.expectedShipDate, '预计发货日期') : null,
+        expectedShipDate: input.expectedShipDate
+          ? requireBusinessDate(input.expectedShipDate, '预计发货日期')
+          : null,
         reservedDays: schedule.reservedDays,
         notes: nullableText(input.notes),
         now
       })
       this.repository.insertOrderItems(orderId, items)
       const order = this.repository.getOrder(orderId)!
-      this.recordAudit('order.created', 'order', orderId, undefined, order, now, { customerCreated: !input.customerId })
+      this.recordAudit('order.created', 'order', orderId, undefined, order, now, {
+        customerCreated: !input.customerId
+      })
       return order
     })
   }
@@ -243,7 +262,9 @@ export class V2OrderService {
     return this.repository.transaction(() => {
       const beforeOrder = this.requireOrder(orderId)
       if (this.repository.countShipments(orderId) > 0) {
-        throw new DomainValidationError('已有发货记录的订单不能直接替换订单内容，请通过售后或负责人处理')
+        throw new DomainValidationError(
+          '已有发货记录的订单不能直接替换订单内容，请通过售后或负责人处理'
+        )
       }
       const now = this.clock.now()
       const afterItems = this.buildOrderItems(orderId, input.items, now)
@@ -254,15 +275,23 @@ export class V2OrderService {
       )
       if (input.amountAdjustment) {
         this.repository.createAmountAdjustment({
-          id: this.clock.createId(), orderId, amountCents: input.amountAdjustment.amountCents,
-          occurredOn: input.amountAdjustment.occurredOn, reason: requireText(input.amountAdjustment.reason, '金额调整原因'),
-          note: nullableText(input.amountAdjustment.note), createdAt: now
+          id: this.clock.createId(),
+          orderId,
+          amountCents: input.amountAdjustment.amountCents,
+          occurredOn: input.amountAdjustment.occurredOn,
+          reason: requireText(input.amountAdjustment.reason, '金额调整原因'),
+          note: nullableText(input.amountAdjustment.note),
+          createdAt: now
         })
       }
       const change: V2OrderContentChange = {
-        id: this.clock.createId(), orderId, occurredOn: input.occurredOn,
-        description: input.description.trim(), beforeItems: beforeOrder.items,
-        afterItems: this.repository.listOrderItems(orderId), createdAt: now
+        id: this.clock.createId(),
+        orderId,
+        occurredOn: input.occurredOn,
+        description: input.description.trim(),
+        beforeItems: beforeOrder.items,
+        afterItems: this.repository.listOrderItems(orderId),
+        createdAt: now
       }
       this.repository.createContentChange(change)
       const afterOrder = this.repository.getOrder(orderId)!
@@ -274,19 +303,29 @@ export class V2OrderService {
     })
   }
 
-  addOrderAmountAdjustment(orderId: string, input: V2OrderContentChangeInput['amountAdjustment']): V2Order {
+  addOrderAmountAdjustment(
+    orderId: string,
+    input: V2OrderContentChangeInput['amountAdjustment']
+  ): V2Order {
     if (!input) throw new DomainValidationError('金额调整不能为空')
     this.assertAmountAdjustment(input)
     return this.repository.transaction(() => {
       const before = this.requireOrder(orderId)
       const now = this.clock.now()
       const adjustment: V2OrderAmountAdjustment = {
-        id: this.clock.createId(), orderId, amountCents: input.amountCents, occurredOn: input.occurredOn,
-        reason: requireText(input.reason, '金额调整原因'), note: nullableText(input.note), createdAt: now
+        id: this.clock.createId(),
+        orderId,
+        amountCents: input.amountCents,
+        occurredOn: input.occurredOn,
+        reason: requireText(input.reason, '金额调整原因'),
+        note: nullableText(input.note),
+        createdAt: now
       }
       this.repository.createAmountAdjustment(adjustment)
       const after = this.repository.getOrder(orderId)!
-      this.recordAudit('order.amount_adjusted', 'order', orderId, before, after, now, { adjustmentId: adjustment.id })
+      this.recordAudit('order.amount_adjusted', 'order', orderId, before, after, now, {
+        adjustmentId: adjustment.id
+      })
       return after
     })
   }
@@ -298,12 +337,18 @@ export class V2OrderService {
       this.assertFundAttachment(normalized)
       const now = this.clock.now()
       const fund: V2OrderFund = {
-        id: this.clock.createId(), orderId,
+        id: this.clock.createId(),
+        orderId,
         direction: normalized.businessType === 'refund' ? 'expense' : 'income',
-        ...normalized, reversalOfEntryId: null, attachment: null, createdAt: now
+        ...normalized,
+        reversalOfEntryId: null,
+        attachment: null,
+        createdAt: now
       }
       this.repository.insertFund(fund)
-      this.recordAudit('order.fund_recorded', 'financial_entry', fund.id, undefined, fund, now, { orderId })
+      this.recordAudit('order.fund_recorded', 'financial_entry', fund.id, undefined, fund, now, {
+        orderId
+      })
       return fund
     })
   }
@@ -313,13 +358,20 @@ export class V2OrderService {
     if (input.businessType === 'refund') {
       throw new DomainValidationError('退款流水不能关联收款凭证')
     }
-    const attachment = this.repository.connection.prepare(`
+    const attachment = this.repository.connection
+      .prepare(
+        `
       SELECT 1 FROM attachments WHERE id = ? AND kind = 'order_fund_proof'
-    `).get(input.attachmentId)
+    `
+      )
+      .get(input.attachmentId)
     if (!attachment) throw new DomainValidationError('收款凭证不存在或类型不正确')
   }
 
-  correctOrderFund(orderId: string, input: V2OrderFundCorrectionInput): { reversal: V2OrderFund; replacement: V2OrderFund } {
+  correctOrderFund(
+    orderId: string,
+    input: V2OrderFundCorrectionInput
+  ): { reversal: V2OrderFund; replacement: V2OrderFund } {
     const replacement = this.normalizeFund(input.replacement)
     validateOrderFundReversal({
       originalEntryId: input.originalEntryId,
@@ -335,30 +387,49 @@ export class V2OrderService {
       this.requireOrder(orderId)
       this.assertFundAttachment(replacement)
       const original = this.repository.getFund(requireId(input.originalEntryId, '原资金记录标识'))
-      if (!original || original.orderId !== orderId) throw new DomainValidationError('原资金记录不存在或不属于当前订单')
+      if (!original || original.orderId !== orderId)
+        throw new DomainValidationError('原资金记录不存在或不属于当前订单')
       if (original.reversalOfEntryId) throw new DomainValidationError('冲正记录不能再次冲正')
-      if (this.repository.hasReversalForFund(original.id)) throw new DomainValidationError('原资金记录已被冲正')
+      if (this.repository.hasReversalForFund(original.id))
+        throw new DomainValidationError('原资金记录已被冲正')
       const now = this.clock.now()
       const reversal: V2OrderFund = {
-        id: this.clock.createId(), orderId,
+        id: this.clock.createId(),
+        orderId,
         direction: original.direction === 'income' ? 'expense' : 'income',
         businessType: original.businessType,
-        amountCents: original.amountCents, occurredOn: input.reversalOccurredOn,
-        paymentMethod: original.paymentMethod, attachmentId: original.attachmentId,
-        note: `冲正：${original.note ?? original.id}`, reversalOfEntryId: original.id,
-        attachment: null, createdAt: now
+        amountCents: original.amountCents,
+        occurredOn: input.reversalOccurredOn,
+        paymentMethod: original.paymentMethod,
+        attachmentId: original.attachmentId,
+        note: `冲正：${original.note ?? original.id}`,
+        reversalOfEntryId: original.id,
+        attachment: null,
+        createdAt: now
       }
       const replacementFund: V2OrderFund = {
-        id: this.clock.createId(), orderId,
+        id: this.clock.createId(),
+        orderId,
         direction: replacement.businessType === 'refund' ? 'expense' : 'income',
-        ...replacement, reversalOfEntryId: null, attachment: null, createdAt: now
+        ...replacement,
+        reversalOfEntryId: null,
+        attachment: null,
+        createdAt: now
       }
       this.repository.insertFund(reversal)
       this.repository.insertFund(replacementFund)
-      this.recordAudit('order.fund_corrected', 'financial_entry', original.id, original, {
-        reversal,
-        replacement: replacementFund
-      }, now, { orderId })
+      this.recordAudit(
+        'order.fund_corrected',
+        'financial_entry',
+        original.id,
+        original,
+        {
+          reversal,
+          replacement: replacementFund
+        },
+        now,
+        { orderId }
+      )
       return { reversal, replacement: replacementFund }
     })
   }
@@ -373,16 +444,22 @@ export class V2OrderService {
       for (const item of input.items) {
         requireId(item.orderItemId, '订单行标识')
         requirePositiveInteger(item.quantity, '本次发货数量')
-        if (!itemById.has(item.orderItemId)) throw new DomainValidationError('发货订单行不属于当前订单')
+        if (!itemById.has(item.orderItemId))
+          throw new DomainValidationError('发货订单行不属于当前订单')
         quantities.set(item.orderItemId, (quantities.get(item.orderItemId) ?? 0) + item.quantity)
       }
       const states = new Map<string, ReturnType<typeof createFulfillmentState>>()
-      const existingEventsByOrderItem = new Map<string, ReturnType<V2FulfillmentRepository['listFulfillmentEvents']>>()
+      const existingEventsByOrderItem = new Map<
+        string,
+        ReturnType<V2FulfillmentRepository['listFulfillmentEvents']>
+      >()
       for (const [orderItemId, addingQuantity] of quantities) {
         const item = itemById.get(orderItemId)!
         const existingEvents = this.fulfillmentRepository.listFulfillmentEvents(orderItemId)
-        const state = existingEvents
-          .reduce((current, event) => applyFulfillmentEvent(current, event), createFulfillmentState(item.quantity))
+        const state = existingEvents.reduce(
+          (current, event) => applyFulfillmentEvent(current, event),
+          createFulfillmentState(item.quantity)
+        )
         existingEventsByOrderItem.set(orderItemId, existingEvents)
         states.set(orderItemId, state)
         validateShipmentQuantity({
@@ -394,16 +471,30 @@ export class V2OrderService {
       }
       const now = this.clock.now()
       const shipment: V2Shipment = {
-        id: this.clock.createId(), orderId, shippedOn: input.shippedOn,
+        id: this.clock.createId(),
+        orderId,
+        shippedOn: input.shippedOn,
         items: input.items.map((item) => ({ id: this.clock.createId(), ...item })),
-        carrier: nullableText(input.carrier), trackingNumber: nullableText(input.trackingNumber),
-        note: nullableText(input.note), status: 'active', voidedOn: null, voidReason: null, voidedAt: null,
-        createdAt: now, updatedAt: now
+        carrier: nullableText(input.carrier),
+        trackingNumber: nullableText(input.trackingNumber),
+        note: nullableText(input.note),
+        status: 'active',
+        voidedOn: null,
+        voidReason: null,
+        voidedAt: null,
+        createdAt: now,
+        updatedAt: now
       }
       const shipmentEvents = shipment.items.map((item) => ({
-        id: this.clock.createId(), orderItemId: item.orderItemId, eventType: 'shipment' as const,
-        quantity: item.quantity, sourceStage: 'ready_to_ship' as const, targetStage: 'shipped' as const,
-        sourceRecordType: 'shipment_item', sourceRecordId: item.id, occurredOn: shipment.shippedOn,
+        id: this.clock.createId(),
+        orderItemId: item.orderItemId,
+        eventType: 'shipment' as const,
+        quantity: item.quantity,
+        sourceStage: 'ready_to_ship' as const,
+        targetStage: 'shipped' as const,
+        sourceRecordType: 'shipment_item',
+        sourceRecordId: item.id,
+        occurredOn: shipment.shippedOn,
         note: shipment.note,
         createdAt: createFulfillmentEventTimestamp(
           now,
@@ -459,7 +550,9 @@ export class V2OrderService {
       }
       this.repository.insertShipment(shipment, shipmentDocumentSnapshot)
       shipmentEvents.forEach((event) => this.fulfillmentRepository.insertFulfillmentEvent(event))
-      this.recordAudit('shipment.created', 'order', orderId, undefined, shipment, now, { shipmentId: shipment.id })
+      this.recordAudit('shipment.created', 'order', orderId, undefined, shipment, now, {
+        shipmentId: shipment.id
+      })
       return shipment
     })
   }
@@ -469,7 +562,9 @@ export class V2OrderService {
     const voidReason = requireText(input.reason, '作废原因')
     return this.repository.transaction(() => {
       this.requireOrder(orderId)
-      const shipment = this.repository.listShipments(orderId).find((item) => item.id === requireId(shipmentId, '发货批次标识'))
+      const shipment = this.repository
+        .listShipments(orderId)
+        .find((item) => item.id === requireId(shipmentId, '发货批次标识'))
       if (!shipment) throw new DomainValidationError('发货批次不存在')
       if (shipment.status === 'voided') throw new DomainValidationError('发货批次已作废')
       if (voidedOn < shipment.shippedOn) throw new DomainValidationError('作废日期不能早于发货日期')
@@ -478,22 +573,33 @@ export class V2OrderService {
       const reversalEvents = shipment.items.map((item) => {
         const existingEvents = this.fulfillmentRepository.listFulfillmentEvents(item.orderItemId)
         return {
-          id: this.clock.createId(), orderItemId: item.orderItemId, eventType: 'manager_adjustment' as const,
-          quantity: item.quantity, sourceStage: 'shipped' as const, targetStage: 'ready_to_ship' as const,
-          sourceRecordType: 'shipment_void', sourceRecordId: shipment.id, occurredOn: voidedOn,
+          id: this.clock.createId(),
+          orderItemId: item.orderItemId,
+          eventType: 'manager_adjustment' as const,
+          quantity: item.quantity,
+          sourceStage: 'shipped' as const,
+          targetStage: 'ready_to_ship' as const,
+          sourceRecordType: 'shipment_void',
+          sourceRecordId: shipment.id,
+          occurredOn: voidedOn,
           note: `作废发货批次：${voidReason}`,
           createdAt: createFulfillmentEventTimestamp(now, voidedOn, existingEvents)
         }
       })
       for (const event of reversalEvents) {
-        const item = this.requireOrder(orderId).items.find((candidate) => candidate.id === event.orderItemId)!
+        const item = this.requireOrder(orderId).items.find(
+          (candidate) => candidate.id === event.orderItemId
+        )!
         const events = this.fulfillmentRepository.listFulfillmentEvents(event.orderItemId)
         const nextEvents = [...events, event].sort((left, right) =>
           left.occurredOn === right.occurredOn
             ? left.createdAt.localeCompare(right.createdAt)
             : left.occurredOn.localeCompare(right.occurredOn)
         )
-        nextEvents.reduce((state, current) => applyFulfillmentEvent(state, current), createFulfillmentState(item.quantity))
+        nextEvents.reduce(
+          (state, current) => applyFulfillmentEvent(state, current),
+          createFulfillmentState(item.quantity)
+        )
       }
       this.repository.voidShipment(orderId, shipment.id, voidedOn, voidReason, now)
       reversalEvents.forEach((event) => this.fulfillmentRepository.insertFulfillmentEvent(event))
@@ -505,7 +611,9 @@ export class V2OrderService {
         voidedAt: now,
         updatedAt: now
       }
-      this.recordAudit('shipment.voided', 'order', orderId, shipment, voided, now, { shipmentId: shipment.id })
+      this.recordAudit('shipment.voided', 'order', orderId, shipment, voided, now, {
+        shipmentId: shipment.id
+      })
       return voided
     })
   }
@@ -549,13 +657,17 @@ export class V2OrderService {
     }
     for (const [label, value] of [
       ['商品基础售价', input.basePriceCents],
-      ['包装成本', input.packagingCostCents], ['配饰成本', input.accessoryCostCents],
-      ['替换袋成本', input.replacementBagCostCents], ['内部缝边成本', input.internalEdgeCostCents],
-      ['标准制作分钟', input.standardMakingMinutes], ['制作提成', input.makingCommissionCents],
+      ['包装成本', input.packagingCostCents],
+      ['配饰成本', input.accessoryCostCents],
+      ['替换袋成本', input.replacementBagCostCents],
+      ['内部缝边成本', input.internalEdgeCostCents],
+      ['标准制作分钟', input.standardMakingMinutes],
+      ['制作提成', input.makingCommissionCents],
       ['胶水用量（毫克）', input.glueWeightMilligrams ?? 0],
       ['旧版原材料成本', input.materialCostCents ?? 0],
       ['旧版制作胶水成本', input.makingGlueCostCents ?? 0]
-    ] as const) requireNonNegativeInteger(value, label)
+    ] as const)
+      requireNonNegativeInteger(value, label)
     validateProductMaterialAndCapacity(normalizedMaterialAndCapacity)
     return {
       ...input,
@@ -563,15 +675,21 @@ export class V2OrderService {
       materialCostCents: input.materialCostCents ?? 0,
       makingGlueCostCents: input.makingGlueCostCents ?? 0,
       glueWeightMilligrams: input.glueWeightMilligrams ?? 0,
-      name: input.name.trim(), code: nullableText(input.code), category: nullableText(input.category),
-      imageAttachmentId: nullableText(input.imageAttachmentId), notes: nullableText(input.notes)
+      name: input.name.trim(),
+      code: nullableText(input.code),
+      category: nullableText(input.category),
+      imageAttachmentId: nullableText(input.imageAttachmentId),
+      notes: nullableText(input.notes)
     }
   }
 
   private assertOrderCreateInput(input: V2OrderCreateInput) {
     this.normalizeCustomer(input.customer)
     this.assertOrderItems(input.items)
-    calculateOrderAmountSummary({ items: input.items, orderDiscountCents: input.orderDiscountCents })
+    calculateOrderAmountSummary({
+      items: input.items,
+      orderDiscountCents: input.orderDiscountCents
+    })
     return calculateOrderSchedule({
       expectedShipDate: input.expectedShipDate,
       reservedDays: input.reservedDays,
@@ -589,7 +707,9 @@ export class V2OrderService {
     }
   }
 
-  private assertAmountAdjustment(input: NonNullable<V2OrderContentChangeInput['amountAdjustment']>): void {
+  private assertAmountAdjustment(
+    input: NonNullable<V2OrderContentChangeInput['amountAdjustment']>
+  ): void {
     if (!Number.isInteger(input.amountCents) || input.amountCents === 0) {
       throw new DomainValidationError('金额调整必须是非零整数分')
     }
@@ -599,25 +719,41 @@ export class V2OrderService {
 
   private normalizeFund(input: V2OrderFundInput): V2OrderFundInput {
     const normalized: V2OrderFundInput = {
-      businessType: input.businessType, amountCents: input.amountCents,
-      occurredOn: input.occurredOn, paymentMethod: nullableText(input.paymentMethod),
-      attachmentId: nullableText(input.attachmentId), note: nullableText(input.note)
+      businessType: input.businessType,
+      amountCents: input.amountCents,
+      occurredOn: input.occurredOn,
+      paymentMethod: nullableText(input.paymentMethod),
+      attachmentId: nullableText(input.attachmentId),
+      note: nullableText(input.note)
     }
     validateOrderFundInput({
       direction: normalized.businessType === 'refund' ? 'expense' : 'income',
-      businessType: normalized.businessType, amountCents: normalized.amountCents, occurredOn: normalized.occurredOn
+      businessType: normalized.businessType,
+      amountCents: normalized.amountCents,
+      occurredOn: normalized.occurredOn
     })
     return normalized
   }
 
-  private buildOrderItems(orderId: string, inputs: V2OrderItemInput[], now: string): Array<Omit<V2OrderItem, 'orderId'>> {
+  private buildOrderItems(
+    orderId: string,
+    inputs: V2OrderItemInput[],
+    now: string
+  ): Array<Omit<V2OrderItem, 'orderId'>> {
     return inputs.map((item) => {
       const product = this.requireProduct(item.productId)
-      if (!product.enabled) throw new DomainValidationError(`商品「${product.name}」已停用，不能用于新订单内容`)
+      if (!product.enabled)
+        throw new DomainValidationError(`商品「${product.name}」已停用，不能用于新订单内容`)
       const amounts = calculateOrderItemAmounts(item)
       return {
-        id: this.clock.createId(), productId: product.id, productSnapshot: createProductSnapshot(product, this.studioSettings?.get().gluePriceMicroYuanPerGram ?? 0),
-        quantity: item.quantity, unitPriceCents: item.unitPriceCents,
+        id: this.clock.createId(),
+        productId: product.id,
+        productSnapshot: createProductSnapshot(
+          product,
+          this.studioSettings?.get().gluePriceMicroYuanPerGram ?? 0
+        ),
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
         edgeEnabled: amounts.edge.enabled,
         edgeQuantity: amounts.edge.quantity,
         edgeUnitPriceCents: amounts.edge.unitPriceCents,
@@ -625,7 +761,8 @@ export class V2OrderService {
         edgeAmountCents: amounts.edgeAmountCents,
         itemDiscountCents: amounts.itemDiscountCents,
         lineAmountCents: amounts.lineAmountCents,
-        createdAt: now, updatedAt: now
+        createdAt: now,
+        updatedAt: now
       }
     })
   }
@@ -658,7 +795,14 @@ export class V2OrderService {
     metadata?: unknown
   ): V2AuditLog {
     return this.repository.insertAudit({
-      id: this.clock.createId(), action, entityType, entityId, before, after, metadata, createdAt
+      id: this.clock.createId(),
+      action,
+      entityType,
+      entityId,
+      before,
+      after,
+      metadata,
+      createdAt
     })
   }
 }

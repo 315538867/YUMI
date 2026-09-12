@@ -41,51 +41,83 @@ export function useSettlements() {
     }
   }, [])
 
-  useEffect(() => { void reload().catch(() => undefined) }, [reload])
-
-  const createWorker = useCallback(async (input: V2WorkerCreateInput) => {
-    const worker = await window.yumiV2.workers.create(input)
-    await reload()
-    return worker
+  useEffect(() => {
+    void reload().catch(() => undefined)
   }, [reload])
 
-  const listWageHistory = useCallback((workerId: string): Promise<V2WorkerWageHistory[]> => (
-    window.yumiV2.workers.listWageHistory(workerId)
-  ), [])
+  const createWorker = useCallback(
+    async (input: V2WorkerCreateInput) => {
+      const worker = await window.yumiV2.workers.create(input)
+      await reload()
+      return worker
+    },
+    [reload]
+  )
 
-  const recordWageHistory = useCallback(async (input: V2WorkerWageHistoryInput) => {
-    const history = await window.yumiV2.workers.recordWageHistory(input)
-    await reload()
-    return history
-  }, [reload])
+  const listWageHistory = useCallback(
+    (workerId: string): Promise<V2WorkerWageHistory[]> =>
+      window.yumiV2.workers.listWageHistory(workerId),
+    []
+  )
 
-  const createDraft = useCallback(async (input: V2WorkerSettlementCreateInput) => {
-    const settlement = await window.yumiV2.settlements.createDraft(input)
-    await reload()
-    return settlement
-  }, [reload])
+  const recordWageHistory = useCallback(
+    async (input: V2WorkerWageHistoryInput) => {
+      const history = await window.yumiV2.workers.recordWageHistory(input)
+      await reload()
+      return history
+    },
+    [reload]
+  )
 
-  const updateDraft = useCallback(async (id: string, input: V2WorkerSettlementDraftUpdateInput) => {
-    const settlement = await window.yumiV2.settlements.updateDraft(id, input)
-    await reload()
-    return settlement
-  }, [reload])
+  const createDraft = useCallback(
+    async (input: V2WorkerSettlementCreateInput) => {
+      const settlement = await window.yumiV2.settlements.createDraft(input)
+      await reload()
+      return settlement
+    },
+    [reload]
+  )
 
-  const confirmSettlement = useCallback(async (id: string) => {
-    const settlement = await window.yumiV2.settlements.confirm(id)
-    await reload()
-    return settlement
-  }, [reload])
+  const updateDraft = useCallback(
+    async (id: string, input: V2WorkerSettlementDraftUpdateInput) => {
+      const settlement = await window.yumiV2.settlements.updateDraft(id, input)
+      await reload()
+      return settlement
+    },
+    [reload]
+  )
 
-  const resolveRefund = useCallback(async (id: string, input: V2WorkerRefundResolveInput) => {
-    const refund = await window.yumiV2.settlements.resolveRefund(id, input)
-    await reload()
-    return refund
-  }, [reload])
+  const confirmSettlement = useCallback(
+    async (id: string) => {
+      const settlement = await window.yumiV2.settlements.confirm(id)
+      await reload()
+      return settlement
+    },
+    [reload]
+  )
+
+  const resolveRefund = useCallback(
+    async (id: string, input: V2WorkerRefundResolveInput) => {
+      const refund = await window.yumiV2.settlements.resolveRefund(id, input)
+      await reload()
+      return refund
+    },
+    [reload]
+  )
 
   return {
-    workers, settlements, refunds, loading, loadError, reload,
-    createWorker, listWageHistory, recordWageHistory,
-    createDraft, updateDraft, confirmSettlement, resolveRefund
+    workers,
+    settlements,
+    refunds,
+    loading,
+    loadError,
+    reload,
+    createWorker,
+    listWageHistory,
+    recordWageHistory,
+    createDraft,
+    updateDraft,
+    confirmSettlement,
+    resolveRefund
   }
 }

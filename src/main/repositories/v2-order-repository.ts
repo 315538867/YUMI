@@ -123,7 +123,10 @@ interface ShipmentItemRow {
   quantity: number
 }
 
-function calculateProductionDeadline(expectedShipDate: string | null, reservedDays: number): string | null {
+function calculateProductionDeadline(
+  expectedShipDate: string | null,
+  reservedDays: number
+): string | null {
   return calculateOrderSchedule({ expectedShipDate, reservedDays }).productionDeadline
 }
 
@@ -163,6 +166,7 @@ function mapProduct(row: Record<string, unknown>): V2Product {
     internalEdgeCostCents: Number(row.internal_edge_cost_cents),
     standardMakingMinutes: Number(row.standard_making_minutes),
     makingCommissionCents: Number(row.making_commission_cents),
+    fluffingBaggingCommissionCents: Number(row.fluffing_bagging_commission_cents ?? 0),
     makingGlueCostCents: Number(row.making_glue_cost_cents),
     glueWeightMilligrams: Number(row.glue_weight_milligrams ?? 0),
     unitWeightMilligrams: Number(row.unit_weight_milligrams ?? 0),
@@ -193,7 +197,10 @@ function mapOrderItem(row: OrderItemRow): V2OrderItem {
     itemAmountCents: row.quantity * row.unit_price_cents,
     edgeAmountCents: row.edge_quantity * row.edge_unit_price_cents,
     itemDiscountCents: row.item_discount_cents,
-    lineAmountCents: row.quantity * row.unit_price_cents + row.edge_quantity * row.edge_unit_price_cents - row.item_discount_cents,
+    lineAmountCents:
+      row.quantity * row.unit_price_cents +
+      row.edge_quantity * row.edge_unit_price_cents -
+      row.item_discount_cents,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -211,16 +218,17 @@ function mapFund(row: FundRow): V2OrderFund {
     attachmentId: row.attachment_id,
     note: row.note,
     reversalOfEntryId: row.reversal_of_entry_id,
-    attachment: row.attachment_original_name && row.attachment_storage_key && row.attachment_created_at
-      ? {
-          id: row.attachment_id!,
-          originalName: row.attachment_original_name,
-          storageKey: row.attachment_storage_key,
-          mimeType: row.attachment_mime_type ?? null,
-          sizeBytes: Number(row.attachment_size_bytes ?? 0),
-          createdAt: row.attachment_created_at
-        }
-      : null,
+    attachment:
+      row.attachment_original_name && row.attachment_storage_key && row.attachment_created_at
+        ? {
+            id: row.attachment_id!,
+            originalName: row.attachment_original_name,
+            storageKey: row.attachment_storage_key,
+            mimeType: row.attachment_mime_type ?? null,
+            sizeBytes: Number(row.attachment_size_bytes ?? 0),
+            createdAt: row.attachment_created_at
+          }
+        : null,
     createdAt: row.created_at
   }
 }
@@ -245,12 +253,18 @@ export class V2OrderRepository {
            AND (? IS NULL OR name LIKE ? OR contact LIKE ?)
          ORDER BY enabled DESC, updated_at DESC, name ASC`
       )
-      .all(query.includeDisabled ? 1 : 0, keyword ?? null, `%${keyword ?? ''}%`, `%${keyword ?? ''}%`) as Array<Record<string, unknown>>
+      .all(
+        query.includeDisabled ? 1 : 0,
+        keyword ?? null,
+        `%${keyword ?? ''}%`,
+        `%${keyword ?? ''}%`
+      ) as Array<Record<string, unknown>>
     return rows.map(mapCustomer)
   }
 
   getCustomer(id: string): V2Customer | null {
-    const row = this.database.prepare('SELECT * FROM customers WHERE id = ?').get(id) as Record<string, unknown> | undefined
+    const row = this.database.prepare('SELECT * FROM customers WHERE id = ?').get(id) as
+      Record<string, unknown> | undefined
     return row ? mapCustomer(row) : null
   }
 
@@ -260,7 +274,15 @@ export class V2OrderRepository {
         `INSERT INTO customers (id, name, contact, default_address, notes, enabled, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 1, ?, ?)`
       )
-      .run(id, input.name.trim(), nullableText(input.contact), nullableText(input.defaultAddress), nullableText(input.notes), now, now)
+      .run(
+        id,
+        input.name.trim(),
+        nullableText(input.contact),
+        nullableText(input.defaultAddress),
+        nullableText(input.notes),
+        now,
+        now
+      )
     return this.getCustomer(id)!
   }
 
@@ -285,13 +307,16 @@ export class V2OrderRepository {
 
   listProducts(includeDisabled = false): V2Product[] {
     const rows = this.database
-      .prepare('SELECT * FROM products WHERE (? = 1 OR enabled = 1) ORDER BY enabled DESC, updated_at DESC, name ASC')
+      .prepare(
+        'SELECT * FROM products WHERE (? = 1 OR enabled = 1) ORDER BY enabled DESC, updated_at DESC, name ASC'
+      )
       .all(includeDisabled ? 1 : 0) as Array<Record<string, unknown>>
     return rows.map(mapProduct)
   }
 
   getProduct(id: string): V2Product | null {
-    const row = this.database.prepare('SELECT * FROM products WHERE id = ?').get(id) as Record<string, unknown> | undefined
+    const row = this.database.prepare('SELECT * FROM products WHERE id = ?').get(id) as
+      Record<string, unknown> | undefined
     return row ? mapProduct(row) : null
   }
 
@@ -301,23 +326,43 @@ export class V2OrderRepository {
         `INSERT INTO products (
           id, name, code, category, base_price_cents, material_cost_cents, packaging_cost_cents,
           accessory_cost_cents, replacement_bag_cost_cents, internal_edge_cost_cents, standard_making_minutes,
-          making_commission_cents, making_glue_cost_cents, glue_weight_milligrams, unit_weight_milligrams,
+          making_commission_cents, fluffing_bagging_commission_cents, making_glue_cost_cents, glue_weight_milligrams, unit_weight_milligrams,
           material_loss_rate_basis_points, mold_count, output_per_mold_per_batch, max_batches_per_day,
           daily_capacity, enabled, image_attachment_id, notes, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
       )
       .run(
-        id, input.name.trim(), nullableText(input.code), nullableText(input.category), input.basePriceCents,
-        input.materialCostCents ?? 0, input.packagingCostCents, input.accessoryCostCents,
-        input.replacementBagCostCents, input.internalEdgeCostCents, input.standardMakingMinutes,
-        input.makingCommissionCents, input.makingGlueCostCents ?? 0, input.glueWeightMilligrams ?? 0,
-        input.unitWeightMilligrams ?? 0, input.materialLossRateBasisPoints ?? 0, input.moldCount ?? 0,
-        input.outputPerMoldPerBatch ?? 0, input.maxBatchesPerDay ?? 0,
+        id,
+        input.name.trim(),
+        nullableText(input.code),
+        nullableText(input.category),
+        input.basePriceCents,
+        input.materialCostCents ?? 0,
+        input.packagingCostCents,
+        input.accessoryCostCents,
+        input.replacementBagCostCents,
+        input.internalEdgeCostCents,
+        input.standardMakingMinutes,
+        input.makingCommissionCents,
+        input.fluffingBaggingCommissionCents ?? 0,
+        input.makingGlueCostCents ?? 0,
+        input.glueWeightMilligrams ?? 0,
+        input.unitWeightMilligrams ?? 0,
+        input.materialLossRateBasisPoints ?? 0,
+        input.moldCount ?? 0,
+        input.outputPerMoldPerBatch ?? 0,
+        input.maxBatchesPerDay ?? 0,
         input.moldCount && input.outputPerMoldPerBatch && input.maxBatchesPerDay
-          ? calculateDailyMoldCapacity({ moldCount: input.moldCount, outputPerMoldPerBatch: input.outputPerMoldPerBatch, maxBatchesPerDay: input.maxBatchesPerDay })
+          ? calculateDailyMoldCapacity({
+              moldCount: input.moldCount,
+              outputPerMoldPerBatch: input.outputPerMoldPerBatch,
+              maxBatchesPerDay: input.maxBatchesPerDay
+            })
           : 0,
         nullableText(input.imageAttachmentId),
-        nullableText(input.notes), now, now
+        nullableText(input.notes),
+        now,
+        now
       )
     return this.getProduct(id)!
   }
@@ -328,22 +373,42 @@ export class V2OrderRepository {
         `UPDATE products SET
           name = ?, code = ?, category = ?, base_price_cents = ?, material_cost_cents = ?, packaging_cost_cents = ?,
           accessory_cost_cents = ?, replacement_bag_cost_cents = ?, internal_edge_cost_cents = ?, standard_making_minutes = ?,
-          making_commission_cents = ?, making_glue_cost_cents = ?, glue_weight_milligrams = ?, unit_weight_milligrams = ?,
+          making_commission_cents = ?, fluffing_bagging_commission_cents = COALESCE(?, fluffing_bagging_commission_cents), making_glue_cost_cents = ?, glue_weight_milligrams = ?, unit_weight_milligrams = ?,
           material_loss_rate_basis_points = ?, mold_count = ?, output_per_mold_per_batch = ?, max_batches_per_day = ?,
           daily_capacity = ?, enabled = COALESCE(?, enabled), image_attachment_id = ?, notes = ?, updated_at = ? WHERE id = ?`
       )
       .run(
-        input.name.trim(), nullableText(input.code), nullableText(input.category), input.basePriceCents,
-        input.materialCostCents ?? 0, input.packagingCostCents, input.accessoryCostCents,
-        input.replacementBagCostCents, input.internalEdgeCostCents, input.standardMakingMinutes,
-        input.makingCommissionCents, input.makingGlueCostCents ?? 0, input.glueWeightMilligrams ?? 0,
-        input.unitWeightMilligrams ?? 0, input.materialLossRateBasisPoints ?? 0, input.moldCount ?? 0,
-        input.outputPerMoldPerBatch ?? 0, input.maxBatchesPerDay ?? 0,
+        input.name.trim(),
+        nullableText(input.code),
+        nullableText(input.category),
+        input.basePriceCents,
+        input.materialCostCents ?? 0,
+        input.packagingCostCents,
+        input.accessoryCostCents,
+        input.replacementBagCostCents,
+        input.internalEdgeCostCents,
+        input.standardMakingMinutes,
+        input.makingCommissionCents,
+        input.fluffingBaggingCommissionCents ?? null,
+        input.makingGlueCostCents ?? 0,
+        input.glueWeightMilligrams ?? 0,
+        input.unitWeightMilligrams ?? 0,
+        input.materialLossRateBasisPoints ?? 0,
+        input.moldCount ?? 0,
+        input.outputPerMoldPerBatch ?? 0,
+        input.maxBatchesPerDay ?? 0,
         input.moldCount && input.outputPerMoldPerBatch && input.maxBatchesPerDay
-          ? calculateDailyMoldCapacity({ moldCount: input.moldCount, outputPerMoldPerBatch: input.outputPerMoldPerBatch, maxBatchesPerDay: input.maxBatchesPerDay })
+          ? calculateDailyMoldCapacity({
+              moldCount: input.moldCount,
+              outputPerMoldPerBatch: input.outputPerMoldPerBatch,
+              maxBatchesPerDay: input.maxBatchesPerDay
+            })
           : 0,
-        input.enabled === undefined ? null : Number(input.enabled), nullableText(input.imageAttachmentId),
-        nullableText(input.notes), now, input.id
+        input.enabled === undefined ? null : Number(input.enabled),
+        nullableText(input.imageAttachmentId),
+        nullableText(input.notes),
+        now,
+        input.id
       )
     return result.changes ? this.getProduct(input.id) : null
   }
@@ -367,8 +432,16 @@ export class V2OrderRepository {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
-        input.id, input.code, input.customerId, JSON.stringify(input.customerSnapshot),
-        input.orderDiscountCents, input.expectedShipDate, input.reservedDays, input.notes, input.now, input.now
+        input.id,
+        input.code,
+        input.customerId,
+        JSON.stringify(input.customerSnapshot),
+        input.orderDiscountCents,
+        input.expectedShipDate,
+        input.reservedDays,
+        input.notes,
+        input.now,
+        input.now
       )
   }
 
@@ -382,23 +455,38 @@ export class V2OrderRepository {
     )
     for (const [lineNo, item] of items.entries()) {
       statement.run(
-        item.id, orderId, item.productId, JSON.stringify(item.productSnapshot), item.quantity,
-        item.unitPriceCents, Number(item.edgeEnabled), item.edgeQuantity, item.edgeUnitPriceCents,
-        item.itemDiscountCents, lineNo, item.createdAt, item.updatedAt
+        item.id,
+        orderId,
+        item.productId,
+        JSON.stringify(item.productSnapshot),
+        item.quantity,
+        item.unitPriceCents,
+        Number(item.edgeEnabled),
+        item.edgeQuantity,
+        item.edgeUnitPriceCents,
+        item.itemDiscountCents,
+        lineNo,
+        item.createdAt,
+        item.updatedAt
       )
     }
   }
 
-  replaceOrderItems(orderId: string, items: Array<Omit<V2OrderItem, 'orderId'>>, orderDiscountCents: number): void {
+  replaceOrderItems(
+    orderId: string,
+    items: Array<Omit<V2OrderItem, 'orderId'>>,
+    orderDiscountCents: number
+  ): void {
     this.database.prepare('DELETE FROM order_items WHERE order_id = ?').run(orderId)
     this.insertOrderItems(orderId, items)
-    this.database.prepare('UPDATE orders SET order_discount_cents = ?, updated_at = ? WHERE id = ?').run(
-      orderDiscountCents, items[0]?.updatedAt ?? new Date().toISOString(), orderId
-    )
+    this.database
+      .prepare('UPDATE orders SET order_discount_cents = ?, updated_at = ? WHERE id = ?')
+      .run(orderDiscountCents, items[0]?.updatedAt ?? new Date().toISOString(), orderId)
   }
 
   getOrder(orderId: string): V2Order | null {
-    const row = this.database.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as OrderRow | undefined
+    const row = this.database.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as
+      OrderRow | undefined
     if (!row) return null
     const customer = row.customer_id ? this.getCustomer(row.customer_id) : null
     const items = this.listOrderItems(orderId)
@@ -407,8 +495,13 @@ export class V2OrderRepository {
       .all(orderId) as AdjustmentRow[]
     const amount = calculateOrderAmountSummary({
       items: items.map((item) => ({
-        quantity: item.quantity, unitPriceCents: item.unitPriceCents,
-        edge: { enabled: item.edgeEnabled, quantity: item.edgeQuantity, unitPriceCents: item.edgeUnitPriceCents },
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
+        edge: {
+          enabled: item.edgeEnabled,
+          quantity: item.edgeQuantity,
+          unitPriceCents: item.edgeUnitPriceCents
+        },
         itemDiscountCents: item.itemDiscountCents
       })),
       orderDiscountCents: row.order_discount_cents,
@@ -433,7 +526,9 @@ export class V2OrderRepository {
   }
 
   listOrders(): V2OrderSummary[] {
-    const rows = this.database.prepare('SELECT * FROM orders ORDER BY updated_at DESC, created_at DESC').all() as OrderRow[]
+    const rows = this.database
+      .prepare('SELECT * FROM orders ORDER BY updated_at DESC, created_at DESC')
+      .all() as OrderRow[]
     return rows.map((row) => {
       const customer = row.customer_id ? this.getCustomer(row.customer_id) : null
       const orderItems = this.listOrderItems(row.id)
@@ -445,8 +540,13 @@ export class V2OrderRepository {
         .all(row.id) as Array<{ amount_cents: number }>
       const amount = calculateOrderAmountSummary({
         items: orderItems.map((item) => ({
-          quantity: item.quantity, unitPriceCents: item.unitPriceCents,
-          edge: { enabled: item.edgeEnabled, quantity: item.edgeQuantity, unitPriceCents: item.edgeUnitPriceCents },
+          quantity: item.quantity,
+          unitPriceCents: item.unitPriceCents,
+          edge: {
+            enabled: item.edgeEnabled,
+            quantity: item.edgeQuantity,
+            unitPriceCents: item.edgeUnitPriceCents
+          },
           itemDiscountCents: item.itemDiscountCents
         })),
         orderDiscountCents: row.order_discount_cents,
@@ -473,9 +573,11 @@ export class V2OrderRepository {
   }
 
   listOrderItems(orderId: string): V2OrderItem[] {
-    return (this.database
-      .prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY line_no ASC, id ASC')
-      .all(orderId) as OrderItemRow[]).map(mapOrderItem)
+    return (
+      this.database
+        .prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY line_no ASC, id ASC')
+        .all(orderId) as OrderItemRow[]
+    ).map(mapOrderItem)
   }
 
   createAmountAdjustment(input: V2OrderAmountAdjustment): void {
@@ -484,17 +586,33 @@ export class V2OrderRepository {
         `INSERT INTO order_amount_adjustments (id, order_id, amount_cents, occurred_on, reason, note, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(input.id, input.orderId, input.amountCents, input.occurredOn, input.reason, input.note ?? null, input.createdAt)
+      .run(
+        input.id,
+        input.orderId,
+        input.amountCents,
+        input.occurredOn,
+        input.reason,
+        input.note ?? null,
+        input.createdAt
+      )
   }
 
   listAmountAdjustments(orderId: string): V2OrderAmountAdjustment[] {
-    return (this.database
-      .prepare('SELECT * FROM order_amount_adjustments WHERE order_id = ? ORDER BY created_at ASC, id ASC')
-      .all(orderId) as AdjustmentRow[])
-      .map((row) => ({
-        id: row.id, orderId: row.order_id, amountCents: row.amount_cents, occurredOn: row.occurred_on,
-        reason: row.reason, note: row.note, createdAt: row.created_at
-      }))
+    return (
+      this.database
+        .prepare(
+          'SELECT * FROM order_amount_adjustments WHERE order_id = ? ORDER BY created_at ASC, id ASC'
+        )
+        .all(orderId) as AdjustmentRow[]
+    ).map((row) => ({
+      id: row.id,
+      orderId: row.order_id,
+      amountCents: row.amount_cents,
+      occurredOn: row.occurred_on,
+      reason: row.reason,
+      note: row.note,
+      createdAt: row.created_at
+    }))
   }
 
   createContentChange(change: V2OrderContentChange): void {
@@ -505,21 +623,32 @@ export class V2OrderRepository {
         ) VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
-        change.id, change.orderId, change.occurredOn, change.description,
-        JSON.stringify(change.beforeItems), JSON.stringify(change.afterItems), change.createdAt
+        change.id,
+        change.orderId,
+        change.occurredOn,
+        change.description,
+        JSON.stringify(change.beforeItems),
+        JSON.stringify(change.afterItems),
+        change.createdAt
       )
   }
 
   listContentChanges(orderId: string): V2OrderContentChange[] {
-    return (this.database
-      .prepare('SELECT * FROM order_content_changes WHERE order_id = ? ORDER BY created_at ASC, id ASC')
-      .all(orderId) as ContentChangeRow[])
-      .map((row) => ({
-        id: row.id, orderId: row.order_id, occurredOn: row.occurred_on, description: row.description,
-        beforeItems: parseJson<V2OrderItem[]>(row.before_items_snapshot_json),
-        afterItems: parseJson<V2OrderItem[]>(row.after_items_snapshot_json),
-        createdAt: row.created_at
-      }))
+    return (
+      this.database
+        .prepare(
+          'SELECT * FROM order_content_changes WHERE order_id = ? ORDER BY created_at ASC, id ASC'
+        )
+        .all(orderId) as ContentChangeRow[]
+    ).map((row) => ({
+      id: row.id,
+      orderId: row.order_id,
+      occurredOn: row.occurred_on,
+      description: row.description,
+      beforeItems: parseJson<V2OrderItem[]>(row.before_items_snapshot_json),
+      afterItems: parseJson<V2OrderItem[]>(row.after_items_snapshot_json),
+      createdAt: row.created_at
+    }))
   }
 
   insertFund(fund: V2OrderFund): void {
@@ -531,52 +660,80 @@ export class V2OrderRepository {
         ) VALUES (?, 'order_fund', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
-        fund.id, fund.direction, fund.businessType, fund.amountCents, fund.occurredOn,
-        fund.paymentMethod ?? null, fund.orderId, fund.attachmentId ?? null,
-        fund.reversalOfEntryId, fund.note ?? null, fund.createdAt
+        fund.id,
+        fund.direction,
+        fund.businessType,
+        fund.amountCents,
+        fund.occurredOn,
+        fund.paymentMethod ?? null,
+        fund.orderId,
+        fund.attachmentId ?? null,
+        fund.reversalOfEntryId,
+        fund.note ?? null,
+        fund.createdAt
       )
   }
 
   getFund(id: string): V2OrderFund | null {
-    const row = this.database.prepare(`
+    const row = this.database
+      .prepare(
+        `
       SELECT entry.*, a.original_name AS attachment_original_name, a.storage_key AS attachment_storage_key,
         a.mime_type AS attachment_mime_type, a.size_bytes AS attachment_size_bytes, a.created_at AS attachment_created_at
       FROM financial_entries entry LEFT JOIN attachments a ON a.id = entry.attachment_id
       WHERE entry.id = ?
-    `).get(id) as FundRow | undefined
+    `
+      )
+      .get(id) as FundRow | undefined
     return row ? mapFund(row) : null
   }
 
   listOrderFunds(orderId: string): V2OrderFund[] {
-    return (this.database
-      .prepare(`
+    return (
+      this.database
+        .prepare(
+          `
         SELECT entry.*, a.original_name AS attachment_original_name, a.storage_key AS attachment_storage_key,
           a.mime_type AS attachment_mime_type, a.size_bytes AS attachment_size_bytes, a.created_at AS attachment_created_at
         FROM financial_entries entry LEFT JOIN attachments a ON a.id = entry.attachment_id
         WHERE entry.order_id = ? ORDER BY entry.created_at ASC, entry.id ASC
-      `)
-      .all(orderId) as FundRow[]).map(mapFund)
+      `
+        )
+        .all(orderId) as FundRow[]
+    ).map(mapFund)
   }
 
   getOrderFundSummary(orderId: string, currentAmountCents: number): V2OrderFundSummary {
     return calculateOrderFundSummary({
       currentAmountCents,
-      entries: this.listOrderFunds(orderId).map(({ id, direction, businessType, amountCents, reversalOfEntryId }) => ({
-        id,
-        direction,
-        businessType,
-        amountCents,
-        reversalOfEntryId
-      }))
+      entries: this.listOrderFunds(orderId).map(
+        ({ id, direction, businessType, amountCents, reversalOfEntryId }) => ({
+          id,
+          direction,
+          businessType,
+          amountCents,
+          reversalOfEntryId
+        })
+      )
     })
   }
 
   hasReversalForFund(fundId: string): boolean {
-    return Boolean(this.database.prepare('SELECT 1 FROM financial_entries WHERE reversal_of_entry_id = ?').get(fundId))
+    return Boolean(
+      this.database
+        .prepare('SELECT 1 FROM financial_entries WHERE reversal_of_entry_id = ?')
+        .get(fundId)
+    )
   }
 
   countShipments(orderId: string): number {
-    return Number((this.database.prepare('SELECT COUNT(*) AS count FROM shipments WHERE order_id = ?').get(orderId) as { count: number }).count)
+    return Number(
+      (
+        this.database
+          .prepare('SELECT COUNT(*) AS count FROM shipments WHERE order_id = ?')
+          .get(orderId) as { count: number }
+      ).count
+    )
   }
 
   listShippedQuantities(orderId: string): Map<string, number> {
@@ -600,8 +757,19 @@ export class V2OrderRepository {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
-        shipment.id, shipment.orderId, shipment.shippedOn, shipment.carrier ?? null,
-        shipment.trackingNumber ?? null, shipment.note ?? null, JSON.stringify(snapshot), shipment.status, shipment.voidedOn, shipment.voidReason, shipment.voidedAt, shipment.createdAt, shipment.updatedAt
+        shipment.id,
+        shipment.orderId,
+        shipment.shippedOn,
+        shipment.carrier ?? null,
+        shipment.trackingNumber ?? null,
+        shipment.note ?? null,
+        JSON.stringify(snapshot),
+        shipment.status,
+        shipment.voidedOn,
+        shipment.voidReason,
+        shipment.voidedAt,
+        shipment.createdAt,
+        shipment.updatedAt
       )
     const statement = this.database.prepare(
       'INSERT INTO shipment_items (id, shipment_id, order_item_id, quantity, created_at) VALUES (?, ?, ?, ?, ?)'
@@ -611,19 +779,27 @@ export class V2OrderRepository {
     }
   }
 
-  voidShipment(orderId: string, shipmentId: string, voidedOn: string, voidReason: string, voidedAt: string): void {
-    const result = this.database.prepare(
-      `UPDATE shipments
+  voidShipment(
+    orderId: string,
+    shipmentId: string,
+    voidedOn: string,
+    voidReason: string,
+    voidedAt: string
+  ): void {
+    const result = this.database
+      .prepare(
+        `UPDATE shipments
        SET status = 'voided', voided_on = ?, void_reason = ?, voided_at = ?, updated_at = ?
        WHERE id = ? AND order_id = ? AND status = 'active'`
-    ).run(voidedOn, voidReason, voidedAt, voidedAt, shipmentId, orderId)
+      )
+      .run(voidedOn, voidReason, voidedAt, voidedAt, shipmentId, orderId)
     if (result.changes !== 1) throw new Error('发货批次不存在或已作废')
   }
 
   getShipmentDocumentSnapshot(orderId: string, shipmentId: string): Record<string, unknown> | null {
-    const row = this.database.prepare(
-      'SELECT snapshot_json FROM shipments WHERE id = ? AND order_id = ?'
-    ).get(shipmentId, orderId) as { snapshot_json: string | null } | undefined
+    const row = this.database
+      .prepare('SELECT snapshot_json FROM shipments WHERE id = ? AND order_id = ?')
+      .get(shipmentId, orderId) as { snapshot_json: string | null } | undefined
     if (!row) return null
     return row.snapshot_json ? parseJson<Record<string, unknown>>(row.snapshot_json) : null
   }
@@ -644,10 +820,12 @@ export class V2OrderRepository {
       id: row.id,
       orderId: row.order_id,
       shippedOn: row.shipped_on,
-      items: items.filter((item) => item.shipment_id === row.id).map((item) => ({
-        orderItemId: item.order_item_id,
-        quantity: item.quantity
-      })),
+      items: items
+        .filter((item) => item.shipment_id === row.id)
+        .map((item) => ({
+          orderItemId: item.order_item_id,
+          quantity: item.quantity
+        })),
       carrier: row.carrier,
       trackingNumber: row.tracking_number,
       note: row.note,
@@ -677,19 +855,27 @@ export class V2OrderRepository {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
-        input.id, input.action, input.entityType, input.entityId,
+        input.id,
+        input.action,
+        input.entityType,
+        input.entityId,
         input.before === undefined ? null : JSON.stringify(input.before),
         input.after === undefined ? null : JSON.stringify(input.after),
-        input.metadata === undefined ? null : JSON.stringify(input.metadata), input.createdAt
+        input.metadata === undefined ? null : JSON.stringify(input.metadata),
+        input.createdAt
       )
     return this.getAudit(input.id)!
   }
 
   getAudit(id: string): V2AuditLog | null {
-    const row = this.database.prepare('SELECT * FROM audit_logs WHERE id = ?').get(id) as Record<string, unknown> | undefined
+    const row = this.database.prepare('SELECT * FROM audit_logs WHERE id = ?').get(id) as
+      Record<string, unknown> | undefined
     if (!row) return null
     return {
-      id: String(row.id), action: String(row.action), entityType: String(row.entity_type), entityId: String(row.entity_id),
+      id: String(row.id),
+      action: String(row.action),
+      entityType: String(row.entity_type),
+      entityId: String(row.entity_id),
       before: row.before_json ? parseJson(String(row.before_json)) : null,
       after: row.after_json ? parseJson(String(row.after_json)) : null,
       metadata: row.metadata_json ? parseJson(String(row.metadata_json)) : null,
@@ -699,10 +885,17 @@ export class V2OrderRepository {
 
   listAuditLogs(entityId?: string): V2AuditLog[] {
     const rows = entityId
-      ? this.database.prepare('SELECT * FROM audit_logs WHERE entity_id = ? ORDER BY created_at ASC, rowid ASC').all(entityId)
+      ? this.database
+          .prepare(
+            'SELECT * FROM audit_logs WHERE entity_id = ? ORDER BY created_at ASC, rowid ASC'
+          )
+          .all(entityId)
       : this.database.prepare('SELECT * FROM audit_logs ORDER BY created_at ASC, rowid ASC').all()
     return (rows as Array<Record<string, unknown>>).map((row) => ({
-      id: String(row.id), action: String(row.action), entityType: String(row.entity_type), entityId: String(row.entity_id),
+      id: String(row.id),
+      action: String(row.action),
+      entityType: String(row.entity_type),
+      entityId: String(row.entity_id),
       before: row.before_json ? parseJson(String(row.before_json)) : null,
       after: row.after_json ? parseJson(String(row.after_json)) : null,
       metadata: row.metadata_json ? parseJson(String(row.metadata_json)) : null,

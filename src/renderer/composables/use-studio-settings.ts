@@ -19,7 +19,9 @@ export function useStudioSettings() {
     }
   }, [])
 
-  useEffect(() => { void reload() }, [reload])
+  useEffect(() => {
+    void reload()
+  }, [reload])
 
   const update = useCallback(async (input: V2StudioSettingsUpdateInput) => {
     const next = await window.yumiV2.studioSettings.update(input)

@@ -4,7 +4,10 @@ import { registerReportIpc } from './report-ipc'
 describe('V2 报表 IPC', () => {
   it('暴露只读 V2 报表及其当前口径导出，并将导出委托给 V2 导出服务', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    const ipc = { handle: (channel: string, handler: (...args: unknown[]) => unknown) => handlers.set(channel, handler) }
+    const ipc = {
+      handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
+        handlers.set(channel, handler)
+    }
     const exporter = {
       exportCurrentReport: vi.fn(async () => ({ savedPath: '/tmp/yumi-v2.xlsx' })),
       exportOrderTable: vi.fn(async () => ({ savedPath: '/tmp/订单表.xlsx' })),
@@ -15,6 +18,8 @@ describe('V2 报表 IPC', () => {
       listCustomerOrderInsights: vi.fn(() => []),
       getCustomerOrderInsights: vi.fn(() => null),
       getOrderBusiness: vi.fn(() => ({ rows: [] })),
+      getOrderBusinessDetail: vi.fn(() => null),
+      getShippingListPreview: vi.fn(() => ({ orderCode: 'YUMI-001', items: [] })),
       getFulfillmentProgress: vi.fn(() => ({ rows: [] })),
       getCapacityRiskReport: vi.fn(() => ({ rows: [] })),
       getDeliveryRiskReport: vi.fn(() => ({ rows: [] })),
@@ -28,6 +33,8 @@ describe('V2 报表 IPC', () => {
       'v2:reports:customers:insights:list',
       'v2:reports:customers:insights:get',
       'v2:reports:orders:business',
+      'v2:reports:orders:business:detail',
+      'v2:reports:shipping-list:preview',
       'v2:reports:fulfillment:progress',
       'v2:reports:capacity-risk:get',
       'v2:reports:delivery-risk:get',
@@ -38,10 +45,26 @@ describe('V2 报表 IPC', () => {
       'v2:reports:export:order-documents',
       'v2:reports:export:shipping-list'
     ])
+    await handlers.get('v2:reports:orders:business:detail')!(undefined, 'order-1')
+    expect(reports.getOrderBusinessDetail).toHaveBeenCalledWith('order-1')
     await handlers.get('v2:reports:customers:insights:get')!(undefined, 'customer-1')
     expect(reports.getCustomerOrderInsights).toHaveBeenCalledWith('customer-1')
-    await handlers.get('v2:reports:capacity-risk:get')!(undefined, { startOn: '2026-09-10', endOn: '2026-09-12' })
-    expect(reports.getCapacityRiskReport).toHaveBeenCalledWith({ startOn: '2026-09-10', endOn: '2026-09-12' })
+    await handlers.get('v2:reports:shipping-list:preview')!(undefined, {
+      orderId: 'order-1',
+      shipmentId: 'shipment-1'
+    })
+    expect(reports.getShippingListPreview).toHaveBeenCalledWith({
+      orderId: 'order-1',
+      shipmentId: 'shipment-1'
+    })
+    await handlers.get('v2:reports:capacity-risk:get')!(undefined, {
+      startOn: '2026-09-10',
+      endOn: '2026-09-12'
+    })
+    expect(reports.getCapacityRiskReport).toHaveBeenCalledWith({
+      startOn: '2026-09-10',
+      endOn: '2026-09-12'
+    })
     await handlers.get('v2:reports:delivery-risk:get')!(undefined, { asOf: '2026-09-09' })
     expect(reports.getDeliveryRiskReport).toHaveBeenCalledWith({ asOf: '2026-09-09' })
     await handlers.get('v2:reports:monthly-operation:get')!(undefined, '2026-09')
@@ -49,10 +72,22 @@ describe('V2 报表 IPC', () => {
     await handlers.get('v2:reports:export')!(undefined, { month: '2026-09' })
     expect(exporter.exportCurrentReport).toHaveBeenCalledWith({ month: '2026-09' })
     await handlers.get('v2:reports:export:order-table')!(undefined, { orderId: 'order-1' })
-    await handlers.get('v2:reports:export:order-documents')!(undefined, { orderId: 'order-1', shipmentId: 'shipment-1' })
-    await handlers.get('v2:reports:export:shipping-list')!(undefined, { orderId: 'order-1', shipmentId: 'shipment-1' })
+    await handlers.get('v2:reports:export:order-documents')!(undefined, {
+      orderId: 'order-1',
+      shipmentId: 'shipment-1'
+    })
+    await handlers.get('v2:reports:export:shipping-list')!(undefined, {
+      orderId: 'order-1',
+      shipmentId: 'shipment-1'
+    })
     expect(exporter.exportOrderTable).toHaveBeenCalledWith({ orderId: 'order-1' })
-    expect(exporter.exportOrderDocuments).toHaveBeenCalledWith({ orderId: 'order-1', shipmentId: 'shipment-1' })
-    expect(exporter.exportShippingList).toHaveBeenCalledWith({ orderId: 'order-1', shipmentId: 'shipment-1' })
+    expect(exporter.exportOrderDocuments).toHaveBeenCalledWith({
+      orderId: 'order-1',
+      shipmentId: 'shipment-1'
+    })
+    expect(exporter.exportShippingList).toHaveBeenCalledWith({
+      orderId: 'order-1',
+      shipmentId: 'shipment-1'
+    })
   })
 })

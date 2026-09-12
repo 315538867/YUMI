@@ -267,7 +267,7 @@ describe('YUMI 基础资料按需录入', () => {
     expect(screen.queryByText('木木工作室')).not.toBeInTheDocument()
   })
 
-  it('商品可维护材料损耗与模具日产能参数，并在列表中展示计算结果', () => {
+  it('商品可维护材料损耗、两类提成与成本参数，并在列表中展示计算结果', async () => {
     mocks.products.products = [
       {
         id: 'product-1',
@@ -282,6 +282,7 @@ describe('YUMI 基础资料按需录入', () => {
         internalEdgeCostCents: 0,
         standardMakingMinutes: 30,
         makingCommissionCents: 2_000,
+        fluffingBaggingCommissionCents: 888,
         makingGlueCostCents: 0,
         glueWeightMilligrams: 500,
         unitWeightMilligrams: 20_000,
@@ -307,10 +308,39 @@ describe('YUMI 基础资料按需录入', () => {
     fireEvent.click(screen.getByRole('button', { name: '查看商品资料：羊毛杯垫' }))
     const detail = screen.getByRole('dialog', { name: '商品资料：羊毛杯垫' })
     expect(within(detail).queryByLabelText('单件材料重量（克）')).not.toBeInTheDocument()
+    expect(within(detail).getByText('制作提成')).toBeVisible()
+    expect(within(detail).getByText('捏毛装袋提成')).toBeVisible()
+    expect(within(detail).getByText('包装成本')).toBeVisible()
+    expect(within(detail).getByText('内部缝边成本')).toBeVisible()
+    expect(within(detail).queryByText(/运费/)).not.toBeInTheDocument()
     fireEvent.click(within(detail).getByRole('button', { name: '编辑商品' }))
     const editor = screen.getByRole('dialog', { name: '编辑商品：羊毛杯垫' })
     expect(editor).toBeVisible()
-    fireEvent.click(within(editor).getByRole('button', { name: '取消' }))
+    expect(within(editor).getByLabelText('制作提成（元）')).toHaveValue('20.00')
+    expect(within(editor).getByLabelText('捏毛装袋提成（元）')).toHaveValue('8.88')
+    expect(within(editor).getByLabelText('包装成本（元）')).toHaveValue('2.00')
+    expect(within(editor).getByLabelText('内部缝边成本（元）')).toHaveValue('0.00')
+    fireEvent.change(within(editor).getByLabelText('捏毛装袋提成（元）'), {
+      target: { value: '12.34' }
+    })
+    fireEvent.change(within(editor).getByLabelText('包装成本（元）'), {
+      target: { value: '5.67' }
+    })
+    fireEvent.change(within(editor).getByLabelText('内部缝边成本（元）'), {
+      target: { value: '0.5' }
+    })
+    fireEvent.click(within(editor).getByRole('button', { name: '保存商品' }))
+    await waitFor(() =>
+      expect(mocks.products.updateProduct).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'product-1',
+          makingCommissionCents: 2_000,
+          fluffingBaggingCommissionCents: 1_234,
+          packagingCostCents: 567,
+          internalEdgeCostCents: 50
+        })
+      )
+    )
 
     fireEvent.click(screen.getByRole('button', { name: '新建商品' }))
     const dialog = screen.getByRole('dialog', { name: '新建商品' })
@@ -561,5 +591,19 @@ describe('YUMI 人员时薪与动态设置', () => {
         confirmed: true
       })
     )
+  })
+})
+
+describe('设置计算公式', () => {
+  it('在独立标签完整列出当前系统已实现的计算口径与边界', async () => {
+    render(<SettingsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: '计算公式' }))
+    expect(screen.getAllByRole('heading', { name: '计算公式' })).not.toHaveLength(0)
+    const formulaTable = screen.getByRole('table', { name: '系统计算公式' })
+    expect(within(formulaTable).getAllByRole('row')).toHaveLength(31)
+    expect(screen.getAllByText('订单金额').length).toBeGreaterThan(0)
+    expect(screen.getByText('商品直接成本')).toBeVisible()
+    expect(screen.getAllByText('兼职结算').length).toBeGreaterThan(0)
+    expect(screen.getByText('不纳入订单盈利')).toBeVisible()
   })
 })

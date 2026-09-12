@@ -137,14 +137,21 @@ export function calculateQualifiedCommissionCents(tasks: QualifiedTaskCommission
 }
 
 /** 制作不合格：扣除应得提成、标准制作分钟对应时薪和胶水成本。 */
-export function calculateMakingDefectDeduction(input: MakingDefectDeductionInput): DefectDeductionResult {
+export function calculateMakingDefectDeduction(
+  input: MakingDefectDeductionInput
+): DefectDeductionResult {
   const unqualifiedQuantity = requirePositiveInteger(input.unqualifiedQuantity, '不合格数量')
   const pieceRateCents = requireNonNegativeCents(input.pieceRateCents, '制作单件提成')
-  const standardMakingMinutes = requireNonNegativeInteger(input.standardMakingMinutes, '产品标准制作分钟')
+  const standardMakingMinutes = requireNonNegativeInteger(
+    input.standardMakingMinutes,
+    '产品标准制作分钟'
+  )
   const hourlyWageCents = requireNonNegativeCents(input.hourlyWageCents, '任务时薪')
-  const glueDeductionCents = input.glueDeductionCents === undefined
-    ? unqualifiedQuantity * requireNonNegativeCents(input.glueDeductionCentsPerUnit ?? 0, '单位胶水扣款成本')
-    : requireNonNegativeCents(input.glueDeductionCents, '胶水扣款成本')
+  const glueDeductionCents =
+    input.glueDeductionCents === undefined
+      ? unqualifiedQuantity *
+        requireNonNegativeCents(input.glueDeductionCentsPerUnit ?? 0, '单位胶水扣款成本')
+      : requireNonNegativeCents(input.glueDeductionCents, '胶水扣款成本')
   const commissionDeductionCents = unqualifiedQuantity * pieceRateCents
   const hourlyWageDeductionCents = calculateHourlyWageCents(
     unqualifiedQuantity * standardMakingMinutes,
@@ -161,7 +168,9 @@ export function calculateMakingDefectDeduction(input: MakingDefectDeductionInput
 }
 
 /** 捏毛装袋不合格：按任务计划分钟与计划数量的比例扣除时薪，不扣胶水。 */
-export function calculateFluffingDefectDeduction(input: FluffingDefectDeductionInput): FluffingDefectDeductionResult {
+export function calculateFluffingDefectDeduction(
+  input: FluffingDefectDeductionInput
+): FluffingDefectDeductionResult {
   const unqualifiedQuantity = requirePositiveInteger(input.unqualifiedQuantity, '不合格数量')
   const plannedQuantity = requirePositiveInteger(input.plannedQuantity, '任务计划数量')
   if (unqualifiedQuantity > plannedQuantity) {
@@ -192,11 +201,16 @@ export function calculateFluffingDefectDeduction(input: FluffingDefectDeductionI
  * 两套参考工资共用提成、扣款和其他调整，唯有时薪由排班/考勤分钟分别计算。
  * 同一笔扣款按排班口径的扣前应发进行上限控制；各口径独立归零，避免出现负工资。
  */
-export function calculateSettlementReferenceWages(input: SettlementReferenceWageInput): SettlementReferenceWages {
+export function calculateSettlementReferenceWages(
+  input: SettlementReferenceWageInput
+): SettlementReferenceWages {
   const scheduledMinutes = requireNonNegativeInteger(input.scheduledMinutes, '排班总分钟')
   const attendanceMinutes = requireNonNegativeInteger(input.attendanceMinutes, '考勤总分钟')
   const hourlyWageCents = requireNonNegativeCents(input.hourlyWageCents, '时薪')
-  const qualifiedCommissionCents = requireNonNegativeCents(input.qualifiedCommissionCents, '合格提成')
+  const qualifiedCommissionCents = requireNonNegativeCents(
+    input.qualifiedCommissionCents,
+    '合格提成'
+  )
   const deductionCents = requireNonNegativeCents(input.deductionCents, '可扣款')
   const otherAdjustmentCents = requireSignedCents(input.otherAdjustmentCents, '其他调整')
   const scheduledHourlyWageCents = calculateHourlyWageCents(scheduledMinutes, hourlyWageCents)
@@ -216,8 +230,14 @@ export function calculateSettlementReferenceWages(input: SettlementReferenceWage
     attendanceHourlyWageCents,
     scheduledPreDeductionWageCents,
     attendancePreDeductionWageCents,
-    scheduledReferenceWageCents: Math.max(0, scheduledPreDeductionWageCents - applicableDeductionCents),
-    attendanceReferenceWageCents: Math.max(0, attendancePreDeductionWageCents - applicableDeductionCents)
+    scheduledReferenceWageCents: Math.max(
+      0,
+      scheduledPreDeductionWageCents - applicableDeductionCents
+    ),
+    attendanceReferenceWageCents: Math.max(
+      0,
+      attendancePreDeductionWageCents - applicableDeductionCents
+    )
   }
 }
 
@@ -230,7 +250,9 @@ export function calculateDefaultDeductionCapCents(scheduledPreDeductionWageCents
  * 依不合格事实的发生时间依次抵扣。不能在本期抵掉的部分原样顺延，
  * 后续服务只需将该结果持久化为扣款分配和待抵扣余额。
  */
-export function allocateDeductionsInOccurrenceOrder(input: DeductionAllocationInput): DeductionAllocationResult {
+export function allocateDeductionsInOccurrenceOrder(
+  input: DeductionAllocationInput
+): DeductionAllocationResult {
   const deductionCapCents = calculateDefaultDeductionCapCents(input.scheduledPreDeductionWageCents)
   const ids = new Set<string>()
   const orderedDeductions = input.deductions
@@ -245,7 +267,9 @@ export function allocateDeductionsInOccurrenceOrder(input: DeductionAllocationIn
         index
       }
     })
-    .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) || left.index - right.index)
+    .sort(
+      (left, right) => left.occurredAt.localeCompare(right.occurredAt) || left.index - right.index
+    )
 
   let availableCents = deductionCapCents
   const allocations = orderedDeductions.map(({ id, remainingCents }) => {
@@ -257,8 +281,14 @@ export function allocateDeductionsInOccurrenceOrder(input: DeductionAllocationIn
       carryoverCents: remainingCents - appliedCents
     }
   })
-  const totalRemainingDeductionCents = allocations.reduce((total, allocation) => total + allocation.appliedCents + allocation.carryoverCents, 0)
-  const appliedDeductionCents = allocations.reduce((total, allocation) => total + allocation.appliedCents, 0)
+  const totalRemainingDeductionCents = allocations.reduce(
+    (total, allocation) => total + allocation.appliedCents + allocation.carryoverCents,
+    0
+  )
+  const appliedDeductionCents = allocations.reduce(
+    (total, allocation) => total + allocation.appliedCents,
+    0
+  )
 
   return {
     totalRemainingDeductionCents,

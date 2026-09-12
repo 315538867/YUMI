@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import type { V2FulfillmentStage, V2NavigationTarget } from '@shared/contracts/index'
+import type { V2NavigationTarget } from '@shared/contracts/index'
 import { getErrorMessage, today } from '../../composables/v2-utils'
 import {
-  filterFulfillmentQueue,
-  getFulfillmentQueueFilterCount,
   useFulfillment,
   type FulfillmentQueueItem,
-  type FulfillmentQueueStage,
   type FulfillmentScheduledTask
 } from '../../composables/use-fulfillment'
 import { WorkAssignmentsPage } from '../work-assignments'
@@ -29,22 +26,17 @@ import {
   YumiPrimaryTabs,
   YumiRecordSummary,
   YumiSegmentedTabs,
+  YumiSection,
   YumiSelect,
   YumiTextArea,
+  YumiTextField,
   useYumiNotificationMessage
 } from '../../components/ui'
 
-type FulfillmentWorkspaceMode = 'queue' | 'processing'
+type FulfillmentWorkspaceMode = 'queue' | 'processing' | 'opening_wip'
 type FulfillmentOverview = 'orders' | 'workers'
-type ProcessingView = 'assignments' | 'opening_wip' | 'adjustment'
+type ProcessingView = 'assignments' | 'adjustment'
 
-const queueFilters: Array<{ id: FulfillmentQueueStage; label: string }> = [
-  { id: 'all', label: '全部' },
-  { id: 'making', label: '制作' },
-  { id: 'fluffing_bagging', label: '捏毛装袋' },
-  { id: 'packing', label: '打包' },
-  { id: 'ready_to_ship', label: '待发货' }
-]
 interface FulfillmentPageProps {
   navigationTarget?: Extract<V2NavigationTarget, { view: 'fulfillment' }> | null
   onNavigate?(target: V2NavigationTarget): void
@@ -62,26 +54,26 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
     selectOrder,
     createWorkAssignment,
     recordOpeningWip,
-    adjustStageQuantity
+    reassignProcessTask
   } = useFulfillment()
   const [workspaceMode, setWorkspaceMode] = useState<FulfillmentWorkspaceMode>('queue')
   const [overview, setOverview] = useState<FulfillmentOverview>('orders')
-  const [queueStage, setQueueStage] = useState<FulfillmentQueueStage>('all')
   const [assignmentPrefill, setAssignmentPrefill] = useState<DispatchPrefill | null>(null)
   const [focusedProcessTaskId, setFocusedProcessTaskId] = useState('')
   const [processingView, setProcessingView] = useState<ProcessingView>('assignments')
   const [focusedOrderItemId, setFocusedOrderItemId] = useState('')
+  const [openingOrderItemId, setOpeningOrderItemId] = useState('')
+  const [openingSearch, setOpeningSearch] = useState('')
   const [openingStage, setOpeningStage] = useState<
     'fluffing_bagging' | 'packing' | 'ready_to_ship'
   >('ready_to_ship')
   const [openingQuantity, setOpeningQuantity] = useState('')
   const [openingOccurredOn, setOpeningOccurredOn] = useState(today())
   const [openingNote, setOpeningNote] = useState('')
-  const [adjustmentSource, setAdjustmentSource] = useState('')
-  const [adjustmentTarget, setAdjustmentTarget] = useState('')
-  const [adjustmentQuantity, setAdjustmentQuantity] = useState('')
-  const [adjustmentOccurredOn, setAdjustmentOccurredOn] = useState(today())
-  const [adjustmentNote, setAdjustmentNote] = useState('')
+  const [reassignmentTaskId, setReassignmentTaskId] = useState('')
+  const [reassignmentWorkerId, setReassignmentWorkerId] = useState('')
+  const [reassignmentEffectiveOn, setReassignmentEffectiveOn] = useState(today())
+  const [reassignmentReason, setReassignmentReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   useYumiNotificationMessage(loadError)
   useYumiNotificationMessage(error)
@@ -126,22 +118,33 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
     if (!selectedOrder || !focusedOrderItem) return selectedOrder
     return { ...selectedOrder, items: [focusedOrderItem] }
   }, [focusedOrderItem, selectedOrder])
-  const filteredQueueItems = useMemo(
-    () => filterFulfillmentQueue(queueItems, queueStage),
-    [queueItems, queueStage]
-  )
-  const filterCounts = useMemo(
+  const scheduleTotals = useMemo(
     () =>
-      new Map(
-        queueFilters.map((filter) => [
-          filter.id,
-          getFulfillmentQueueFilterCount(queueItems, filter.id)
-        ])
+      queueItems.reduce(
+        (totals, item) => ({
+          confirmed: totals.confirmed + item.confirmedQuantity,
+          making: totals.making + item.stages.making,
+          packing: totals.packing + item.stages.packing,
+          readyToShip: totals.readyToShip + item.stages.readyToShip,
+          shipped: totals.shipped + item.stages.shipped
+        }),
+        { confirmed: 0, making: 0, packing: 0, readyToShip: 0, shipped: 0 }
       ),
     [queueItems]
   )
+  const openingOrderItem =
+    queueItems.find((item) => item.orderItemId === openingOrderItemId) ?? null
+  const openingCandidates = useMemo(() => {
+    const keyword = openingSearch.trim().toLowerCase()
+    if (!keyword) return queueItems
+    return queueItems.filter((item) =>
+      [item.orderCode, item.customerName, item.productName].some((value) =>
+        value.toLowerCase().includes(keyword)
+      )
+    )
+  }, [openingSearch, queueItems])
 
-  const openQueueItem = (item: FulfillmentQueueItem, stage: ActionableQueueStage) => {
+  const openQueueItem = (item: FulfillmentQueueItem, stage: FulfillmentScheduledTask['stage']) => {
     if (stage === 'ready_to_ship') {
       onNavigate?.({ view: 'orders', orderId: item.orderId, orderView: 'fulfillment' })
       return
@@ -159,7 +162,16 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
     setWorkspaceMode('queue')
     setFocusedOrderItemId('')
     setFocusedProcessTaskId('')
+    setOpeningOrderItemId('')
+    setOpeningSearch('')
     void selectOrder('')
+  }
+
+  const openOpeningWip = () => {
+    setError(null)
+    setWorkspaceMode('opening_wip')
+    setOpeningOrderItemId('')
+    setOpeningSearch('')
   }
 
   const openTask = (item: FulfillmentQueueItem, task: FulfillmentScheduledTask) => {
@@ -178,19 +190,23 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
 
   const handleOpeningWip = async (event: FormEvent) => {
     event.preventDefault()
-    if (!focusedItemId) return
+    if (!openingOrderItem) {
+      setError('请先选择需要承接期初在制品的订单商品。')
+      return
+    }
     setError(null)
     setSubmitting('opening')
     try {
       await recordOpeningWip({
-        orderItemId: focusedItemId,
+        orderItemId: openingOrderItem.orderItemId,
         targetStage: openingStage,
         quantity: Number(openingQuantity),
         occurredOn: openingOccurredOn,
-        note: openingNote
+        note: openingNote || undefined
       })
       setOpeningQuantity('')
       setOpeningNote('')
+      returnToQueue()
     } catch (cause) {
       setError(getErrorMessage(cause))
     } finally {
@@ -198,27 +214,180 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
     }
   }
 
-  const handleAdjustment = async (event: FormEvent) => {
+  const reassignableTasks = useMemo(
+    () =>
+      queueItems
+        .flatMap((item) =>
+          Object.values(item.stageSchedules).flatMap((schedule) =>
+            schedule.tasks
+              .filter((task) => task.status === 'pending')
+              .map((task) => ({ ...task, item }))
+          )
+        )
+        .filter((entry) => entry.item.orderItemId === focusedItemId),
+    [focusedItemId, queueItems]
+  )
+  const focusedReassignmentTask =
+    reassignableTasks.find((entry) => entry.taskId === reassignmentTaskId) ??
+    reassignableTasks.find((entry) => entry.taskId === focusedProcessTaskId) ??
+    reassignableTasks[0] ??
+    null
+  const reassignmentWorkers = workers.filter(
+    (worker) => worker.enabled && worker.id !== focusedReassignmentTask?.workerId
+  )
+
+  const handleReassignment = async (event: FormEvent) => {
     event.preventDefault()
-    if (!focusedItemId) return
+    if (!focusedReassignmentTask) {
+      setError('当前订单商品没有可调整负责人的待处理任务。')
+      return
+    }
     setError(null)
-    setSubmitting('adjustment')
+    setSubmitting('reassignment')
     try {
-      await adjustStageQuantity({
-        orderItemId: focusedItemId,
-        quantity: Number(adjustmentQuantity),
-        sourceStage: (adjustmentSource as V2FulfillmentStage) || null,
-        targetStage: (adjustmentTarget as V2FulfillmentStage) || null,
-        occurredOn: adjustmentOccurredOn,
-        note: adjustmentNote
+      await reassignProcessTask(focusedReassignmentTask.taskId, {
+        workerId: reassignmentWorkerId,
+        effectiveOn: reassignmentEffectiveOn,
+        reason: reassignmentReason
       })
-      setAdjustmentQuantity('')
-      setAdjustmentNote('')
+      setReassignmentTaskId('')
+      setReassignmentWorkerId('')
+      setReassignmentReason('')
+      await selectOrder(focusedReassignmentTask.item.orderId)
     } catch (cause) {
       setError(getErrorMessage(cause))
     } finally {
       setSubmitting(null)
     }
+  }
+
+  if (workspaceMode === 'opening_wip') {
+    return (
+      <section className="yumi-page fulfillment-workspace">
+        <YumiPageHeader
+          actions={{
+            ariaLabel: '期初在制品页面动作',
+            secondaryAction: {
+              label: '返回排班队列',
+              onClick: returnToQueue,
+              variant: 'ghost'
+            }
+          }}
+          description="系统中途启用时，将已经开始生产、但尚未走完流程的订单商品一次性登记到实际阶段。"
+          title="补录期初在制品"
+        />
+        <YumiSection
+          ariaLabel="选择对应订单商品"
+          description="先搜索并选择需要承接这批在制品的订单商品；不是从当前订单详情继承上下文。"
+          title="1. 选择对应订单商品"
+        >
+          <YumiField>
+            <YumiFieldLabel>搜索订单号、客户或商品</YumiFieldLabel>
+            <YumiTextField
+              aria-label="搜索订单号、客户或商品"
+              onChange={(event) => setOpeningSearch(event.target.value)}
+              placeholder="搜索订单号、客户或商品"
+              value={openingSearch}
+            />
+          </YumiField>
+          <div className="yumi-opening-wip__candidates" role="list">
+            {openingCandidates.map((item) => {
+              const selected = item.orderItemId === openingOrderItemId
+              return (
+                <article
+                  className="yumi-opening-wip__candidate"
+                  key={item.orderItemId}
+                  role="listitem"
+                >
+                  <div>
+                    <strong>{item.orderCode}</strong>
+                    <span>{item.customerName}</span>
+                  </div>
+                  <div>
+                    <strong>{item.productName}</strong>
+                    <span>确认 {item.confirmedQuantity} 件</span>
+                  </div>
+                  <YumiButton
+                    aria-pressed={selected}
+                    onClick={() => setOpeningOrderItemId(item.orderItemId)}
+                    variant={selected ? 'primary' : 'secondary'}
+                  >
+                    {selected ? '已选择' : `选择：${item.productName}`}
+                  </YumiButton>
+                </article>
+              )
+            })}
+          </div>
+          <p className="yumi-section__hint">
+            订单商品仅用于归属和后续交期、发货闭环；入口本身是工作室级的初始化工具。
+          </p>
+        </YumiSection>
+        <form className="yumi-form-panel" onSubmit={handleOpeningWip}>
+          <YumiFormSection
+            description="只登记期初状态；正常派工、质检与发货仍通过后续排班任务和订单详情处理。"
+            title="2. 登记当前实际阶段"
+          >
+            <div className="yumi-form-grid yumi-form-grid--two">
+              <YumiField>
+                <YumiFieldLabel>已选订单商品</YumiFieldLabel>
+                <p className="yumi-field__static">
+                  {openingOrderItem
+                    ? `${openingOrderItem.customerName} / ${openingOrderItem.productName}`
+                    : '请先选择订单商品'}
+                </p>
+              </YumiField>
+              <YumiField>
+                <YumiFieldLabel required>目标阶段</YumiFieldLabel>
+                <YumiSelect
+                  aria-label="期初在制品目标阶段"
+                  onValueChange={(value) => setOpeningStage(value as typeof openingStage)}
+                  options={[
+                    { value: 'fluffing_bagging', label: '捏毛装袋' },
+                    { value: 'packing', label: '待打包' },
+                    { value: 'ready_to_ship', label: '待发货' }
+                  ]}
+                  value={openingStage}
+                />
+              </YumiField>
+              <YumiField>
+                <YumiFieldLabel required>期初数量</YumiFieldLabel>
+                <YumiNumberField
+                  aria-label="期初数量"
+                  min="1"
+                  onChange={(event) => setOpeningQuantity(event.target.value)}
+                  required
+                  value={openingQuantity}
+                />
+              </YumiField>
+              <YumiField>
+                <YumiFieldLabel required>登记日期</YumiFieldLabel>
+                <YumiDatePicker
+                  aria-label="期初在制品登记日期"
+                  onValueChange={setOpeningOccurredOn}
+                  value={openingOccurredOn}
+                />
+              </YumiField>
+            </div>
+            <YumiField>
+              <YumiFieldLabel>备注</YumiFieldLabel>
+              <YumiTextArea
+                onChange={(event) => setOpeningNote(event.target.value)}
+                placeholder="例如：系统启用前已完成制作，现处于捏毛装袋阶段"
+                value={openingNote}
+              />
+            </YumiField>
+            <p className="yumi-section__hint">
+              登记成功后，数量会回到该订单商品的排班队列；不会被当作新的订单商品或独立库存。
+            </p>
+            <div className="yumi-form-actions">
+              <YumiButton loading={submitting === 'opening'} type="submit" variant="primary">
+                {submitting === 'opening' ? '登记中…' : '登记期初在制品'}
+              </YumiButton>
+            </div>
+          </YumiFormSection>
+        </form>
+      </section>
+    )
   }
 
   if (workspaceMode === 'processing' && selectedOrder && focusedOrderItem) {
@@ -233,8 +402,18 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
               variant: 'ghost'
             }
           }}
-          description={`${selectedOrder.code} · ${selectedOrder.customerSnapshot.name}`}
-          title={`${focusedOrderItem.productSnapshot.name} · 排班处理`}
+          description={`${selectedOrder.code} · ${focusedOrderItem.productSnapshot.name} · ${
+            focusedReassignmentTask?.stage === 'making'
+              ? '制作'
+              : focusedReassignmentTask?.stage === 'fluffing_bagging'
+                ? '捏毛装袋'
+                : focusedReassignmentTask?.stage === 'packing'
+                  ? '打包'
+                  : focusedReassignmentTask?.stage === 'ready_to_ship'
+                    ? '发货'
+                    : '订单商品'
+          } · ${focusedReassignmentTask?.plannedQuantity ?? focusedOrderItem.quantity} 件`}
+          title="任务处理"
         />
         <YumiRecordSummary
           ariaLabel="当前产品排班摘要"
@@ -257,7 +436,6 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
           ariaLabel="排班处理操作"
           items={[
             { id: 'assignments', label: '工作安排与质检' },
-            { id: 'opening_wip', label: '补录期初在制品' },
             { id: 'adjustment', label: '负责人调整' }
           ]}
           onValueChange={setProcessingView}
@@ -273,126 +451,100 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
             }}
           />
         )}
-        {processingView === 'opening_wip' && (
-          <form className="yumi-form-panel" onSubmit={handleOpeningWip}>
-            <YumiFormSection
-              title="期初在制品"
-              description="系统中途启用时，将当前产品已完成但尚未走完流程的数量，一次性登记到实际阶段。"
-            >
-              <div className="yumi-form-grid yumi-form-grid--two">
-                <YumiField>
-                  <YumiFieldLabel>当前产品</YumiFieldLabel>
-                  <p className="yumi-field__static">{focusedOrderItem.productSnapshot.name}</p>
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel required>目标阶段</YumiFieldLabel>
-                  <YumiSelect
-                    aria-label="期初在制品目标阶段"
-                    onValueChange={(value) => setOpeningStage(value as typeof openingStage)}
-                    options={[
-                      { value: 'fluffing_bagging', label: '捏毛装袋' },
-                      { value: 'packing', label: '待打包' },
-                      { value: 'ready_to_ship', label: '待发货' }
-                    ]}
-                    value={openingStage}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel required>数量</YumiFieldLabel>
-                  <YumiNumberField
-                    min="1"
-                    onChange={(event) => setOpeningQuantity(event.target.value)}
-                    required
-                    value={openingQuantity}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel required>登记日期</YumiFieldLabel>
-                  <YumiDatePicker
-                    aria-label="期初在制品登记日期"
-                    onValueChange={setOpeningOccurredOn}
-                    value={openingOccurredOn}
-                  />
-                </YumiField>
-              </div>
-              <YumiField>
-                <YumiFieldLabel>备注</YumiFieldLabel>
-                <YumiTextArea
-                  onChange={(event) => setOpeningNote(event.target.value)}
-                  value={openingNote}
-                />
-              </YumiField>
-              <div className="yumi-form-actions">
-                <YumiButton loading={submitting === 'opening'} type="submit" variant="primary">
-                  {submitting === 'opening' ? '登记中…' : '登记期初在制品'}
-                </YumiButton>
-              </div>
-            </YumiFormSection>
-          </form>
-        )}
         {processingView === 'adjustment' && (
-          <form className="yumi-form-panel" onSubmit={handleAdjustment}>
+          <form className="yumi-form-panel" onSubmit={handleReassignment}>
             <YumiFormSection
-              title="负责人数量调整"
-              description="用于售后退回、盘点修正等无法预先穷尽的情况，必须留下说明。"
+              title="当前安排"
+              description="调整只影响未结算的后续处理；历史处理记录继续保留。"
             >
-              <div className="yumi-form-grid yumi-form-grid--two">
-                <YumiField>
-                  <YumiFieldLabel>当前产品</YumiFieldLabel>
-                  <p className="yumi-field__static">{focusedOrderItem.productSnapshot.name}</p>
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel>来源阶段</YumiFieldLabel>
-                  <YumiSelect
-                    aria-label="来源阶段"
-                    onValueChange={setAdjustmentSource}
-                    options={[{ value: '', label: '无（增加）' }, ...adjustmentStages]}
-                    placeholder="无（增加）"
-                    value={adjustmentSource}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel>目标阶段</YumiFieldLabel>
-                  <YumiSelect
-                    aria-label="目标阶段"
-                    onValueChange={setAdjustmentTarget}
-                    options={[{ value: '', label: '无（减少）' }, ...adjustmentStages]}
-                    placeholder="无（减少）"
-                    value={adjustmentTarget}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel required>数量</YumiFieldLabel>
-                  <YumiNumberField
-                    min="1"
-                    onChange={(event) => setAdjustmentQuantity(event.target.value)}
-                    required
-                    value={adjustmentQuantity}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel required>调整日期</YumiFieldLabel>
-                  <YumiDatePicker
-                    aria-label="负责人调整日期"
-                    onValueChange={setAdjustmentOccurredOn}
-                    value={adjustmentOccurredOn}
-                  />
-                </YumiField>
-              </div>
-              <YumiField>
-                <YumiFieldLabel required>调整说明</YumiFieldLabel>
-                <YumiTextArea
-                  onChange={(event) => setAdjustmentNote(event.target.value)}
-                  required
-                  value={adjustmentNote}
+              {focusedReassignmentTask ? (
+                <div className="yumi-form-grid yumi-form-grid--two">
+                  <YumiField>
+                    <YumiFieldLabel>原负责人</YumiFieldLabel>
+                    <p className="yumi-field__static">{focusedReassignmentTask.workerName}</p>
+                  </YumiField>
+                  <YumiField>
+                    <YumiFieldLabel>待处理数量</YumiFieldLabel>
+                    <p className="yumi-field__static">
+                      {focusedReassignmentTask.plannedQuantity} 件
+                    </p>
+                  </YumiField>
+                  <YumiField>
+                    <YumiFieldLabel>已确认完成</YumiFieldLabel>
+                    <p className="yumi-field__static">0 件</p>
+                  </YumiField>
+                  <YumiField>
+                    <YumiFieldLabel>当前状态</YumiFieldLabel>
+                    <p className="yumi-field__static">待处理</p>
+                  </YumiField>
+                </div>
+              ) : (
+                <YumiEmptyState
+                  description="请从订单队列或人员周历进入一项尚未提交完成结果的任务。"
+                  title="没有可调整的待处理任务"
                 />
-              </YumiField>
-              <div className="yumi-form-actions">
-                <YumiButton loading={submitting === 'adjustment'} type="submit" variant="primary">
-                  {submitting === 'adjustment' ? '调整中…' : '保存负责人调整'}
-                </YumiButton>
-              </div>
+              )}
             </YumiFormSection>
+            {focusedReassignmentTask ? (
+              <YumiFormSection
+                title="调整负责人"
+                description="选择新的负责人并写明原因；系统会校验任务状态并保留原安排。"
+              >
+                <div className="yumi-form-grid yumi-form-grid--two">
+                  <YumiField>
+                    <YumiFieldLabel required>待调整任务</YumiFieldLabel>
+                    <YumiSelect
+                      aria-label="待调整任务"
+                      onValueChange={setReassignmentTaskId}
+                      options={reassignableTasks.map((entry) => ({
+                        value: entry.taskId,
+                        label: `${entry.item.productName} · ${entry.workerName} · ${entry.plannedQuantity} 件`
+                      }))}
+                      value={focusedReassignmentTask.taskId}
+                    />
+                  </YumiField>
+                  <YumiField>
+                    <YumiFieldLabel required>新负责人</YumiFieldLabel>
+                    <YumiSelect
+                      aria-label="新负责人"
+                      onValueChange={setReassignmentWorkerId}
+                      options={reassignmentWorkers.map((worker) => ({
+                        value: worker.id,
+                        label: worker.name
+                      }))}
+                      placeholder="选择负责人"
+                      value={reassignmentWorkerId}
+                    />
+                  </YumiField>
+                  <YumiField>
+                    <YumiFieldLabel required>生效日期</YumiFieldLabel>
+                    <YumiDatePicker
+                      aria-label="负责人调整生效日期"
+                      onValueChange={setReassignmentEffectiveOn}
+                      value={reassignmentEffectiveOn}
+                    />
+                  </YumiField>
+                </div>
+                <YumiField>
+                  <YumiFieldLabel required>调整原因</YumiFieldLabel>
+                  <YumiTextArea
+                    aria-label="调整原因"
+                    onChange={(event) => setReassignmentReason(event.target.value)}
+                    required
+                    value={reassignmentReason}
+                  />
+                </YumiField>
+                <div className="yumi-form-actions">
+                  <YumiButton
+                    loading={submitting === 'reassignment'}
+                    type="submit"
+                    variant="primary"
+                  >
+                    {submitting === 'reassignment' ? '调整中…' : '确认调整'}
+                  </YumiButton>
+                </div>
+              </YumiFormSection>
+            ) : null}
           </form>
         )}
       </section>
@@ -401,7 +553,29 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
 
   return (
     <section className="yumi-page fulfillment-workspace">
-      <YumiPageHeader description="按订单查看待派与已派，或按人员横向查看本周任务。" title="排班" />
+      <YumiPageHeader
+        actions={{
+          ariaLabel: '排班页面动作',
+          visibleActions: [{ label: '导出排班', onClick: () => undefined }],
+          primaryAction: { label: '补录期初在制品', onClick: openOpeningWip }
+        }}
+        description={
+          overview === 'workers'
+            ? '人员周视图与订单队列共用同一批任务；点击任务进入该任务的处理上下文。'
+            : '按订单查看待派与已派，或按人员横向查看本周任务。'
+        }
+        title="排班"
+      />
+      <YumiMetricStrip
+        ariaLabel="排班阶段总量"
+        items={[
+          { label: '订单总量', value: `${scheduleTotals.confirmed} 件` },
+          { label: '制作', value: `${scheduleTotals.making} 件` },
+          { label: '已发货', value: `${scheduleTotals.shipped} 件` },
+          { label: '打包', value: `${scheduleTotals.packing} 件` },
+          { label: '待发货', tone: 'brand', value: `${scheduleTotals.readyToShip} 件` }
+        ]}
+      />
       {loading ? (
         <YumiEmptyState
           description="排班资料正在读取，请稍候。"
@@ -410,7 +584,7 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
         />
       ) : (
         <>
-          <YumiPrimaryTabs
+          <YumiSegmentedTabs
             ariaLabel="排班视角"
             items={[
               { id: 'orders', label: '订单视角' },
@@ -421,39 +595,19 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
           />
           {overview === 'orders' ? (
             <>
-              <YumiSegmentedTabs
-                ariaLabel="阶段筛选"
-                items={queueFilters.map((filter) => ({
-                  id: filter.id,
-                  label: `${filter.label} ${filterCounts.get(filter.id) ?? 0}`
-                }))}
-                onValueChange={setQueueStage}
-                value={queueStage}
-              />
-              {filteredQueueItems.length === 0 ? (
+              {queueItems.length === 0 ? (
                 <YumiEmptyState
-                  action={
-                    queueStage === 'all' ? undefined : (
-                      <YumiButton onClick={() => setQueueStage('all')} variant="secondary">
-                        查看全部待办
-                      </YumiButton>
-                    )
-                  }
-                  description={
-                    queueStage === 'all'
-                      ? '创建订单后，待处理产品会自动出现在这里。'
-                      : `当前没有${queueFilters.find((filter) => filter.id === queueStage)?.label ?? ''}阶段的待办，可切换查看其他阶段。`
-                  }
-                  scenario={queueStage === 'all' ? 'first-use' : 'filter'}
-                  title={queueStage === 'all' ? '暂无待处理排班产品' : '此阶段暂无待办'}
+                  description="创建订单后，待处理产品会自动出现在这里。"
+                  scenario="first-use"
+                  title="暂无待处理排班产品"
                 />
               ) : (
                 <OrderDispatchBoard
-                  items={filteredQueueItems}
+                  items={queueItems}
                   onOpenAssignment={openAssignment}
                   onOpenItem={openQueueItem}
                   onOpenTask={openTask}
-                  stage={queueStage}
+                  stage="all"
                 />
               )}
             </>

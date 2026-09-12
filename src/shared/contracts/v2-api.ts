@@ -1,5 +1,17 @@
-import type { V2AttachmentReference, V2BackupRestoreInput, V2BackupRestoreResult, V2BackupSummary, V2OrderFundProof, V2OrderFundProofOpenResult } from './common'
-import type { V2Customer, V2CustomerInput, V2CustomerQuery, V2CustomerUpdateInput } from './customers'
+import type {
+  V2AttachmentReference,
+  V2BackupRestoreInput,
+  V2BackupRestoreResult,
+  V2BackupSummary,
+  V2OrderFundProof,
+  V2OrderFundProofOpenResult
+} from './common'
+import type {
+  V2Customer,
+  V2CustomerInput,
+  V2CustomerQuery,
+  V2CustomerUpdateInput
+} from './customers'
 import type {
   V2Order,
   V2OrderContentChange,
@@ -17,29 +29,69 @@ import type { V2Product, V2ProductInput, V2ProductUpdateInput } from './products
 import type { V2StudioSettings, V2StudioSettingsUpdateInput } from './settings'
 import type { V2WorkbenchSnapshot } from './workbench'
 import type {
-  V2AdvancePayer, V2AdvancePayerCreateInput, V2AdvancePayerUpdateInput, V2BatchReimbursementInput,
-  V2BatchReimbursementResult, V2FinanceCategory, V2FinanceCategoryCreateInput, V2FinanceCategoryUpdateInput,
-  V2FinanceDirection, V2FinanceEntryQuery, V2FinancialEntry, V2ManualExpenseInput, V2ManualIncomeInput,
-  V2MonthlyFinanceSummary, V2PendingReimbursement, V2ReimbursementInput
+  V2AdvancePayer,
+  V2AdvancePayerCreateInput,
+  V2AdvancePayerUpdateInput,
+  V2BatchReimbursementInput,
+  V2BatchReimbursementResult,
+  V2FinanceCategory,
+  V2FinanceCategoryCreateInput,
+  V2FinanceCategoryUpdateInput,
+  V2FinanceDirection,
+  V2FinanceEntryQuery,
+  V2FinancialEntry,
+  V2ManualExpenseInput,
+  V2ManualIncomeInput,
+  V2MonthlyFinanceSummary,
+  V2PendingReimbursement,
+  V2ReimbursementInput
 } from './finance'
 import type {
-  V2AfterSalesCase, V2AfterSalesCaseCreateInput, V2AfterSalesCaseQuery,
-  V2AfterSalesCaseUpdateInput, V2AfterSalesChargeLink
+  V2AfterSalesCase,
+  V2AfterSalesCaseCreateInput,
+  V2AfterSalesCaseQuery,
+  V2AfterSalesCaseUpdateInput,
+  V2AfterSalesChargeLink
 } from './after-sales'
 import type {
-  V2FulfillmentAdjustmentInput, V2OpeningWipInput, V2OrderItemFulfillment, V2ProcessResult,
-  V2ProcessResultInput, V2QualityInspection, V2QualityInspectionInput, V2WorkAssignment,
-  V2WorkAssignmentCreateInput, V2WorkAssignmentQuery
+  V2FulfillmentAdjustmentInput,
+  V2OpeningWipInput,
+  V2OrderItemFulfillment,
+  V2ProcessResult,
+  V2ProcessResultInput,
+  V2QualityInspection,
+  V2QualityInspectionInput,
+  V2WorkAssignment,
+  V2WorkAssignmentCreateInput,
+  V2WorkAssignmentQuery
 } from './fulfillment'
 import type {
-  V2Worker, V2WorkerCreateInput, V2WorkerSettlementDetail, V2WorkerSettlementCreateInput,
-  V2WorkerSettlementDraftUpdateInput, V2WorkerSettlementQuery, V2WorkerWageHistory,
-  V2WorkerWageHistoryInput, V2WorkerRefundQuery, V2WorkerRefundRecord, V2WorkerRefundResolveInput
+  V2Worker,
+  V2WorkerCreateInput,
+  V2WorkerSettlementDetail,
+  V2WorkerSettlementCreateInput,
+  V2WorkerSettlementDraftUpdateInput,
+  V2WorkerSettlementQuery,
+  V2WorkerWageHistory,
+  V2WorkerWageHistoryInput,
+  V2WorkerRefundQuery,
+  V2WorkerRefundRecord,
+  V2WorkerRefundResolveInput
 } from './settlements'
 import type {
-  V2CapacityRiskReport, V2CapacityRiskReportInput, V2ConfirmedSettlementReport, V2CustomerOrderInsights, V2FulfillmentProgressReport,
-  V2MonthlyOperationReport, V2OrderBusinessReport, V2ReportExportInput, V2ReportExportResult,
-  V2ShippingListExportInput
+  V2CapacityRiskReport,
+  V2CapacityRiskReportInput,
+  V2ConfirmedSettlementReport,
+  V2CustomerOrderInsights,
+  V2FulfillmentProgressReport,
+  V2MonthlyOperationReport,
+  V2OrderBusinessDetail,
+  V2OrderBusinessReport,
+  V2ReportExportInput,
+  V2ReportExportResult,
+  V2ShippingListExportInput,
+  V2ShippingListPreviewInput,
+  V2ShippingListDocument
 } from './reports'
 
 /** V2 预加载层唯一向渲染进程暴露的能力边界。 */
@@ -70,10 +122,17 @@ export interface V2YumiApi {
     listContentChanges(orderId: string): Promise<V2OrderContentChange[]>
     listFunds(orderId: string): Promise<V2OrderFund[]>
     recordFund(orderId: string, input: V2OrderFundInput): Promise<V2OrderFund>
-    correctFund(orderId: string, input: V2OrderFundCorrectionInput): Promise<{ reversal: V2OrderFund; replacement: V2OrderFund }>
+    correctFund(
+      orderId: string,
+      input: V2OrderFundCorrectionInput
+    ): Promise<{ reversal: V2OrderFund; replacement: V2OrderFund }>
     listShipments(orderId: string): Promise<V2Shipment[]>
     createShipment(orderId: string, input: V2ShipmentInput): Promise<V2Shipment>
-    voidShipment(orderId: string, shipmentId: string, input: V2ShipmentVoidInput): Promise<V2Shipment>
+    voidShipment(
+      orderId: string,
+      shipmentId: string,
+      input: V2ShipmentVoidInput
+    ): Promise<V2Shipment>
   }
   orderFundProofs: {
     pick(): Promise<V2AttachmentReference | null>
@@ -84,11 +143,18 @@ export interface V2YumiApi {
   }
   fulfillment: {
     createWorkAssignment(input: V2WorkAssignmentCreateInput): Promise<V2WorkAssignment>
+    reassignProcessTask(
+      taskId: string,
+      input: V2ProcessTaskReassignmentInput
+    ): Promise<V2WorkAssignment>
     getWorkAssignment(id: string): Promise<V2WorkAssignment | null>
     listWorkAssignments(query?: V2WorkAssignmentQuery): Promise<V2WorkAssignment[]>
     getProcessResultForTask(taskId: string): Promise<V2ProcessResult | null>
     submitProcessResult(taskId: string, input: V2ProcessResultInput): Promise<V2ProcessResult>
-    confirmQualityInspection(resultId: string, input: V2QualityInspectionInput): Promise<V2QualityInspection>
+    confirmQualityInspection(
+      resultId: string,
+      input: V2QualityInspectionInput
+    ): Promise<V2QualityInspection>
     recordOpeningWip(input: V2OpeningWipInput): Promise<V2OrderItemFulfillment>
     adjustStageQuantity(input: V2FulfillmentAdjustmentInput): Promise<V2OrderItemFulfillment>
     getOrderItem(orderItemId: string): Promise<V2OrderItemFulfillment>
@@ -103,13 +169,19 @@ export interface V2YumiApi {
     list(query?: V2WorkerSettlementQuery): Promise<V2WorkerSettlementDetail[]>
     createDraft(input: V2WorkerSettlementCreateInput): Promise<V2WorkerSettlementDetail>
     get(id: string): Promise<V2WorkerSettlementDetail | null>
-    updateDraft(id: string, input: V2WorkerSettlementDraftUpdateInput): Promise<V2WorkerSettlementDetail>
+    updateDraft(
+      id: string,
+      input: V2WorkerSettlementDraftUpdateInput
+    ): Promise<V2WorkerSettlementDetail>
     confirm(id: string): Promise<V2WorkerSettlementDetail>
     listRefunds(query?: V2WorkerRefundQuery): Promise<V2WorkerRefundRecord[]>
     resolveRefund(id: string, input: V2WorkerRefundResolveInput): Promise<V2WorkerRefundRecord>
   }
   finance: {
-    listCategories(direction?: V2FinanceDirection, includeDisabled?: boolean): Promise<V2FinanceCategory[]>
+    listCategories(
+      direction?: V2FinanceDirection,
+      includeDisabled?: boolean
+    ): Promise<V2FinanceCategory[]>
     createCategory(input: V2FinanceCategoryCreateInput): Promise<V2FinanceCategory>
     updateCategory(id: string, input: V2FinanceCategoryUpdateInput): Promise<V2FinanceCategory>
     deleteCategory(id: string): Promise<void>
@@ -136,6 +208,8 @@ export interface V2YumiApi {
     listCustomerOrderInsights(): Promise<V2CustomerOrderInsights[]>
     getCustomerOrderInsights(customerId: string): Promise<V2CustomerOrderInsights | null>
     getOrderBusiness(): Promise<V2OrderBusinessReport>
+    getOrderBusinessDetail(orderId: string): Promise<V2OrderBusinessDetail | null>
+    getShippingListPreview(input: V2ShippingListPreviewInput): Promise<V2ShippingListDocument>
     getFulfillmentProgress(): Promise<V2FulfillmentProgressReport>
     getCapacityRiskReport(input: V2CapacityRiskReportInput): Promise<V2CapacityRiskReport>
     getDeliveryRiskReport(input: V2DeliveryRiskReportInput): Promise<V2DeliveryRiskReport>

@@ -32,9 +32,7 @@ function requirePositiveInteger(value: number, label: string): void {
   }
 }
 
-export function validateProductMaterialAndCapacity(
-  input: ProductMaterialAndCapacityInput
-): void {
+export function validateProductMaterialAndCapacity(input: ProductMaterialAndCapacityInput): void {
   requireNonNegativeInteger(input.unitWeightMilligrams, '单件材料重量')
   requireNonNegativeInteger(input.materialLossRateBasisPoints, '损耗率')
   if (input.materialLossRateBasisPoints >= BASIS_POINTS_PER_RATE) {
@@ -50,7 +48,8 @@ export function validateProductMaterialAndCapacity(
       ['模具数量', input.moldCount],
       ['每模每批产出', input.outputPerMoldPerBatch],
       ['每日批次数', input.maxBatchesPerDay]
-    ] as const) requireNonNegativeInteger(value, label)
+    ] as const)
+      requireNonNegativeInteger(value, label)
   }
 }
 

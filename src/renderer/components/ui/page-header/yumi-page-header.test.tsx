@@ -74,6 +74,10 @@ describe('YumiPageActions', () => {
         }}
         primaryAction={{ label: '编辑订单', onClick: onEdit }}
         secondaryAction={{ label: '导出订单表', onClick: onExport }}
+        visibleActions={[
+          { label: '返回订单列表', onClick: vi.fn(), variant: 'ghost' },
+          { label: '导出发货汇总', onClick: vi.fn() }
+        ]}
       />
     )
 
@@ -83,7 +87,9 @@ describe('YumiPageActions', () => {
       within(group)
         .getAllByRole('button')
         .map((button) => button.textContent)
-    ).toEqual(['导出订单表', '更多操作', '编辑订单'])
+    ).toEqual(['导出订单表', '返回订单列表', '导出发货汇总', '更多操作', '编辑订单'])
+    expect(within(group).getByRole('button', { name: '返回订单列表' })).toBeVisible()
+    expect(within(group).getByRole('button', { name: '导出发货汇总' })).toBeVisible()
 
     const editButton = within(group).getByRole('button', { name: '编辑订单' })
     expect(editButton).toHaveAttribute('data-variant', 'primary')
@@ -116,5 +122,23 @@ describe('YumiPageHeader', () => {
     expect(screen.getByRole('heading', { name: '客户' })).toBeVisible()
     expect(screen.getByRole('group', { name: '客户页面动作' })).toBeVisible()
     expect(screen.getByRole('button', { name: '新建客户' })).toBeVisible()
+  })
+
+  it('将实体编号作为标题旁的次级元数据，不挤占页头主信息', () => {
+    render(
+      <YumiPageHeader
+        description="罗小雨 · 查看订单内容、排班、发货、资金、盈利与售后记录。"
+        meta="订单编号 YUMI-20260909-40DA4997"
+        title="订单详情"
+      />
+    )
+
+    expect(screen.getByRole('heading', { name: '订单详情' })).toBeVisible()
+    expect(screen.getByText('订单编号 YUMI-20260909-40DA4997')).toHaveClass(
+      'yumi-page-header__meta'
+    )
+    expect(
+      screen.getByText('罗小雨 · 查看订单内容、排班、发货、资金、盈利与售后记录。')
+    ).toBeVisible()
   })
 })

@@ -15,6 +15,7 @@ describe('YUMI 标签层级', () => {
       <>
         <YumiPrimaryTabs
           ariaLabel="设置区域"
+          density="comfortable"
           items={[
             { id: 'studio', label: '工作室参数' },
             { id: 'finance', label: '财务资料' }
@@ -36,8 +37,8 @@ describe('YUMI 标签层级', () => {
 
     const primary = screen.getByRole('navigation', { name: '设置区域' })
     const secondary = screen.getByRole('navigation', { name: '财务资料类型' })
-    expect(primary).toHaveClass('yumi-primary-tabs')
-    expect(secondary).toHaveClass('yumi-segmented-tabs')
+    expect(primary).toHaveClass('yumi-primary-tabs', 'yumi-primary-tabs--comfortable')
+    expect(secondary).toHaveClass('yumi-segmented-tabs', 'yumi-segmented-tabs--compact')
     expect(screen.getByRole('button', { name: '财务资料' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('button', { name: '收入类目' })).toHaveAttribute('aria-pressed', 'true')
 
@@ -122,5 +123,4 @@ describe('YUMI 标签层级', () => {
     expect(onValueChange).not.toHaveBeenCalled()
     expect(overview).toHaveFocus()
   })
-
 })

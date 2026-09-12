@@ -25,7 +25,11 @@ export function YumiListToolbar({ ariaLabel, countLabel, filters, search }: Yumi
           {filters ? <div className="yumi-list-toolbar__filters">{filters}</div> : null}
         </div>
       ) : null}
-      {countLabel ? <span aria-live="polite" className="yumi-list-toolbar__count">{countLabel}</span> : null}
+      {countLabel ? (
+        <span aria-live="polite" className="yumi-list-toolbar__count">
+          {countLabel}
+        </span>
+      ) : null}
     </div>
   )
 }

@@ -38,6 +38,54 @@ interface SettlementDetailProps {
   confirmSettlement(id: string): Promise<V2WorkerSettlementDetail>
 }
 
+const processLabels = {
+  making: '制作',
+  fluffing_bagging: '捏毛装袋',
+  packing: '打包',
+  shipping: '发货'
+} as const
+
+function formatTaskSource(task: V2WorkerSettlementDetail['tasks'][number]): string {
+  const label = processLabels[task.processType]
+  const base = `${label} · 任务 ${task.processTaskId} · 排班 ${task.scheduledMinutes} 分钟 · 合格 ${task.qualifiedQuantity} 件`
+  const commission = `合格计件结算 ${formatCents(task.qualifiedCommissionCents)}`
+  if (task.processType === 'packing') {
+    return `${base} · 包装成本属于物料成本，不是打包计件工资 · ${commission}`
+  }
+  const rate =
+    task.pieceRateCents === null
+      ? '未设置计件提成'
+      : `冻结计件 ${formatCents(task.pieceRateCents)} / 件`
+  return `${base} · ${rate} · ${commission}`
+}
+
+function formatDeductionSource(
+  deduction: V2WorkerSettlementDetail['deductions'][number],
+  allocatedCents: number
+): string {
+  const label = processLabels[deduction.processType]
+  const parts = [`${deduction.occurredOn} · ${label}不合格 ${deduction.unqualifiedQuantity} 件`]
+  if (deduction.processType !== 'packing') {
+    parts.push(
+      deduction.pieceRateCents === null
+        ? '原任务未设置计件提成'
+        : `原任务冻结计件 ${formatCents(deduction.pieceRateCents)} / 件`
+    )
+  }
+  if (deduction.commissionDeductionCents > 0) {
+    parts.push(`计件提成扣款 ${formatCents(deduction.commissionDeductionCents)}`)
+  }
+  if (deduction.wageDeductionCents > 0) {
+    parts.push(`${label}时薪扣款 ${formatCents(deduction.wageDeductionCents)}`)
+  }
+  if (deduction.glueDeductionCents > 0) {
+    parts.push(`胶水扣款 ${formatCents(deduction.glueDeductionCents)}`)
+  }
+  parts.push(`扣款总额 ${formatCents(deduction.totalDeductionCents)}`)
+  parts.push(`本期抵扣 ${formatCents(allocatedCents)}`)
+  return parts.join(' · ')
+}
+
 interface DetailDraft {
   attendanceMinutes: string
   attendanceNote: string
@@ -191,8 +239,7 @@ export function SettlementDetail(props: SettlementDetailProps) {
               {
                 key: 'summary',
                 label: '任务记录',
-                render: (task) =>
-                  `任务 ${task.processTaskId} · 排班 ${task.scheduledMinutes} 分钟 · 合格 ${task.qualifiedQuantity} 件 · 提成 ${formatCents(task.qualifiedCommissionCents)}`
+                render: formatTaskSource
               }
             ]}
             emptyText="本期无已完成任务。"
@@ -208,7 +255,7 @@ export function SettlementDetail(props: SettlementDetailProps) {
                 key: 'summary',
                 label: '扣款记录',
                 render: (deduction) =>
-                  `${deduction.occurredOn} · ${deduction.processType === 'making' ? '制作' : '捏毛装袋'} 不合格 ${deduction.unqualifiedQuantity} 件 · 扣款 ${formatCents(deduction.totalDeductionCents)} · 本期抵扣 ${formatCents(allocationByDeductionId.get(deduction.id) ?? 0)}`
+                  formatDeductionSource(deduction, allocationByDeductionId.get(deduction.id) ?? 0)
               }
             ]}
             emptyText="本期无不合格扣款。"

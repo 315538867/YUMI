@@ -1,5 +1,14 @@
 import { Check } from 'lucide-react'
-import { Children, forwardRef, isValidElement, useContext, useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
+import {
+  Children,
+  forwardRef,
+  isValidElement,
+  useContext,
+  useId,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type TextareaHTMLAttributes
+} from 'react'
 import { YumiFormMessage } from '../form-message'
 import { YumiFieldContext, useYumiFieldAccessibility } from './yumi-field-accessibility'
 
@@ -16,7 +25,11 @@ export function YumiFieldLabel({ children, hint, htmlFor, required = false }: Yu
   return (
     <label className="yumi-field__label" htmlFor={htmlFor} id={field?.labelId}>
       {children}
-      {required ? <span aria-hidden="true" className="yumi-field__required">*</span> : null}
+      {required ? (
+        <span aria-hidden="true" className="yumi-field__required">
+          *
+        </span>
+      ) : null}
       {hint ? <span className="yumi-field__label-hint">{hint}</span> : null}
     </label>
   )
@@ -26,22 +39,21 @@ type SharedFieldProps = { error?: string }
 
 export type YumiTextFieldProps = InputHTMLAttributes<HTMLInputElement> & SharedFieldProps
 
-export const YumiTextField = forwardRef<HTMLInputElement, YumiTextFieldProps>(function YumiTextField(
-  { className, error, ...props },
-  ref
-) {
-  const fieldAccessibility = useYumiFieldAccessibility(props)
+export const YumiTextField = forwardRef<HTMLInputElement, YumiTextFieldProps>(
+  function YumiTextField({ className, error, ...props }, ref) {
+    const fieldAccessibility = useYumiFieldAccessibility(props)
 
-  return (
-    <input
-      {...props}
-      ref={ref}
-      {...fieldAccessibility}
-      aria-invalid={Boolean(error) || fieldAccessibility['aria-invalid']}
-      className={['yumi-input', className].filter(Boolean).join(' ')}
-    />
-  )
-})
+    return (
+      <input
+        {...props}
+        ref={ref}
+        {...fieldAccessibility}
+        aria-invalid={Boolean(error) || fieldAccessibility['aria-invalid']}
+        className={['yumi-input', className].filter(Boolean).join(' ')}
+      />
+    )
+  }
+)
 
 export type YumiCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
   children: ReactNode
@@ -66,31 +78,36 @@ export type YumiNumberFieldProps = Omit<YumiTextFieldProps, 'inputMode' | 'type'
   allowDecimal?: boolean
 }
 
-export const YumiNumberField = forwardRef<HTMLInputElement, YumiNumberFieldProps>(function YumiNumberField(
-  { allowDecimal = false, ...props },
-  ref
-) {
-  return <YumiTextField {...props} ref={ref} inputMode={allowDecimal ? 'decimal' : 'numeric'} type="text" />
-})
+export const YumiNumberField = forwardRef<HTMLInputElement, YumiNumberFieldProps>(
+  function YumiNumberField({ allowDecimal = false, ...props }, ref) {
+    return (
+      <YumiTextField
+        {...props}
+        ref={ref}
+        inputMode={allowDecimal ? 'decimal' : 'numeric'}
+        type="text"
+      />
+    )
+  }
+)
 
 export type YumiTextAreaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & SharedFieldProps
 
-export const YumiTextArea = forwardRef<HTMLTextAreaElement, YumiTextAreaProps>(function YumiTextArea(
-  { className, error, ...props },
-  ref
-) {
-  const fieldAccessibility = useYumiFieldAccessibility(props)
+export const YumiTextArea = forwardRef<HTMLTextAreaElement, YumiTextAreaProps>(
+  function YumiTextArea({ className, error, ...props }, ref) {
+    const fieldAccessibility = useYumiFieldAccessibility(props)
 
-  return (
-    <textarea
-      {...props}
-      ref={ref}
-      {...fieldAccessibility}
-      aria-invalid={Boolean(error) || fieldAccessibility['aria-invalid']}
-      className={['yumi-textarea', className].filter(Boolean).join(' ')}
-    />
-  )
-})
+    return (
+      <textarea
+        {...props}
+        ref={ref}
+        {...fieldAccessibility}
+        aria-invalid={Boolean(error) || fieldAccessibility['aria-invalid']}
+        className={['yumi-textarea', className].filter(Boolean).join(' ')}
+      />
+    )
+  }
+)
 
 export type YumiFieldProps = {
   children: ReactNode

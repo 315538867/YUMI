@@ -90,7 +90,7 @@ export interface V2OrderItemFulfillmentSource {
 }
 
 function parseJson<T>(value: string | null): T | null {
-  return value ? JSON.parse(value) as T : null
+  return value ? (JSON.parse(value) as T) : null
 }
 
 function mapTask(row: ProcessTaskRow): V2ProcessTask {
@@ -168,22 +168,40 @@ export class V2FulfillmentRepository {
   }
 
   getOrderItemSource(orderItemId: string): V2OrderItemFulfillmentSource | null {
-    const row = this.database.prepare(
-      'SELECT id, order_id, quantity, product_snapshot_json FROM order_items WHERE id = ?'
-    ).get(orderItemId) as { id: string; order_id: string; quantity: number; product_snapshot_json: string } | undefined
+    const row = this.database
+      .prepare('SELECT id, order_id, quantity, product_snapshot_json FROM order_items WHERE id = ?')
+      .get(orderItemId) as
+      { id: string; order_id: string; quantity: number; product_snapshot_json: string } | undefined
     if (!row) return null
-    return { id: row.id, orderId: row.order_id, quantity: row.quantity, productSnapshot: JSON.parse(row.product_snapshot_json) as V2ProductOrderSnapshot }
+    return {
+      id: row.id,
+      orderId: row.order_id,
+      quantity: row.quantity,
+      productSnapshot: JSON.parse(row.product_snapshot_json) as V2ProductOrderSnapshot
+    }
   }
 
   insertWorkAssignment(input: Omit<V2WorkAssignment, 'tasks'>): void {
-    this.database.prepare(
-      `INSERT INTO work_assignments (id, worker_id, assigned_on, process_type, status, note, created_at, updated_at)
+    this.database
+      .prepare(
+        `INSERT INTO work_assignments (id, worker_id, assigned_on, process_type, status, note, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(input.id, input.workerId, input.assignedOn, input.processType, input.status, input.note, input.createdAt, input.updatedAt)
+      )
+      .run(
+        input.id,
+        input.workerId,
+        input.assignedOn,
+        input.processType,
+        input.status,
+        input.note,
+        input.createdAt,
+        input.updatedAt
+      )
   }
 
   getWorkAssignment(id: string): V2WorkAssignment | null {
-    const row = this.database.prepare('SELECT * FROM work_assignments WHERE id = ?').get(id) as WorkAssignmentRow | undefined
+    const row = this.database.prepare('SELECT * FROM work_assignments WHERE id = ?').get(id) as
+      WorkAssignmentRow | undefined
     if (!row) return null
     return {
       id: row.id,
@@ -199,139 +217,244 @@ export class V2FulfillmentRepository {
   }
 
   listWorkAssignments(query: V2WorkAssignmentQuery = {}): V2WorkAssignment[] {
-    const rows = this.database.prepare(
-      `SELECT DISTINCT work_assignments.id
+    const rows = this.database
+      .prepare(
+        `SELECT DISTINCT work_assignments.id
        FROM work_assignments
        LEFT JOIN process_tasks ON process_tasks.work_assignment_id = work_assignments.id
        WHERE (? IS NULL OR work_assignments.worker_id = ?)
          AND (? IS NULL OR work_assignments.assigned_on = ?)
          AND (? IS NULL OR process_tasks.order_item_id = ?)
        ORDER BY work_assignments.assigned_on DESC, work_assignments.created_at DESC`
-    ).all(
-      query.workerId ?? null, query.workerId ?? null,
-      query.assignedOn ?? null, query.assignedOn ?? null,
-      query.orderItemId ?? null, query.orderItemId ?? null
-    ) as Array<{ id: string }>
+      )
+      .all(
+        query.workerId ?? null,
+        query.workerId ?? null,
+        query.assignedOn ?? null,
+        query.assignedOn ?? null,
+        query.orderItemId ?? null,
+        query.orderItemId ?? null
+      ) as Array<{ id: string }>
     return rows.map((row) => this.getWorkAssignment(row.id)!).filter(Boolean)
   }
 
   insertTask(task: V2ProcessTask): void {
-    this.database.prepare(
-      `INSERT INTO process_tasks (
+    this.database
+      .prepare(
+        `INSERT INTO process_tasks (
         id, work_assignment_id, order_item_id, process_type, source_type, planned_quantity,
         planned_minutes, extra_minutes, status, hourly_wage_cents, piece_rate_cents,
         glue_cost_cents, glue_price_micro_yuan_per_gram, glue_weight_milligrams, rate_snapshot_json, note, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      task.id, task.workAssignmentId, task.orderItemId, task.processType, task.sourceType,
-      task.plannedQuantity, task.plannedMinutes, task.extraMinutes, task.status, task.hourlyWageCents,
-      task.pieceRateCents, task.glueCostCents, task.gluePriceMicroYuanPerGram, task.glueWeightMilligrams,
-      task.rateSnapshot ? JSON.stringify(task.rateSnapshot) : null, task.note, task.createdAt, task.updatedAt
-    )
+      )
+      .run(
+        task.id,
+        task.workAssignmentId,
+        task.orderItemId,
+        task.processType,
+        task.sourceType,
+        task.plannedQuantity,
+        task.plannedMinutes,
+        task.extraMinutes,
+        task.status,
+        task.hourlyWageCents,
+        task.pieceRateCents,
+        task.glueCostCents,
+        task.gluePriceMicroYuanPerGram,
+        task.glueWeightMilligrams,
+        task.rateSnapshot ? JSON.stringify(task.rateSnapshot) : null,
+        task.note,
+        task.createdAt,
+        task.updatedAt
+      )
   }
 
   getTask(id: string): V2ProcessTask | null {
-    const row = this.database.prepare('SELECT * FROM process_tasks WHERE id = ?').get(id) as ProcessTaskRow | undefined
+    const row = this.database.prepare('SELECT * FROM process_tasks WHERE id = ?').get(id) as
+      ProcessTaskRow | undefined
     return row ? mapTask(row) : null
   }
 
   listTasksByAssignment(workAssignmentId: string): V2ProcessTask[] {
-    return (this.database.prepare(
-      'SELECT * FROM process_tasks WHERE work_assignment_id = ? ORDER BY created_at ASC, id ASC'
-    ).all(workAssignmentId) as ProcessTaskRow[]).map(mapTask)
+    return (
+      this.database
+        .prepare(
+          'SELECT * FROM process_tasks WHERE work_assignment_id = ? ORDER BY created_at ASC, id ASC'
+        )
+        .all(workAssignmentId) as ProcessTaskRow[]
+    ).map(mapTask)
   }
 
   updateTaskStatus(id: string, status: V2ProcessTaskStatus, now: string): void {
-    this.database.prepare('UPDATE process_tasks SET status = ?, updated_at = ? WHERE id = ?').run(status, now, id)
+    this.database
+      .prepare('UPDATE process_tasks SET status = ?, updated_at = ? WHERE id = ?')
+      .run(status, now, id)
   }
 
   completeWorkAssignmentWhenResolved(workAssignmentId: string, now: string): void {
-    const unresolved = this.database.prepare(
-      `SELECT COUNT(*) AS count FROM process_tasks
+    const unresolved = this.database
+      .prepare(
+        `SELECT COUNT(*) AS count FROM process_tasks
        WHERE work_assignment_id = ? AND status NOT IN ('confirmed', 'cancelled')`
-    ).get(workAssignmentId) as { count: number }
+      )
+      .get(workAssignmentId) as { count: number }
     if (unresolved.count === 0) {
-      this.database.prepare("UPDATE work_assignments SET status = 'completed', updated_at = ? WHERE id = ?")
+      this.database
+        .prepare("UPDATE work_assignments SET status = 'completed', updated_at = ? WHERE id = ?")
         .run(now, workAssignmentId)
     }
   }
 
   insertProcessResult(result: V2ProcessResult): void {
-    this.database.prepare(
-      `INSERT INTO process_results (id, process_task_id, completed_quantity, actual_minutes, submitted_on, note, created_at)
+    this.database
+      .prepare(
+        `INSERT INTO process_results (id, process_task_id, completed_quantity, actual_minutes, submitted_on, note, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(result.id, result.processTaskId, result.completedQuantity, result.actualMinutes, result.submittedOn, result.note, result.createdAt)
+      )
+      .run(
+        result.id,
+        result.processTaskId,
+        result.completedQuantity,
+        result.actualMinutes,
+        result.submittedOn,
+        result.note,
+        result.createdAt
+      )
   }
 
   getProcessResult(id: string): V2ProcessResult | null {
-    const row = this.database.prepare('SELECT * FROM process_results WHERE id = ?').get(id) as ProcessResultRow | undefined
+    const row = this.database.prepare('SELECT * FROM process_results WHERE id = ?').get(id) as
+      ProcessResultRow | undefined
     return row ? mapResult(row) : null
   }
 
   getProcessResultForTask(processTaskId: string): V2ProcessResult | null {
-    const row = this.database.prepare(
-      'SELECT * FROM process_results WHERE process_task_id = ? ORDER BY created_at DESC, id DESC LIMIT 1'
-    ).get(processTaskId) as ProcessResultRow | undefined
+    const row = this.database
+      .prepare(
+        'SELECT * FROM process_results WHERE process_task_id = ? ORDER BY created_at DESC, id DESC LIMIT 1'
+      )
+      .get(processTaskId) as ProcessResultRow | undefined
     return row ? mapResult(row) : null
   }
 
   getQualityInspectionByResult(processResultId: string): V2QualityInspection | null {
-    const row = this.database.prepare('SELECT * FROM quality_inspections WHERE process_result_id = ?').get(processResultId) as QualityInspectionRow | undefined
+    const row = this.database
+      .prepare('SELECT * FROM quality_inspections WHERE process_result_id = ?')
+      .get(processResultId) as QualityInspectionRow | undefined
     return row ? mapInspection(row) : null
   }
 
   insertQualityInspection(inspection: V2QualityInspection): void {
-    this.database.prepare(
-      `INSERT INTO quality_inspections (
+    this.database
+      .prepare(
+        `INSERT INTO quality_inspections (
         id, process_result_id, process_task_id, qualified_quantity, unqualified_quantity,
         inspected_on, reason_note, requires_rework, note, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      inspection.id, inspection.processResultId, inspection.processTaskId, inspection.qualifiedQuantity,
-      inspection.unqualifiedQuantity, inspection.inspectedOn, inspection.reasonNote,
-      Number(inspection.requiresRework), inspection.note, inspection.createdAt
-    )
+      )
+      .run(
+        inspection.id,
+        inspection.processResultId,
+        inspection.processTaskId,
+        inspection.qualifiedQuantity,
+        inspection.unqualifiedQuantity,
+        inspection.inspectedOn,
+        inspection.reasonNote,
+        Number(inspection.requiresRework),
+        inspection.note,
+        inspection.createdAt
+      )
   }
 
   insertFulfillmentEvent(event: V2FulfillmentEvent): void {
-    this.database.prepare(
-      `INSERT INTO fulfillment_events (
+    this.database
+      .prepare(
+        `INSERT INTO fulfillment_events (
         id, order_item_id, event_type, quantity, source_stage, target_stage,
         source_record_type, source_record_id, occurred_on, note, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      event.id, event.orderItemId, event.eventType, event.quantity, event.sourceStage, event.targetStage,
-      event.sourceRecordType, event.sourceRecordId, event.occurredOn, event.note, event.createdAt
-    )
+      )
+      .run(
+        event.id,
+        event.orderItemId,
+        event.eventType,
+        event.quantity,
+        event.sourceStage,
+        event.targetStage,
+        event.sourceRecordType,
+        event.sourceRecordId,
+        event.occurredOn,
+        event.note,
+        event.createdAt
+      )
   }
 
   listFulfillmentEvents(orderItemId: string): V2FulfillmentEvent[] {
-    return (this.database.prepare(
-      'SELECT * FROM fulfillment_events WHERE order_item_id = ? ORDER BY occurred_on ASC, created_at ASC, rowid ASC'
-    ).all(orderItemId) as FulfillmentEventRow[]).map(mapEvent)
+    return (
+      this.database
+        .prepare(
+          'SELECT * FROM fulfillment_events WHERE order_item_id = ? ORDER BY occurred_on ASC, created_at ASC, rowid ASC'
+        )
+        .all(orderItemId) as FulfillmentEventRow[]
+    ).map(mapEvent)
   }
 
-  insertOpeningWipRecord(id: string, input: V2OpeningWipInput, fulfillmentEventId: string, createdAt: string): void {
-    this.database.prepare(
-      `INSERT INTO opening_wip_records (
+  insertOpeningWipRecord(
+    id: string,
+    input: V2OpeningWipInput,
+    fulfillmentEventId: string,
+    createdAt: string
+  ): void {
+    this.database
+      .prepare(
+        `INSERT INTO opening_wip_records (
         id, order_item_id, target_stage, quantity, occurred_on, note, fulfillment_event_id, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, input.orderItemId, input.targetStage, input.quantity, input.occurredOn, input.note ?? null, fulfillmentEventId, createdAt)
+      )
+      .run(
+        id,
+        input.orderItemId,
+        input.targetStage,
+        input.quantity,
+        input.occurredOn,
+        input.note ?? null,
+        fulfillmentEventId,
+        createdAt
+      )
   }
 
-  insertAudit(input: Omit<V2AuditLog, 'before' | 'after' | 'metadata'> & { before?: unknown; after?: unknown; metadata?: unknown }): V2AuditLog {
-    const audit: V2AuditLog = {
-      id: input.id, action: input.action, entityType: input.entityType, entityId: input.entityId,
-      before: input.before ?? null, after: input.after ?? null, metadata: input.metadata ?? null, createdAt: input.createdAt
+  insertAudit(
+    input: Omit<V2AuditLog, 'before' | 'after' | 'metadata'> & {
+      before?: unknown
+      after?: unknown
+      metadata?: unknown
     }
-    this.database.prepare(
-      `INSERT INTO audit_logs (id, action, entity_type, entity_id, before_json, after_json, metadata_json, created_at)
+  ): V2AuditLog {
+    const audit: V2AuditLog = {
+      id: input.id,
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      before: input.before ?? null,
+      after: input.after ?? null,
+      metadata: input.metadata ?? null,
+      createdAt: input.createdAt
+    }
+    this.database
+      .prepare(
+        `INSERT INTO audit_logs (id, action, entity_type, entity_id, before_json, after_json, metadata_json, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      audit.id, audit.action, audit.entityType, audit.entityId,
-      audit.before === null ? null : JSON.stringify(audit.before), audit.after === null ? null : JSON.stringify(audit.after),
-      audit.metadata === null ? null : JSON.stringify(audit.metadata), audit.createdAt
-    )
+      )
+      .run(
+        audit.id,
+        audit.action,
+        audit.entityType,
+        audit.entityId,
+        audit.before === null ? null : JSON.stringify(audit.before),
+        audit.after === null ? null : JSON.stringify(audit.after),
+        audit.metadata === null ? null : JSON.stringify(audit.metadata),
+        audit.createdAt
+      )
     return audit
   }
 }

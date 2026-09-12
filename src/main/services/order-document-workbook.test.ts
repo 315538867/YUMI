@@ -104,10 +104,16 @@ describe('订单与发货单工作簿构建器', () => {
 
   it('无批次入口生成发货汇总，不伪装为某一批次清单', async () => {
     const workbook = await new ExcelJS.Workbook().xlsx.load(
-      await buildShippingListWorkbook([{ ...shipping, shipment: null, items: shipping.items.map((item) => ({
-        ...item,
-        thisShipmentQuantity: null
-      })) }])
+      await buildShippingListWorkbook([
+        {
+          ...shipping,
+          shipment: null,
+          items: shipping.items.map((item) => ({
+            ...item,
+            thisShipmentQuantity: null
+          }))
+        }
+      ])
     )
     const sheet = workbook.getWorksheet('发货汇总')!
 
@@ -116,7 +122,9 @@ describe('订单与发货单工作簿构建器', () => {
   })
 
   it('生成发货清单，未发商品也保留，并支持缺失图片和重量', async () => {
-    const workbook = await new ExcelJS.Workbook().xlsx.load(await buildShippingListWorkbook([shipping]))
+    const workbook = await new ExcelJS.Workbook().xlsx.load(
+      await buildShippingListWorkbook([shipping])
+    )
     const sheet = workbook.getWorksheet('发货清单')!
 
     expect(sheet.getCell('A1').value).toBe('YUMI 发货清单')

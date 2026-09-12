@@ -1,7 +1,14 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render as renderBase, screen, waitFor, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render as renderBase,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
@@ -126,7 +133,9 @@ describe('财务负责人工作区', () => {
     fireEvent.click(screen.getByRole('button', { name: '待报销' }))
     const reimbursementToolbar = await screen.findByRole('toolbar', { name: '待报销列表工具' })
     expect(reimbursementToolbar).toBeVisible()
-    expect(within(reimbursementToolbar).queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
+    expect(
+      within(reimbursementToolbar).queryByRole('button', { name: '刷新' })
+    ).not.toBeInTheDocument()
     expect(
       within(reimbursementToolbar).queryByRole('button', { name: /批量报销/ })
     ).not.toBeInTheDocument()

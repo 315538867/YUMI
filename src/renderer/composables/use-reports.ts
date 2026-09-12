@@ -6,12 +6,24 @@ type RiskReportInputs = { capacity: V2CapacityRiskReportInput; delivery: V2Deliv
 
 /** 报表页面只读取 V2 已确认事实；所有读写边界均由预加载契约提供。 */
 export function useReports() {
-  const [orderBusiness, setOrderBusiness] = useState<Awaited<ReturnType<typeof window.yumiV2.reports.getOrderBusiness>> | null>(null)
-  const [fulfillmentProgress, setFulfillmentProgress] = useState<Awaited<ReturnType<typeof window.yumiV2.reports.getFulfillmentProgress>> | null>(null)
-  const [confirmedSettlements, setConfirmedSettlements] = useState<Awaited<ReturnType<typeof window.yumiV2.reports.listConfirmedSettlements>> | null>(null)
-  const [monthlyOperation, setMonthlyOperation] = useState<Awaited<ReturnType<typeof window.yumiV2.reports.getMonthlyOperation>> | null>(null)
-  const [capacityRisk, setCapacityRisk] = useState<Awaited<ReturnType<typeof window.yumiV2.reports.getCapacityRiskReport>> | null>(null)
-  const [deliveryRisk, setDeliveryRisk] = useState<Awaited<ReturnType<typeof window.yumiV2.reports.getDeliveryRiskReport>> | null>(null)
+  const [orderBusiness, setOrderBusiness] = useState<Awaited<
+    ReturnType<typeof window.yumiV2.reports.getOrderBusiness>
+  > | null>(null)
+  const [fulfillmentProgress, setFulfillmentProgress] = useState<Awaited<
+    ReturnType<typeof window.yumiV2.reports.getFulfillmentProgress>
+  > | null>(null)
+  const [confirmedSettlements, setConfirmedSettlements] = useState<Awaited<
+    ReturnType<typeof window.yumiV2.reports.listConfirmedSettlements>
+  > | null>(null)
+  const [monthlyOperation, setMonthlyOperation] = useState<Awaited<
+    ReturnType<typeof window.yumiV2.reports.getMonthlyOperation>
+  > | null>(null)
+  const [capacityRisk, setCapacityRisk] = useState<Awaited<
+    ReturnType<typeof window.yumiV2.reports.getCapacityRiskReport>
+  > | null>(null)
+  const [deliveryRisk, setDeliveryRisk] = useState<Awaited<
+    ReturnType<typeof window.yumiV2.reports.getDeliveryRiskReport>
+  > | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -21,7 +33,14 @@ export function useReports() {
     setLoading(true)
     setLoadError(null)
     try {
-      const [nextOrders, nextFulfillment, nextSettlements, nextMonthly, nextCapacityRisk, nextDeliveryRisk] = await Promise.all([
+      const [
+        nextOrders,
+        nextFulfillment,
+        nextSettlements,
+        nextMonthly,
+        nextCapacityRisk,
+        nextDeliveryRisk
+      ] = await Promise.all([
         window.yumiV2.reports.getOrderBusiness(),
         window.yumiV2.reports.getFulfillmentProgress(),
         window.yumiV2.reports.listConfirmedSettlements(),
@@ -92,7 +111,19 @@ export function useReports() {
   }, [])
 
   return {
-    orderBusiness, fulfillmentProgress, confirmedSettlements, monthlyOperation, capacityRisk, deliveryRisk,
-    loading, loadError, exporting, exportMessage, load, exportCurrentReport, exportOrderTable, exportShippingList
+    orderBusiness,
+    fulfillmentProgress,
+    confirmedSettlements,
+    monthlyOperation,
+    capacityRisk,
+    deliveryRisk,
+    loading,
+    loadError,
+    exporting,
+    exportMessage,
+    load,
+    exportCurrentReport,
+    exportOrderTable,
+    exportShippingList
   }
 }

@@ -1,4 +1,5 @@
 import type { BusinessDate, Cents, IsoDateTime } from './common'
+import type { V2ProcessType } from './fulfillment'
 
 export type V2WorkerSettlementStatus = 'draft' | 'confirmed' | 'adjusted'
 export type V2WorkerDeductionStatus = 'pending' | 'partially_deducted' | 'settled'
@@ -44,6 +45,10 @@ export interface V2WorkerSettlementQuery {
 export interface V2WorkerSettlementTask {
   id: string
   processTaskId: string
+  /** 来自工序任务的冻结工序，用于说明本条提成的结算口径。 */
+  processType: V2ProcessType
+  /** 工序任务创建时冻结的计件提成；包装成本不在此字段结算。 */
+  pieceRateCents: Cents | null
   scheduledMinutes: number
   qualifiedQuantity: number
   qualifiedCommissionCents: Cents
@@ -56,6 +61,9 @@ export interface V2WorkerDeductionRecord {
   workerId: string
   workAssignmentId: string | null
   processTaskId: string
+  /** 原工序任务的冻结工序与计件提成，用于还原扣款来源。 */
+  processType: V2ProcessType
+  pieceRateCents: Cents | null
   processResultId: string | null
   qualityInspectionId: string | null
   orderId: string | null

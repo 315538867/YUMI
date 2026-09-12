@@ -1,9 +1,12 @@
 import type { CSSProperties, ReactNode } from 'react'
+import type { YumiDensity } from '../tabs/yumi-tabs'
 
 export type YumiMetricTone = 'default' | 'brand' | 'success' | 'warning' | 'danger'
 
 export type YumiMetricItem = {
   label: ReactNode
+  /** 指标的计算口径或状态说明；仅在真实业务页面需要时显示。 */
+  note?: ReactNode
   value: ReactNode
   tone?: YumiMetricTone
 }
@@ -12,6 +15,7 @@ type YumiMetricStripProps = {
   /** 为整组指标提供名称，避免相邻指标带仅凭视觉区分。 */
   ariaLabel: string
   className?: string
+  density?: YumiDensity
   items: readonly YumiMetricItem[]
 }
 
@@ -19,13 +23,21 @@ type YumiMetricStripProps = {
  * 经营摘要统一使用连续指标带：列数由真实指标决定，不再以空卡片补齐网格。
  * 订单、排班、财务、报表及档案内嵌摘要共用相同的信息密度与响应式规则。
  */
-export function YumiMetricStrip({ ariaLabel, className, items }: YumiMetricStripProps) {
+export function YumiMetricStrip({
+  ariaLabel,
+  className,
+  density = 'compact',
+  items
+}: YumiMetricStripProps) {
   const metricCount = Math.max(items.length, 1)
   const classes = [
     'yumi-metric-strip',
     `yumi-metric-strip--${metricCount}`,
+    `yumi-metric-strip--${density}`,
     className
-  ].filter(Boolean).join(' ')
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <section aria-label={ariaLabel} className={classes}>
@@ -43,6 +55,7 @@ export function YumiMetricStrip({ ariaLabel, className, items }: YumiMetricStrip
           >
             <dt>{item.label}</dt>
             <dd>{item.value}</dd>
+            {item.note ? <small>{item.note}</small> : null}
           </div>
         ))}
       </dl>

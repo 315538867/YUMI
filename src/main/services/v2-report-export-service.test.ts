@@ -142,32 +142,75 @@ describe('V2 经营报表导出', () => {
     ])
   })
   it('以正式工作簿分别导出订单表和发货清单，并保留图片、金额和发货数量', async () => {
-    const getOrderTableDocuments = vi.fn(() => [{
-      orderCode: 'V2-001', customerName: '小雨', customerContact: '微信 yumi', customerAddress: '上海市静安区',
-      createdAt: '2026-09-09', expectedShipDate: null, notes: '礼品包装',
-      items: [{
-        productName: '云朵', imageAttachmentId: 'image-1', unitWeightMilligrams: null,
-        unitPriceCents: 1_280, itemAmountCents: 12_800, edgeEnabled: true, edgeQuantity: 10,
-        edgeUnitPriceCents: 100, edgeAmountCents: 1_000, itemDiscountCents: 0, quantity: 10,
-        lineAmountCents: 13_800, notes: '奶油白'
-      }],
-      totals: {
-        totalQuantity: 10, itemAmountCents: 12_800, edgeAmountCents: 1_000,
-        itemDiscountCents: 0, orderDiscountCents: 0, orderAmountCents: 13_800
+    const getOrderTableDocuments = vi.fn(() => [
+      {
+        orderCode: 'V2-001',
+        customerName: '小雨',
+        customerContact: '微信 yumi',
+        customerAddress: '上海市静安区',
+        createdAt: '2026-09-09',
+        expectedShipDate: null,
+        notes: '礼品包装',
+        items: [
+          {
+            productName: '云朵',
+            imageAttachmentId: 'image-1',
+            unitWeightMilligrams: null,
+            unitPriceCents: 1_280,
+            itemAmountCents: 12_800,
+            edgeEnabled: true,
+            edgeQuantity: 10,
+            edgeUnitPriceCents: 100,
+            edgeAmountCents: 1_000,
+            itemDiscountCents: 0,
+            quantity: 10,
+            lineAmountCents: 13_800,
+            notes: '奶油白'
+          }
+        ],
+        totals: {
+          totalQuantity: 10,
+          itemAmountCents: 12_800,
+          edgeAmountCents: 1_000,
+          itemDiscountCents: 0,
+          orderDiscountCents: 0,
+          orderAmountCents: 13_800
+        }
       }
-    }])
-    const getShippingListDocuments = vi.fn(() => [{
-      orderCode: 'V2-001', customerName: '小雨', customerContact: '微信 yumi', customerAddress: '上海市静安区',
-      generatedAt: '2026-09-09', shippedOn: '2026-09-09', carrier: '顺丰', trackingNumber: 'SF-001',
-      items: [{
-        productName: '云朵', imageAttachmentId: 'image-1', unitWeightMilligrams: null,
-        orderedQuantity: 10, thisShipmentQuantity: 3, shippedQuantity: 3, remainingQuantity: 7, notes: '奶油白'
-      }]
-    }])
+    ])
+    const getShippingListDocuments = vi.fn(() => [
+      {
+        orderCode: 'V2-001',
+        customerName: '小雨',
+        customerContact: '微信 yumi',
+        customerAddress: '上海市静安区',
+        generatedAt: '2026-09-09',
+        shippedOn: '2026-09-09',
+        carrier: '顺丰',
+        trackingNumber: 'SF-001',
+        items: [
+          {
+            productName: '云朵',
+            imageAttachmentId: 'image-1',
+            unitWeightMilligrams: null,
+            orderedQuantity: 10,
+            thisShipmentQuantity: 3,
+            shippedQuantity: 3,
+            remainingQuantity: 7,
+            notes: '奶油白'
+          }
+        ]
+      }
+    ])
     const imageResolver = vi.fn(async () => null)
-    const service = new V2ReportExportService({ getOrderTableDocuments, getShippingListDocuments } as never, imageResolver)
+    const service = new V2ReportExportService(
+      { getOrderTableDocuments, getShippingListDocuments } as never,
+      imageResolver
+    )
 
-    const orderTable = await new ExcelJS.Workbook().xlsx.load(await service.exportOrderTableWorkbook())
+    const orderTable = await new ExcelJS.Workbook().xlsx.load(
+      await service.exportOrderTableWorkbook()
+    )
     const shippingList = await new ExcelJS.Workbook().xlsx.load(
       await service.exportShippingListWorkbook({ shipmentId: 'shipment-1' })
     )
@@ -187,21 +230,30 @@ describe('V2 经营报表导出', () => {
   it('按已保存订单合并导出订单表和发货清单', async () => {
     const getOrderTableDocuments = vi.fn(() => [])
     const getShippingListDocuments = vi.fn(() => [])
-    const service = new V2ReportExportService({ getOrderTableDocuments, getShippingListDocuments } as never)
+    const service = new V2ReportExportService({
+      getOrderTableDocuments,
+      getShippingListDocuments
+    } as never)
 
     const workbook = await new ExcelJS.Workbook().xlsx.load(
       await service.exportOrderDocumentsWorkbook({ orderId: 'order-1', shipmentId: 'shipment-1' })
     )
 
     expect(getOrderTableDocuments).toHaveBeenCalledWith({ orderId: 'order-1' })
-    expect(getShippingListDocuments).toHaveBeenCalledWith({ orderId: 'order-1', shipmentId: 'shipment-1' })
+    expect(getShippingListDocuments).toHaveBeenCalledWith({
+      orderId: 'order-1',
+      shipmentId: 'shipment-1'
+    })
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['订单表', '发货清单'])
   })
 
   it('未指定发货批次时，合并导出入口只保留订单表，不伪造发货清单', async () => {
     const getOrderTableDocuments = vi.fn(() => [])
     const getShippingListDocuments = vi.fn(() => [])
-    const service = new V2ReportExportService({ getOrderTableDocuments, getShippingListDocuments } as never)
+    const service = new V2ReportExportService({
+      getOrderTableDocuments,
+      getShippingListDocuments
+    } as never)
 
     const workbook = await new ExcelJS.Workbook().xlsx.load(
       await service.exportOrderDocumentsWorkbook({ orderId: 'order-1' })
@@ -216,24 +268,48 @@ describe('V2 经营报表导出', () => {
     const imageResolver = vi.fn(async () => {
       throw new Error('附件不存在')
     })
-    const service = new V2ReportExportService({
-      getOrderTableDocuments: () => [{
-        orderCode: 'V2-001', customerName: '小雨', customerContact: null, customerAddress: null,
-        createdAt: '2026-09-09', expectedShipDate: null, notes: null,
-        items: [{
-          productName: '云朵', imageAttachmentId: 'missing', unitWeightMilligrams: null,
-          unitPriceCents: 100, itemAmountCents: 100, edgeEnabled: false, edgeQuantity: 0,
-          edgeUnitPriceCents: 0, edgeAmountCents: 0, itemDiscountCents: 0, quantity: 1,
-          lineAmountCents: 100, notes: null
-        }],
-        totals: {
-          totalQuantity: 1, itemAmountCents: 100, edgeAmountCents: 0,
-          itemDiscountCents: 0, orderDiscountCents: 0, orderAmountCents: 100
-        }
-      }]
-    } as never, imageResolver)
+    const service = new V2ReportExportService(
+      {
+        getOrderTableDocuments: () => [
+          {
+            orderCode: 'V2-001',
+            customerName: '小雨',
+            customerContact: null,
+            customerAddress: null,
+            createdAt: '2026-09-09',
+            expectedShipDate: null,
+            notes: null,
+            items: [
+              {
+                productName: '云朵',
+                imageAttachmentId: 'missing',
+                unitWeightMilligrams: null,
+                unitPriceCents: 100,
+                itemAmountCents: 100,
+                edgeEnabled: false,
+                edgeQuantity: 0,
+                edgeUnitPriceCents: 0,
+                edgeAmountCents: 0,
+                itemDiscountCents: 0,
+                quantity: 1,
+                lineAmountCents: 100,
+                notes: null
+              }
+            ],
+            totals: {
+              totalQuantity: 1,
+              itemAmountCents: 100,
+              edgeAmountCents: 0,
+              itemDiscountCents: 0,
+              orderDiscountCents: 0,
+              orderAmountCents: 100
+            }
+          }
+        ]
+      } as never,
+      imageResolver
+    )
 
     await expect(service.exportOrderTableWorkbook()).resolves.toBeInstanceOf(Uint8Array)
   })
-
 })

@@ -1,17 +1,11 @@
 import type { V2Database } from '@main/database/v2-connection'
 import type { V2StoragePaths } from '@main/database/v2-storage'
-import {
-  V2_ATTACHMENT_DIRECTORY_NAME,
-  V2_DATABASE_FILE_NAME
-} from '@main/database/v2-storage'
+import { V2_ATTACHMENT_DIRECTORY_NAME, V2_DATABASE_FILE_NAME } from '@main/database/v2-storage'
 import {
   V2BackupArchiveService,
   type V2BackupRestorePlan
 } from '@main/services/v2-backup-archive-service'
-import type {
-  V2BackupRestoreInput,
-  V2BackupSummary
-} from '@shared/contracts/index'
+import type { V2BackupRestoreInput, V2BackupSummary } from '@shared/contracts/index'
 
 /**
  * V2 备份的唯一入口：显式绑定 V2 数据库和 V2 附件目录，避免任何调用误落到 V1 文件。

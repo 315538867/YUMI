@@ -51,6 +51,27 @@ describe('V2 应用壳与页面边界', () => {
     expect(appSource).toContain("from '../components/ui'")
   })
 
+  it('保留既有经营导航，并以统一顶栏和内容宽度承接工作区返回上下文', () => {
+    for (const label of [
+      '工作台',
+      '订单',
+      '排班',
+      '工资',
+      '财务',
+      '报表',
+      '客户',
+      '商品',
+      '设置'
+    ]) {
+      expect(appSource).toContain(`label: '${label}'`)
+    }
+    expect(appSource).toContain('className="yumi-app-command-bar"')
+    expect(appSource).toContain('navigation.target ?')
+    expect(appSource).toContain('返回工作台')
+    expect(pageStylesSource).toContain('.yumi-app-content > .yumi-page')
+    expect(pageStylesSource).toContain('max-width: var(--yumi-layout-content-max)')
+  })
+
   it('页面通过 composable 获取数据，不直接连接 IPC', () => {
     for (const pageSource of [
       customerPageSource,
@@ -214,8 +235,9 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
   })
 
   it('订单详情与排班处理以共享实体摘要承接状态和整行经营指标', () => {
+    expect(orderPageSource).toContain('YumiEntitySummary')
+    expect(fulfillmentPageSource).toContain('YumiRecordSummary')
     for (const pageSource of [orderPageSource, fulfillmentPageSource]) {
-      expect(pageSource).toContain('YumiRecordSummary')
       expect(pageSource).not.toContain('yumi-order-summary')
     }
 
@@ -224,8 +246,9 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
     expect(componentStylesSource).toContain('.yumi-record-summary__metrics')
   })
 
-  it('订单详情资料分组复用共享三级区块与描述列表，不保留订单私有档案样式', () => {
-    expect(orderPageSource).toContain('YumiDetailList')
+  it('订单详情以共享实体摘要承接客户与交付资料，不保留订单私有档案样式', () => {
+    expect(orderPageSource).toContain('YumiEntitySummary')
+    expect(orderPageSource).toContain('ariaLabel="订单主体信息"')
     expect(orderPageSource).toContain('YumiFormSection')
     expect(orderPageSource).not.toContain('yumi-order-archive-grid')
     expect(orderPageSource).not.toContain('yumi-order-archive')
@@ -411,15 +434,39 @@ describe('YUMI 业务页原生控件边界', () => {
   })
 })
 
-describe('YUMI 独立色彩语义', () => {
-  it('将品牌、状态、表格与交互色收敛为独立 token，业务样式不再写入具体色值', () => {
-    expect(designTokensSource).toContain('--yumi-brand: #355fd6')
-    expect(designTokensSource).toContain('--yumi-surface-muted: #f7f9fc')
-    expect(designTokensSource).toContain('--yumi-on-brand: #ffffff')
-    expect(designTokensSource).toContain('--yumi-danger-hover: #a83249')
-    expect(designTokensSource).toContain('--yumi-overlay: rgba(24, 32, 51, 0.34)')
-    expect(componentStylesSource).not.toMatch(/#[0-9a-f]{3,8}|rgba\(/i)
-    expect(pageStylesSource).not.toMatch(/#[0-9a-f]{3,8}|rgba\(/i)
+describe('YUMI 中国色系设计令牌', () => {
+  it('按基础色板、语义、状态、排版布局与组件别名分层，业务样式不再写入具体色值', () => {
+    expect(designTokensSource).toContain('基础色板')
+    expect(designTokensSource).toContain('语义令牌')
+    expect(designTokensSource).toContain('状态令牌')
+    expect(designTokensSource).toContain('排版、间距、圆角、阴影与布局令牌')
+    expect(designTokensSource).toContain('组件别名令牌')
+    expect(designTokensSource).toContain('--yumi-palette-xuan-paper: #f4f2ec')
+    expect(designTokensSource).toContain('--yumi-palette-silk-white: #fffdf8')
+    expect(designTokensSource).toContain('--yumi-palette-bamboo-jade: #276d67')
+    expect(designTokensSource).toContain('--yumi-palette-rattan-yellow: #c9952f')
+    expect(designTokensSource).toContain('--yumi-palette-red-ochre: #b7514a')
+    expect(designTokensSource).toContain('--yumi-canvas: var(--yumi-palette-xuan-paper)')
+    expect(designTokensSource).toContain('--yumi-brand: var(--yumi-palette-bamboo-jade)')
+    expect(designTokensSource).toContain('--yumi-font-numeric:')
+    expect(designTokensSource).toContain('--yumi-layout-content-max:')
+    expect(designTokensSource).toContain('--yumi-control-height:')
+    expect(componentStylesSource).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(|hsla?\(|gradient\(/i)
+    expect(pageStylesSource).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(|hsla?\(|gradient\(/i)
+  })
+
+  it('保留窄宽度下表格和标签的横向阅读能力，不用渐变掩盖信息', () => {
+    expect(componentStylesSource).toContain('.yumi-data-table-wrap {\n  overflow-x: auto;')
+    expect(componentStylesSource).toContain('.yumi-primary-tabs {\n    overflow-x: auto;')
+    expect(componentStylesSource).toContain('.yumi-segmented-tabs {\n    display: flex;')
+  })
+
+  it('为可见焦点、选区和金额数字建立全局可访问性与阅读规则', () => {
+    const baseStylesSource = source('src/renderer/styles/base.css')
+    expect(baseStylesSource).toContain('focus-visible')
+    expect(baseStylesSource).toContain('var(--yumi-focus-ring)')
+    expect(baseStylesSource).toContain('::selection')
+    expect(baseStylesSource).toContain('font-variant-numeric: tabular-nums')
   })
 })
 
@@ -502,7 +549,7 @@ describe('V2 履约工作区', () => {
     expect(fulfillmentPageSource).toContain('工作安排与质检')
     expect(fulfillmentComposableSource).toContain('buildFulfillmentQueue')
     expect(fulfillmentPageSource).toContain('期初在制品')
-    expect(fulfillmentPageSource).toContain('负责人数量调整')
+    expect(fulfillmentPageSource).toContain('负责人调整')
     expect(fulfillmentPageSource).toContain('待发货')
     expect(workAssignmentsPageSource).toContain('新增工作安排')
     expect(workAssignmentsPageSource).toContain('提交完成')
@@ -511,11 +558,11 @@ describe('V2 履约工作区', () => {
 
   it('将履约首页组织为单一队列与互斥阶段筛选，待发货事项直接进入订单的分批发货处理', () => {
     expect(fulfillmentPageSource).toContain(
-      "type FulfillmentWorkspaceMode = 'queue' | 'processing'"
+      "type FulfillmentWorkspaceMode = 'queue' | 'processing' | 'opening_wip'"
     )
-    expect(fulfillmentPageSource).toContain("useState<FulfillmentQueueStage>('all')")
-    expect(fulfillmentPageSource).toContain('filterFulfillmentQueue')
-    expect(fulfillmentPageSource).toContain('阶段筛选')
+    expect(fulfillmentPageSource).toContain('YumiSegmentedTabs')
+    expect(fulfillmentPageSource).toContain('排班视角')
+    expect(fulfillmentPageSource).toContain('补录期初在制品')
     expect(fulfillmentPageSource).toContain('OrderDispatchBoard')
     expect(fulfillmentPageSource).toContain("orderView: 'fulfillment'")
     expect(fulfillmentPageSource).toContain(
@@ -551,7 +598,7 @@ describe('V2 履约工作区', () => {
   it('通过 composable 完成履约写入并在失败时保留页面草稿', () => {
     expect(fulfillmentPageSource).toContain('setError')
     expect(fulfillmentPageSource).toContain('await recordOpeningWip')
-    expect(fulfillmentPageSource).toContain('await adjustStageQuantity')
+    expect(fulfillmentPageSource).toContain('await reassignProcessTask')
     expect(workAssignmentsPageSource).toContain('setError')
     expect(workAssignmentsPageSource).toContain('await createWorkAssignment')
     expect(workAssignmentsPageSource).toContain('await submitProcessResult')
@@ -632,14 +679,16 @@ describe('V2 月度财务首页', () => {
 
 describe('V2 负责人工作台', () => {
   it('默认进入工作台，并以互斥视图展示唯一主任务列表', () => {
-    expect(appSource).toContain("type View = 'workbench'")
+    expect(appSource).toMatch(/type View\s*=\s*\n?\s*\|?\s*'workbench'/)
     expect(appSource).toContain("useState<NavigationState>({ view: 'workbench', target: null })")
     expect(appSource).toContain('returnToWorkbench')
     expect(appSource).toContain('onViewChange={setWorkbenchView}')
     expect(appSource).toContain("id: 'workbench'")
     expect(appSource).toContain('<WorkbenchPage')
-    expect(workbenchPageSource).toContain("type WorkbenchView = 'decision' | 'advance'")
-    expect(workbenchPageSource).toContain("initialView = 'decision'")
+    expect(workbenchPageSource).toContain(
+      "type WorkbenchView = 'overview' | 'decision' | 'advance'"
+    )
+    expect(workbenchPageSource).toContain("initialView = 'overview'")
     expect(workbenchPageSource).toContain("activeView === 'decision'")
     expect(workbenchPageSource).toContain('snapshot?.advanceItems')
     expect(workbenchPageSource).toContain('onNavigate(item.navigationTarget)')
@@ -695,7 +744,7 @@ describe('运营界面操作流', () => {
 
   it('订单详情用互斥工作视图承载概览、履约、资金和售后，不再在同一屏堆叠全部表单', () => {
     expect(orderPageSource).toContain(
-      "type OrderDetailView = 'overview' | 'fulfillment' | 'funds' | 'after_sales'"
+      "type OrderDetailView = 'overview' | 'schedule' | 'fulfillment' | 'funds' | 'profit' | 'after_sales'"
     )
     expect(orderPageSource).toContain("useState<OrderDetailView>('overview')")
     expect(orderPageSource).toContain('navigationTarget.orderView')
@@ -707,17 +756,17 @@ describe('运营界面操作流', () => {
   })
 
   it('工作台任务会带着上下文进入对应工作区，而不是只切换导航菜单', () => {
-    expect(appSource).toContain(
-      "navigationTarget={navigation.target?.view === 'orders' ? navigation.target : null}"
+    expect(appSource).toMatch(
+      /navigationTarget=\{\s*navigation\.target\?\.view === 'orders'\s*\?\s*navigation\.target\s*:\s*null\s*\}/
     )
-    expect(appSource).toContain(
-      "navigationTarget={navigation.target?.view === 'fulfillment' ? navigation.target : null}"
+    expect(appSource).toMatch(
+      /navigationTarget=\{\s*navigation\.target\?\.view === 'fulfillment'\s*\?\s*navigation\.target\s*:\s*null\s*\}/
     )
-    expect(appSource).toContain(
-      "navigationTarget={navigation.target?.view === 'settlements' ? navigation.target : null}"
+    expect(appSource).toMatch(
+      /navigationTarget=\{\s*navigation\.target\?\.view === 'settlements'\s*\?\s*navigation\.target\s*:\s*null\s*\}/
     )
-    expect(appSource).toContain(
-      "navigationTarget={navigation.target?.view === 'finance' ? navigation.target : null}"
+    expect(appSource).toMatch(
+      /navigationTarget=\{\s*navigation\.target\?\.view === 'finance'\s*\?\s*navigation\.target\s*:\s*null\s*\}/
     )
     expect(orderPageSource).toContain('navigationTarget?: Extract<V2NavigationTarget')
     expect(orderPageSource).toContain("setWorkspaceMode('detail')")

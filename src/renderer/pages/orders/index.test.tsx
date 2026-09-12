@@ -1,8 +1,15 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  cleanup,
+  fireEvent,
+  render as renderBase,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
   renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
@@ -14,17 +21,26 @@ const mocks = vi.hoisted(() => {
     id: 'order-1',
     code: 'YD-001',
     customerSnapshot: { name: '小满' },
-    expectedShipDate: null,
+    expectedShipDate: '2026-09-26',
+    productionDeadline: '2026-09-24',
+    reservedDays: 2,
     amount: { currentAmountCents: 10000, adjustmentsCents: 0 },
     funds: { outstandingCents: 0, netReceivedCents: 10000 },
     items: [
       {
         id: 'item-strawberry',
+        productId: 'product-old',
         quantity: 100,
         unitPriceCents: 100,
         productSnapshot: { name: '草莓捏捏' }
       },
-      { id: 'item-cream', quantity: 80, unitPriceCents: 100, productSnapshot: { name: '奶油捏捏' } }
+      {
+        id: 'item-cream',
+        productId: 'product-old',
+        quantity: 80,
+        unitPriceCents: 100,
+        productSnapshot: { name: '奶油捏捏' }
+      }
     ]
   }
   return {
@@ -32,6 +48,117 @@ const mocks = vi.hoisted(() => {
     voidShipment: vi.fn().mockResolvedValue({ id: 'shipment-old', status: 'voided' }),
     exportOrderTable: vi.fn().mockResolvedValue({ savedPath: '/tmp/订单表.xlsx' }),
     exportShippingList: vi.fn().mockResolvedValue({ savedPath: '/tmp/发货清单.xlsx' }),
+    getShippingListPreview: vi.fn().mockResolvedValue({
+      orderCode: 'YD-001',
+      customerName: '小满',
+      customerContact: '王女士',
+      customerAddress: '上海市静安区',
+      generatedAt: '2026-09-07T10:00:00.000Z',
+      shippedOn: '2026-09-07',
+      carrier: '顺丰',
+      trackingNumber: 'SF001',
+      items: [
+        {
+          productName: '草莓捏捏',
+          orderedQuantity: 100,
+          thisShipmentQuantity: 30,
+          notes: '礼盒装'
+        }
+      ]
+    }),
+    getOrderBusiness: vi.fn().mockResolvedValue({
+      rows: [],
+      totalCurrentAmountCents: 0,
+      totalNetReceivedCents: 0,
+      totalOutstandingCents: 0,
+      totalProductCostCents: 0,
+      totalAfterSalesCostCents: 0,
+      totalKnownAccountingCostCents: 0,
+      totalKnownMarginCents: 0
+    }),
+    getOrderSchedule: vi.fn().mockResolvedValue({
+      assignments: [
+        {
+          id: 'assignment-1',
+          workerId: 'worker-1',
+          assignedOn: '2026-09-10',
+          processType: 'making',
+          status: 'scheduled',
+          note: null,
+          tasks: [
+            {
+              id: 'task-1',
+              workAssignmentId: 'assignment-1',
+              orderItemId: 'item-strawberry',
+              processType: 'making',
+              sourceType: 'normal_production',
+              plannedQuantity: 20,
+              plannedMinutes: 60,
+              extraMinutes: 0,
+              scheduledMinutes: 60,
+              status: 'pending',
+              hourlyWageCents: null,
+              pieceRateCents: null,
+              glueCostCents: null,
+              gluePriceMicroYuanPerGram: null,
+              glueWeightMilligrams: null,
+              rateSnapshot: null,
+              note: null,
+              createdAt: '2026-09-10T08:00:00.000Z',
+              updatedAt: '2026-09-10T08:00:00.000Z'
+            }
+          ],
+          createdAt: '2026-09-10T08:00:00.000Z',
+          updatedAt: '2026-09-10T08:00:00.000Z'
+        }
+      ],
+      workers: [
+        {
+          id: 'worker-1',
+          name: '阿橘',
+          role: '兼职',
+          enabled: true,
+          createdAt: '2026-09-01T08:00:00.000Z',
+          updatedAt: '2026-09-01T08:00:00.000Z'
+        }
+      ]
+    }),
+    getOrderBusinessDetail: vi.fn().mockResolvedValue({
+      summary: {
+        orderId: 'order-1',
+        orderCode: 'YD-001',
+        customerName: '小满',
+        currentAmountCents: 10000,
+        netReceivedCents: 10000,
+        outstandingCents: 0,
+        productCostCents: 1800,
+        afterSalesCostCents: 400,
+        knownAccountingCostCents: 2200,
+        knownMarginCents: 7800
+      },
+      orderDiscountCents: 0,
+      adjustmentsCents: 0,
+      items: [
+        {
+          orderItemId: 'item-strawberry',
+          productName: '草莓捏捏',
+          quantity: 100,
+          orderRevenueCents: 6000,
+          productCostCents: 1000,
+          knownGrossMarginCents: 5000,
+          knownGrossMarginRateBasisPoints: 8333
+        },
+        {
+          orderItemId: 'item-cream',
+          productName: '奶油捏捏',
+          quantity: 80,
+          orderRevenueCents: 4000,
+          productCostCents: 800,
+          knownGrossMarginCents: 3200,
+          knownGrossMarginRateBasisPoints: 8000
+        }
+      ]
+    }),
     quickCustomer: {
       id: 'customer-new',
       name: '新客户',
@@ -168,7 +295,22 @@ vi.mock('../../composables/use-orders', () => ({
     funds: mocks.funds,
     contentChanges: [],
     shipments: mocks.shipments,
-    fulfillmentItems: [],
+    fulfillmentItems: [
+      {
+        orderItemId: 'item-strawberry',
+        orderId: 'order-1',
+        confirmedQuantity: 100,
+        stages: { making: 70, fluffingBagging: 0, packing: 0, readyToShip: 0, shipped: 30 },
+        events: []
+      },
+      {
+        orderItemId: 'item-cream',
+        orderId: 'order-1',
+        confirmedQuantity: 80,
+        stages: { making: 80, fluffingBagging: 0, packing: 0, readyToShip: 0, shipped: 0 },
+        events: []
+      }
+    ],
     selectOrder: mocks.selectOrder,
     createOrder: mocks.createOrder,
     changeContent: mocks.changeContent,
@@ -182,7 +324,11 @@ vi.mock('../../composables/use-orders', () => ({
     createShipment: mocks.createShipment,
     voidShipment: mocks.voidShipment,
     exportOrderTable: mocks.exportOrderTable,
-    exportShippingList: mocks.exportShippingList
+    exportShippingList: mocks.exportShippingList,
+    getShippingListPreview: mocks.getShippingListPreview,
+    getOrderBusiness: mocks.getOrderBusiness,
+    getOrderSchedule: mocks.getOrderSchedule,
+    getOrderBusinessDetail: mocks.getOrderBusinessDetail
   })
 }))
 
@@ -218,9 +364,20 @@ vi.mock('../../composables/use-finance', () => ({
 }))
 
 installDomInteractionPolyfills()
+
+beforeEach(() => {
+  Object.defineProperty(window, 'yumiV2', {
+    configurable: true,
+    value: { reports: { getOrderBusiness: mocks.getOrderBusiness } }
+  })
+  mocks.getOrderBusiness.mockClear()
+  mocks.getOrderSchedule.mockClear()
+  mocks.getShippingListPreview.mockClear()
+})
 afterEach(() => {
   cleanup()
   mocks.createOrder.mockClear()
+  mocks.changeContent.mockClear()
   mocks.createShipment.mockClear()
   mocks.voidShipment.mockClear()
   mocks.recordFund.mockClear()
@@ -250,6 +407,22 @@ describe('订单列表信息架构', () => {
     expect(screen.getByRole('button', { name: '查看详情' })).toBeVisible()
   })
 
+  it('从订单列表以抽屉新建订单，背景列表保持作为上下文', () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
+
+    const sheet = screen.getByRole('dialog', { name: '新建订单' })
+    expect(screen.getByRole('heading', { name: '订单', hidden: true })).toBeInTheDocument()
+    expect(document.querySelector('.yumi-order-list-surface')).not.toBeNull()
+    expect(within(sheet).getByText(/客户、商品、订单优惠和本次成交条件会冻结/)).toBeVisible()
+    expect(within(sheet).getByRole('combobox', { name: '客户' })).toBeVisible()
+    expect(within(sheet).getByRole('textbox', { name: '订单优惠（元）' })).toBeVisible()
+    expect(within(sheet).getByText('定制服务')).toBeVisible()
+    expect(within(sheet).getByRole('button', { name: '取消' })).toBeVisible()
+    expect(within(sheet).getByRole('button', { name: '保存并进入详情' })).toBeVisible()
+  })
+
   it('按订单号或客户筛选列表，避免在业务表中保留无关行', () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
     const search = screen.getByRole('textbox', { name: '搜索订单' })
@@ -262,32 +435,181 @@ describe('订单列表信息架构', () => {
   })
 })
 
-
 describe('订单详情概览信息架构', () => {
-  it('以连续指标、商品表、两组档案和最近发货组成默认只读概览', async () => {
+  it('以订单主体、全宽关键指标、商品表和最近发货组成默认只读概览', async () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
 
     expect(await screen.findByRole('button', { name: '导出订单表' })).toBeVisible()
-    expect(screen.getByText('累计收款')).toBeVisible()
-    expect(screen.getByText('待收款')).toBeVisible()
-    expect(screen.getByText('发货进度')).toBeVisible()
+    expect(screen.getByRole('button', { name: '返回订单列表' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '发货汇总' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '编辑订单' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: '订单详情' })).toBeVisible()
+    expect(screen.getByText('订单编号 · YD-001')).toBeVisible()
+    expect(
+      screen.getByText('预计 2026-09-26 发货 · 制作截止 2026-09-24 · 预留制作 2 天')
+    ).toBeVisible()
+    const orderSubject = screen.getByRole('region', { name: '订单主体信息' })
+    expect(within(orderSubject).getByRole('heading', { name: '小满' })).toBeVisible()
+    expect(within(orderSubject).getByText('订单号')).toBeVisible()
+    expect(within(orderSubject).getByText('YD-001')).toBeVisible()
+    expect(within(orderSubject).getByText('联系人')).toBeVisible()
+    expect(within(orderSubject).getByText('交付安排')).toBeVisible()
     expect(screen.getByRole('table', { name: '订单商品列表' })).toBeVisible()
     expect(screen.getByText('商品合计')).toBeVisible()
-    expect(screen.getByRole('region', { name: '客户与订单资料' })).toHaveClass('yumi-detail-list')
-    expect(screen.getByRole('region', { name: '交付与生产资料' })).toHaveClass('yumi-detail-list')
-    expect(screen.getByText('客户与订单')).toBeVisible()
-    expect(screen.getByText('交付与生产')).toBeVisible()
+    expect(screen.getByText('确认订单内容；变更仅通过右上角“编辑订单”进入编辑态。')).toBeVisible()
+    expect(screen.getByRole('button', { name: '查看排班明细' })).toBeVisible()
+    expect(screen.getByText('制作')).toBeVisible()
+    expect(screen.getByText('捏毛装袋')).toBeVisible()
+    expect(screen.getByText('打包')).toBeVisible()
+    expect(screen.getByText('待发货')).toBeVisible()
+    const orderMetrics = screen.getByRole('region', { name: '订单关键指标' })
+    expect(within(orderMetrics).getByText('订单金额')).toBeVisible()
+    expect(within(orderMetrics).getByText('累计收款')).toBeVisible()
+    expect(within(orderMetrics).getByText('待收款')).toBeVisible()
+    expect(within(orderMetrics).getByText('发货进度')).toBeVisible()
+    expect(
+      within(screen.getByRole('navigation', { name: '订单详情工作视图' }))
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+    ).toEqual(['概览', '排班', '发货', '资金', '盈利', '售后'])
     expect(screen.getByText('最近发货')).toBeVisible()
-    expect(screen.getByText('订单档案')).toBeVisible()
+    expect(screen.queryByText('订单档案')).not.toBeInTheDocument()
     expect(document.querySelector('.yumi-order-archive-grid')).not.toBeInTheDocument()
     expect(document.querySelector('.yumi-order-archive')).not.toBeInTheDocument()
     expect(screen.getByRole('table', { name: '最近发货记录' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '物流 / 运单号' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '操作' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '查看发货清单' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '导出本批清单' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '作废批次' })).toBeVisible()
     expect(screen.getByText('顺丰 · SF001')).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: '查看全部发货' }))
     expect(await screen.findByRole('table', { name: '发货批次列表' })).toBeVisible()
+  })
+})
+
+describe('订单排班信息架构', () => {
+  it('按设计图先展示四段阶段摘要，再展示本订单任务并可进入真实排班工作区', async () => {
+    const onNavigate = vi.fn()
+    render(<OrdersPage onNavigate={onNavigate} onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    fireEvent.click(await screen.findByRole('button', { name: '排班' }))
+
+    expect(await screen.findByText('待排班')).toBeVisible()
+    expect(screen.getAllByText('制作中').length).toBeGreaterThan(0)
+    expect(screen.getByText('待质检')).toBeVisible()
+    expect(screen.getByText('已完成')).toBeVisible()
+    expect(mocks.getOrderSchedule).toHaveBeenCalledWith(['item-strawberry', 'item-cream'])
+    expect(screen.getByRole('heading', { name: '本订单任务' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '本订单任务列表' })).toBeVisible()
+    expect(screen.getByText('阿橘')).toBeVisible()
+    expect(screen.getAllByText('待派工').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('制作中').length).toBeGreaterThan(0)
+    expect(screen.getByText('每个阶段独立进入任务处理；派工与质检在排班工作区完成。')).toBeVisible()
+    expect(screen.getByText(/已发货部分不再进入排班/)).toBeVisible()
+    expect(screen.getByText('已进入制作阶段')).toBeVisible()
+    expect(screen.getByText('当前无待确认结果')).toBeVisible()
+    expect(screen.getByText(/已完成发货/)).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '进入排班工作区' }))
+    expect(onNavigate).toHaveBeenCalledWith({
+      view: 'fulfillment',
+      orderId: 'order-1',
+      focus: 'queue'
+    })
+  })
+})
+
+describe('订单盈利核算', () => {
+  it('只读取后端订单经营报表行，并明确展示已知成本与未纳入口径', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    fireEvent.click(await screen.findByRole('button', { name: '盈利' }))
+
+    const profitSummary = await screen.findByRole('region', { name: '订单盈利摘要' })
+    expect(within(profitSummary).getByText('已知经营结余')).toBeVisible()
+    expect(within(profitSummary).getByText('¥78.00')).toBeVisible()
+    expect(mocks.getOrderBusinessDetail).toHaveBeenCalledWith('order-1')
+    expect(screen.getByRole('heading', { name: '已知成本构成' })).toBeVisible()
+    expect(screen.getByText('已知商品直接成本')).toBeVisible()
+    expect(screen.getByText('人工及其他')).toBeVisible()
+    expect(screen.getByText('待分摊')).toBeVisible()
+    expect(screen.getByRole('table', { name: '商品盈利明细' })).toBeVisible()
+    expect(screen.getByText('草莓捏捏')).toBeVisible()
+    expect(screen.getByText('83.3%')).toBeVisible()
+    expect(screen.getByText(/订单级优惠与金额调整不在商品行分摊/)).toBeVisible()
+    expect(screen.getByText(/运费、兼职时薪、制作与捏毛装袋提成/)).toBeVisible()
+  })
+})
+
+describe('订单新建与内容变更金额', () => {
+  it('新建订单将订单优惠纳入草稿金额预览，并以分写入创建金额链路', async () => {
+    mocks.createOrder.mockResolvedValueOnce(mocks.selectedOrder)
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
+    fireEvent.click(screen.getByRole('combobox', { name: '客户' }))
+    fireEvent.click(screen.getByRole('option', { name: '已有客户' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '订单优惠（元）' }), {
+      target: { value: '2.50' }
+    })
+
+    const preview = screen.getByRole('region', { name: '订单金额预览' })
+    expect(preview).toHaveTextContent('商品与缝边小计')
+    expect(preview).toHaveTextContent('订单优惠')
+    expect(preview).toHaveTextContent('预计订单金额')
+    expect(preview).toHaveTextContent('¥7.50')
+
+    fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }))
+    await waitFor(() =>
+      expect(mocks.createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderDiscountCents: 250,
+          items: [
+            expect.objectContaining({
+              itemDiscountCents: 0,
+              quantity: 1,
+              unitPriceCents: 1000
+            })
+          ]
+        })
+      )
+    )
+  })
+
+  it('编辑订单将订单优惠纳入内容变更金额链路', async () => {
+    mocks.changeContent.mockResolvedValueOnce(undefined)
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    expect(await screen.findByRole('button', { name: '返回订单列表' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '编辑订单' }))
+    const editor = await screen.findByRole('dialog', { name: '编辑订单' })
+    fireEvent.change(within(editor).getByRole('textbox', { name: '变更说明' }), {
+      target: { value: '更新订单优惠' }
+    })
+    fireEvent.change(within(editor).getByRole('textbox', { name: '订单优惠（元）' }), {
+      target: { value: '12.34' }
+    })
+    expect(within(editor).getByRole('region', { name: '订单金额预览' })).toHaveTextContent(
+      '¥167.66'
+    )
+
+    fireEvent.click(within(editor).getByRole('button', { name: '保存内容变更' }))
+    await waitFor(() =>
+      expect(mocks.changeContent).toHaveBeenCalledWith(
+        'order-1',
+        expect.objectContaining({
+          description: '更新订单优惠',
+          orderDiscountCents: 1234
+        })
+      )
+    )
   })
 })
 
@@ -342,12 +664,46 @@ describe('订单分批发货交互', () => {
     fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
     fireEvent.click(await screen.findByRole('button', { name: '发货' }))
 
-    expect(screen.getByRole('toolbar', { name: '发货批次列表工具' })).toHaveTextContent('共 1 个批次')
+    const shipmentSummary = screen.getByRole('region', { name: '发货进度摘要' })
+    expect(within(shipmentSummary).getByText('已发货批次')).toBeVisible()
+    expect(within(shipmentSummary).getByText('已发 / 总数量')).toBeVisible()
+    expect(within(shipmentSummary).getByText('待发数量')).toBeVisible()
+    expect(within(shipmentSummary).getByText('最近发货')).toBeVisible()
+    expect(within(shipmentSummary).getByText('1 笔')).toBeVisible()
+    expect(within(shipmentSummary).getByText('30 / 180 件')).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '发货批次列表工具' })).toHaveTextContent(
+      '共 1 个批次'
+    )
+    expect(screen.getByText('发货记录')).toBeVisible()
+    expect(screen.getByRole('note', { name: '快照说明' })).toHaveTextContent('发货清单快照')
     expect(screen.getByRole('table', { name: '发货批次列表' })).toBeVisible()
     expect(screen.getByRole('columnheader', { name: '发货日期 / 物流' })).toBeVisible()
     expect(screen.getByText('草莓捏捏 × 30')).toBeVisible()
+    expect(screen.getByRole('button', { name: '查看发货清单' })).toBeVisible()
     expect(screen.getByRole('button', { name: '导出本批清单' })).toBeVisible()
     expect(screen.getByRole('button', { name: '作废批次' })).toBeVisible()
+  })
+
+  it('按本批次打开只读发货清单快照，并在关闭后保留原发货列表', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    fireEvent.click(await screen.findByRole('button', { name: '发货' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看发货清单' }))
+
+    expect(await screen.findByRole('dialog', { name: '发货清单' })).toBeVisible()
+    expect(mocks.getShippingListPreview).toHaveBeenCalledWith('order-1', 'shipment-old')
+    expect(screen.getByRole('region', { name: '发货清单预览' })).toBeVisible()
+    expect(screen.getByRole('note', { name: '快照说明' })).toHaveTextContent(
+      '后续资料变更不会影响本批'
+    )
+    expect(screen.getByRole('table', { name: '发货清单商品快照' })).toHaveTextContent('礼盒装')
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭发货清单' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '发货清单' })).not.toBeInTheDocument()
+    )
+    expect(screen.getByRole('table', { name: '发货批次列表' })).toBeVisible()
   })
 
   it('作废发货批次先展示影响说明，明确确认后才写入作废记录', async () => {
@@ -363,9 +719,9 @@ describe('订单分批发货交互', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: '确认作废' }))
 
-    expect(await screen.findByRole('alertdialog', { name: '确认作废发货批次？' })).toHaveTextContent(
-      '会回退本批发货数量'
-    )
+    expect(
+      await screen.findByRole('alertdialog', { name: '确认作废发货批次？' })
+    ).toHaveTextContent('会回退本批发货数量')
     expect(mocks.voidShipment).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: '确认作废批次' }))
@@ -377,19 +733,16 @@ describe('订单分批发货交互', () => {
     )
   })
 
-  it('将订单级导出收拢到详情页头，并将非关键实体操作收纳到更多操作', async () => {
+  it('将订单级高频操作完整显示在详情页头，且不再收纳到更多操作', async () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
     expect(await screen.findByRole('button', { name: '导出订单表' })).toBeVisible()
-    expect(screen.getByRole('button', { name: '更多操作' })).toBeVisible()
-    expect(screen.queryByRole('button', { name: '发货汇总' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '导出发货清单' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
-    const moreActions = await screen.findByRole('menu', { name: '订单详情更多操作' })
-    expect(moreActions).toHaveTextContent('返回订单列表')
-    expect(moreActions).toHaveTextContent('发货汇总')
+    expect(screen.getByText(/^订单编号 /)).toHaveClass('yumi-page-header__meta')
+    expect(screen.getByRole('button', { name: '返回订单列表' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '发货汇总' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '编辑订单' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '更多操作' })).not.toBeInTheDocument()
   })
 
   it('资金页默认展示流水，登记表单仅在操作抽屉中打开', async () => {
@@ -398,8 +751,12 @@ describe('订单分批发货交互', () => {
     fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
     fireEvent.click(await screen.findByRole('button', { name: '资金' }))
 
+    expect(screen.getByRole('heading', { name: '资金记录' })).toBeVisible()
+    expect(
+      screen.getByText('收款、退款和调整按发生顺序留痕；不在订单摘要中重复填报。')
+    ).toBeVisible()
     expect(screen.queryByRole('dialog', { name: '登记收款或退款' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '登记收款/退款' }))
+    fireEvent.click(screen.getByRole('button', { name: '登记收款或退款' }))
     expect(screen.getByRole('dialog', { name: '登记收款或退款' })).toBeInTheDocument()
   })
 
@@ -425,7 +782,9 @@ describe('订单分批发货交互', () => {
     fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
     fireEvent.click(await screen.findByRole('button', { name: '资金' }))
 
-    expect(screen.getByRole('toolbar', { name: '订单资金列表工具' })).toHaveTextContent('共 1 笔流水')
+    expect(screen.getByRole('toolbar', { name: '订单资金列表工具' })).toHaveTextContent(
+      '共 1 笔流水'
+    )
     expect(screen.getByRole('table', { name: '订单资金流水列表' })).toBeVisible()
     expect(screen.getByRole('columnheader', { name: '业务类型 / 说明' })).toBeVisible()
     expect(screen.getByText('首付款')).toBeVisible()
@@ -459,7 +818,9 @@ describe('订单分批发货交互', () => {
 
     fireEvent.click(screen.getByRole('combobox', { name: '原资金流水' }))
     fireEvent.click(screen.getByRole('option', { name: /payment · ¥30\.00 · 2026-09-09/ }))
-    fireEvent.change(screen.getByRole('textbox', { name: '替代金额（元）' }), { target: { value: '20' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '替代金额（元）' }), {
+      target: { value: '20' }
+    })
     fireEvent.click(screen.getByRole('button', { name: '冲正并更正' }))
 
     expect(await screen.findByRole('alertdialog', { name: '确认冲正并更正？' })).toHaveTextContent(
@@ -479,8 +840,8 @@ describe('订单分批发货交互', () => {
         }
       })
     )
-  }, 15_000)
-  it('登记收款时可选择凭证，并将附件关联到资金流水', async () => {
+  }, 45_000)
+  it('登记收款或退款时可选择凭证，并将附件关联到资金流水', async () => {
     mocks.pickFundProof.mockResolvedValueOnce({
       id: 'proof-1',
       originalName: '定金凭证.png',
@@ -494,13 +855,13 @@ describe('订单分批发货交互', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
     fireEvent.click(await screen.findByRole('button', { name: '资金' }))
-    fireEvent.click(screen.getByRole('button', { name: '登记收款/退款' }))
+    fireEvent.click(screen.getByRole('button', { name: '登记收款或退款' }))
     fireEvent.click(screen.getByRole('button', { name: '选择收款凭证' }))
 
     await waitFor(() => expect(mocks.pickFundProof).toHaveBeenCalledTimes(1))
     expect(screen.getByText('已选择：定金凭证.png')).toBeVisible()
     fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: '50' } })
-    fireEvent.click(screen.getByRole('button', { name: '登记资金' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认登记' }))
 
     await waitFor(() =>
       expect(mocks.recordFund).toHaveBeenCalledWith(
@@ -525,7 +886,7 @@ describe('订单分批发货交互', () => {
     })
     fireEvent.click(screen.getByRole('combobox', { name: '客户' }))
     fireEvent.click(screen.getByRole('option', { name: '已有客户' }))
-    fireEvent.click(screen.getByRole('button', { name: '创建订单' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }))
 
     await waitFor(() =>
       expect(mocks.createOrder).toHaveBeenCalledWith(expect.objectContaining({ reservedDays: 3 }))

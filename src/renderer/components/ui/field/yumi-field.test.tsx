@@ -4,7 +4,14 @@ import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
-import { YumiCheckbox, YumiField, YumiFieldLabel, YumiNumberField, YumiTextArea, YumiTextField } from './yumi-field'
+import {
+  YumiCheckbox,
+  YumiField,
+  YumiFieldLabel,
+  YumiNumberField,
+  YumiTextArea,
+  YumiTextField
+} from './yumi-field'
 import { YumiSelect } from '../select/yumi-select'
 import { YumiDatePicker } from '../date-picker/yumi-date-picker'
 
@@ -33,7 +40,6 @@ describe('YumiCheckbox', () => {
     expect(checkbox).toBeChecked()
   })
 })
-
 
 describe('YumiField', () => {
   it('未显式传入 aria 标签时，将字段标签关联到基础文本控件', () => {
@@ -93,7 +99,11 @@ describe('YumiField', () => {
       <>
         <YumiField error="请选择付款方式">
           <YumiFieldLabel required>付款方式</YumiFieldLabel>
-          <YumiSelect aria-describedby="external-payment-note" onValueChange={() => undefined} options={[{ label: '银行转账', value: 'bank' }]} />
+          <YumiSelect
+            aria-describedby="external-payment-note"
+            onValueChange={() => undefined}
+            options={[{ label: '银行转账', value: 'bank' }]}
+          />
         </YumiField>
         <YumiField hint="以款项实际到账日期为准。">
           <YumiFieldLabel>付款日期</YumiFieldLabel>
@@ -126,5 +136,4 @@ describe('YumiField', () => {
 
     expect(field).toHaveAttribute('aria-describedby', `existing-description ${hint.id}`)
   })
-
 })

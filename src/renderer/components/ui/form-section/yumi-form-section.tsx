@@ -1,8 +1,10 @@
 import { useId, type ReactNode } from 'react'
+import type { YumiDensity } from '../tabs/yumi-tabs'
 
 type YumiFormSectionProps = {
   children: ReactNode
   className?: string
+  density?: YumiDensity
   description?: ReactNode
   title: ReactNode
 }
@@ -12,13 +14,21 @@ type YumiFormSectionProps = {
  *
  * 固定三级标题、说明与相邻分组分隔规则，避免领域页面沿用特定模块名称的私有样式。
  */
-export function YumiFormSection({ children, className, description, title }: YumiFormSectionProps) {
+export function YumiFormSection({
+  children,
+  className,
+  density = 'compact',
+  description,
+  title
+}: YumiFormSectionProps) {
   const headingId = useId()
 
   return (
     <section
       aria-labelledby={headingId}
-      className={['yumi-form-section', className].filter(Boolean).join(' ')}
+      className={['yumi-form-section', `yumi-form-section--${density}`, className]
+        .filter(Boolean)
+        .join(' ')}
     >
       <div className="yumi-form-section__heading-content">
         <h3 className="yumi-form-section__heading" id={headingId}>

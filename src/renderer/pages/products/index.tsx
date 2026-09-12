@@ -46,6 +46,7 @@ interface ProductDraft {
   edgeCost: string
   standardMakingMinutes: string
   makingCommission: string
+  fluffingBaggingCommission: string
   notes: string
 }
 
@@ -66,6 +67,7 @@ const emptyDraft = (): ProductDraft => ({
   edgeCost: '0',
   standardMakingMinutes: '0',
   makingCommission: '0',
+  fluffingBaggingCommission: '0',
   notes: ''
 })
 const toDraft = (product: V2Product): ProductDraft => ({
@@ -85,6 +87,7 @@ const toDraft = (product: V2Product): ProductDraft => ({
   edgeCost: centsToYuan(product.internalEdgeCostCents),
   standardMakingMinutes: String(product.standardMakingMinutes),
   makingCommission: centsToYuan(product.makingCommissionCents),
+  fluffingBaggingCommission: centsToYuan(product.fluffingBaggingCommissionCents ?? 0),
   notes: product.notes ?? ''
 })
 const toInput = (draft: ProductDraft): V2ProductInput => ({
@@ -104,6 +107,7 @@ const toInput = (draft: ProductDraft): V2ProductInput => ({
   internalEdgeCostCents: yuanToCents(draft.edgeCost),
   standardMakingMinutes: Math.round(Number(draft.standardMakingMinutes) || 0),
   makingCommissionCents: yuanToCents(draft.makingCommission),
+  fluffingBaggingCommissionCents: yuanToCents(draft.fluffingBaggingCommission),
   notes: draft.notes || null
 })
 
@@ -377,13 +381,19 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                     value: `${formatMilligramsAsGrams(viewing.glueWeightMilligrams)} 克`
                   },
                   { label: '制作提成', value: formatCents(viewing.makingCommissionCents) },
-                  { label: '包装', value: formatCents(viewing.packagingCostCents) },
+                  {
+                    label: '捏毛装袋提成',
+                    value: formatCents(viewing.fluffingBaggingCommissionCents ?? 0)
+                  },
+                  { label: '包装成本', value: formatCents(viewing.packagingCostCents) },
                   { label: '配饰', value: formatCents(viewing.accessoryCostCents) },
                   { label: '替换袋', value: formatCents(viewing.replacementBagCostCents) },
                   { label: '内部缝边成本', value: formatCents(viewing.internalEdgeCostCents) }
                 ]}
               />
-              {viewing.notes ? <YumiFormMessage tone="hint">备注：{viewing.notes}</YumiFormMessage> : null}
+              {viewing.notes ? (
+                <YumiFormMessage tone="hint">备注：{viewing.notes}</YumiFormMessage>
+              ) : null}
             </YumiFormSection>
           </div>
         )}
@@ -547,8 +557,14 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                 value={draft.makingCommission}
               />
               <MoneyField
+                id="product-fluffing-bagging-commission"
+                label="捏毛装袋提成（元）"
+                onChange={(value) => updateDraft('fluffingBaggingCommission', value)}
+                value={draft.fluffingBaggingCommission}
+              />
+              <MoneyField
                 id="product-packaging-cost"
-                label="包装（元）"
+                label="包装成本（元）"
                 onChange={(value) => updateDraft('packagingCost', value)}
                 value={draft.packagingCost}
               />

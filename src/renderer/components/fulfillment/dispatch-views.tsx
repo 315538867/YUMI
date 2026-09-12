@@ -454,9 +454,7 @@ export function WorkAssignmentSheet(props: {
       title={`派工：${dispatchStageLabels[stage]}`}
     >
       <form className="yumi-form-panel yumi-sheet-form" onSubmit={handleSubmit}>
-        {error ? (
-          <YumiFormMessage tone="error">{error}</YumiFormMessage>
-        ) : null}
+        {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
         <div className="yumi-form-grid yumi-form-grid--two">
           <YumiField>
             <YumiFieldLabel required>兼职人员</YumiFieldLabel>

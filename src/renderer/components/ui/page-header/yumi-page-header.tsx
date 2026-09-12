@@ -4,6 +4,8 @@ import { YumiButton } from '../button/yumi-button'
 
 type YumiPageHeaderProps = {
   title: ReactNode
+  /** 标题旁的次级实体信息，例如订单编号；不与客户、状态等主信息争夺页头层级。 */
+  meta?: ReactNode
   description?: ReactNode
   /**
    * 页头动作必须经过共享层级编排，避免业务页面在右上角自由堆叠按钮。
@@ -46,6 +48,8 @@ export type YumiPageActionsProps = {
   secondaryAction?: YumiPageSecondaryAction
   /** 低频同级页面操作，统一收纳到“更多操作”。 */
   menu?: YumiPageActionMenu
+  /** 详情页的高频上下文操作可以完整显示；仍不能替代唯一主操作。 */
+  visibleActions?: YumiPageSecondaryAction[]
   /** 页面唯一主操作，例如新建或编辑；统一渲染为 primary 按钮。 */
   primaryAction?: YumiPagePrimaryAction
 }
@@ -59,7 +63,8 @@ export function YumiPageActions({
   context,
   menu,
   primaryAction,
-  secondaryAction
+  secondaryAction,
+  visibleActions = []
 }: YumiPageActionsProps) {
   return (
     <div aria-label={ariaLabel} className="yumi-page-actions" role="group">
@@ -76,6 +81,18 @@ export function YumiPageActions({
           </YumiButton>
         </div>
       ) : null}
+      {visibleActions.map((action, index) => (
+        <div className="yumi-page-actions__secondary" key={`${String(action.label)}-${index}`}>
+          <YumiButton
+            disabled={action.disabled}
+            loading={action.loading}
+            onClick={action.onClick}
+            variant={action.variant ?? 'secondary'}
+          >
+            {action.label}
+          </YumiButton>
+        </div>
+      ))}
       {menu ? (
         <YumiActionMenu
           aria-label={menu.ariaLabel}
@@ -100,11 +117,14 @@ export function YumiPageActions({
   )
 }
 
-export function YumiPageHeader({ actions, description, title }: YumiPageHeaderProps) {
+export function YumiPageHeader({ actions, description, meta, title }: YumiPageHeaderProps) {
   return (
     <header className="yumi-page-header">
       <div className="yumi-page-header__content">
-        <h1 className="yumi-page-header__title">{title}</h1>
+        <div className="yumi-page-header__title-row">
+          <h1 className="yumi-page-header__title">{title}</h1>
+          {meta ? <span className="yumi-page-header__meta">{meta}</span> : null}
+        </div>
         {description ? <p className="yumi-page-header__description">{description}</p> : null}
       </div>
       {actions ? (

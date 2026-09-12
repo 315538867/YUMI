@@ -13,7 +13,7 @@ function rule(selector: string, css = pagesCss) {
 
 describe('桌面壳层滚动边界', () => {
   it('锁定窗口滚动，让侧栏与顶部命令栏固定在壳层内', () => {
-    expect(baseCss).toMatch(/html, body, #root\s*\{[^}]*height:\s*100%[^}]*overflow:\s*hidden/s)
+    expect(baseCss).toMatch(/html,\s*body,\s*#root\s*\{[^}]*height:\s*100%[^}]*overflow:\s*hidden/s)
     expect(rule('.yumi-app-shell')).toMatch(/height:\s*100dvh/)
     expect(rule('.yumi-app-shell')).toMatch(/overflow:\s*hidden/)
     expect(rule('.yumi-app-workspace')).toMatch(/grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)/)

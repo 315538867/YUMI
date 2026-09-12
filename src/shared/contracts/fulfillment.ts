@@ -1,10 +1,18 @@
-import type { BusinessDate, Cents, GluePriceMicroYuanPerGram, IsoDateTime, WeightMilligrams } from './common'
+import type {
+  BusinessDate,
+  Cents,
+  GluePriceMicroYuanPerGram,
+  IsoDateTime,
+  WeightMilligrams
+} from './common'
 
 export type V2ProcessType = 'making' | 'fluffing_bagging' | 'packing' | 'shipping'
-export type V2ProcessTaskSource = 'normal_production' | 'rework' | 'after_sales_replacement' | 'manager_arrangement'
+export type V2ProcessTaskSource =
+  'normal_production' | 'rework' | 'after_sales_replacement' | 'manager_arrangement'
 export type V2WorkAssignmentStatus = 'draft' | 'scheduled' | 'cancelled' | 'completed'
 export type V2ProcessTaskStatus = 'pending' | 'pending_inspection' | 'confirmed' | 'cancelled'
-export type V2FulfillmentStage = 'making' | 'fluffing_bagging' | 'packing' | 'ready_to_ship' | 'shipped'
+export type V2FulfillmentStage =
+  'making' | 'fluffing_bagging' | 'packing' | 'ready_to_ship' | 'shipped'
 export type V2FulfillmentEventType =
   | 'opening_wip'
   | 'making_qualified'
@@ -36,6 +44,15 @@ export interface V2WorkAssignmentCreateInput {
   processType: V2ProcessType
   note?: string | null
   tasks: V2ProcessTaskInput[]
+}
+
+/**
+ * 仅对尚未提交完成结果的任务转派负责人；原任务保留并标记为已取消。
+ */
+export interface V2ProcessTaskReassignmentInput {
+  workerId: string
+  effectiveOn: BusinessDate
+  reason: string
 }
 
 export interface V2ProcessTask {

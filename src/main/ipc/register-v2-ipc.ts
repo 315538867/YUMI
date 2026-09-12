@@ -62,7 +62,9 @@ export function registerV2Ipc(
   ipc.handle('v2:studio-settings:get', () => studioSettings.get())
   ipc.handle('v2:studio-settings:update', (_event, input) => studioSettings.update(input as never))
 
-  ipc.handle('v2:products:list', (_event, includeDisabled) => service.listProducts(Boolean(includeDisabled)))
+  ipc.handle('v2:products:list', (_event, includeDisabled) =>
+    service.listProducts(Boolean(includeDisabled))
+  )
   ipc.handle('v2:products:create', (_event, input) => service.createProduct(input as never))
   ipc.handle('v2:products:update', (_event, input) => service.updateProduct(input as never))
 
@@ -82,7 +84,9 @@ export function registerV2Ipc(
   ipc.handle('v2:orders:correct-fund', (_event, orderId, input) =>
     service.correctOrderFund(orderId as string, input as never)
   )
-  ipc.handle('v2:orders:shipments:list', (_event, orderId) => service.listShipments(orderId as string))
+  ipc.handle('v2:orders:shipments:list', (_event, orderId) =>
+    service.listShipments(orderId as string)
+  )
   ipc.handle('v2:orders:shipments:create', (_event, orderId, input) =>
     service.createShipment(orderId as string, input as never)
   )
@@ -97,7 +101,9 @@ export function registerV2Ipc(
   ipc.handle('v2:order-fund-proofs:discard-prepared', (_event, attachmentId) =>
     proofs.service.discardPrepared(attachmentId as string)
   )
-  ipc.handle('v2:order-fund-proofs:get', (_event, fundId) => proofs.service.getFundProof(fundId as string))
+  ipc.handle('v2:order-fund-proofs:get', (_event, fundId) =>
+    proofs.service.getFundProof(fundId as string)
+  )
   ipc.handle('v2:order-fund-proofs:attach', (_event, fundId, attachmentId) =>
     proofs.service.attachToFund(fundId as string, attachmentId as string)
   )
@@ -109,19 +115,36 @@ export function registerV2Ipc(
     return message ? { status: 'failed' as const, message } : { status: 'opened' as const }
   })
 
-  ipc.handle('v2:fulfillment:assignments:create', (_event, input) => fulfillment.createWorkAssignment(input as never))
-  ipc.handle('v2:fulfillment:assignments:get', (_event, assignmentId) => fulfillment.getWorkAssignment(assignmentId as string))
-  ipc.handle('v2:fulfillment:assignments:list', (_event, query) => fulfillment.listWorkAssignments(query as never))
-  ipc.handle('v2:fulfillment:tasks:result:get', (_event, taskId) => fulfillment.getProcessResultForTask(taskId as string))
+  ipc.handle('v2:fulfillment:assignments:create', (_event, input) =>
+    fulfillment.createWorkAssignment(input as never)
+  )
+  ipc.handle('v2:fulfillment:tasks:reassign', (_event, taskId, input) =>
+    fulfillment.reassignProcessTask(taskId as string, input as never)
+  )
+  ipc.handle('v2:fulfillment:assignments:get', (_event, assignmentId) =>
+    fulfillment.getWorkAssignment(assignmentId as string)
+  )
+  ipc.handle('v2:fulfillment:assignments:list', (_event, query) =>
+    fulfillment.listWorkAssignments(query as never)
+  )
+  ipc.handle('v2:fulfillment:tasks:result:get', (_event, taskId) =>
+    fulfillment.getProcessResultForTask(taskId as string)
+  )
   ipc.handle('v2:fulfillment:results:submit', (_event, taskId, input) =>
     fulfillment.submitProcessResult(taskId as string, input as never)
   )
   ipc.handle('v2:fulfillment:inspections:confirm', (_event, resultId, input) =>
     fulfillment.confirmQualityInspection(resultId as string, input as never)
   )
-  ipc.handle('v2:fulfillment:opening-wip:record', (_event, input) => fulfillment.recordOpeningWip(input as never))
-  ipc.handle('v2:fulfillment:adjustments:create', (_event, input) => fulfillment.adjustStageQuantity(input as never))
-  ipc.handle('v2:fulfillment:order-item:get', (_event, orderItemId) => fulfillment.getOrderItemFulfillment(orderItemId as string))
+  ipc.handle('v2:fulfillment:opening-wip:record', (_event, input) =>
+    fulfillment.recordOpeningWip(input as never)
+  )
+  ipc.handle('v2:fulfillment:adjustments:create', (_event, input) =>
+    fulfillment.adjustStageQuantity(input as never)
+  )
+  ipc.handle('v2:fulfillment:order-item:get', (_event, orderItemId) =>
+    fulfillment.getOrderItemFulfillment(orderItemId as string)
+  )
 
   registerSettlementIpc(ipc, settlement)
   registerFinanceIpc(ipc, finance)

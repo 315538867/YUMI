@@ -24,11 +24,11 @@ const mocks = vi.hoisted(() => ({
       attendanceNote: null,
       scheduledReferenceWageCents: 12_000,
       attendanceReferenceWageCents: 0,
-      qualifiedCommissionCents: 0,
-      currentDeductionCents: 0,
+      qualifiedCommissionCents: 2_500,
+      currentDeductionCents: 1_750,
       carriedDeductionCents: 0,
-      actualDeductionCents: 0,
-      continuingCarryoverCents: 0,
+      actualDeductionCents: 1_500,
+      continuingCarryoverCents: 250,
       otherAdjustmentCents: 0,
       finalPaidAmountCents: null,
       paidOn: null,
@@ -36,9 +36,53 @@ const mocks = vi.hoisted(() => ({
       financialEntryId: null,
       createdAt: '2026-09-08T00:00:00.000Z',
       updatedAt: '2026-09-08T00:00:00.000Z',
-      tasks: [],
-      deductions: [],
-      deductionAllocations: []
+      tasks: [
+        {
+          id: 'settlement-task-1',
+          processTaskId: 'task-making-1',
+          processType: 'making' as const,
+          pieceRateCents: 1_250,
+          scheduledMinutes: 60,
+          qualifiedQuantity: 2,
+          qualifiedCommissionCents: 2_500,
+          status: 'draft' as const,
+          createdAt: '2026-09-08T00:00:00.000Z'
+        }
+      ],
+      deductions: [
+        {
+          id: 'deduction-1',
+          workerId: 'worker-1',
+          workAssignmentId: 'assignment-1',
+          processTaskId: 'task-making-1',
+          processType: 'making' as const,
+          pieceRateCents: 1_250,
+          processResultId: 'result-1',
+          qualityInspectionId: 'inspection-1',
+          orderId: 'order-1',
+          orderItemId: 'item-1',
+          unqualifiedQuantity: 1,
+          commissionDeductionCents: 1_250,
+          wageDeductionCents: 450,
+          glueDeductionCents: 50,
+          totalDeductionCents: 1_750,
+          deductedCents: 0,
+          remainingCarryoverCents: 1_750,
+          status: 'pending' as const,
+          occurredOn: '2026-09-07',
+          createdAt: '2026-09-08T00:00:00.000Z',
+          updatedAt: '2026-09-08T00:00:00.000Z'
+        }
+      ],
+      deductionAllocations: [
+        {
+          id: 'allocation-1',
+          deductionRecordId: 'deduction-1',
+          allocatedCents: 1_500,
+          status: 'draft' as const,
+          createdAt: '2026-09-08T00:00:00.000Z'
+        }
+      ]
     },
     {
       id: 'settlement-2',
@@ -156,13 +200,23 @@ describe('工资列表页面', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '查看结算详情：小林' }))
 
-    expect(await screen.findByRole('region', { name: '工资结算摘要' })).toHaveClass('yumi-record-summary')
-    expect(screen.getByRole('region', { name: '工资结算经营摘要' })).toHaveClass('yumi-metric-strip')
+    expect(await screen.findByRole('region', { name: '工资结算摘要' })).toHaveClass(
+      'yumi-record-summary'
+    )
+    expect(screen.getByRole('region', { name: '工资结算经营摘要' })).toHaveClass(
+      'yumi-metric-strip'
+    )
     expect(screen.getByRole('table', { name: '任务来源记录' })).toBeVisible()
     expect(screen.getByRole('table', { name: '扣款来源记录' })).toBeVisible()
     expect(document.querySelector('.yumi-settlement-detail__header')).not.toBeInTheDocument()
-    expect(screen.getByText('本期无已完成任务。')).toBeVisible()
-    expect(screen.getByText('本期无不合格扣款。')).toBeVisible()
+    expect(screen.getByRole('table', { name: '任务来源记录' })).toHaveTextContent(
+      '制作 · 任务 task-making-1 · 排班 60 分钟 · 合格 2 件 · 冻结计件 ¥12.50 / 件 · 合格计件结算 ¥25.00'
+    )
+    expect(screen.getByRole('table', { name: '扣款来源记录' })).toHaveTextContent(
+      '制作不合格 1 件 · 原任务冻结计件 ¥12.50 / 件 · 计件提成扣款 ¥12.50 · 制作时薪扣款 ¥4.50 · 胶水扣款 ¥0.50 · 扣款总额 ¥17.50 · 本期抵扣 ¥15.00'
+    )
+    expect(screen.queryByText('本期无已完成任务。')).not.toBeInTheDocument()
+    expect(screen.queryByText('本期无不合格扣款。')).not.toBeInTheDocument()
     expect(document.querySelector('.yumi-settlement-reference-grid')).not.toBeInTheDocument()
     expect(document.querySelector('.yumi-source-list')).not.toBeInTheDocument()
   })
@@ -185,16 +239,18 @@ describe('工资列表页面', () => {
     fireEvent.click(screen.getByRole('button', { name: '待退款 1' }))
     expect(screen.getByRole('heading', { level: 2, name: '待退款记录' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '处理退款：小林' }))
-    expect(screen.getByRole('dialog', { name: '登记兼职退款' })).toHaveTextContent('原结算不会被改写')
+    expect(screen.getByRole('dialog', { name: '登记兼职退款' })).toHaveTextContent(
+      '原结算不会被改写'
+    )
 
     fireEvent.change(screen.getByRole('textbox', { name: '实际退款金额（元）' }), {
       target: { value: '8' }
     })
     fireEvent.click(screen.getByRole('button', { name: '确认退款' }))
 
-    expect(await screen.findByRole('alertdialog', { name: '确认登记兼职退款？' })).toHaveTextContent(
-      '会将本笔待退款标为已退款，原工资结算保持不变'
-    )
+    expect(
+      await screen.findByRole('alertdialog', { name: '确认登记兼职退款？' })
+    ).toHaveTextContent('会将本笔待退款标为已退款，原工资结算保持不变')
     expect(mocks.resolveRefund).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: '确认登记退款' }))

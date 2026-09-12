@@ -10,20 +10,28 @@ function rejectInvalid(label: string): never {
   throw new Error(`${label}格式无效`)
 }
 
-function parseScaled(input: string, decimalPlaces: number, scale: number, label: string, allowNegative = false): number {
+function parseScaled(
+  input: string,
+  decimalPlaces: number,
+  scale: number,
+  label: string,
+  allowNegative = false
+): number {
   const value = input.trim()
   const negative = value.startsWith('-')
   if (negative && !allowNegative) throw new Error(`${label}不能小于 0`)
   const unsignedValue = negative ? value.slice(1) : value
   const [whole, fraction = ''] = unsignedValue.split('.')
-  if (!INTEGER_PATTERN.test(whole ?? '') || unsignedValue.split('.').length > 2) rejectInvalid(label)
+  if (!INTEGER_PATTERN.test(whole ?? '') || unsignedValue.split('.').length > 2)
+    rejectInvalid(label)
   if (fraction && !/^\d+$/.test(fraction)) rejectInvalid(label)
   if (fraction.length > decimalPlaces) throw new Error(`${label}最多支持 ${decimalPlaces} 位小数`)
 
   const scaled = new Decimal(whole)
     .times(scale)
     .plus(new Decimal(fraction || '0').times(new Decimal(10).pow(decimalPlaces - fraction.length)))
-  if (!scaled.isInteger() || scaled.gt(Number.MAX_SAFE_INTEGER)) throw new Error(`${label}数值超出范围`)
+  if (!scaled.isInteger() || scaled.gt(Number.MAX_SAFE_INTEGER))
+    throw new Error(`${label}数值超出范围`)
   return (negative ? scaled.negated() : scaled).toNumber()
 }
 
@@ -122,7 +130,10 @@ export function calculateProportionalCents(input: {
 }
 
 /** 按工作分钟和每小时整数分时薪计算时薪金额。 */
-export function calculateCentsForMinutes(input: { minutes: number; hourlyWageCents: number }): number {
+export function calculateCentsForMinutes(input: {
+  minutes: number
+  hourlyWageCents: number
+}): number {
   return calculateProportionalCents({
     baseCents: input.hourlyWageCents,
     numerator: input.minutes,

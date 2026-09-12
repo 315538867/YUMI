@@ -24,30 +24,39 @@ const yumiV2: V2YumiApi = {
     list: () => ipcRenderer.invoke('v2:orders:list'),
     get: (orderId) => ipcRenderer.invoke('v2:orders:get', orderId),
     create: (input) => ipcRenderer.invoke('v2:orders:create', input),
-    changeContent: (orderId, input) => ipcRenderer.invoke('v2:orders:change-content', orderId, input),
+    changeContent: (orderId, input) =>
+      ipcRenderer.invoke('v2:orders:change-content', orderId, input),
     listContentChanges: (orderId) => ipcRenderer.invoke('v2:orders:content-changes:list', orderId),
     listFunds: (orderId) => ipcRenderer.invoke('v2:orders:funds:list', orderId),
     recordFund: (orderId, input) => ipcRenderer.invoke('v2:orders:record-fund', orderId, input),
     correctFund: (orderId, input) => ipcRenderer.invoke('v2:orders:correct-fund', orderId, input),
     listShipments: (orderId) => ipcRenderer.invoke('v2:orders:shipments:list', orderId),
-    createShipment: (orderId, input) => ipcRenderer.invoke('v2:orders:shipments:create', orderId, input),
+    createShipment: (orderId, input) =>
+      ipcRenderer.invoke('v2:orders:shipments:create', orderId, input),
     voidShipment: (orderId, shipmentId, input) =>
       ipcRenderer.invoke('v2:orders:shipments:void', orderId, shipmentId, input)
   },
   orderFundProofs: {
     pick: () => ipcRenderer.invoke('v2:order-fund-proofs:pick'),
-    discardPrepared: (attachmentId) => ipcRenderer.invoke('v2:order-fund-proofs:discard-prepared', attachmentId),
+    discardPrepared: (attachmentId) =>
+      ipcRenderer.invoke('v2:order-fund-proofs:discard-prepared', attachmentId),
     get: (fundId) => ipcRenderer.invoke('v2:order-fund-proofs:get', fundId),
-    attach: (fundId, attachmentId) => ipcRenderer.invoke('v2:order-fund-proofs:attach', fundId, attachmentId),
+    attach: (fundId, attachmentId) =>
+      ipcRenderer.invoke('v2:order-fund-proofs:attach', fundId, attachmentId),
     open: (fundId) => ipcRenderer.invoke('v2:order-fund-proofs:open', fundId)
   },
   fulfillment: {
     createWorkAssignment: (input) => ipcRenderer.invoke('v2:fulfillment:assignments:create', input),
+    reassignProcessTask: (taskId, input) =>
+      ipcRenderer.invoke('v2:fulfillment:tasks:reassign', taskId, input),
     getWorkAssignment: (id) => ipcRenderer.invoke('v2:fulfillment:assignments:get', id),
     listWorkAssignments: (query) => ipcRenderer.invoke('v2:fulfillment:assignments:list', query),
-    getProcessResultForTask: (taskId) => ipcRenderer.invoke('v2:fulfillment:tasks:result:get', taskId),
-    submitProcessResult: (taskId, input) => ipcRenderer.invoke('v2:fulfillment:results:submit', taskId, input),
-    confirmQualityInspection: (resultId, input) => ipcRenderer.invoke('v2:fulfillment:inspections:confirm', resultId, input),
+    getProcessResultForTask: (taskId) =>
+      ipcRenderer.invoke('v2:fulfillment:tasks:result:get', taskId),
+    submitProcessResult: (taskId, input) =>
+      ipcRenderer.invoke('v2:fulfillment:results:submit', taskId, input),
+    confirmQualityInspection: (resultId, input) =>
+      ipcRenderer.invoke('v2:fulfillment:inspections:confirm', resultId, input),
     recordOpeningWip: (input) => ipcRenderer.invoke('v2:fulfillment:opening-wip:record', input),
     adjustStageQuantity: (input) => ipcRenderer.invoke('v2:fulfillment:adjustments:create', input),
     getOrderItem: (orderItemId) => ipcRenderer.invoke('v2:fulfillment:order-item:get', orderItemId)
@@ -68,18 +77,22 @@ const yumiV2: V2YumiApi = {
     resolveRefund: (id, input) => ipcRenderer.invoke('v2:settlements:refunds:resolve', id, input)
   },
   finance: {
-    listCategories: (direction, includeDisabled) => ipcRenderer.invoke('v2:finance:categories:list', direction, includeDisabled),
+    listCategories: (direction, includeDisabled) =>
+      ipcRenderer.invoke('v2:finance:categories:list', direction, includeDisabled),
     createCategory: (input) => ipcRenderer.invoke('v2:finance:categories:create', input),
     updateCategory: (id, input) => ipcRenderer.invoke('v2:finance:categories:update', id, input),
     deleteCategory: (id) => ipcRenderer.invoke('v2:finance:categories:delete', id),
-    listAdvancePayers: (includeDisabled) => ipcRenderer.invoke('v2:finance:advance-payers:list', includeDisabled),
+    listAdvancePayers: (includeDisabled) =>
+      ipcRenderer.invoke('v2:finance:advance-payers:list', includeDisabled),
     createAdvancePayer: (input) => ipcRenderer.invoke('v2:finance:advance-payers:create', input),
-    updateAdvancePayer: (id, input) => ipcRenderer.invoke('v2:finance:advance-payers:update', id, input),
+    updateAdvancePayer: (id, input) =>
+      ipcRenderer.invoke('v2:finance:advance-payers:update', id, input),
     deleteAdvancePayer: (id) => ipcRenderer.invoke('v2:finance:advance-payers:delete', id),
     listEntries: (query) => ipcRenderer.invoke('v2:finance:entries:list', query),
     createManualIncome: (input) => ipcRenderer.invoke('v2:finance:manual-income:create', input),
     createManualExpense: (input) => ipcRenderer.invoke('v2:finance:manual-expense:create', input),
-    listPendingReimbursements: (asOf) => ipcRenderer.invoke('v2:finance:reimbursements:pending:list', asOf),
+    listPendingReimbursements: (asOf) =>
+      ipcRenderer.invoke('v2:finance:reimbursements:pending:list', asOf),
     reimburse: (input) => ipcRenderer.invoke('v2:finance:reimbursements:create', input),
     reimburseBatch: (input) => ipcRenderer.invoke('v2:finance:reimbursements:batch-create', input),
     getMonthlySummary: (month) => ipcRenderer.invoke('v2:finance:summary:get', month)
@@ -89,12 +102,18 @@ const yumiV2: V2YumiApi = {
     getCase: (id) => ipcRenderer.invoke('v2:after-sales:cases:get', id),
     createCase: (input) => ipcRenderer.invoke('v2:after-sales:cases:create', input),
     updateCase: (id, input) => ipcRenderer.invoke('v2:after-sales:cases:update', id, input),
-    linkCharge: (afterSalesCaseId, financialEntryId) => ipcRenderer.invoke('v2:after-sales:charges:link', afterSalesCaseId, financialEntryId)
+    linkCharge: (afterSalesCaseId, financialEntryId) =>
+      ipcRenderer.invoke('v2:after-sales:charges:link', afterSalesCaseId, financialEntryId)
   },
   reports: {
     listCustomerOrderInsights: () => ipcRenderer.invoke('v2:reports:customers:insights:list'),
-    getCustomerOrderInsights: (customerId) => ipcRenderer.invoke('v2:reports:customers:insights:get', customerId),
+    getCustomerOrderInsights: (customerId) =>
+      ipcRenderer.invoke('v2:reports:customers:insights:get', customerId),
     getOrderBusiness: () => ipcRenderer.invoke('v2:reports:orders:business'),
+    getOrderBusinessDetail: (orderId) =>
+      ipcRenderer.invoke('v2:reports:orders:business:detail', orderId),
+    getShippingListPreview: (input) =>
+      ipcRenderer.invoke('v2:reports:shipping-list:preview', input),
     getFulfillmentProgress: () => ipcRenderer.invoke('v2:reports:fulfillment:progress'),
     getCapacityRiskReport: (input) => ipcRenderer.invoke('v2:reports:capacity-risk:get', input),
     getDeliveryRiskReport: (input) => ipcRenderer.invoke('v2:reports:delivery-risk:get', input),

@@ -17,7 +17,9 @@ describe('V2ApplicationRuntime', () => {
     runtimes.push(runtime)
     runtime.start()
 
-    expect(runtime.workbenchService.getSnapshot().firstUseGuide?.navigationTarget).toEqual({ view: 'customers' })
+    expect(runtime.workbenchService.getSnapshot().firstUseGuide?.navigationTarget).toEqual({
+      view: 'customers'
+    })
 
     runtime.orderService.createCustomer({ name: '备份前客户' })
     const sourceBackup = await runtime.backupService.createBackup()
@@ -28,7 +30,11 @@ describe('V2ApplicationRuntime', () => {
 
     expect(result.restoredBackup.id).toBe(sourceBackup.id)
     expect(runtime.orderService).not.toBe(previousService)
-    expect(runtime.orderService.listCustomers().map((customer) => customer.name)).toEqual(['备份前客户'])
-    expect(runtime.orderService.listAuditLogs().some((item) => item.action === 'backup.restored')).toBe(true)
+    expect(runtime.orderService.listCustomers().map((customer) => customer.name)).toEqual([
+      '备份前客户'
+    ])
+    expect(
+      runtime.orderService.listAuditLogs().some((item) => item.action === 'backup.restored')
+    ).toBe(true)
   })
 })

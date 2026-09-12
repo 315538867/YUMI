@@ -18,3 +18,4 @@ coverage
 .superpowers/brainstorm/36810-1788844577/content/08-order-list-pattern.html
 .superpowers/brainstorm/36810-1788844577/state/server-stopped
 .superpowers/brainstorm/36810-1788844577/state/server.pid
+.superpowers/brainstorm/*/state/

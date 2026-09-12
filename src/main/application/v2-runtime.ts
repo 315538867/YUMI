@@ -154,7 +154,10 @@ export class V2ApplicationRuntime {
     const reportService = new ReportService(database)
     const studioSettingsService = new StudioSettingsService(database, repository)
     const orderService = new V2OrderService(repository, undefined, studioSettingsService)
-    const orderFundAttachmentService = new OrderFundAttachmentService(database, this.storage.attachmentDirectory)
+    const orderFundAttachmentService = new OrderFundAttachmentService(
+      database,
+      this.storage.attachmentDirectory
+    )
     const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database))
     const settlementService = new SettlementService(database)
     const financeService = new FinanceService(database)
@@ -186,7 +189,8 @@ export class V2ApplicationRuntime {
         const root = resolve(this.storage.attachmentDirectory)
         const filePath = resolve(root, attachment.storage_key)
         const pathWithinRoot = relative(root, filePath)
-        if (pathWithinRoot.startsWith('..') || pathWithinRoot === '' || !existsSync(filePath)) return null
+        if (pathWithinRoot.startsWith('..') || pathWithinRoot === '' || !existsSync(filePath))
+          return null
         return { buffer: readFileSync(filePath), extension }
       }),
       backupService: new V2BackupService(this.storage, this.applicationVersion, database)

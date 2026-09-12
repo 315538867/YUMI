@@ -6,7 +6,10 @@ import {
   validateAfterSalesChargeLink
 } from '@main/domain/after-sales'
 import { DomainValidationError } from '@main/domain/errors'
-import { AfterSalesRepository, type AfterSalesCaseWrite } from '@main/repositories/after-sales-repository'
+import {
+  AfterSalesRepository,
+  type AfterSalesCaseWrite
+} from '@main/repositories/after-sales-repository'
 import type {
   V2AfterSalesCase,
   V2AfterSalesCaseCreateInput,
@@ -40,7 +43,10 @@ function nullableText(value: string | null | undefined): string | null {
 export class AfterSalesService {
   private readonly repository: AfterSalesRepository
 
-  constructor(database: V2Database, private readonly clock: AfterSalesClock = defaultClock) {
+  constructor(
+    database: V2Database,
+    private readonly clock: AfterSalesClock = defaultClock
+  ) {
     this.repository = new AfterSalesRepository(database)
   }
 
@@ -60,7 +66,10 @@ export class AfterSalesService {
       createAfterSalesAccountingSnapshot(normalized)
       const now = this.clock.now()
       const record: AfterSalesCaseWrite = {
-        id: this.clock.createId(), ...normalized, createdAt: now, updatedAt: now
+        id: this.clock.createId(),
+        ...normalized,
+        createdAt: now,
+        updatedAt: now
       }
       this.repository.insertCase(record)
       const result = this.requireCase(record.id)
@@ -77,11 +86,18 @@ export class AfterSalesService {
         shipmentId: input.shipmentId === undefined ? before.shipmentId : input.shipmentId,
         occurredOn: input.occurredOn ?? before.occurredOn,
         reasonDescription: input.reasonDescription ?? before.reasonDescription,
-        customerRequest: input.customerRequest === undefined ? before.customerRequest : nullableText(input.customerRequest),
-        responsibilityDescription: input.responsibilityDescription ?? before.responsibilityDescription,
+        customerRequest:
+          input.customerRequest === undefined
+            ? before.customerRequest
+            : nullableText(input.customerRequest),
+        responsibilityDescription:
+          input.responsibilityDescription ?? before.responsibilityDescription,
         handlingDescription: input.handlingDescription ?? before.handlingDescription,
         status: input.status ?? before.status,
-        customerChargeNote: input.customerChargeNote === undefined ? before.customerChargeNote : nullableText(input.customerChargeNote),
+        customerChargeNote:
+          input.customerChargeNote === undefined
+            ? before.customerChargeNote
+            : nullableText(input.customerChargeNote),
         accountingCostCents: input.accountingCostCents ?? before.accountingCostCents,
         note: input.note === undefined ? before.note : nullableText(input.note)
       }
@@ -89,11 +105,21 @@ export class AfterSalesService {
       this.ensureShipmentBelongsToOrder(normalized.shipmentId, normalized.orderId)
       createAfterSalesAccountingSnapshot(normalized)
       const record: AfterSalesCaseWrite = {
-        id: before.id, ...normalized, createdAt: before.createdAt, updatedAt: this.clock.now()
+        id: before.id,
+        ...normalized,
+        createdAt: before.createdAt,
+        updatedAt: this.clock.now()
       }
       this.repository.updateCase(record)
       const result = this.requireCase(record.id)
-      this.audit('after_sales.case_updated', 'after_sales_case', result.id, before, result, result.updatedAt)
+      this.audit(
+        'after_sales.case_updated',
+        'after_sales_case',
+        result.id,
+        before,
+        result,
+        result.updatedAt
+      )
       return result
     })
   }
@@ -101,32 +127,53 @@ export class AfterSalesService {
   linkCharge(afterSalesCaseId: string, financialEntryId: string): V2AfterSalesChargeLink {
     return this.repository.transaction(() => {
       const caseRecord = this.requireCase(afterSalesCaseId)
-      const financialEntry = this.repository.getFinancialEntryForLink(requireId(financialEntryId, '售后收费流水标识'))
+      const financialEntry = this.repository.getFinancialEntryForLink(
+        requireId(financialEntryId, '售后收费流水标识')
+      )
       if (!financialEntry) throw new DomainValidationError('售后收费流水不存在')
       validateAfterSalesChargeLink({
         afterSalesOrderId: caseRecord.orderId,
         financialEntry: {
-          orderId: financialEntry.orderId, sourceType: financialEntry.sourceType,
-          direction: financialEntry.direction, businessType: financialEntry.businessType
+          orderId: financialEntry.orderId,
+          sourceType: financialEntry.sourceType,
+          direction: financialEntry.direction,
+          businessType: financialEntry.businessType
         }
       })
       const link: V2AfterSalesChargeLink = {
-        afterSalesCaseId: caseRecord.id, financialEntryId: financialEntry.id, createdAt: this.clock.now()
+        afterSalesCaseId: caseRecord.id,
+        financialEntryId: financialEntry.id,
+        createdAt: this.clock.now()
       }
       this.repository.insertChargeLink(link)
-      this.audit('after_sales.charge_linked', 'after_sales_case', caseRecord.id, undefined, link, link.createdAt, {
-        financialEntryId: link.financialEntryId
-      })
+      this.audit(
+        'after_sales.charge_linked',
+        'after_sales_case',
+        caseRecord.id,
+        undefined,
+        link,
+        link.createdAt,
+        {
+          financialEntryId: link.financialEntryId
+        }
+      )
       return link
     })
   }
 
   private normalizeCreate(input: V2AfterSalesCaseCreateInput) {
     const normalized = {
-      orderId: requireId(input.orderId, '订单标识'), shipmentId: input.shipmentId ?? null,
-      occurredOn: input.occurredOn, reasonDescription: input.reasonDescription, customerRequest: nullableText(input.customerRequest),
-      responsibilityDescription: input.responsibilityDescription, handlingDescription: input.handlingDescription, status: input.status,
-      customerChargeNote: nullableText(input.customerChargeNote), accountingCostCents: input.accountingCostCents, note: nullableText(input.note)
+      orderId: requireId(input.orderId, '订单标识'),
+      shipmentId: input.shipmentId ?? null,
+      occurredOn: input.occurredOn,
+      reasonDescription: input.reasonDescription,
+      customerRequest: nullableText(input.customerRequest),
+      responsibilityDescription: input.responsibilityDescription,
+      handlingDescription: input.handlingDescription,
+      status: input.status,
+      customerChargeNote: nullableText(input.customerChargeNote),
+      accountingCostCents: input.accountingCostCents,
+      note: nullableText(input.note)
     }
     validateAfterSalesCase(normalized)
     return normalized
@@ -137,7 +184,10 @@ export class AfterSalesService {
   }
 
   private ensureShipmentBelongsToOrder(shipmentId: string | null, orderId: string): void {
-    if (shipmentId !== null && !this.repository.shipmentBelongsToOrder(requireId(shipmentId, '发货批次标识'), orderId)) {
+    if (
+      shipmentId !== null &&
+      !this.repository.shipmentBelongsToOrder(requireId(shipmentId, '发货批次标识'), orderId)
+    ) {
       throw new DomainValidationError('发货批次不存在或不属于当前订单')
     }
   }
@@ -148,9 +198,24 @@ export class AfterSalesService {
     return record
   }
 
-  private audit(action: string, entityType: string, entityId: string, before: unknown, after: unknown, createdAt: string, metadata?: unknown): void {
+  private audit(
+    action: string,
+    entityType: string,
+    entityId: string,
+    before: unknown,
+    after: unknown,
+    createdAt: string,
+    metadata?: unknown
+  ): void {
     this.repository.insertAudit({
-      id: this.clock.createId(), action, entityType, entityId, before, after, metadata, createdAt
+      id: this.clock.createId(),
+      action,
+      entityType,
+      entityId,
+      before,
+      after,
+      metadata,
+      createdAt
     })
   }
 }

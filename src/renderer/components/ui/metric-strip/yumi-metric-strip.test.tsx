@@ -12,8 +12,9 @@ describe('YumiMetricStrip', () => {
     render(
       <YumiMetricStrip
         ariaLabel="本月经营结果指标"
+        density="comfortable"
         items={[
-          { label: '实际收入', tone: 'success', value: '¥3,000.00' },
+          { label: '实际收入', note: '已到账', tone: 'success', value: '¥3,000.00' },
           { label: '经营支出', tone: 'danger', value: '¥500.00' },
           { label: '经营结果', tone: 'brand', value: '¥2,500.00' }
         ]}
@@ -21,10 +22,15 @@ describe('YumiMetricStrip', () => {
     )
 
     const region = screen.getByRole('region', { name: '本月经营结果指标' })
-    expect(region).toHaveClass('yumi-metric-strip', 'yumi-metric-strip--3')
+    expect(region).toHaveClass(
+      'yumi-metric-strip',
+      'yumi-metric-strip--3',
+      'yumi-metric-strip--comfortable'
+    )
     expect(region.querySelectorAll('.yumi-metric-strip__item')).toHaveLength(3)
     expect(within(region).getByText('实际收入')).toBeVisible()
     expect(within(region).getByText('¥2,500.00')).toBeVisible()
+    expect(within(region).getByText('已到账')).toBeVisible()
     expect(within(region).getByText('实际收入').closest('div')).toHaveClass(
       'yumi-metric-strip__item--success'
     )

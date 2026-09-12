@@ -22,6 +22,7 @@ import {
   YumiSelect,
   YumiSheet,
   YumiStatusTag,
+  YumiTaskRateSummary,
   YumiTextField,
   useYumiNotificationMessage
 } from '../../components/ui'
@@ -383,6 +384,10 @@ export function WorkAssignmentsPage(props: {
                     </span>
                     <YumiStatusTag tone={status.tone}>{status.label}</YumiStatusTag>
                   </div>
+                  <YumiTaskRateSummary
+                    pieceRateCents={task.pieceRateCents}
+                    processType={task.processType}
+                  />
                   {task.status === 'pending' && (
                     <form
                       className="yumi-inline-form"

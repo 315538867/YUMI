@@ -31,7 +31,13 @@ const scenarioIcons: Record<YumiEmptyStateScenario, ReactNode> = {
  * 统一承载加载、首次使用、缺少前置资料、筛选无结果和普通空记录等页面反馈。
  * loading 仅表示数据仍在读取；默认状态仅用于读取完成但没有额外业务语义的只读空列表。
  */
-export function YumiEmptyState({ action, description, icon, scenario = 'default', title }: YumiEmptyStateProps) {
+export function YumiEmptyState({
+  action,
+  description,
+  icon,
+  scenario = 'default',
+  title
+}: YumiEmptyStateProps) {
   return (
     <section
       aria-busy={scenario === 'loading' ? true : undefined}
@@ -41,7 +47,9 @@ export function YumiEmptyState({ action, description, icon, scenario = 'default'
       data-scenario={scenario}
       role="status"
     >
-      <div aria-hidden="true" className="yumi-empty-state__icon">{icon ?? scenarioIcons[scenario]}</div>
+      <div aria-hidden="true" className="yumi-empty-state__icon">
+        {icon ?? scenarioIcons[scenario]}
+      </div>
       <strong>{title}</strong>
       {description ? <p>{description}</p> : null}
       {action ? <div className="yumi-empty-state__action">{action}</div> : null}

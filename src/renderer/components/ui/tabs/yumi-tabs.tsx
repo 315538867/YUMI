@@ -1,5 +1,7 @@
 import type { KeyboardEvent, ReactNode } from 'react'
 
+export type YumiDensity = 'compact' | 'comfortable'
+
 export type YumiTabItem<T extends string> = {
   id: T
   label: ReactNode
@@ -8,6 +10,7 @@ export type YumiTabItem<T extends string> = {
 
 type YumiTabsProps<T extends string> = {
   ariaLabel: string
+  density?: YumiDensity
   items: readonly YumiTabItem<T>[]
   onValueChange: (value: T) => void
   value: T
@@ -61,18 +64,23 @@ function handleTabNavigation<T extends string>(
 
 export function YumiPrimaryTabs<T extends string>({
   ariaLabel,
+  density = 'compact',
   items,
   onValueChange,
   value
 }: YumiTabsProps<T>) {
   return (
-    <nav aria-label={ariaLabel} className="yumi-primary-tabs">
+    <nav aria-label={ariaLabel} className={`yumi-primary-tabs yumi-primary-tabs--${density}`}>
       {items.map((item) => {
         const selected = item.id === value
         return (
           <button
             aria-current={selected ? 'page' : undefined}
-            className={selected ? 'yumi-primary-tabs__item yumi-primary-tabs__item--active' : 'yumi-primary-tabs__item'}
+            className={
+              selected
+                ? 'yumi-primary-tabs__item yumi-primary-tabs__item--active'
+                : 'yumi-primary-tabs__item'
+            }
             disabled={item.disabled}
             key={item.id}
             onClick={() => onValueChange(item.id)}
@@ -89,18 +97,23 @@ export function YumiPrimaryTabs<T extends string>({
 
 export function YumiSegmentedTabs<T extends string>({
   ariaLabel,
+  density = 'compact',
   items,
   onValueChange,
   value
 }: YumiTabsProps<T>) {
   return (
-    <nav aria-label={ariaLabel} className="yumi-segmented-tabs">
+    <nav aria-label={ariaLabel} className={`yumi-segmented-tabs yumi-segmented-tabs--${density}`}>
       {items.map((item) => {
         const selected = item.id === value
         return (
           <button
             aria-pressed={selected}
-            className={selected ? 'yumi-segmented-tabs__item yumi-segmented-tabs__item--active' : 'yumi-segmented-tabs__item'}
+            className={
+              selected
+                ? 'yumi-segmented-tabs__item yumi-segmented-tabs__item--active'
+                : 'yumi-segmented-tabs__item'
+            }
             disabled={item.disabled}
             key={item.id}
             onClick={() => onValueChange(item.id)}

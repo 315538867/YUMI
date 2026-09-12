@@ -13,6 +13,8 @@ function requireNonNegativeInteger(value: number, label: string): number {
 /**
  * 新订单以冻结的胶水单价和克重按整批数量计算，避免把单件成本先四舍五入造成累计误差。
  * 旧快照缺少新字段时，保持原来的人工材料成本口径，确保历史报表不被改写。
+ * 本函数仅计算商品可归属的材料、包装、配饰、替换袋和缝边内部成本；不包含运费、
+ * 制作/捏毛装袋提成，以及不能稳定归属到订单的工资。
  */
 export function calculateProductSnapshotCostCents(
   snapshot: V2ProductOrderSnapshot,

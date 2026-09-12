@@ -23,17 +23,23 @@ export function useProducts() {
     void reload()
   }, [reload])
 
-  const createProduct = useCallback(async (input: V2ProductInput) => {
-    const product = await window.yumiV2.products.create(input)
-    await reload()
-    return product
-  }, [reload])
+  const createProduct = useCallback(
+    async (input: V2ProductInput) => {
+      const product = await window.yumiV2.products.create(input)
+      await reload()
+      return product
+    },
+    [reload]
+  )
 
-  const updateProduct = useCallback(async (input: V2ProductUpdateInput) => {
-    const product = await window.yumiV2.products.update(input)
-    await reload()
-    return product
-  }, [reload])
+  const updateProduct = useCallback(
+    async (input: V2ProductUpdateInput) => {
+      const product = await window.yumiV2.products.update(input)
+      await reload()
+      return product
+    },
+    [reload]
+  )
 
   return { products, loading, loadError, reload, createProduct, updateProduct }
 }

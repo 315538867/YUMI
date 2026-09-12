@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>YUMI · 真实功能全量设计稿</title>
+</head>
+<body>
+<style>
+:root{--paper:#f6f4ee;--paper2:#efece4;--ink:#1e3030;--muted:#687876;--line:#d9ddd4;--jade:#3f756b;--jade-soft:#e6f0ec;--ochre:#bd8b37;--ochre-soft:#f7ecd6;--red:#a65845;--shadow:0 18px 46px rgba(38,52,48,.12)}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#f1efe9 0,#f6f4ee 220px);color:var(--ink);font-family:"PingFang SC","Noto Sans SC",system-ui,sans-serif;line-height:1.45}.cover{max-width:1420px;margin:0 auto;padding:60px 32px 28px}.eyebrow{display:inline-flex;gap:8px;align-items:center;color:var(--jade);font-size:13px;font-weight:700;letter-spacing:.09em}.eyebrow i{width:8px;height:8px;background:var(--ochre);border-radius:50%}.cover h1{max-width:980px;margin:12px 0 12px;font-size:38px;letter-spacing:-.04em}.cover>p{max-width:860px;margin:0;color:var(--muted);font-size:16px}.facts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:26px}.fact{padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:rgba(255,253,248,.74);font-size:13px;color:#52615f}.fact b{display:block;color:var(--ink);margin-bottom:4px}.fact.gapfact{background:#fbf3e4;border-color:#e9d3a5}.toc{position:sticky;top:0;z-index:3;padding:12px 32px;background:rgba(246,244,238,.92);backdrop-filter:blur(12px);border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:auto;white-space:nowrap}.toc a{display:inline-block;margin-right:17px;color:var(--muted);text-decoration:none;font-size:12px}.toc a:hover{color:var(--jade)}.screen{max-width:1480px;margin:0 auto;padding:42px 32px}.screen-label{display:flex;align-items:flex-start;gap:12px;max-width:1390px;margin:0 auto 12px}.screen-label>span{display:grid;place-items:center;width:31px;height:31px;border-radius:50%;background:var(--ochre-soft);color:#8d631d;font-weight:700;font-size:12px}.screen-label h2{font-size:18px;margin:0}.screen-label p{margin:3px 0 0;color:var(--muted);font-size:13px}.screen-label a{margin-left:auto;color:var(--jade);font-size:12px;text-decoration:none}.mockup{max-width:1390px;margin:auto;min-height:575px;display:grid;grid-template-columns:160px 1fr;border:1px solid var(--line);border-radius:23px;overflow:hidden;background:#fffdfa;box-shadow:var(--shadow)}.mockup>aside{padding:24px 15px;background:#f5f5ef;border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{font-size:18px;font-weight:800;letter-spacing:.05em;margin:0 7px 28px}.brand span{font-size:10px;color:white;background:var(--jade);border-radius:4px;padding:2px 4px;margin-left:4px;vertical-align:middle}.nav{border-radius:7px;padding:9px 10px;color:#60716e;font-size:13px;margin-bottom:3px}.nav.on{background:var(--jade);color:white;font-weight:700}.mockup aside small{margin-top:auto;color:#7b8985;font-size:10px;line-height:1.65}.mockup main{min-width:0;padding:24px 27px 30px}.mockup header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px}.mockup header small{color:var(--muted);font-size:12px}.mockup h3{margin:4px 0 0;font-size:25px;letter-spacing:-.03em}.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}button{border:1px solid #c8d4ce;background:#fffdfa;border-radius:8px;color:#365c56;font-size:12px;padding:8px 11px;font-weight:700}button.primary{background:var(--ochre);color:white;border-color:var(--ochre)}.tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);margin-bottom:20px}.tabs span,.tabs b{padding:9px 0;color:#6a7976;font-size:13px;font-weight:500}.tabs b{color:var(--jade);border-bottom:3px solid var(--ochre);margin-bottom:-1px;font-weight:800}.statrow{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fbfbf7}.statrow div{padding:13px 15px;border-right:1px solid var(--line)}.statrow div:last-child{border:0}.statrow small{display:block;color:var(--muted);font-size:11px}.statrow b{font-size:16px;display:block;margin-top:4px}.gap{margin:14px 0 0;padding:10px 12px;border-left:3px solid var(--ochre);border-radius:7px;background:#faf2e3;color:#765c2c;font-size:12px}.gap.neutral{background:#edf4f1;border-left-color:var(--jade);color:#4a645e}.content{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(240px,.7fr);gap:15px;margin-top:15px}.card{border:1px solid var(--line);border-radius:12px;background:#fffefa;padding:16px}.cardtitle{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid #e5e7e0}.cardtitle h4,.card h5{margin:0;font-size:15px}.cardtitle span{font-size:11px;color:var(--muted)}.sidecards{display:flex;flex-direction:column;gap:15px}.sidecards p{color:var(--muted);font-size:12px;min-height:40px}.wide{width:100%;background:var(--jade-soft);border-color:transparent}.kvgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:6px}.kv{padding:14px 8px;border-bottom:1px solid #edf0ea}.kv:nth-last-child(-n+2){border-bottom:0}.kv span{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}.kv strong{font-size:13px;font-weight:650}.table{margin-top:13px;border:1px solid #e0e2dc;border-radius:9px;overflow:hidden}.tr{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 11px;font-size:12px;border-top:1px solid #e4e6df}.tr.head{border-top:0;background:#f4f5ef;color:#60706d}.chart{height:126px;display:flex;gap:17px;align-items:end;padding:18px 18px 0;margin-top:10px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#f6fbf7 0%,#fffefa 80%)}.chart i{width:22px;background:linear-gradient(180deg,#6f9a8d,#3f756b);border-radius:5px 5px 0 0}.weekgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:14px}.weekgrid div{min-height:105px;padding:9px;border:1px solid #dce3dd;border-radius:8px;background:#fbfdf9}.weekgrid b{font-size:11px;display:block;margin-bottom:8px}.weekgrid span{display:block;font-size:10px;padding:4px;border-radius:4px;background:#e6f0ec;color:#37685f;margin-bottom:5px}.weekgrid span.busy{background:#f7ecd6;color:#8a682c}.stagebar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.stagebar span{font-size:12px;padding:14px 8px;border:1px solid #dce4dc;border-radius:8px;color:#6b7a76;text-align:center}.stagebar .done{background:#eaf3ef;color:#316a60;border-color:#c3dbd2}.waterfall{display:flex;align-items:center;gap:12px;padding:30px 0 18px;border-bottom:1px solid var(--line)}.waterfall span{padding:10px 15px;border-radius:8px;background:#edf4f1;font-size:11px;color:#5d6e68}.waterfall span b{display:block;font-size:18px;color:var(--ink)}.waterfall span.accent{background:#f7ecd6}.waterfall em{font-style:normal;color:var(--ochre);font-size:20px}@media(max-width:850px){.cover,.screen{padding-left:14px;padding-right:14px}.mockup{grid-template-columns:1fr}.mockup>aside{display:none}.mockup main{padding:18px}.content{grid-template-columns:1fr}.statrow{grid-template-columns:repeat(2,1fr)}.statrow div:nth-child(2){border-right:0}.statrow div:nth-child(n+3){border-top:1px solid var(--line)}.screen-label a{display:none}.facts{grid-template-columns:1fr}.weekgrid{overflow:auto;grid-template-columns:repeat(7,100px)}.actions{max-width:190px}.mockup header{gap:10px}}
+</style>
+<section class="cover" id="screen-01"><div class="eyebrow"><i></i> 基于当前代码、接口契约与测试重新盘点</div><h1>YUMI 经营界面：真实功能全量设计稿（重新开始版）</h1><p>所有页面纵向逐行展示；每一行是一张完整业务界面。样例数据只用于评审信息密度，不会写入本地调试数据。页面严格以当前已实现的业务对象为基础，新增能力会被明确标注为实施缺口。</p><div class="facts"><div class="fact"><b>已实现事实</b>订单优惠、订单内缝边服务、商品捏毛装袋提成、四阶段排班、发货批次与清单快照、工资/财务/公式设置均已有对应业务结构。</div><div class="fact gapfact"><b>不能伪装为已实现</b>发货运费金额与承担方当前没有数据模型、API 或持久化；本稿只在新增发货中标为“待后端补齐”。订单盈利也需明确人工归集范围。</div></div></section>
+<nav class="toc"><a href="#screen-01">01 工作台总览</a><a href="#screen-02">02 需要我决定</a><a href="#screen-03">03 可以推进</a><a href="#screen-04">04 订单列表</a><a href="#screen-05">05 新建订单</a><a href="#screen-06">06 订单详情</a><a href="#screen-07">07 订单盈利</a><a href="#screen-08">08 发货记录</a><a href="#screen-09">09 发货清单预览</a><a href="#screen-10">10 新增发货</a><a href="#screen-11">11 订单排班</a><a href="#screen-12">12 订单资金</a><a href="#screen-13">13 登记收款</a><a href="#screen-14">14 订单售后</a><a href="#screen-15">15 排班</a><a href="#screen-16">16 人员周视图</a><a href="#screen-17">17 任务处理 / 质检</a><a href="#screen-18">18 负责人调整</a><a href="#screen-19">19 补录期初在制品</a><a href="#screen-20">20 工资</a><a href="#screen-21">21 结算详情</a><a href="#screen-22">22 待退款</a><a href="#screen-23">23 人员与时薪</a><a href="#screen-24">24 财务</a><a href="#screen-25">25 现金流水</a><a href="#screen-26">26 登记日常收支</a><a href="#screen-27">27 待报销</a><a href="#screen-28">28 报表</a><a href="#screen-29">29 风险入口</a><a href="#screen-30">30 客户</a><a href="#screen-31">31 客户详情</a><a href="#screen-32">32 新建客户</a><a href="#screen-33">33 商品</a><a href="#screen-34">34 商品详情</a><a href="#screen-35">35 新建商品</a><a href="#screen-36">36 设置</a><a href="#screen-37">37 计算公式</a><a href="#screen-38">38 财务资料</a><a href="#screen-39">39 数据保护</a><a href="#screen-40">40 恢复确认</a></nav>
+<article class="screen" id="screen-01">
+   <div class="screen-label"><span>01</span><div><h2>01 工作台总览</h2><p>把今天需要处理的事情排出先后</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav on">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>工作台 / 工作台总览</small><h3>工作台总览</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>待发货 6 单</b></div><div><small>业务状态</small><b>待收款 ¥8,640</b></div><div><small>需要关注</small><b>待质检 4 项</b></div><div><small>辅助指标</small><b>本周产能 72%</b></div></section>
+
+     <div class="content metrics"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>需要我决定</span><strong>订单#240912-08 · 客户要求提前至 9/15</strong></div><div class="kv"><span>确认交期</span><strong>可以推进</strong></div><div class="kv"><span>3 件已制作完成，等待捏毛装袋</span><strong>查看排班</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-02">
+   <div class="screen-label"><span>02</span><div><h2>01-A 需要我决定</h2><p>把需要负责人判断的事项集中，不混入普通待办</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav on">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>工作台 / 需要我决定</small><h3>需要我决定</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>交期冲突 2</b></div><div><small>业务状态</small><b>待确认付款 3</b></div><div><small>需要关注</small><b>售后待处理 1</b></div><div><small>辅助指标</small><b>超期风险 1</b></div></section>
+
+     <div class="content decision"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>交期冲突</span><strong>订单#240912-08 与订单#240910-03占用同一制作时段</strong></div><div class="kv"><span>调整排班</span><strong>付款确认</strong></div><div class="kv"><span>张晓云 · 尾款 ¥1,260 待确认</span><strong>登记收款</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-03">
+   <div class="screen-label"><span>03</span><div><h2>01-B 可以推进</h2><p>展示无需判断、可直接执行的下一步</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav on">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>工作台 / 可以推进</small><h3>可以推进</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>可派工 8</b></div><div><small>业务状态</small><b>待制作 5</b></div><div><small>需要关注</small><b>待装袋 3</b></div><div><small>辅助指标</small><b>待打包 2</b></div></section>
+
+     <div class="content queue"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>制作</span><strong>青花纹样抱枕 × 12 · 已分配至王师傅</strong></div><div class="kv"><span>进入任务</span><strong>捏毛装袋</strong></div><div class="kv"><span>祥云小挂件 × 30 · 待领取</span><strong>查看排班</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-04">
+   <div class="screen-label"><span>04</span><div><h2>02 订单列表</h2><p>围绕订单状态、交期、资金与履约快速定位</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 订单列表</small><h3>订单列表</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>进行中 18</b></div><div><small>业务状态</small><b>临近交期 4</b></div><div><small>需要关注</small><b>待收款 7</b></div><div><small>辅助指标</small><b>售后中 2</b></div></section>
+
+     <div class="content orders"><section class="card maincard"><div class="cardtitle"><h4>订单业务内容</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>订单 #240912-08</span><strong>张晓云 · 青花纹样抱枕 × 12</strong></div><div class="kv"><span>制作中 · 9月15日交付</span><strong>¥3,960</strong></div><div class="kv"><span>订单 #240911-03</span><strong>陈然 · 祥云小挂件 × 30</strong></div><div class="kv"><span>待发货 · 9月13日交付</span><strong>¥2,760</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-05">
+   <div class="screen-label"><span>05</span><div><h2>02-A 新建订单</h2><p>客户在前，商品、定制服务、优惠与交期按事实录入</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 新建订单</small><h3>新建订单</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>客户</b></div><div><small>业务状态</small><b>订单内容</b></div><div><small>需要关注</small><b>交期与优惠</b></div><div><small>辅助指标</small><b>确认创建</b></div></section>
+
+     <div class="content form"><section class="card maincard"><div class="cardtitle"><h4>订单业务内容</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>客户</span><strong>张晓云  ·  手机 138****2018</strong></div><div class="kv"><span>订单商品</span><strong>青花纹样抱枕 × 12  ·  单价 ¥330</strong></div><div class="kv"><span>定制服务</span><strong>缝边 · ¥8/件</strong></div><div class="kv"><span>订单优惠</span><strong>- ¥120</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-06">
+   <div class="screen-label"><span>06</span><div><h2>03 订单详情</h2><p>先看客户和交付上下文，订单号降级为辅助信息</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 订单详情</small><h3>订单详情</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>应收 ¥3,840</b></div><div><small>业务状态</small><b>已收 ¥2,580</b></div><div><small>需要关注</small><b>待收 ¥1,260</b></div><div><small>辅助指标</small><b>已发 1/2 批</b></div></section>
+
+     <div class="content detail"><section class="card maincard"><div class="cardtitle"><h4>订单业务内容</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>张晓云</span><strong>手机 138****2018 · 常用收货地址：杭州拱墅区</strong></div><div class="kv"><span>交付：9月15日 · 12 件 · 制作中</span><strong>订单号 #240912-08</strong></div><div class="kv"><span>订单商品</span><strong>青花纹样抱枕 × 12 · 缝边服务 · 已制作 8 件</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-07">
+   <div class="screen-label"><span>07</span><div><h2>03-A 订单盈利</h2><p>只展示已有成本口径，明确不把未归集的人工伪装成净利</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 订单盈利</small><h3>订单盈利</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>实收 ¥2,580</b></div><div><small>业务状态</small><b>已知材料成本 ¥1,126</b></div><div><small>需要关注</small><b>已知毛利 ¥1,454</b></div><div><small>辅助指标</small><b>人工待归集</b></div></section>
+     <div class="gap neutral"><b>口径说明</b> 当前报表已有订单经营数据；人工按任务的归集口径仍需明确，不能当作完整净利润。</div>
+     <div class="content profit"><section class="card maincard"><div class="cardtitle"><h4>订单业务内容</h4><span>真实功能视图</span></div><div class="waterfall"><span>实收<br><b>2,580</b></span><em>−</em><span>已知成本<br><b>1,126</b></span><em>=</em><span class="accent">已知毛利<br><b>1,454</b></span></div><div class="kvgrid"><div class="kv"><span>收入</span><strong>订单金额 ¥3,960 - 订单优惠 ¥120</strong></div><div class="kv"><span>已知成本</span><strong>商品材料成本 ¥1,080 + 订单内定制 ¥46</strong></div><div class="kv"><span>边界说明</span><strong>当前仅基于已登记收入与商品成本；人工成本待后端归集</strong></div><div class="kv"><span>查看计算公式</span><strong></strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>已知成本和未归集成本分别呈现。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-08">
+   <div class="screen-label"><span>08</span><div><h2>03-B 发货记录</h2><p>默认看已有批次；“新增发货”才进入录入抽屉</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 发货记录</small><h3>发货记录</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>已发 8 件</b></div><div><small>业务状态</small><b>待发 4 件</b></div><div><small>需要关注</small><b>发货批次 1</b></div><div><small>辅助指标</small><b>物流待补 0</b></div></section>
+
+     <div class="content shipments"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>批次 01 · 2026-09-12</span><strong>顺丰速运 · SF1280034567 · 青花纹样抱枕 × 8</strong></div><div class="kv"><span>已发货</span><strong>下载发货清单</strong></div><div class="kv"><span>批次 02</span><strong>待新增，当前无录入表单占位</strong></div><div class="kv"><span>新增发货</span><strong></strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">下载发货清单</button></section><section class="card"><h5>信息边界</h5><p>发货批次和文档快照独立保存。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-09">
+   <div class="screen-label"><span>09</span><div><h2>03-B-1 发货清单预览</h2><p>快照独立保存，后续订单、商品或客户变更不影响历史清单</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 发货清单预览</small><h3>发货清单预览</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>批次 #01</b></div><div><small>业务状态</small><b>发货 8 件</b></div><div><small>需要关注</small><b>下单日 9月10日</b></div><div><small>辅助指标</small><b>快照已保存</b></div></section>
+
+     <div class="content document"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>收件人</span><strong>张晓云 · 138****2018 · 杭州拱墅区…</strong></div><div class="kv"><span>货品明细</span><strong>青花纹样抱枕 × 8 · 缝边服务</strong></div><div class="kv"><span>物流信息</span><strong>顺丰速运 · SF1280034567</strong></div><div class="kv"><span>下载 PDF</span><strong></strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">下载发货清单</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-10">
+   <div class="screen-label"><span>10</span><div><h2>03-C 新增发货</h2><p>在抽屉中按订单剩余可发数量创建批次</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 新增发货</small><h3>新增发货</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">保存</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>可发数量 4</b></div><div><small>业务状态</small><b>发货日期</b></div><div><small>需要关注</small><b>物流信息</b></div><div><small>辅助指标</small><b>保存批次</b></div></section>
+     <div class="gap"><b>待后端补齐</b> 运费金额与承担方当前没有订单/发货数据模型、接口或持久化；本稿将其明确标为实施缺口。</div>
+     <div class="content form"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>发货商品</span><strong>青花纹样抱枕 · 剩余可发 4 · 本次 4</strong></div><div class="kv"><span>发货日期</span><strong>2026-09-13</strong></div><div class="kv"><span>承运商 / 单号</span><strong>顺丰速运 / SF1280034588</strong></div><div class="kv"><span>运费 / 承担方</span><strong>待后端支持 · 当前系统未持久化</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">下载发货清单</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-11">
+   <div class="screen-label"><span>11</span><div><h2>03-D 订单排班</h2><p>概览只保留阶段摘要；完整任务在排班页按订单过滤查看</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 订单排班</small><h3>订单排班</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>制作 8/12</b></div><div><small>业务状态</small><b>捏毛装袋 0/12</b></div><div><small>需要关注</small><b>打包 0/12</b></div><div><small>辅助指标</small><b>发货 8/12</b></div></section>
+
+     <div class="content schedule"><section class="card maincard"><div class="cardtitle"><h4>订单业务内容</h4><span>真实功能视图</span></div><div class="stagebar"><span class="done">制作 8/12</span><span>捏毛装袋 0/12</span><span>打包 0/12</span><span>发货 8/12</span></div><div class="kvgrid"><div class="kv"><span>制作</span><strong>王师傅 · 8/12 完成 · 最晚 9月13日</strong></div><div class="kv"><span>进入排班</span><strong>捏毛装袋</strong></div><div class="kv"><span>待排班 · 0/12 · 预计 9月14日</span><strong>查看全部任务</strong></div><div class="kv"><span>排班说明</span><strong>此页为订单摘要，详细人员与任务请在「排班」模块处理</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">查看任务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-12">
+   <div class="screen-label"><span>12</span><div><h2>03-E 订单资金</h2><p>资金事件按时间沉淀，收款、冲正和凭证可追溯</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 订单资金</small><h3>订单资金</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>应收 ¥3,840</b></div><div><small>业务状态</small><b>已收 ¥2,580</b></div><div><small>需要关注</small><b>待收 ¥1,260</b></div><div><small>辅助指标</small><b>资金记录 2</b></div></section>
+
+     <div class="content funds"><section class="card maincard"><div class="cardtitle"><h4>订单业务内容</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>2026-09-10 · 定金</span><strong>微信收款 ¥1,320 · 已附凭证</strong></div><div class="kv"><span>查看凭证</span><strong>2026-09-12 · 二次收款</strong></div><div class="kv"><span>银行转账 ¥1,260 · 已附凭证</span><strong>登记收款</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-13">
+   <div class="screen-label"><span>13</span><div><h2>03-F 登记收款</h2><p>登记一次真实资金事件，并保留付款方、方式和凭证</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 登记收款</small><h3>登记收款</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>待收 ¥1,260</b></div><div><small>业务状态</small><b>收款金额</b></div><div><small>需要关注</small><b>收款方式</b></div><div><small>辅助指标</small><b>上传凭证</b></div></section>
+
+     <div class="content form"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>金额</span><strong>¥1,260</strong></div><div class="kv"><span>方式</span><strong>银行转账</strong></div><div class="kv"><span>付款方</span><strong>张晓云</strong></div><div class="kv"><span>凭证</span><strong>选择图片或 PDF</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-14">
+   <div class="screen-label"><span>14</span><div><h2>03-G 订单售后</h2><p>售后不与履约混淆，费用可回链到资金流水</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav on">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>订单 / 订单售后</small><h3>订单售后</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>概览</b><span>发货</span><span>排班</span><span>资金</span><span>盈利</span><span>售后</span></nav><section class="statrow"><div><small>当前重点</small><b>进行中 1</b></div><div><small>业务状态</small><b>已完成 0</b></div><div><small>需要关注</small><b>关联费用 ¥0</b></div><div><small>辅助指标</small><b>待回复 1</b></div></section>
+
+     <div class="content after"><section class="card maincard"><div class="cardtitle"><h4>订单业务内容</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>售后 #AS-240912-01</span><strong>客户反馈缝边局部松线 · 9月12日创建</strong></div><div class="kv"><span>处理中</span><strong>关联费用</strong></div><div class="kv"><span>尚未登记，可在处理时关联订单资金</span><strong>处理售后</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-15">
+   <div class="screen-label"><span>15</span><div><h2>04 排班</h2><p>按真实四个环节组织任务，先看今日队列和产能风险</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav on">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>排班 / 排班</small><h3>排班</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>今日任务 14</b></div><div><small>业务状态</small><b>待派工 5</b></div><div><small>需要关注</small><b>质检待确认 3</b></div><div><small>辅助指标</small><b>产能风险 2</b></div></section>
+
+     <div class="content schedule"><section class="card maincard"><div class="cardtitle"><h4>任务与人员</h4><span>真实功能视图</span></div><div class="stagebar"><span class="done">制作 8/12</span><span>捏毛装袋 0/12</span><span>打包 0/12</span><span>发货 8/12</span></div><div class="kvgrid"><div class="kv"><span>制作</span><strong>青花纹样抱枕 · 订单#240912-08 · 8/12</strong></div><div class="kv"><span>王师傅 · 9月13日</span><strong>捏毛装袋</strong></div><div class="kv"><span>祥云小挂件 · 订单#240911-03 · 0/30</span><strong>待指派 · 9月13日</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">查看任务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-16">
+   <div class="screen-label"><span>16</span><div><h2>04-A 人员周视图</h2><p>把可用人员、已排任务和容量放在同一周视图</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav on">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>排班 / 人员周视图</small><h3>人员周视图</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>本周排班 31</b></div><div><small>业务状态</small><b>已占用 72%</b></div><div><small>需要关注</small><b>待分配 5</b></div><div><small>辅助指标</small><b>超负荷 1</b></div></section>
+
+     <div class="content week"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="weekgrid"><div><b>周一</b><span class="">制作 · 订单#08</span><span>—</span></div><div><b>周二</b><span class="">制作 · 订单#08</span><span>—</span></div><div><b>周三</b><span class="busy">制作 · 订单#08</span><span>—</span></div><div><b>周四</b><span class="">制作 · 订单#08</span><span>捏毛装袋 · #03</span></div><div><b>周五</b><span class="">制作 · 订单#08</span><span>—</span></div><div><b>周六</b><span class="">空</span><span>—</span></div><div><b>周日</b><span class="">空</span><span>—</span></div></div><div class="kvgrid"><div class="kv"><span>王师傅</span><strong>周一 制作#08 · 周二 制作#08 · 周三 质检</strong></div><div class="kv"><span>72%</span><strong>李姐</strong></div><div class="kv"><span>周一 捏毛装袋#03 · 周四 打包#05</span><strong>64%</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-17">
+   <div class="screen-label"><span>17</span><div><h2>04-B 任务处理 / 质检</h2><p>领取、开始、完成、质检使用明确状态链路</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav on">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>排班 / 任务处理 / 质检</small><h3>任务处理 / 质检</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>待开始 5</b></div><div><small>业务状态</small><b>进行中 4</b></div><div><small>需要关注</small><b>待质检 3</b></div><div><small>辅助指标</small><b>已完成 2</b></div></section>
+
+     <div class="content tasks"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="stagebar"><span class="done">制作 8/12</span><span>捏毛装袋 0/12</span><span>打包 0/12</span><span>发货 8/12</span></div><div class="kvgrid"><div class="kv"><span>任务 FT-240912-01</span><strong>制作 · 青花纹样抱枕 × 8 · 王师傅</strong></div><div class="kv"><span>进行中</span><strong>提交完成</strong></div><div class="kv"><span>任务 FT-240911-04</span><strong>打包 · 祥云小挂件 × 10 · 李姐</strong></div><div class="kv"><span>待质检</span><strong>确认质检</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-18">
+   <div class="screen-label"><span>18</span><div><h2>04-C 负责人调整</h2><p>变更保留原任务和当时费率快照，新任务承接未完成部分</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav on">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>排班 / 负责人调整</small><h3>负责人调整</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>原负责人</b></div><div><small>业务状态</small><b>剩余数量</b></div><div><small>需要关注</small><b>新负责人</b></div><div><small>辅助指标</small><b>变更原因</b></div></section>
+     <div class="gap neutral"><b>实施校验</b> 调整负责人时需校验人员有效性与容量，原任务及费率快照必须可追溯。</div>
+     <div class="content form"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>原任务</span><strong>王师傅 · 制作 · 完成 8 / 12</strong></div><div class="kv"><span>承接数量</span><strong>4</strong></div><div class="kv"><span>新负责人</span><strong>陈师傅</strong></div><div class="kv"><span>原因</span><strong>原负责人请假，重新指派</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-19">
+   <div class="screen-label"><span>19</span><div><h2>04-D 补录期初在制品</h2><p>期初在制品属于工作室库存事实，不归入任何订单</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav on">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>排班 / 补录期初在制品</small><h3>补录期初在制品</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>商品</b></div><div><small>业务状态</small><b>所在阶段</b></div><div><small>需要关注</small><b>数量</b></div><div><small>辅助指标</small><b>入库日期</b></div></section>
+
+     <div class="content form"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>商品</span><strong>祥云小挂件</strong></div><div class="kv"><span>当前阶段</span><strong>捏毛装袋</strong></div><div class="kv"><span>数量</span><strong>18</strong></div><div class="kv"><span>说明</span><strong>工作室期初在制品，不关联订单</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-20">
+   <div class="screen-label"><span>20</span><div><h2>05 工资</h2><p>人员结算、退款与时薪分别管理，避免把任务成本和现金支付混用</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav on">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>工资 / 工资</small><h3>工资</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>待结算 ¥6,820</b></div><div><small>业务状态</small><b>本期已确认 ¥12,560</b></div><div><small>需要关注</small><b>待退款 2</b></div><div><small>辅助指标</small><b>人员 11</b></div></section>
+
+     <div class="content payroll"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>王师傅 · 2026年9月</span><strong>制作计件 ¥2,260 + 时薪 ¥840</strong></div><div class="kv"><span>待确认</span><strong>查看结算</strong></div><div class="kv"><span>李姐 · 2026年9月</span><strong>捏毛装袋计件 ¥1,560 + 时薪 ¥640</strong></div><div class="kv"><span>已确认</span><strong>查看结算</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-21">
+   <div class="screen-label"><span>21</span><div><h2>05-A 结算详情</h2><p>展示任务、费率快照与人工时的组成，不把商品成本混入</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav on">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>工资 / 结算详情</small><h3>结算详情</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>计件 ¥2,260</b></div><div><small>业务状态</small><b>时薪 ¥840</b></div><div><small>需要关注</small><b>应结 ¥3,100</b></div><div><small>辅助指标</small><b>已结 ¥0</b></div></section>
+
+     <div class="content detail"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>王师傅</span><strong>计件制作 48 件 · 费率按任务快照</strong></div><div class="kv"><span>工时</span><strong>42 小时 × 全局时薪 ¥20</strong></div><div class="kv"><span>任务明细</span><strong>订单#240912-08 制作 12 件 · ¥360</strong></div><div class="kv"><span>确认结算</span><strong></strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-22">
+   <div class="screen-label"><span>22</span><div><h2>05-B 待退款</h2><p>退款必须关联原结算或原因，保持资金事实闭环</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav on">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>工资 / 待退款</small><h3>待退款</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>待退款 2</b></div><div><small>业务状态</small><b>退款总额 ¥460</b></div><div><small>需要关注</small><b>待核实 1</b></div><div><small>辅助指标</small><b>已完成 6</b></div></section>
+
+     <div class="content queue"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>退款 RT-240901-02</span><strong>李姐 · 工时重复登记 · ¥260</strong></div><div class="kv"><span>待核实</span><strong>处理退款</strong></div><div class="kv"><span>退款 RT-240905-01</span><strong>王师傅 · 任务取消 · ¥200</strong></div><div class="kv"><span>待退款</span><strong>处理退款</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-23">
+   <div class="screen-label"><span>23</span><div><h2>05-C 人员与时薪</h2><p>兼职统一时薪作为工作室参数，人员页管理档案和生效记录</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav on">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>工资 / 人员与时薪</small><h3>人员与时薪</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>在职 11</b></div><div><small>业务状态</small><b>兼职 4</b></div><div><small>需要关注</small><b>当前时薪 ¥20/h</b></div><div><small>辅助指标</small><b>本月变更 1</b></div></section>
+
+     <div class="content people"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>王师傅</span><strong>制作 · 计件为主 · 在职</strong></div><div class="kv"><span>查看人员</span><strong>李姐</strong></div><div class="kv"><span>捏毛装袋 / 打包 · 兼职</span><strong>查看人员</strong></div><div class="kv"><span>全局兼职时薪</span><strong>¥20 / 小时 · 在设置中维护</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-24">
+   <div class="screen-label"><span>24</span><div><h2>06 财务</h2><p>先呈现现金流水，登记收入、支出和报销在抽屉完成</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav on">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>财务 / 财务</small><h3>财务</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>本月流入 ¥38,600</b></div><div><small>业务状态</small><b>本月流出 ¥21,340</b></div><div><small>需要关注</small><b>待报销 ¥1,280</b></div><div><small>辅助指标</small><b>现金余额 ¥52,780</b></div></section>
+
+     <div class="content finance"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>2026-09-12</span><strong>订单收款 · 张晓云 · +¥1,260</strong></div><div class="kv"><span>收入</span><strong>2026-09-12</strong></div><div class="kv"><span>材料采购 · 棉麻面料 · -¥860</span><strong>支出</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-25">
+   <div class="screen-label"><span>25</span><div><h2>06-A 现金流水</h2><p>按时间记录真实资金流，不把利润指标塞进流水</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav on">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>财务 / 现金流水</small><h3>现金流水</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>本月 46 笔</b></div><div><small>业务状态</small><b>收入 23 笔</b></div><div><small>需要关注</small><b>支出 23 笔</b></div><div><small>辅助指标</small><b>待核销 2 笔</b></div></section>
+
+     <div class="content table"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="table"><div class="tr head"><b>日期</b><b>类型 / 对方</b><b>金额</b><b>关联</b></div><div class="tr"><span>9月12日</span><span>订单收款 / 张晓云</span><span>+ ¥1,260</span><span>订单#240912-08</span></div><div class="tr"><span>9月12日</span><span>材料采购 / 棉麻面料</span><span>- ¥860</span><span>采购单#M-21</span></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-26">
+   <div class="screen-label"><span>26</span><div><h2>06-B 登记日常收支</h2><p>日常收支单独登记，分类、付款方和凭证可审计</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav on">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>财务 / 登记日常收支</small><h3>登记日常收支</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>收支类型</b></div><div><small>业务状态</small><b>金额</b></div><div><small>需要关注</small><b>分类</b></div><div><small>辅助指标</small><b>凭证</b></div></section>
+
+     <div class="content form"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>类型</span><strong>日常支出</strong></div><div class="kv"><span>金额</span><strong>¥860</strong></div><div class="kv"><span>分类</span><strong>材料采购</strong></div><div class="kv"><span>付款方</span><strong>工作室</strong></div><div class="kv"><span>凭证</span><strong>选择图片或 PDF</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-27">
+   <div class="screen-label"><span>27</span><div><h2>06-C 待报销</h2><p>允许多笔选择后原子化报销，避免半成功资金状态</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav on">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>财务 / 待报销</small><h3>待报销</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>待报销 4 笔</b></div><div><small>业务状态</small><b>待报销 ¥1,280</b></div><div><small>需要关注</small><b>本周已报 ¥2,460</b></div><div><small>辅助指标</small><b>异常 0</b></div></section>
+
+     <div class="content table"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="table"><div class="tr head"><b>选择</b><b>日期</b><b>付款人 / 事项</b><b>金额</b></div><div class="tr"><span>□</span><span>9月11日</span><span>李姐 / 包材垫付</span><span>¥360</span></div><div class="tr"><span>□</span><span>9月12日</span><span>王师傅 / 运输垫付</span><span>¥240</span></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-28">
+   <div class="screen-label"><span>28</span><div><h2>07 报表</h2><p>用少量核心趋势和风险入口支持经营判断，不堆砌图表</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav on">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>报表 / 报表</small><h3>报表</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>本月营收 ¥38,600</b></div><div><small>业务状态</small><b>已知毛利 ¥16,240</b></div><div><small>需要关注</small><b>交期风险 2</b></div><div><small>辅助指标</small><b>产能风险 2</b></div></section>
+
+     <div class="content reports"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="chart"><i style="height:36%"></i><i style="height:57%"></i><i style="height:48%"></i><i style="height:78%"></i><i style="height:66%"></i><i style="height:92%"></i></div><div class="kvgrid"><div class="kv"><span>营收趋势</span><strong>近 6 个月收入与支出</strong></div><div class="kv"><span>查看经营明细</span><strong>生产负荷</strong></div><div class="kv"><span>本周四阶段容量占用</span><strong>查看排班</strong></div><div class="kv"><span>风险入口</span><strong>交期 2 项 · 产能 2 项</strong></div><div class="kv"><span>处理风险</span><strong></strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-29">
+   <div class="screen-label"><span>29</span><div><h2>07-A 风险入口</h2><p>风险跳到对应真实业务页面，避免在报表里重复编辑</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav on">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>报表 / 风险入口</small><h3>风险入口</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>交期风险 2</b></div><div><small>业务状态</small><b>产能风险 2</b></div><div><small>需要关注</small><b>待收款风险 3</b></div><div><small>辅助指标</small><b>已处理 4</b></div></section>
+
+     <div class="content risk"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>交期风险</span><strong>订单#240912-08 · 预计9/15交付 · 捏毛装袋未开始</strong></div><div class="kv"><span>查看订单</span><strong>产能风险</strong></div><div class="kv"><span>王师傅 9月13日制作负荷 112%</span><strong>查看排班</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-30">
+   <div class="screen-label"><span>30</span><div><h2>08 客户</h2><p>客户档案只保留业务往来、订单和应收关联信息</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav on">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>客户 / 客户</small><h3>客户</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>客户 126</b></div><div><small>业务状态</small><b>本月新增 8</b></div><div><small>需要关注</small><b>有待收 14</b></div><div><small>辅助指标</small><b>重点客户 6</b></div></section>
+
+     <div class="content customers"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>张晓云</span><strong>订单 4 · 本月应收 ¥3,840 · 待收 ¥1,260</strong></div><div class="kv"><span>查看档案</span><strong>陈然</strong></div><div class="kv"><span>订单 2 · 最近下单 9月11日 · 无待收</span><strong>查看档案</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-31">
+   <div class="screen-label"><span>31</span><div><h2>08-A 客户详情</h2><p>客户摘要、订单、地址和资金关系按页签查看</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav on">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>客户 / 客户详情</small><h3>客户详情</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>累计订单 4</b></div><div><small>业务状态</small><b>累计实收 ¥12,640</b></div><div><small>需要关注</small><b>待收 ¥1,260</b></div><div><small>辅助指标</small><b>最近下单 9月10日</b></div></section>
+
+     <div class="content detail"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>张晓云</span><strong>138****2018 · 杭州拱墅区</strong></div><div class="kv"><span>最近订单</span><strong>订单#240912-08 · 制作中 · ¥3,840</strong></div><div class="kv"><span>常用地址</span><strong>杭州市拱墅区祥园路…</strong></div><div class="kv"><span>编辑客户</span><strong></strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-32">
+   <div class="screen-label"><span>32</span><div><h2>08-B 新建客户</h2><p>只先录入必要身份和联系信息，地址可后续维护</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav on">客户</div><div class="nav ">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>客户 / 新建客户</small><h3>新建客户</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>姓名 / 称呼</b></div><div><small>业务状态</small><b>联系方式</b></div><div><small>需要关注</small><b>常用地址</b></div><div><small>辅助指标</small><b>保存</b></div></section>
+
+     <div class="content form"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>姓名</span><strong>张晓云</strong></div><div class="kv"><span>电话</span><strong>138****2018</strong></div><div class="kv"><span>常用地址</span><strong>浙江省杭州市拱墅区…</strong></div><div class="kv"><span>备注</span><strong>偏好缝边服务</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-33">
+   <div class="screen-label"><span>33</span><div><h2>09 商品</h2><p>商品只展示售价、材料成本、制作与捏毛装袋提成等已存在字段</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav on">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>商品 / 商品</small><h3>商品</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>商品 38</b></div><div><small>业务状态</small><b>启用 34</b></div><div><small>需要关注</small><b>低产能 3</b></div><div><small>辅助指标</small><b>本月使用 19</b></div></section>
+
+     <div class="content products"><section class="card maincard"><div class="cardtitle"><h4>商品业务内容</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>青花纹样抱枕</span><strong>售价 ¥330 · 材料成本 ¥90 · 制作提成 ¥30 · 捏毛装袋提成 ¥12</strong></div><div class="kv"><span>查看商品</span><strong>祥云小挂件</strong></div><div class="kv"><span>售价 ¥92 · 材料成本 ¥21 · 制作提成 ¥8 · 捏毛装袋提成 ¥4</span><strong>查看商品</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-34">
+   <div class="screen-label"><span>34</span><div><h2>09-A 商品详情</h2><p>材料成本、工序提成、产能分开表达；运费不进入商品计算</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav on">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>商品 / 商品详情</small><h3>商品详情</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>售价 ¥330</b></div><div><small>业务状态</small><b>材料成本 ¥90</b></div><div><small>需要关注</small><b>制作提成 ¥30</b></div><div><small>辅助指标</small><b>捏毛装袋提成 ¥12</b></div></section>
+
+     <div class="content product"><section class="card maincard"><div class="cardtitle"><h4>商品业务内容</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>材料成本</span><strong>面料 ¥52 · 包装 ¥12 · 配件 ¥18 · 内包边 ¥8</strong></div><div class="kv"><span>定制边界</span><strong>客户订单内可选：缝边服务；不改变商品基础成本</strong></div><div class="kv"><span>产能</span><strong>模具 2 × 每批 6 × 日最多 3 批 = 36 件/日</strong></div><div class="kv"><span>编辑商品</span><strong></strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-35">
+   <div class="screen-label"><span>35</span><div><h2>09-B 新建商品</h2><p>用真实字段建立商品，明确客户定制服务在下单时配置</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav on">商品</div><div class="nav ">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>商品 / 新建商品</small><h3>新建商品</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <section class="statrow"><div><small>当前重点</small><b>基础售价</b></div><div><small>业务状态</small><b>材料成本</b></div><div><small>需要关注</small><b>工序提成</b></div><div><small>辅助指标</small><b>产能</b></div></section>
+
+     <div class="content form"><section class="card maincard"><div class="cardtitle"><h4>商品业务内容</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>商品名称</span><strong>青花纹样抱枕</strong></div><div class="kv"><span>基础售价</span><strong>¥330</strong></div><div class="kv"><span>制作提成</span><strong>¥30 / 件</strong></div><div class="kv"><span>捏毛装袋提成</span><strong>¥12 / 件</strong></div><div class="kv"><span>定制服务提示</span><strong>缝边在新建订单的商品行中选择</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-36">
+   <div class="screen-label"><span>36</span><div><h2>10 设置</h2><p>按照业务全局参数、公式、财务资料和数据保护组织</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav on">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>设置 / 设置</small><h3>设置</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>工作室参数</b><span>计算公式</span><span>财务资料</span><span>数据保护</span></nav><section class="statrow"><div><small>当前重点</small><b>工作室参数</b></div><div><small>业务状态</small><b>计算公式</b></div><div><small>需要关注</small><b>财务资料</b></div><div><small>辅助指标</small><b>数据保护</b></div></section>
+
+     <div class="content settings"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>工作室参数</span><strong>预约天数、兼职统一时薪等</strong></div><div class="kv"><span>进入设置</span><strong>计算公式</strong></div><div class="kv"><span>查看当前所有计算口径与边界</span><strong>查看公式</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-37">
+   <div class="screen-label"><span>37</span><div><h2>10-A 计算公式</h2><p>把所有实际采用的公式与边界集中公开，便于核对数据</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav on">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>设置 / 计算公式</small><h3>计算公式</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>工作室参数</b><span>计算公式</span><span>财务资料</span><span>数据保护</span></nav><section class="statrow"><div><small>当前重点</small><b>订单金额</b></div><div><small>业务状态</small><b>待收款</b></div><div><small>需要关注</small><b>商品成本</b></div><div><small>辅助指标</small><b>产能</b></div></section>
+
+     <div class="content formula"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>订单应收</span><strong>商品行金额合计 − 订单优惠</strong></div><div class="kv"><span>待收款</span><strong>应收 − 已登记有效收款</strong></div><div class="kv"><span>商品材料成本</span><strong>面料 + 包装 + 配件 + 替换袋 + 内包边；不含运费、工序提成</strong></div><div class="kv"><span>日产能</span><strong>模具数 × 每批产出 × 每日最多批次</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-38">
+   <div class="screen-label"><span>38</span><div><h2>10-B 财务资料</h2><p>分类、付款方和报销规则集中维护，供财务登记复用</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav on">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>设置 / 财务资料</small><h3>财务资料</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>工作室参数</b><span>计算公式</span><span>财务资料</span><span>数据保护</span></nav><section class="statrow"><div><small>当前重点</small><b>收入分类 6</b></div><div><small>业务状态</small><b>支出分类 12</b></div><div><small>需要关注</small><b>付款方 4</b></div><div><small>辅助指标</small><b>报销规则 2</b></div></section>
+
+     <div class="content settings"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>支出分类</span><strong>材料采购、包材、场地、运输等</strong></div><div class="kv"><span>维护分类</span><strong>付款方</strong></div><div class="kv"><span>工作室、客户、员工等</span><strong>维护付款方</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-39">
+   <div class="screen-label"><span>39</span><div><h2>10-C 数据保护</h2><p>备份与恢复采用明确状态和只读记录，避免不可逆误操作</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav on">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>设置 / 数据保护</small><h3>数据保护</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>工作室参数</b><span>计算公式</span><span>财务资料</span><span>数据保护</span></nav><section class="statrow"><div><small>当前重点</small><b>可用备份 8</b></div><div><small>业务状态</small><b>最近备份 9月12日</b></div><div><small>需要关注</small><b>校验通过 8</b></div><div><small>辅助指标</small><b>恢复需确认</b></div></section>
+
+     <div class="content backup"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>2026-09-12 02:00</span><strong>自动备份 · 业务数据快照 · 校验通过</strong></div><div class="kv"><span>查看 / 恢复</span><strong>2026-09-11 02:00</strong></div><div class="kv"><span>自动备份 · 业务数据快照 · 校验通过</span><strong>查看 / 恢复</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article>
+<article class="screen" id="screen-40">
+   <div class="screen-label"><span>40</span><div><h2>10-D 恢复确认</h2><p>恢复必须展示影响范围、目标时间和二次确认，不伪造可撤销</p></div><a href="#screen-01">回到目录 ↑</a></div>
+   <div class="mockup">
+    <aside><div class="brand">YUMI<span>经营</span></div><div class="nav ">工作台</div><div class="nav ">订单</div><div class="nav ">排班</div><div class="nav ">工资</div><div class="nav ">财务</div><div class="nav ">报表</div><div class="nav ">客户</div><div class="nav ">商品</div><div class="nav on">设置</div><small>仅用于布局评审<br>示例数据不写入业务</small></aside>
+    <main><header><div><small>设置 / 恢复确认</small><h3>恢复确认</h3></div><div class="actions"><button>导出</button><button>查看记录</button><button class="primary">新建 / 处理</button></div></header>
+     <nav class="tabs"><b>工作室参数</b><span>计算公式</span><span>财务资料</span><span>数据保护</span></nav><section class="statrow"><div><small>当前重点</small><b>备份时间</b></div><div><small>业务状态</small><b>影响范围</b></div><div><small>需要关注</small><b>恢复口令</b></div><div><small>辅助指标</small><b>二次确认</b></div></section>
+
+     <div class="content dialog"><section class="card maincard"><div class="cardtitle"><h4>业务明细</h4><span>真实功能视图</span></div><div class="kvgrid"><div class="kv"><span>恢复到</span><strong>2026-09-11 02:00 的数据快照</strong></div><div class="kv"><span>将影响</span><strong>恢复后当前业务数据将被替换</strong></div><div class="kv"><span>确认方式</span><strong>输入“恢复数据”后可继续</strong></div><div class="kv"><span>取消</span><strong>确认恢复</strong></div></div></section><aside class="sidecards"><section class="card"><h5>当前操作</h5><p>操作按页面全部显示，避免折叠到“更多”中。</p><button class="wide">进入业务详情</button></section><section class="card"><h5>信息边界</h5><p>页面仅呈现该业务对象必须的上下文。</p></section></aside></div>
+    </main>
+   </div></article></body>
+</html>

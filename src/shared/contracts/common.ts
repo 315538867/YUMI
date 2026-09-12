@@ -13,11 +13,7 @@ export type IsoDateTime = string
 
 export interface V2DomainError {
   code:
-    | 'VALIDATION_ERROR'
-    | 'NOT_FOUND'
-    | 'CONFLICT'
-    | 'QUANTITY_EXCEEDED'
-    | 'FUND_REVERSAL_CONFLICT'
+    'VALIDATION_ERROR' | 'NOT_FOUND' | 'CONFLICT' | 'QUANTITY_EXCEEDED' | 'FUND_REVERSAL_CONFLICT'
   message: string
   details?: Record<string, unknown>
 }

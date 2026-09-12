@@ -44,7 +44,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 16 })
+    ).toEqual({ version: 17 })
     expect(
       database
         .prepare('PRAGMA table_info(products)')
@@ -161,6 +161,27 @@ describe('V2 独立数据空间', () => {
     earlierV2
       .prepare('INSERT INTO customers (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
       .run('customer-1', 'V2 客户', '2026-09-07T00:00:00.000Z', '2026-09-07T00:00:00.000Z')
+    earlierV2
+      .prepare(
+        `INSERT INTO products (
+        id, name, base_price_cents, packaging_cost_cents, accessory_cost_cents,
+        replacement_bag_cost_cents, internal_edge_cost_cents, standard_making_minutes,
+        making_commission_cents, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'legacy-product',
+        '旧商品',
+        1_000,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        '2026-09-07T00:00:00.000Z',
+        '2026-09-07T00:00:00.000Z'
+      )
     earlierV2.close()
 
     const upgraded = createV2Database(storage.databasePath)
@@ -168,8 +189,13 @@ describe('V2 独立数据空间', () => {
       name: 'V2 客户'
     })
     expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 16
+      count: 17
     })
+    expect(
+      upgraded
+        .prepare('SELECT fluffing_bagging_commission_cents FROM products WHERE id = ?')
+        .get('legacy-product')
+    ).toEqual({ fluffing_bagging_commission_cents: 0 })
     expect(
       upgraded
         .prepare(
@@ -282,7 +308,7 @@ describe('V2 独立数据空间', () => {
     })
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 16 })
+    ).toEqual({ version: 17 })
     database.close()
   })
 
@@ -328,7 +354,7 @@ describe('V2 独立数据空间', () => {
     ).toEqual({ edge_cost_cents: 100, internal_edge_cost_cents: 0 })
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 16 })
+    ).toEqual({ version: 17 })
     database.close()
   })
 
@@ -527,7 +553,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 16 })
+    ).toEqual({ version: 17 })
     expect(
       database
         .prepare(
@@ -715,7 +741,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 16 })
+    ).toEqual({ version: 17 })
 
     database
       .prepare(

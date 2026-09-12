@@ -1,6 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 
-type YumiButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
+export type YumiButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 type YumiButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: YumiButtonVariant
@@ -9,7 +9,15 @@ type YumiButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 }
 
 export const YumiButton = forwardRef<HTMLButtonElement, YumiButtonProps>(function YumiButton(
-  { children, className, disabled, loading = false, type = 'button', variant = 'secondary', ...props },
+  {
+    children,
+    className,
+    disabled,
+    loading = false,
+    type = 'button',
+    variant = 'secondary',
+    ...props
+  },
   ref
 ) {
   return (
@@ -33,16 +41,15 @@ type YumiIconButtonProps = Omit<YumiButtonProps, 'children'> & {
   children: ReactNode
 }
 
-export const YumiIconButton = forwardRef<HTMLButtonElement, YumiIconButtonProps>(function YumiIconButton(
-  { className, label, ...props },
-  ref
-) {
-  return (
-    <YumiButton
-      {...props}
-      ref={ref}
-      aria-label={label}
-      className={['yumi-button--icon', className].filter(Boolean).join(' ')}
-    />
-  )
-})
+export const YumiIconButton = forwardRef<HTMLButtonElement, YumiIconButtonProps>(
+  function YumiIconButton({ className, label, ...props }, ref) {
+    return (
+      <YumiButton
+        {...props}
+        ref={ref}
+        aria-label={label}
+        className={['yumi-button--icon', className].filter(Boolean).join(' ')}
+      />
+    )
+  }
+)

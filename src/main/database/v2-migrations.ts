@@ -772,7 +772,24 @@ const v2ShipmentVoidLifecycle: V2Migration = {
     addColumnIfMissing(database, 'shipments', 'voided_on', 'voided_on TEXT')
     addColumnIfMissing(database, 'shipments', 'void_reason', 'void_reason TEXT')
     addColumnIfMissing(database, 'shipments', 'voided_at', 'voided_at TEXT')
-    database.exec('CREATE INDEX IF NOT EXISTS idx_shipments_order_status ON shipments(order_id, status)')
+    database.exec(
+      'CREATE INDEX IF NOT EXISTS idx_shipments_order_status ON shipments(order_id, status)'
+    )
+  }
+}
+
+const v2ProductFluffingBaggingCommission: V2Migration = {
+  version: 17,
+  name: 'v2_product_fluffing_bagging_commission',
+  run(database) {
+    // 历史数据库与测试中的半成品库可能尚未创建 products 表，保持迁移幂等可继续执行。
+    if (!hasTable(database, 'products')) return
+    addColumnIfMissing(
+      database,
+      'products',
+      'fluffing_bagging_commission_cents',
+      'fluffing_bagging_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(fluffing_bagging_commission_cents >= 0)'
+    )
   }
 }
 
@@ -792,7 +809,8 @@ const migrations: readonly V2Migration[] = [
   v2ProductMaterialAndCapacity,
   v2OrderAmountAndEdgeFields,
   v2ProductInternalEdgeCost,
-  v2ShipmentVoidLifecycle
+  v2ShipmentVoidLifecycle,
+  v2ProductFluffingBaggingCommission
 ]
 
 /**

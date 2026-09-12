@@ -140,7 +140,9 @@ export function validateManualFinanceEntry(input: ManualFinanceEntryValidationIn
     }
   }
   if (input.orderId !== null) {
-    throw new DomainValidationError(input.sourceType === 'manual_expense' ? '日常支出不得关联订单' : '日常收入不得关联订单')
+    throw new DomainValidationError(
+      input.sourceType === 'manual_expense' ? '日常支出不得关联订单' : '日常收入不得关联订单'
+    )
   }
 }
 
@@ -170,16 +172,19 @@ export function isOperatingIncome(entry: FinanceEntryForSummary): boolean {
 
 export function summarizeMonthlyFinance(input: MonthlyFinanceSummaryInput): MonthlyFinanceSummary {
   const month = requireMonth(input.month)
-  return input.entries.reduce<MonthlyFinanceSummary>((summary, entry) => {
-    requireNonBlank(entry.id, '财务流水标识')
-    requirePositiveCents(entry.amountCents, '财务流水金额')
-    const occurredOn = requireBusinessDate(entry.occurredOn, '财务流水实际日期')
-    if (!occurredOn.startsWith(`${month}-`)) return summary
-    if (isOperatingIncome(entry)) summary.incomeCents += entry.amountCents
-    if (isOperatingExpense(entry)) summary.operatingExpenseCents += entry.amountCents
-    summary.operatingResultCents = summary.incomeCents - summary.operatingExpenseCents
-    return summary
-  }, { incomeCents: 0, operatingExpenseCents: 0, operatingResultCents: 0 })
+  return input.entries.reduce<MonthlyFinanceSummary>(
+    (summary, entry) => {
+      requireNonBlank(entry.id, '财务流水标识')
+      requirePositiveCents(entry.amountCents, '财务流水金额')
+      const occurredOn = requireBusinessDate(entry.occurredOn, '财务流水实际日期')
+      if (!occurredOn.startsWith(`${month}-`)) return summary
+      if (isOperatingIncome(entry)) summary.incomeCents += entry.amountCents
+      if (isOperatingExpense(entry)) summary.operatingExpenseCents += entry.amountCents
+      summary.operatingResultCents = summary.incomeCents - summary.operatingExpenseCents
+      return summary
+    },
+    { incomeCents: 0, operatingExpenseCents: 0, operatingResultCents: 0 }
+  )
 }
 
 /** 截至查询日，原垫付发生且尚无当日或更早完整报销的金额即为待报销。 */

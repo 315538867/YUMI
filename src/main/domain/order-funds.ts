@@ -13,7 +13,12 @@ export interface OrderFundInput {
 
 export interface OrderFundSummaryInput {
   currentAmountCents: Cents
-  entries: Array<Pick<OrderFundInput, 'direction' | 'businessType' | 'amountCents'> & { id?: string; reversalOfEntryId?: string | null }>
+  entries: Array<
+    Pick<OrderFundInput, 'direction' | 'businessType' | 'amountCents'> & {
+      id?: string
+      reversalOfEntryId?: string | null
+    }
+  >
 }
 
 export interface OrderFundSummary {
@@ -32,7 +37,8 @@ function assertIntegerCents(amountCents: Cents): void {
 }
 
 function assertDate(occurredOn: string): void {
-  if (!DATE_PATTERN.test(occurredOn)) throw new DomainValidationError('实际发生日期格式必须为 YYYY-MM-DD')
+  if (!DATE_PATTERN.test(occurredOn))
+    throw new DomainValidationError('实际发生日期格式必须为 YYYY-MM-DD')
   const date = new Date(`${occurredOn}T00:00:00Z`)
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== occurredOn) {
     throw new DomainValidationError('实际发生日期无效')
@@ -42,7 +48,8 @@ function assertDate(occurredOn: string): void {
 export function validateOrderFundInput(input: OrderFundInput): void {
   assertIntegerCents(input.amountCents)
   assertDate(input.occurredOn)
-  const expectedDirection: OrderFundDirection = input.businessType === 'refund' ? 'expense' : 'income'
+  const expectedDirection: OrderFundDirection =
+    input.businessType === 'refund' ? 'expense' : 'income'
   if (input.direction !== expectedDirection) {
     throw new DomainValidationError(
       `${input.businessType === 'refund' ? '退款' : '收款/售后收费'}资金方向必须为${expectedDirection === 'income' ? '收入' : '支出'}`
@@ -57,7 +64,7 @@ export function calculateOrderFundSummary(input: OrderFundSummaryInput): OrderFu
   let receivedCents = 0
   let refundedCents = 0
   const reversedIds = new Set(
-    input.entries.flatMap((entry) => entry.reversalOfEntryId ? [entry.reversalOfEntryId] : [])
+    input.entries.flatMap((entry) => (entry.reversalOfEntryId ? [entry.reversalOfEntryId] : []))
   )
   for (const entry of input.entries) {
     assertIntegerCents(entry.amountCents)

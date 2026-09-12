@@ -23,21 +23,37 @@ export function useCustomers() {
     void reload()
   }, [reload])
 
-  const createCustomer = useCallback(async (input: V2CustomerInput) => {
-    const customer = await window.yumiV2.customers.create(input)
-    await reload()
-    return customer
-  }, [reload])
+  const createCustomer = useCallback(
+    async (input: V2CustomerInput) => {
+      const customer = await window.yumiV2.customers.create(input)
+      await reload()
+      return customer
+    },
+    [reload]
+  )
 
-  const updateCustomer = useCallback(async (input: V2CustomerUpdateInput) => {
-    const customer = await window.yumiV2.customers.update(input)
-    await reload()
-    return customer
-  }, [reload])
+  const updateCustomer = useCallback(
+    async (input: V2CustomerUpdateInput) => {
+      const customer = await window.yumiV2.customers.update(input)
+      await reload()
+      return customer
+    },
+    [reload]
+  )
 
   /** 客户订单洞察只在负责人主动打开客户资料时读取，列表保持轻量只读。 */
-  const getCustomerOrderInsights = useCallback((customerId: string) =>
-    window.yumiV2.reports.getCustomerOrderInsights(customerId), [])
+  const getCustomerOrderInsights = useCallback(
+    (customerId: string) => window.yumiV2.reports.getCustomerOrderInsights(customerId),
+    []
+  )
 
-  return { customers, loading, loadError, reload, createCustomer, updateCustomer, getCustomerOrderInsights }
+  return {
+    customers,
+    loading,
+    loadError,
+    reload,
+    createCustomer,
+    updateCustomer,
+    getCustomerOrderInsights
+  }
 }

@@ -1,6 +1,9 @@
 import { createContext, useContext, type AriaAttributes } from 'react'
 
-export type YumiFieldAccessibilityProps = Pick<AriaAttributes, 'aria-describedby' | 'aria-invalid' | 'aria-label' | 'aria-labelledby'>
+export type YumiFieldAccessibilityProps = Pick<
+  AriaAttributes,
+  'aria-describedby' | 'aria-invalid' | 'aria-label' | 'aria-labelledby'
+>
 
 type YumiFieldContextValue = {
   descriptionId?: string
@@ -24,6 +27,7 @@ export function useYumiFieldAccessibility(props: YumiFieldAccessibilityProps = {
   return {
     'aria-describedby': mergeAriaIds(props['aria-describedby'], field?.descriptionId),
     'aria-invalid': field?.invalid ? true : props['aria-invalid'],
-    'aria-labelledby': props['aria-labelledby'] ?? (props['aria-label'] ? undefined : field?.labelId)
+    'aria-labelledby':
+      props['aria-labelledby'] ?? (props['aria-label'] ? undefined : field?.labelId)
   }
 }

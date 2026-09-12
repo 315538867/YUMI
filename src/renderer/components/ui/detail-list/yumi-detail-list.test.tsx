@@ -14,6 +14,7 @@ describe('YumiDetailList', () => {
         ariaLabel="商品基础资料"
         className="yumi-test-detail-list"
         columns={2}
+        density="comfortable"
         items={[
           { label: '商品编码', value: 'YUMI-001' },
           { label: '默认售价', value: '¥99.00' }
@@ -22,7 +23,12 @@ describe('YumiDetailList', () => {
     )
 
     const region = screen.getByRole('region', { name: '商品基础资料' })
-    expect(region).toHaveClass('yumi-detail-list', 'yumi-detail-list--2', 'yumi-test-detail-list')
+    expect(region).toHaveClass(
+      'yumi-detail-list',
+      'yumi-detail-list--2',
+      'yumi-detail-list--comfortable',
+      'yumi-test-detail-list'
+    )
 
     const list = region.querySelector('dl.yumi-detail-list__list')
     expect(list).toHaveAttribute('aria-label', '商品基础资料明细')

@@ -68,7 +68,9 @@ export function validateAfterSalesCase(input: AfterSalesCaseInput): void {
 }
 
 /** 售后核算成本用于订单成本参考，不构造日常现金支出或客户收费。 */
-export function createAfterSalesAccountingSnapshot(input: AfterSalesCaseInput): AfterSalesAccountingSnapshot {
+export function createAfterSalesAccountingSnapshot(
+  input: AfterSalesCaseInput
+): AfterSalesAccountingSnapshot {
   validateAfterSalesCase(input)
   return {
     accountingCostCents: input.accountingCostCents,

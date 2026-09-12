@@ -1,0 +1,10 @@
+# 方案草图和历史提案是独立交付物；HTML 单文件设计稿保留其压缩排版，归档内容不在应用代码质量门禁范围内。
+.superpowers/brainstorm/
+.spec-workflow/
+docs/solutions/
+openspec/changes/archive/
+openspec/changes/yumi-core-capability-recovery/
+openspec/specs/
+
+# 锁文件由 pnpm 维护，不由 Prettier 改写。
+pnpm-lock.yaml

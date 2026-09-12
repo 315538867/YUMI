@@ -6,7 +6,8 @@ import type {
   V2OrderTableExportInput,
   V2ReportExportInput,
   V2ReportExportResult,
-  V2ShippingListExportInput
+  V2ShippingListExportInput,
+  V2ShippingListPreviewInput
 } from '@shared/contracts/reports'
 
 export interface ReportIpcMain {
@@ -32,6 +33,12 @@ export function registerReportIpc(
     service.getCustomerOrderInsights(customerId as string)
   )
   ipc.handle('v2:reports:orders:business', () => service.getOrderBusiness())
+  ipc.handle('v2:reports:orders:business:detail', (_event, orderId) =>
+    service.getOrderBusinessDetail(orderId as string)
+  )
+  ipc.handle('v2:reports:shipping-list:preview', (_event, input) =>
+    service.getShippingListPreview(input as V2ShippingListPreviewInput)
+  )
   ipc.handle('v2:reports:fulfillment:progress', () => service.getFulfillmentProgress())
   ipc.handle('v2:reports:capacity-risk:get', (_event, input) =>
     service.getCapacityRiskReport(input as V2CapacityRiskReportInput)
@@ -40,9 +47,19 @@ export function registerReportIpc(
     service.getDeliveryRiskReport(input as V2DeliveryRiskReportInput)
   )
   ipc.handle('v2:reports:settlements:confirmed', () => service.listConfirmedSettlements())
-  ipc.handle('v2:reports:monthly-operation:get', (_event, month) => service.getMonthlyOperation(month as string))
-  ipc.handle('v2:reports:export', (_event, input) => exporter.exportCurrentReport(input as V2ReportExportInput))
-  ipc.handle('v2:reports:export:order-table', (_event, input) => exporter.exportOrderTable(input as V2OrderTableExportInput | undefined))
-  ipc.handle('v2:reports:export:order-documents', (_event, input) => exporter.exportOrderDocuments(input as V2OrderDocumentsExportInput))
-  ipc.handle('v2:reports:export:shipping-list', (_event, input) => exporter.exportShippingList(input as V2ShippingListExportInput | undefined))
+  ipc.handle('v2:reports:monthly-operation:get', (_event, month) =>
+    service.getMonthlyOperation(month as string)
+  )
+  ipc.handle('v2:reports:export', (_event, input) =>
+    exporter.exportCurrentReport(input as V2ReportExportInput)
+  )
+  ipc.handle('v2:reports:export:order-table', (_event, input) =>
+    exporter.exportOrderTable(input as V2OrderTableExportInput | undefined)
+  )
+  ipc.handle('v2:reports:export:order-documents', (_event, input) =>
+    exporter.exportOrderDocuments(input as V2OrderDocumentsExportInput)
+  )
+  ipc.handle('v2:reports:export:shipping-list', (_event, input) =>
+    exporter.exportShippingList(input as V2ShippingListExportInput | undefined)
+  )
 }

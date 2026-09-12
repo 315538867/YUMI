@@ -12,10 +12,7 @@ import {
 } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { DomainValidationError } from '@main/domain/errors'
-import {
-  V2_ATTACHMENT_DIRECTORY_NAME,
-  V2_DATABASE_FILE_NAME
-} from '@main/database/v2-storage'
+import { V2_ATTACHMENT_DIRECTORY_NAME, V2_DATABASE_FILE_NAME } from '@main/database/v2-storage'
 import type { V2BackupSummary } from '@shared/contracts/index'
 
 const BACKUP_FORMAT_VERSION = 1

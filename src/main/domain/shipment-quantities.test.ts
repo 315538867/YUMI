@@ -12,19 +12,23 @@ describe('V2 发货数量', () => {
   })
 
   it('阶段 A 不允许累计发货超过确认数量', () => {
-    expect(() => validateShipmentQuantity({
-      confirmedQuantity: 100,
-      shippedQuantity: 90,
-      addingQuantity: 11
-    })).toThrow('确认数量')
+    expect(() =>
+      validateShipmentQuantity({
+        confirmedQuantity: 100,
+        shippedQuantity: 90,
+        addingQuantity: 11
+      })
+    ).toThrow('确认数量')
   })
 
   it('启用履约流转后不允许超过待发货可用量', () => {
-    expect(() => validateShipmentQuantity({
-      confirmedQuantity: 100,
-      shippedQuantity: 30,
-      addingQuantity: 8,
-      availableQuantity: 7
-    })).toThrow('可用数量')
+    expect(() =>
+      validateShipmentQuantity({
+        confirmedQuantity: 100,
+        shippedQuantity: 30,
+        addingQuantity: 8,
+        availableQuantity: 7
+      })
+    ).toThrow('可用数量')
   })
 })

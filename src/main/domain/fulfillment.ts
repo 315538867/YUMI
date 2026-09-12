@@ -11,7 +11,13 @@ export const processTaskSources = [
 ] as const
 export type ProcessTaskSource = (typeof processTaskSources)[number]
 
-export const fulfillmentStages = ['making', 'fluffing_bagging', 'packing', 'ready_to_ship', 'shipped'] as const
+export const fulfillmentStages = [
+  'making',
+  'fluffing_bagging',
+  'packing',
+  'ready_to_ship',
+  'shipped'
+] as const
 export type FulfillmentStage = (typeof fulfillmentStages)[number]
 
 export type FulfillmentEventType =
@@ -81,7 +87,10 @@ function requireNonNegativeInteger(value: number | null | undefined, label: stri
   return value
 }
 
-function requireOptionalNonNegativeInteger(value: number | null | undefined, label: string): number | null {
+function requireOptionalNonNegativeInteger(
+  value: number | null | undefined,
+  label: string
+): number | null {
   if (value === null || value === undefined) return null
   return requireNonNegativeInteger(value, label)
 }
@@ -143,26 +152,55 @@ export function createFulfillmentState(orderQuantity: number): FulfillmentState 
   }
 }
 
-export function createOpeningWipEvent(targetStage: Exclude<FulfillmentStage, 'making' | 'shipped'>, quantity: number): FulfillmentEventDraft {
+export function createOpeningWipEvent(
+  targetStage: Exclude<FulfillmentStage, 'making' | 'shipped'>,
+  quantity: number
+): FulfillmentEventDraft {
   if (!['fluffing_bagging', 'packing', 'ready_to_ship'].includes(targetStage)) {
     throw new DomainValidationError('期初在制品只能进入待捏毛装袋、待打包或待发货阶段')
   }
-  return { eventType: 'opening_wip', quantity: requirePositiveInteger(quantity, '期初在制品数量'), sourceStage: 'making', targetStage }
+  return {
+    eventType: 'opening_wip',
+    quantity: requirePositiveInteger(quantity, '期初在制品数量'),
+    sourceStage: 'making',
+    targetStage
+  }
 }
 
-export function createQualityQualifiedEvent(processType: Extract<ProcessType, 'making' | 'fluffing_bagging'>, quantity: number): FulfillmentEventDraft {
+export function createQualityQualifiedEvent(
+  processType: Extract<ProcessType, 'making' | 'fluffing_bagging'>,
+  quantity: number
+): FulfillmentEventDraft {
   requirePositiveInteger(quantity, '合格数量')
   if (processType === 'making') {
-    return { eventType: 'making_qualified', quantity, sourceStage: 'making', targetStage: 'fluffing_bagging' }
+    return {
+      eventType: 'making_qualified',
+      quantity,
+      sourceStage: 'making',
+      targetStage: 'fluffing_bagging'
+    }
   }
-  return { eventType: 'fluffing_bagging_qualified', quantity, sourceStage: 'fluffing_bagging', targetStage: 'packing' }
+  return {
+    eventType: 'fluffing_bagging_qualified',
+    quantity,
+    sourceStage: 'fluffing_bagging',
+    targetStage: 'packing'
+  }
 }
 
 export function createPackingCompletedEvent(quantity: number): FulfillmentEventDraft {
-  return { eventType: 'packing_completed', quantity: requirePositiveInteger(quantity, '打包完成数量'), sourceStage: 'packing', targetStage: 'ready_to_ship' }
+  return {
+    eventType: 'packing_completed',
+    quantity: requirePositiveInteger(quantity, '打包完成数量'),
+    sourceStage: 'packing',
+    targetStage: 'ready_to_ship'
+  }
 }
 
-export function applyFulfillmentEvent(state: FulfillmentState, event: FulfillmentEventDraft): FulfillmentState {
+export function applyFulfillmentEvent(
+  state: FulfillmentState,
+  event: FulfillmentEventDraft
+): FulfillmentState {
   const quantity = requirePositiveInteger(event.quantity, '履约事件数量')
   const next = { ...state }
   if (event.sourceStage) {

@@ -13,18 +13,36 @@ type YumiDialogProps = {
   title: ReactNode
 }
 
-export function YumiDialog({ children, description, footer, onOpenChange, open, title }: YumiDialogProps) {
+export function YumiDialog({
+  children,
+  description,
+  footer,
+  onOpenChange,
+  open,
+  title
+}: YumiDialogProps) {
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="yumi-dialog__overlay" />
-        <Dialog.Content aria-describedby={description ? undefined : undefined} className="yumi-dialog__content">
+        <Dialog.Content
+          aria-describedby={description ? undefined : undefined}
+          className="yumi-dialog__content"
+        >
           <div className="yumi-dialog__header">
             <div>
               <Dialog.Title className="yumi-dialog__title">{title}</Dialog.Title>
-              {description ? <Dialog.Description className="yumi-dialog__description">{description}</Dialog.Description> : null}
+              {description ? (
+                <Dialog.Description className="yumi-dialog__description">
+                  {description}
+                </Dialog.Description>
+              ) : null}
             </div>
-            <Dialog.Close asChild><YumiButton aria-label={`关闭${title}`} variant="ghost"><X aria-hidden="true" size={17} /></YumiButton></Dialog.Close>
+            <Dialog.Close asChild>
+              <YumiButton aria-label={`关闭${title}`} variant="ghost">
+                <X aria-hidden="true" size={17} />
+              </YumiButton>
+            </Dialog.Close>
           </div>
           <div className="yumi-dialog__body">{children}</div>
           {footer ? <div className="yumi-dialog__footer">{footer}</div> : null}
@@ -61,11 +79,19 @@ export function YumiConfirmDialog({
         <AlertDialog.Overlay className="yumi-dialog__overlay" />
         <AlertDialog.Content className="yumi-dialog__content yumi-dialog__content--confirm">
           <AlertDialog.Title className="yumi-dialog__title">{title}</AlertDialog.Title>
-          {description ? <AlertDialog.Description className="yumi-dialog__description">{description}</AlertDialog.Description> : null}
+          {description ? (
+            <AlertDialog.Description className="yumi-dialog__description">
+              {description}
+            </AlertDialog.Description>
+          ) : null}
           <div className="yumi-dialog__footer">
-            <AlertDialog.Cancel asChild><YumiButton variant="secondary">{cancelLabel}</YumiButton></AlertDialog.Cancel>
+            <AlertDialog.Cancel asChild>
+              <YumiButton variant="secondary">{cancelLabel}</YumiButton>
+            </AlertDialog.Cancel>
             <AlertDialog.Action asChild>
-              <YumiButton onClick={onConfirm} variant={destructive ? 'danger' : 'primary'}>{confirmLabel}</YumiButton>
+              <YumiButton onClick={onConfirm} variant={destructive ? 'danger' : 'primary'}>
+                {confirmLabel}
+              </YumiButton>
             </AlertDialog.Action>
           </div>
         </AlertDialog.Content>

@@ -1,13 +1,7 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import {
-  cleanup,
-  fireEvent,
-  render as renderBase,
-  screen,
-  within
-} from '@testing-library/react'
+import { cleanup, fireEvent, render as renderBase, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
@@ -139,8 +133,12 @@ describe('风险报表入口', () => {
     expect(pageHeader).not.toBeNull()
     expect(within(pageHeader!).getByRole('button', { name: '导出当前报表' })).toBeVisible()
     expect(within(pageHeader!).getByRole('button', { name: '更多操作' })).toBeVisible()
-    expect(within(pageHeader!).queryByRole('button', { name: '导出订单表' })).not.toBeInTheDocument()
-    expect(within(pageHeader!).queryByRole('button', { name: '导出发货汇总' })).not.toBeInTheDocument()
+    expect(
+      within(pageHeader!).queryByRole('button', { name: '导出订单表' })
+    ).not.toBeInTheDocument()
+    expect(
+      within(pageHeader!).queryByRole('button', { name: '导出发货汇总' })
+    ).not.toBeInTheDocument()
 
     fireEvent.click(within(pageHeader!).getByRole('button', { name: '更多操作' }))
     const moreActions = await screen.findByRole('menu', { name: '经营报表更多操作' })
