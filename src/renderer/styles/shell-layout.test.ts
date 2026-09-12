@@ -28,4 +28,10 @@ describe('桌面壳层滚动边界', () => {
   it('导航分组按内容高度排列，不把剩余高度撑成巨大菜单间距', () => {
     expect(rule('.yumi-app-navigation')).toMatch(/align-content:\s*start/)
   })
+
+  it('业务页面使用统一的圆角工作区表面承接设计稿视觉基线', () => {
+    expect(pagesCss).toMatch(/\.yumi-page\s*\{[^}]*border-radius:\s*22px/s)
+    expect(pagesCss).toMatch(/\.yumi-page\s*\{[^}]*background:\s*var\(--yumi-surface-raised\)/s)
+    expect(pagesCss).toMatch(/\.yumi-page\s*\{[^}]*box-shadow:\s*var\(--yumi-shadow-sm\)/s)
+  })
 })

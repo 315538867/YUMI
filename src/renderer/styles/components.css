@@ -260,8 +260,8 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--yumi-space-5);
-  margin-bottom: var(--yumi-space-5);
+  gap: var(--yumi-space-6);
+  margin: 0;
 }
 .yumi-page-header__content {
   min-width: 0;
@@ -276,7 +276,7 @@
 .yumi-page-header__title {
   margin: 0;
   color: var(--yumi-ink);
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 750;
   letter-spacing: -0.02em;
   line-height: 36px;
@@ -1400,8 +1400,9 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--yumi-border);
-  border-radius: var(--yumi-radius-md);
+  border-radius: 14px;
   background: var(--yumi-surface);
+  box-shadow: var(--yumi-shadow-sm);
 }
 .yumi-metric-strip__list {
   display: grid;
@@ -1412,7 +1413,7 @@
   display: grid;
   min-width: 0;
   gap: 4px;
-  padding: var(--yumi-space-4);
+  padding: 18px var(--yumi-space-4);
 }
 .yumi-metric-strip__item + .yumi-metric-strip__item {
   border-left: 1px solid var(--yumi-border);

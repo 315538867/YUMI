@@ -138,7 +138,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 28px 32px 42px;
+  padding: 24px 28px 36px;
 }
 
 .yumi-app-content > .yumi-page {
@@ -177,13 +177,23 @@
   .yumi-app-command-bar {
     padding-inline: 20px;
   }
+  .yumi-page {
+    border-radius: 18px;
+    padding: 24px 20px 28px;
+  }
 }
 
 /* 订单工作区：列表承担日常浏览，表单集中在负责人主动进入的操作场景。 */
 .yumi-page {
   display: grid;
-  gap: var(--yumi-space-5);
+  gap: var(--yumi-space-6);
   min-width: 0;
+  min-height: 100%;
+  border: 1px solid var(--yumi-border);
+  border-radius: 22px;
+  padding: 28px 32px 36px;
+  background: var(--yumi-surface-raised);
+  box-shadow: var(--yumi-shadow-sm);
 }
 .yumi-form-panel {
   display: grid;
