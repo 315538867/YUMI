@@ -186,9 +186,9 @@
 /* 订单工作区：列表承担日常浏览，表单集中在负责人主动进入的操作场景。 */
 .yumi-page {
   display: grid;
+  align-content: start;
   gap: var(--yumi-space-6);
   min-width: 0;
-  min-height: 100%;
   border: 1px solid var(--yumi-border);
   border-radius: 22px;
   padding: 28px 32px 36px;
