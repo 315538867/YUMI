@@ -257,10 +257,10 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
             <YumiMetricStrip
               ariaLabel="当前产品排班进度"
               items={[
-                { label: '制作', value: focusedFulfillment.stages.making },
-                { label: '捏毛装袋', value: focusedFulfillment.stages.fluffingBagging },
-                { label: '缝边', value: focusedFulfillment.stages.edgeSewing },
-                { label: '打包发货', value: focusedFulfillment.stages.packing },
+                { label: '待制作', value: focusedFulfillment.stages.making },
+                { label: '待捏毛装袋', value: focusedFulfillment.stages.fluffingBagging },
+                { label: '待缝边', value: focusedFulfillment.stages.edgeSewing },
+                { label: '待打包发货', value: focusedFulfillment.stages.packing },
                 { label: '待发货', tone: 'brand', value: focusedFulfillment.stages.readyToShip }
               ]}
             />

@@ -543,6 +543,11 @@ describe('履约排班双视角交互', () => {
     fireEvent.click(screen.getByRole('button', { name: '查看制作任务' }))
     expect(await screen.findByRole('heading', { name: '任务处理' })).toBeVisible()
     expect(screen.getByRole('navigation', { name: '排班处理导航' })).toBeVisible()
+    const progress = screen.getByRole('region', { name: '当前产品排班进度' })
+    expect(within(progress).getByText('待制作')).toBeVisible()
+    expect(within(progress).getByText('待捏毛装袋')).toBeVisible()
+    expect(within(progress).getByText('待缝边')).toBeVisible()
+    expect(within(progress).getByText('待打包发货')).toBeVisible()
     expect(
       within(screen.getByRole('group', { name: '排班处理页面动作' })).queryByRole('button', {
         name: '返回排班队列'
