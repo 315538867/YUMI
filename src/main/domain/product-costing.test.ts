@@ -4,8 +4,7 @@ import { calculateProductSnapshotCostCents } from './product-costing'
 const modernSnapshot = {
   productId: 'product-1',
   name: '草莓蛋糕',
-  code: null,
-  category: '捏捏',
+  code: 'SP0001',
   basePriceCents: 8_000,
   packagingCostCents: 20,
   accessoryCostCents: 5,

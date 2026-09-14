@@ -6,6 +6,7 @@ import { applyFulfillmentEvent, createFulfillmentState } from '@main/domain/fulf
 import { calculateOrderAmountSummary, calculateOrderItemAmounts } from '@main/domain/order-amounts'
 import { calculateOrderSchedule } from '@main/domain/order-schedule'
 import { validateProductMaterialAndCapacity } from '@main/domain/product-capacity'
+import { createNextProductCode } from '@main/domain/product-code'
 import { validateShipmentQuantity } from '@main/domain/shipment-quantities'
 import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
 import { V2OrderRepository, type V2AuditLog } from '@main/repositories/v2-order-repository'
@@ -108,7 +109,6 @@ function createProductSnapshot(
     productId: product.id,
     name: product.name,
     code: product.code,
-    category: product.category,
     basePriceCents: product.basePriceCents,
     packagingCostCents: product.packagingCostCents,
     accessoryCostCents: product.accessoryCostCents,
@@ -208,7 +208,8 @@ export class V2OrderService {
     const normalized = this.normalizeProduct(input)
     return this.repository.transaction(() => {
       const now = this.clock.now()
-      const product = this.repository.insertProduct(this.clock.createId(), normalized, now)
+      const code = createNextProductCode(this.repository.listProductCodes())
+      const product = this.repository.insertProduct(this.clock.createId(), code, normalized, now)
       this.recordAudit('product.created', 'product', product.id, undefined, product, now)
       return product
     })
@@ -704,8 +705,6 @@ export class V2OrderService {
       ...input,
       ...normalizedMaterialAndCapacity,
       name: input.name.trim(),
-      code: nullableText(input.code),
-      category: nullableText(input.category),
       imageAttachmentId: nullableText(input.imageAttachmentId),
       notes: nullableText(input.notes)
     }

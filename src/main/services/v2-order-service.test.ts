@@ -60,8 +60,6 @@ describe('V2OrderService', () => {
   function createProduct(service: V2OrderService, name: string) {
     return service.createProduct({
       name,
-      code: `${name}-CODE`,
-      category: '捏捏',
       basePriceCents: 5_000,
       packagingCostCents: 200,
       accessoryCostCents: 100,
@@ -94,6 +92,32 @@ describe('V2OrderService', () => {
     expect(order.amount.currentAmountCents).toBe(32_200)
     expect(order.funds).toMatchObject({ netReceivedCents: 0, outstandingCents: 32_200 })
     expect(service.listAuditLogs(order.id).map((log) => log.action)).toEqual(['order.created'])
+  })
+
+  it('创建商品时由系统分配 SP 序号编码，编辑不改写编码且快照携带该编码', () => {
+    const service = createService()
+    const baseInput = {
+      basePriceCents: 5_000,
+      packagingCostCents: 200,
+      accessoryCostCents: 100,
+      replacementBagCostCents: 50,
+      edgeConsumableCostCents: 80,
+      standardMakingMinutes: 20,
+      makingCommissionCents: 500
+    }
+    const first = service.createProduct({ name: '编码商品一', ...baseInput })
+    const second = service.createProduct({ name: '编码商品二', ...baseInput })
+    expect(first.code).toBe('SP0001')
+    expect(second.code).toBe('SP0002')
+
+    const renamed = service.updateProduct({ id: first.id, name: '编码商品一改', ...baseInput })
+    expect(renamed.code).toBe('SP0001')
+
+    const order = service.createOrder({
+      customer: { name: '编码客户' },
+      items: [{ productId: first.id, quantity: 1, unitPriceCents: 6_000 }]
+    })
+    expect(order.items[0].productSnapshot.code).toBe('SP0001')
   })
 
   it('冻结商品的捏毛装袋提成，并让后续商品改价只作用于新订单快照', () => {

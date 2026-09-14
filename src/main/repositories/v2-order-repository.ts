@@ -156,8 +156,7 @@ function mapProduct(row: Record<string, unknown>): V2Product {
   return {
     id: String(row.id),
     name: String(row.name),
-    code: (row.code as string | null) ?? null,
-    category: (row.category as string | null) ?? null,
+    code: String(row.code ?? ''),
     basePriceCents: Number(row.base_price_cents),
     packagingCostCents: Number(row.packaging_cost_cents),
     accessoryCostCents: Number(row.accessory_cost_cents),
@@ -321,24 +320,31 @@ export class V2OrderRepository {
     return row ? mapProduct(row) : null
   }
 
-  insertProduct(id: string, input: V2ProductInput, now: string): V2Product {
+  listProductCodes(): string[] {
+    return (
+      this.database.prepare('SELECT code FROM products WHERE code IS NOT NULL').all() as Array<{
+        code: string
+      }>
+    ).map((row) => row.code)
+  }
+
+  insertProduct(id: string, code: string, input: V2ProductInput, now: string): V2Product {
     this.database
       .prepare(
         `INSERT INTO products (
-          id, name, code, category, base_price_cents, packaging_cost_cents,
+          id, name, code, base_price_cents, packaging_cost_cents,
           accessory_cost_cents, replacement_bag_cost_cents, edge_consumable_cost_cents, fixed_cost_cents,
           unit_weight_milligrams, standard_making_minutes, expected_fluffing_bagging_minutes,
           expected_edge_sewing_minutes, expected_packing_minutes,
           making_commission_cents, fluffing_bagging_commission_cents, edge_sewing_commission_cents,
           mold_count, output_per_mold_per_batch, max_batches_per_day,
           daily_capacity, enabled, image_attachment_id, notes, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
       )
       .run(
         id,
         input.name.trim(),
-        nullableText(input.code),
-        nullableText(input.category),
+        code,
         input.basePriceCents,
         input.packagingCostCents,
         input.accessoryCostCents,
@@ -375,7 +381,7 @@ export class V2OrderRepository {
     const result = this.database
       .prepare(
         `UPDATE products SET
-          name = ?, code = ?, category = ?, base_price_cents = ?, packaging_cost_cents = ?,
+          name = ?, base_price_cents = ?, packaging_cost_cents = ?,
           accessory_cost_cents = ?, replacement_bag_cost_cents = ?, edge_consumable_cost_cents = ?, fixed_cost_cents = ?,
           unit_weight_milligrams = ?, standard_making_minutes = ?, expected_fluffing_bagging_minutes = ?,
           expected_edge_sewing_minutes = ?, expected_packing_minutes = ?,
@@ -385,8 +391,6 @@ export class V2OrderRepository {
       )
       .run(
         input.name.trim(),
-        nullableText(input.code),
-        nullableText(input.category),
         input.basePriceCents,
         input.packagingCostCents,
         input.accessoryCostCents,

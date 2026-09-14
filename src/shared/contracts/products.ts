@@ -4,8 +4,8 @@ import type { ProductProfitCalculation } from '../calculations/product-profit'
 export interface V2Product {
   id: string
   name: string
-  code: string | null
-  category: string | null
+  /** 由系统在创建时分配的 SP 序号编码，创建后不可修改。 */
+  code: string
   basePriceCents: Cents
   packagingCostCents: Cents
   accessoryCostCents: Cents
@@ -37,8 +37,6 @@ export interface V2Product {
 
 export interface V2ProductInput {
   name: string
-  code?: string | null
-  category?: string | null
   basePriceCents: Cents
   packagingCostCents: Cents
   accessoryCostCents: Cents
@@ -71,8 +69,7 @@ export interface V2ProductUpdateInput extends V2ProductInput {
 export interface V2ProductOrderSnapshot {
   productId: string | null
   name: string
-  code: string | null
-  category: string | null
+  code: string
   basePriceCents: Cents
   packagingCostCents: Cents
   accessoryCostCents: Cents

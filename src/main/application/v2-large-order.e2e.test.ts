@@ -38,8 +38,6 @@ describe('V2 大订单端到端验收', () => {
     const customer = orders.createCustomer({ name: '大订单客户', contact: '企业微信' })
     const bear = orders.createProduct({
       name: '奶油小熊',
-      code: 'BEAR',
-      category: '动物',
       basePriceCents: 6_000,
       packagingCostCents: 100,
       accessoryCostCents: 50,
@@ -50,8 +48,6 @@ describe('V2 大订单端到端验收', () => {
     })
     const fruit = orders.createProduct({
       name: '草莓捏捏',
-      code: 'BERRY',
-      category: '水果',
       basePriceCents: 5_000,
       packagingCostCents: 100,
       accessoryCostCents: 0,

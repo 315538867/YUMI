@@ -41,8 +41,6 @@ import {
 
 interface ProductDraft {
   name: string
-  code: string
-  category: string
   basePrice: string
   unitWeight: string
   packagingCost: string
@@ -65,8 +63,6 @@ interface ProductDraft {
 
 const emptyDraft = (): ProductDraft => ({
   name: '',
-  code: '',
-  category: '',
   basePrice: '0',
   unitWeight: '0',
   packagingCost: '0',
@@ -89,8 +85,6 @@ const emptyDraft = (): ProductDraft => ({
 
 const toDraft = (product: V2Product): ProductDraft => ({
   name: product.name,
-  code: product.code ?? '',
-  category: product.category ?? '',
   basePrice: centsToYuan(product.basePriceCents),
   unitWeight: formatMilligramsAsGrams(product.unitWeightMilligrams),
   packagingCost: centsToYuan(product.packagingCostCents),
@@ -138,8 +132,6 @@ function previewMinutes(value: string): number {
 function toInput(draft: ProductDraft): V2ProductInput {
   return {
     name: draft.name,
-    code: draft.code || null,
-    category: draft.category || null,
     basePriceCents: previewCents(draft.basePrice),
     packagingCostCents: previewCents(draft.packagingCost),
     accessoryCostCents: previewCents(draft.accessoryCost),
@@ -254,7 +246,7 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
         statusFilter === 'all' || (statusFilter === 'enabled' ? product.enabled : !product.enabled)
       const matchesQuery =
         !query ||
-        [product.name, product.code, product.category, product.notes]
+        [product.name, product.code, product.notes]
           .filter(Boolean)
           .join(' ')
           .toLocaleLowerCase()
@@ -419,13 +411,11 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
               columns={[
                 {
                   key: 'product',
-                  label: '商品 / 分类',
+                  label: '商品 / 编码',
                   render: (product) => (
                     <div className="yumi-list-cell">
                       <strong>{product.name}</strong>
-                      <span>
-                        {product.code || '未设编码'} · {product.category || '未分类'}
-                      </span>
+                      <span>{product.code}</span>
                       <span>材料 {formatMilligramsAsGrams(product.unitWeightMilligrams)} 克</span>
                     </div>
                   )
@@ -524,22 +514,6 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                     onChange={(event) => updateDraft('name', event.target.value)}
                     required
                     value={draft.name}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel htmlFor="product-code">商品编码</YumiFieldLabel>
-                  <YumiTextField
-                    id="product-code"
-                    onChange={(event) => updateDraft('code', event.target.value)}
-                    value={draft.code}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel htmlFor="product-category">分类</YumiFieldLabel>
-                  <YumiTextField
-                    id="product-category"
-                    onChange={(event) => updateDraft('category', event.target.value)}
-                    value={draft.category}
                   />
                 </YumiField>
                 <MoneyField
@@ -743,8 +717,7 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
                   ariaLabel="商品基础资料"
                   items={[
                     { label: '商品名称', value: selected.name },
-                    { label: '商品编码', value: selected.code || '未设编码' },
-                    { label: '分类', value: selected.category || '未分类' },
+                    { label: '商品编码', value: selected.code },
                     { label: '默认售价', value: formatCents(selected.basePriceCents) },
                     { label: '状态', value: selected.enabled ? '启用' : '停用' },
                     {

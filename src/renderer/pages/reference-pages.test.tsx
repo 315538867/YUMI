@@ -406,8 +406,7 @@ describe('YUMI 基础资料按需录入', () => {
       {
         id: 'product-1',
         name: '羊毛杯垫',
-        code: 'MAT-001',
-        category: '杯垫',
+        code: 'SP0007',
         basePriceCents: 10_800,
         packagingCostCents: 200,
         accessoryCostCents: 100,
@@ -494,6 +493,52 @@ describe('YUMI 基础资料按需录入', () => {
     expect(screen.getByLabelText('模具数量')).toHaveValue('0')
     expect(screen.getByText('填写完整模具参数后计算')).toBeVisible()
     expect(screen.getAllByText('默认售价 − 预计单件成本').length).toBeGreaterThan(0)
+  })
+
+  it('商品编码只作为系统编码展示，新建与编辑表单不再提供编码和分类输入', async () => {
+    mocks.products.products = [
+      {
+        id: 'product-code-1',
+        name: '编码商品',
+        code: 'SP0001',
+        basePriceCents: 10_800,
+        packagingCostCents: 200,
+        accessoryCostCents: 100,
+        replacementBagCostCents: 0,
+        edgeConsumableCostCents: 0,
+        fixedCostCents: 0,
+        unitWeightMilligrams: 20_000,
+        standardMakingMinutes: 30,
+        expectedFluffingBaggingMinutes: 10,
+        expectedEdgeSewingMinutes: 8,
+        expectedPackingMinutes: 5,
+        makingCommissionCents: 2_000,
+        fluffingBaggingCommissionCents: 0,
+        edgeSewingCommissionCents: 0,
+        moldCount: 0,
+        outputPerMoldPerBatch: 0,
+        maxBatchesPerDay: 0,
+        dailyCapacity: 0,
+        enabled: true,
+        imageAttachmentId: null,
+        notes: null,
+        createdAt: '2026-09-09T00:00:00.000Z',
+        updatedAt: '2026-09-09T00:00:00.000Z'
+      }
+    ]
+    render(<ProductsPage />)
+
+    expect(screen.getByText('SP0001')).toBeVisible()
+    expect(screen.queryByText('未设编码')).not.toBeInTheDocument()
+    expect(screen.queryByText('未分类')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '查看商品资料：编码商品' }))
+    expect(screen.getByText('商品编码')).toBeVisible()
+    expect(screen.queryByText('分类')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑商品' }))
+    expect(screen.queryByLabelText('商品编码')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('分类')).not.toBeInTheDocument()
   })
 
   it('被财务流水引用的资料删除失败时保留当前资料，并明确反馈负责人', async () => {

@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import { createNextProductCode } from '@main/domain/product-code'
 
 interface V2Migration {
   version: number
@@ -792,6 +793,33 @@ const v2WorkTimeReviews: V2Migration = {
   }
 }
 
+const v2ProductCodeAndCategoryCleanup: V2Migration = {
+  version: 15,
+  name: 'v2_product_code_and_category_cleanup',
+  run(database) {
+    if (hasColumn(database, 'products', 'category')) {
+      database.exec('ALTER TABLE products DROP COLUMN category')
+    }
+    // 更旧的库连 code 列都没有，交给目标模型守卫统一拒绝。
+    if (!hasColumn(database, 'products', 'code')) return
+    const missing = database
+      .prepare('SELECT id FROM products WHERE code IS NULL ORDER BY created_at ASC, id ASC')
+      .all() as Array<{ id: string }>
+    if (!missing.length) return
+    const existingCodes = (
+      database.prepare('SELECT code FROM products WHERE code IS NOT NULL').all() as Array<{
+        code: string
+      }>
+    ).map((row) => row.code)
+    const update = database.prepare('UPDATE products SET code = ? WHERE id = ?')
+    for (const row of missing) {
+      const code = createNextProductCode(existingCodes)
+      existingCodes.push(code)
+      update.run(code, row.id)
+    }
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
@@ -806,7 +834,8 @@ const migrations: readonly V2Migration[] = [
   v2OrderSchedule,
   v2ShipmentVoidLifecycle,
   v2ProductStageInventory,
-  v2WorkTimeReviews
+  v2WorkTimeReviews,
+  v2ProductCodeAndCategoryCleanup
 ]
 
 /**

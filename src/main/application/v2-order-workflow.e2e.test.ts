@@ -26,8 +26,6 @@ describe('V2 订单核心链路', () => {
     const customer = service.createCustomer({ name: '阿月', contact: '微信号' })
     const product = service.createProduct({
       name: '草莓捏捏',
-      code: 'NY-001',
-      category: '水果',
       basePriceCents: 8_000,
       packagingCostCents: 300,
       accessoryCostCents: 200,
@@ -52,8 +50,6 @@ describe('V2 订单核心链路', () => {
     service.updateProduct({
       id: product.id,
       name: '草莓捏捏（更新）',
-      code: product.code,
-      category: product.category,
       basePriceCents: 9_000,
       packagingCostCents: product.packagingCostCents,
       accessoryCostCents: product.accessoryCostCents,

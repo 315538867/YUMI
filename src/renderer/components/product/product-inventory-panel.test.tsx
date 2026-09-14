@@ -58,8 +58,7 @@ afterEach(() => {
 const product = {
   id: 'product-1',
   name: '羊毛杯垫',
-  code: null,
-  category: null,
+  code: 'SP0001',
   basePriceCents: 10_800,
   packagingCostCents: 0,
   accessoryCostCents: 0,

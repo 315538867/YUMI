@@ -175,8 +175,7 @@ const mocks = vi.hoisted(() => {
     quickProduct: {
       id: 'product-new',
       name: '新商品',
-      code: null,
-      category: null,
+      code: 'SP0002',
       basePriceCents: 1880,
       packagingCostCents: 0,
       accessoryCostCents: 0,

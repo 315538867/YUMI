@@ -41,7 +41,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 14 })
+    ).toEqual({ version: 15 })
     const productColumns = (
       database.prepare('PRAGMA table_info(products)').all() as Array<{ name: string }>
     ).map((column) => column.name)
@@ -65,7 +65,8 @@ describe('V2 独立数据空间', () => {
       'making_glue_cost_cents',
       'glue_weight_milligrams',
       'material_loss_rate_basis_points',
-      'internal_edge_cost_cents'
+      'internal_edge_cost_cents',
+      'category'
     ]) {
       expect(productColumns).not.toContain(removed)
     }
@@ -122,7 +123,7 @@ describe('V2 独立数据空间', () => {
 
     const reopened = createV2Database(storage.databasePath)
     expect(reopened.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 14
+      count: 15
     })
     expect(reopened.prepare('SELECT name FROM customers WHERE id = ?').get('customer-1')).toEqual({
       name: '重复启动客户'
@@ -132,6 +133,50 @@ describe('V2 独立数据空间', () => {
     ).map((column) => column.name)
     expect(reopenedColumns).toEqual(firstColumns)
     reopened.close()
+  })
+
+  it('退回 v14 后重跑迁移会再次删除分类列并为缺失编码的商品补发 SP 编码', () => {
+    const database = createV2Database(':memory:')
+    const insert = database.prepare(
+      `INSERT INTO products (id, name, code, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
+    )
+    insert.run(
+      'product-first',
+      '先建商品',
+      null,
+      '2026-09-14T00:00:00.000Z',
+      '2026-09-14T00:00:00.000Z'
+    )
+    insert.run(
+      'product-legacy',
+      '旧编码商品',
+      'LEGACY-X',
+      '2026-09-14T01:00:00.000Z',
+      '2026-09-14T01:00:00.000Z'
+    )
+    insert.run(
+      'product-third',
+      '再建商品',
+      null,
+      '2026-09-14T02:00:00.000Z',
+      '2026-09-14T02:00:00.000Z'
+    )
+    database.prepare('DELETE FROM v2_schema_migrations WHERE version = ?').run(15)
+
+    runV2Migrations(database)
+
+    const productColumns = (
+      database.prepare('PRAGMA table_info(products)').all() as Array<{ name: string }>
+    ).map((column) => column.name)
+    expect(productColumns).not.toContain('category')
+    expect(database.prepare('SELECT id, code FROM products ORDER BY created_at, id').all()).toEqual(
+      [
+        { id: 'product-first', code: 'SP0001' },
+        { id: 'product-legacy', code: 'LEGACY-X' },
+        { id: 'product-third', code: 'SP0002' }
+      ]
+    )
+    database.close()
   })
 
   it('旧版业务库缺少目标模型列时拒绝启动并提示重建', () => {
@@ -288,7 +333,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 14 })
+    ).toEqual({ version: 15 })
     expect(
       database
         .prepare(
@@ -478,7 +523,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 14 })
+    ).toEqual({ version: 15 })
 
     database
       .prepare(

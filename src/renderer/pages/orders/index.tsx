@@ -232,8 +232,6 @@ const toQuickCustomerInput = (draft: QuickCustomerDraft): V2CustomerInput => ({
 })
 const toQuickProductInput = (draft: QuickProductDraft): V2ProductInput => ({
   name: draft.name,
-  code: null,
-  category: null,
   basePriceCents: yuanToCents(draft.basePrice),
   packagingCostCents: 0,
   accessoryCostCents: 0,
