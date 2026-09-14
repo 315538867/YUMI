@@ -1173,7 +1173,6 @@ export function OrdersPage({
             actions={{
               ariaLabel: '订单详情页面动作',
               visibleActions: [
-                { label: '返回订单列表', onClick: returnToOrderList, variant: 'ghost' },
                 {
                   disabled: exporting,
                   label: '发货汇总',
@@ -1192,6 +1191,11 @@ export function OrdersPage({
                 label: '导出订单表',
                 onClick: () => void exportOrderFile('order-table')
               }
+            }}
+            navigation={{
+              ariaLabel: '订单详情导航',
+              label: '返回订单列表',
+              onClick: returnToOrderList
             }}
             description={[
               selectedOrder.expectedShipDate
@@ -1974,7 +1978,6 @@ function OrderDetail(props: {
     (sum, shipment) => sum + shipment.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
     0
   )
-  const recentShipments = sortedShipments.slice(0, 3)
   const getShipmentSummary = (shipment: (typeof shipments)[number]) =>
     shipment.items
       .map((line) => {
@@ -2167,75 +2170,6 @@ function OrderDetail(props: {
                   value: `${fulfillmentItems.reduce((sum, item) => sum + item.stages.readyToShip, 0)} 件`
                 }
               ]}
-            />
-          </YumiSection>
-          <YumiSection
-            actions={
-              <YumiButton onClick={() => props.onViewChange('fulfillment')} variant="ghost">
-                查看全部发货
-              </YumiButton>
-            }
-            description={`默认展示最近三笔批次；当前订单已有 ${activeShipments.length} 笔发货记录。`}
-            title="最近发货"
-          >
-            <YumiDataTable
-              ariaLabel="最近发货记录"
-              columns={[
-                { key: 'date', label: '发货日期', render: (shipment) => shipment.shippedOn },
-                {
-                  key: 'items',
-                  label: '商品与数量',
-                  render: (shipment) => getShipmentSummary(shipment)
-                },
-                {
-                  key: 'logistics',
-                  label: '物流 / 运单号',
-                  render: (shipment) =>
-                    `${shipment.carrier ?? '未填写承运商'}${shipment.trackingNumber ? ` · ${shipment.trackingNumber}` : ''}`
-                },
-                {
-                  key: 'status',
-                  label: '批次状态',
-                  render: (shipment) => (
-                    <YumiStatusTag tone={shipment.status === 'voided' ? 'neutral' : 'success'}>
-                      {shipment.status === 'voided' ? '已作废' : '已发货'}
-                    </YumiStatusTag>
-                  )
-                },
-                {
-                  align: 'right',
-                  key: 'actions',
-                  label: '操作',
-                  render: (shipment) => (
-                    <YumiRecordActionBar
-                      ariaLabel={`最近发货批次 ${shipment.id} 操作`}
-                      actions={[
-                        {
-                          label: '查看发货清单',
-                          onClick: () => props.onPreviewShippingList(shipment.id)
-                        },
-                        {
-                          disabled: props.exporting,
-                          label: '导出本批清单',
-                          onClick: () => props.onExportShippingList(shipment.id),
-                          variant: 'secondary'
-                        },
-                        ...(shipment.status !== 'voided'
-                          ? [
-                              {
-                                label: '作废批次',
-                                onClick: () => props.onShipmentVoidStart(shipment.id)
-                              }
-                            ]
-                          : [])
-                      ]}
-                    />
-                  )
-                }
-              ]}
-              emptyText="尚未登记发货批次。"
-              getRowKey={(shipment) => shipment.id}
-              rows={recentShipments}
             />
           </YumiSection>
           <YumiSheet

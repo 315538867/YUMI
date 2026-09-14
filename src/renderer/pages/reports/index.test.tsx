@@ -90,6 +90,26 @@ afterEach(() => {
   mocks.state.loading = false
 })
 
+describe('经营报表页面级骨架', () => {
+  it('页头说明统计口径，页面动作保持在页头右侧，首个内容区紧随其后', () => {
+    render(<ReportsPage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '经营报表' }).closest('header')
+    expect(screen.getByText(/\d{4}-\d{2} 统计/)).toBeVisible()
+    const firstSection = screen.getByRole('heading', { level: 2, name: '月度经营' })
+    expect(header).not.toBeNull()
+    expect(
+      screen.getByText(
+        '只读取已确认的订单、排班、收付款和工资事实；风险记录只提供进入实际处理区的入口。'
+      )
+    ).toBeVisible()
+    expect(within(header!).getByRole('group', { name: '经营报表页面动作' })).toBeVisible()
+    expect(
+      header!.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+})
+
 describe('经营报表加载反馈', () => {
   it('首次加载时显示统一的具名加载状态，而不是提前呈现空报表', () => {
     mocks.state.loading = true

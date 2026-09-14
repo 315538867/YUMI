@@ -136,51 +136,59 @@ export function OrderDispatchBoard(props: {
             },
             {
               key: 'schedule',
-              label: '待派 / 已派任务',
+              label: '任务分配',
               render: (item) => (
                 <div className="yumi-fulfillment-stage-stack">
                   {visibleStagesFor(item).map((stage) => {
                     const schedule = getFulfillmentQueueStageSchedule(item, stage)
+                    const assignedQuantity = schedule.tasks.reduce(
+                      (total, task) => total + task.plannedQuantity,
+                      0
+                    )
+                    const assignedSummary =
+                      schedule.tasks.length === 1
+                        ? `已指派：${schedule.tasks[0].workerName} ${assignedQuantity} 件`
+                        : schedule.tasks.length > 1
+                          ? `已指派：${schedule.tasks.length} 人 ${assignedQuantity} 件`
+                          : '已指派：0 件'
                     return (
                       <section className="yumi-fulfillment-stage" key={stage}>
-                        <div className="yumi-fulfillment-stage__header">
-                          <strong>
-                            {dispatchStageLabels[stage]} {schedule.wipQuantity}
-                          </strong>
-                          {schedule.unassignedQuantity > 0 ? (
-                            <YumiButton
-                              aria-label={`派工${dispatchStageLabels[stage]}`}
-                              onClick={() =>
-                                props.onOpenAssignment({ orderItemId: item.orderItemId, stage })
-                              }
-                              variant="secondary"
-                            >
-                              + 派工
-                            </YumiButton>
+                        <div className="yumi-fulfillment-stage__row">
+                          <strong>{dispatchStageLabels[stage]}</strong>
+                          <span className="yumi-fulfillment-stage__assigned">
+                            {assignedSummary}
+                          </span>
+                          <span className="yumi-fulfillment-stage__unassigned">
+                            未指派：{schedule.unassignedQuantity} 件
+                          </span>
+                          {schedule.overassignedQuantity > 0 ? (
+                            <span className="yumi-fulfillment-stage__overassigned">
+                              超派：{schedule.overassignedQuantity} 件
+                            </span>
                           ) : null}
+                          <div className="yumi-fulfillment-stage__actions">
+                            {schedule.tasks.length > 0 ? (
+                              <YumiButton
+                                aria-label={`查看${dispatchStageLabels[stage]}任务`}
+                                onClick={() => props.onOpenTask(item, schedule.tasks[0])}
+                                variant="ghost"
+                              >
+                                查看任务
+                              </YumiButton>
+                            ) : null}
+                            {schedule.unassignedQuantity > 0 ? (
+                              <YumiButton
+                                aria-label={`派工${dispatchStageLabels[stage]}`}
+                                onClick={() =>
+                                  props.onOpenAssignment({ orderItemId: item.orderItemId, stage })
+                                }
+                                variant="secondary"
+                              >
+                                派工
+                              </YumiButton>
+                            ) : null}
+                          </div>
                         </div>
-                        {schedule.unassignedQuantity > 0 ? (
-                          <p className="yumi-fulfillment-stage__unassigned">
-                            未派 {schedule.unassignedQuantity}
-                          </p>
-                        ) : null}
-                        {schedule.overassignedQuantity > 0 ? (
-                          <p className="yumi-fulfillment-stage__overassigned">
-                            超派 {schedule.overassignedQuantity}，请核对安排
-                          </p>
-                        ) : null}
-                        {schedule.tasks.map((task) => (
-                          <YumiButton
-                            aria-label={`${task.workerName} ${task.plannedQuantity} ${task.assignedOn} ${taskStatusLabel(task.status)}`}
-                            className="yumi-fulfillment-task-card"
-                            key={task.taskId}
-                            onClick={() => props.onOpenTask(item, task)}
-                            variant="ghost"
-                          >
-                            已派 {task.workerName} {task.plannedQuantity} · {task.assignedOn} ·{' '}
-                            {taskStatusLabel(task.status)}
-                          </YumiButton>
-                        ))}
                       </section>
                     )
                   })}

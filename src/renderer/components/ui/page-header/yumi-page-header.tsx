@@ -2,11 +2,20 @@ import type { ReactNode } from 'react'
 import { YumiActionMenu, type YumiActionMenuItem } from '../action-menu/yumi-action-menu'
 import { YumiButton } from '../button/yumi-button'
 
+export type YumiPageNavigation = {
+  ariaLabel: string
+  label: ReactNode
+  onClick: () => void | Promise<void>
+  disabled?: boolean
+}
+
 type YumiPageHeaderProps = {
   title: ReactNode
   /** 标题旁的次级实体信息，例如订单编号；不与客户、状态等主信息争夺页头层级。 */
   meta?: ReactNode
   description?: ReactNode
+  /** 返回上级等导航动作独立于业务动作组，固定出现在页头左侧。 */
+  navigation?: YumiPageNavigation
   /**
    * 页头动作必须经过共享层级编排，避免业务页面在右上角自由堆叠按钮。
    * 区块内的实体/记录操作仍应使用 YumiSection.actions。
@@ -117,15 +126,35 @@ export function YumiPageActions({
   )
 }
 
-export function YumiPageHeader({ actions, description, meta, title }: YumiPageHeaderProps) {
+export function YumiPageHeader({
+  actions,
+  description,
+  meta,
+  navigation,
+  title
+}: YumiPageHeaderProps) {
   return (
     <header className="yumi-page-header">
-      <div className="yumi-page-header__content">
-        <div className="yumi-page-header__title-row">
-          <h1 className="yumi-page-header__title">{title}</h1>
-          {meta ? <span className="yumi-page-header__meta">{meta}</span> : null}
+      <div className="yumi-page-header__leading">
+        {navigation ? (
+          <nav aria-label={navigation.ariaLabel} className="yumi-page-header__navigation">
+            <YumiButton
+              aria-label={String(navigation.label)}
+              disabled={navigation.disabled}
+              onClick={navigation.onClick}
+              variant="ghost"
+            >
+              ← {navigation.label}
+            </YumiButton>
+          </nav>
+        ) : null}
+        <div className="yumi-page-header__content">
+          <div className="yumi-page-header__title-row">
+            <h1 className="yumi-page-header__title">{title}</h1>
+            {meta ? <span className="yumi-page-header__meta">{meta}</span> : null}
+          </div>
+          {description ? <p className="yumi-page-header__description">{description}</p> : null}
         </div>
-        {description ? <p className="yumi-page-header__description">{description}</p> : null}
       </div>
       {actions ? (
         <div className="yumi-page-header__actions">

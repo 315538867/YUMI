@@ -5,12 +5,16 @@ import { YumiButton } from '../button/yumi-button'
 import { YumiConfirmDialog } from '../dialog/yumi-dialog'
 import type { YumiDensity } from '../tabs/yumi-tabs'
 
+type YumiSheetFooterActions = {
+  requestClose(): void
+}
+
 type YumiSheetProps = {
   children: ReactNode
   density?: YumiDensity
   description?: ReactNode
   dirty?: boolean
-  footer?: ReactNode
+  footer?: ReactNode | ((actions: YumiSheetFooterActions) => ReactNode)
   onOpenChange(open: boolean): void
   open: boolean
   title: string
@@ -69,7 +73,11 @@ export function YumiSheet({
               </YumiButton>
             </div>
             <div className="yumi-sheet__body">{children}</div>
-            {footer ? <div className="yumi-sheet__footer">{footer}</div> : null}
+            {footer ? (
+              <div className="yumi-sheet__footer">
+                {typeof footer === 'function' ? footer({ requestClose }) : footer}
+              </div>
+            ) : null}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

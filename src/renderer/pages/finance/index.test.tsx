@@ -60,6 +60,41 @@ afterEach(() => {
 })
 
 describe('财务负责人工作区', () => {
+  it('财务使用统一页面骨架承接页头、工作视图和首个内容区', async () => {
+    render(<FinancePage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '财务' }).closest('header')
+    const workspace = header?.closest('.yumi-page')
+    const tabs = screen.getByRole('navigation', { name: '财务工作视图' })
+    const overview = await screen.findByRole('heading', { name: '本月经营结果' })
+
+    expect(workspace).toHaveClass('yumi-finance-workspace')
+    expect(header).not.toBeNull()
+    expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(tabs.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('切换财务工作视图后页头动作组仍固定在页头，Tab 不进入内容区', async () => {
+    render(<FinancePage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '财务' }).closest('header')
+    const tabs = screen.getByRole('navigation', { name: '财务工作视图' })
+    const actionGroup = within(header!).getByRole('group', { name: '财务页面动作' })
+
+    fireEvent.click(within(tabs).getByRole('button', { name: '现金流水' }))
+
+    const contentHeading = await screen.findByRole('heading', { name: '当月现金流水' })
+    expect(within(header!).getByRole('group', { name: '财务页面动作' })).toBe(actionGroup)
+    expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      tabs.compareDocumentPosition(contentHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(within(tabs).getByRole('button', { name: '现金流水' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+  })
+
   it('经营结果只呈现经营收入和支出，报销付款不重复计入经营支出', async () => {
     render(<FinancePage />)
 

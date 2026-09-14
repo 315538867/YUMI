@@ -1,7 +1,14 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render as renderBase,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../../components/ui'
 import { installDomInteractionPolyfills } from '../../test/dom'
@@ -177,6 +184,67 @@ afterEach(() => {
   mocks.resolveRefund.mockClear()
 })
 
+describe('工资页面级骨架', () => {
+  it('工资页使用统一页面容器承接页头、Tab 与首个内容区', () => {
+    render(<SettlementsPage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '工资' }).closest('header')
+    expect(screen.getByText('2 位人员')).toBeVisible()
+    const workspace = header?.closest('.yumi-page')
+    const tabs = screen.getByRole('navigation', { name: '工资工作视图' })
+    const firstSection = screen.getByRole('heading', { level: 2, name: '工资结算记录' })
+
+    expect(workspace).toBeInTheDocument()
+    expect(workspace).toHaveClass('yumi-settlements-workspace')
+    expect(workspace?.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      tabs.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('工资页保持统一页头说明与页面级 Tab，内容区不重复渲染二级页头', () => {
+    render(<SettlementsPage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '工资' }).closest('header')
+    expect(screen.getByText('2 位人员')).toBeVisible()
+    const tabs = screen.getByRole('navigation', { name: '工资工作视图' })
+    const firstSection = screen.getByRole('heading', { level: 2, name: '工资结算记录' })
+    expect(header).not.toBeNull()
+    expect(
+      screen.getByText(
+        '负责人确认实际工资；已确认工资后发现的不合格，不回写历史实发，改由负责人单独处理退款。'
+      )
+    ).toBeVisible()
+    expect(within(header!).getByRole('group', { name: '工资页面动作' })).toBeVisible()
+    expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      tabs.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('切换工资工作视图后页头动作组仍固定在页头，Tab 不进入内容区', () => {
+    render(<SettlementsPage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '工资' }).closest('header')
+    expect(screen.getByText('2 位人员')).toBeVisible()
+    const tabs = screen.getByRole('navigation', { name: '工资工作视图' })
+    const actionGroup = within(header!).getByRole('group', { name: '工资页面动作' })
+
+    fireEvent.click(within(tabs).getByRole('button', { name: '人员与时薪' }))
+
+    const contentHeading = screen.getByRole('heading', { level: 2, name: '兼职人员' })
+    expect(within(header!).getByRole('group', { name: '工资页面动作' })).toBe(actionGroup)
+    expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      tabs.compareDocumentPosition(contentHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(within(tabs).getByRole('button', { name: '人员与时薪' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+  })
+})
+
 describe('工资列表页面', () => {
   it('使用统一工具条、具名记录表和状态筛选，不以编辑表单作为列表首屏', () => {
     render(<SettlementsPage />)
@@ -193,6 +261,22 @@ describe('工资列表页面', () => {
     expect(screen.queryByText('小林')).not.toBeInTheDocument()
     expect(screen.getByText('小夏')).toBeVisible()
     expect(screen.getByText('共 1 笔结算')).toBeVisible()
+  })
+
+  it('工资结算为空时仍保留工具条、统计与具名空表状态', () => {
+    const originalSettlements = mocks.settlements
+    mocks.settlements = []
+
+    try {
+      render(<SettlementsPage />)
+
+      const toolbar = screen.getByRole('toolbar', { name: '工资结算列表工具' })
+      expect(within(toolbar).getByText('共 0 笔结算')).toBeVisible()
+      expect(screen.getByRole('table', { name: '工资结算列表' })).toBeVisible()
+      expect(screen.getByText('尚未建立工资结算。')).toBeVisible()
+    } finally {
+      mocks.settlements = originalSettlements
+    }
   })
 
   it('结算详情使用共享经营摘要与具名来源表，不保留结算私有指标卡片和来源列表', async () => {

@@ -399,6 +399,51 @@
   display: grid;
   gap: var(--yumi-space-5);
 }
+
+.yumi-customer-detail-workspace {
+  display: grid;
+  gap: var(--yumi-space-5);
+}
+.yumi-customer-detail-workspace > .yumi-sheet-form {
+  display: grid;
+  gap: var(--yumi-space-5);
+}
+.yumi-customer-detail-workspace .yumi-form-section {
+  min-width: 0;
+}
+.yumi-customer-order-history .yumi-data-table {
+  min-width: 920px;
+}
+.yumi-customer-order-history .yumi-data-table th:first-child,
+.yumi-customer-order-history .yumi-data-table td:first-child {
+  min-width: 120px;
+  white-space: nowrap;
+}
+.yumi-customer-order-history .yumi-data-table th:nth-child(2),
+.yumi-customer-order-history .yumi-data-table td:nth-child(2) {
+  min-width: 108px;
+  white-space: nowrap;
+}
+.yumi-customer-order-history .yumi-data-table th:nth-child(3),
+.yumi-customer-order-history .yumi-data-table td:nth-child(3),
+.yumi-customer-order-history .yumi-data-table th:nth-child(4),
+.yumi-customer-order-history .yumi-data-table td:nth-child(4),
+.yumi-customer-order-history .yumi-data-table th:nth-child(5),
+.yumi-customer-order-history .yumi-data-table td:nth-child(5) {
+  min-width: 104px;
+  white-space: nowrap;
+}
+.yumi-customer-order-history .yumi-data-table th:nth-child(6),
+.yumi-customer-order-history .yumi-data-table td:nth-child(6) {
+  min-width: 148px;
+  white-space: nowrap;
+}
+.yumi-customer-order-history .yumi-data-table th:last-child,
+.yumi-customer-order-history .yumi-data-table td:last-child {
+  min-width: 84px;
+  white-space: nowrap;
+}
+
 .yumi-workers-workspace,
 .yumi-settings-workspace {
   display: grid;
@@ -539,7 +584,7 @@
 }
 .yumi-fulfillment-dispatch-surface .yumi-data-table th:nth-child(4),
 .yumi-fulfillment-dispatch-surface .yumi-data-table td:nth-child(4) {
-  min-width: 284px;
+  min-width: 360px;
 }
 .yumi-fulfillment-order-cell,
 .yumi-fulfillment-product-cell {
@@ -565,37 +610,57 @@
 }
 .yumi-fulfillment-stage-stack {
   display: grid;
-  gap: var(--yumi-space-2);
+  gap: 0;
 }
 .yumi-fulfillment-stage {
-  display: grid;
-  gap: 4px;
-  border-left: 3px solid var(--yumi-brand-soft);
-  border-radius: 0 var(--yumi-radius-sm) var(--yumi-radius-sm) 0;
-  padding: 8px 10px;
-  background: var(--yumi-surface-muted);
+  min-width: 0;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
-.yumi-fulfillment-stage__header {
+.yumi-fulfillment-stage + .yumi-fulfillment-stage {
+  border-top: 1px solid var(--yumi-border);
+}
+.yumi-fulfillment-stage__row {
   display: flex;
+  min-width: 0;
   align-items: center;
-  justify-content: space-between;
+  flex-wrap: nowrap;
   gap: var(--yumi-space-3);
 }
-.yumi-fulfillment-stage__header strong {
+.yumi-fulfillment-stage__row strong {
+  flex: 0 0 auto;
   color: var(--yumi-ink);
   font-size: 13px;
   line-height: 20px;
 }
-.yumi-fulfillment-stage__header .yumi-button {
+.yumi-fulfillment-stage__assigned {
+  min-width: 0;
+  color: var(--yumi-muted);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.yumi-fulfillment-stage__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--yumi-space-2);
+  margin-left: auto;
+}
+.yumi-fulfillment-stage__actions .yumi-button {
   min-height: 28px;
   padding: 3px 9px;
   font-size: 12px;
 }
 .yumi-fulfillment-stage__unassigned,
 .yumi-fulfillment-stage__overassigned {
+  flex: 0 0 auto;
   margin: 0;
   font-size: 12px;
   line-height: 18px;
+  white-space: nowrap;
 }
 .yumi-fulfillment-stage__unassigned {
   color: var(--yumi-brand-hover);
@@ -604,21 +669,61 @@
 .yumi-fulfillment-stage__overassigned {
   color: var(--yumi-danger);
 }
-.yumi-fulfillment-task-card {
-  display: flex;
-  width: max-content;
-  max-width: 100%;
-  justify-content: flex-start;
-  padding: 3px 0 !important;
-  color: var(--yumi-muted) !important;
-  font-size: 12px !important;
-  line-height: 18px !important;
-  text-align: left;
-  white-space: normal;
+.yumi-workflow-step {
+  display: grid;
+  min-width: 0;
+  gap: var(--yumi-space-4);
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-lg);
+  padding: var(--yumi-space-5);
+  background: var(--yumi-surface);
 }
-.yumi-fulfillment-task-card:hover:not(:disabled) {
-  color: var(--yumi-brand-hover) !important;
-  text-decoration: underline;
+.yumi-opening-wip__selection,
+.yumi-opening-wip__form {
+  margin: 0;
+}
+.yumi-opening-wip__candidates {
+  display: grid;
+  gap: var(--yumi-space-2);
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.yumi-opening-wip__candidate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--yumi-space-4);
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-md);
+  padding: var(--yumi-space-3) var(--yumi-space-4);
+  background: var(--yumi-surface);
+}
+.yumi-opening-wip__candidate[data-selected='true'] {
+  border-color: var(--yumi-brand);
+  background: var(--yumi-brand-subtle);
+}
+.yumi-opening-wip__empty {
+  margin: 0;
+  padding: var(--yumi-space-3);
+  border: 1px dashed var(--yumi-border);
+  border-radius: var(--yumi-radius-md);
+  color: var(--yumi-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+.yumi-opening-wip__candidate > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.yumi-opening-wip__candidate strong {
+  overflow-wrap: anywhere;
+}
+.yumi-opening-wip__candidate span {
+  color: var(--yumi-muted);
+  font-size: 12px;
+  line-height: 18px;
 }
 .yumi-worker-week {
   display: grid;
@@ -723,14 +828,22 @@
 @media (max-width: 820px) {
   .yumi-fulfillment-dispatch-surface .yumi-data-table th:nth-child(4),
   .yumi-fulfillment-dispatch-surface .yumi-data-table td:nth-child(4) {
-    min-width: 250px;
+    min-width: 288px;
   }
   .yumi-worker-week {
     padding: var(--yumi-space-4);
   }
 }
 @media (max-width: 640px) {
-  .yumi-fulfillment-stage__header {
+  .yumi-fulfillment-stage__row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .yumi-fulfillment-stage__actions {
+    margin-left: 0;
+  }
+  .yumi-opening-wip__candidate {
+    grid-template-columns: 1fr;
     align-items: flex-start;
   }
   .yumi-worker-week .yumi-section__actions {

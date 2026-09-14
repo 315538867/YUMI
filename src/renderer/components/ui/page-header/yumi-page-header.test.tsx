@@ -124,6 +124,46 @@ describe('YumiPageHeader', () => {
     expect(screen.getByRole('button', { name: '新建客户' })).toBeVisible()
   })
 
+  it('将导航、对象信息与业务动作固定在不同的页头层级', () => {
+    const onBack = vi.fn()
+
+    render(
+      <YumiPageHeader
+        actions={{
+          ariaLabel: '订单详情页面动作',
+          primaryAction: { label: '编辑订单', onClick: vi.fn() }
+        }}
+        description="罗小雨 · 待收 ¥6,900.00 · 预计 2026-09-26 发货"
+        meta="订单编号 YUMI-20260909-40DA4997"
+        navigation={{ ariaLabel: '订单详情导航', label: '返回订单列表', onClick: onBack }}
+        title="订单详情"
+      />
+    )
+
+    const header = screen.getByRole('heading', { name: '订单详情' }).closest('header')
+    const navigation = screen.getByRole('navigation', { name: '订单详情导航' })
+    const actions = screen.getByRole('group', { name: '订单详情页面动作' })
+    const titleRow = screen.getByRole('heading', { name: '订单详情' }).parentElement
+
+    expect(header).not.toBeNull()
+    expect(header!.firstElementChild).toHaveClass('yumi-page-header__leading')
+    expect(header!.lastElementChild).toHaveClass('yumi-page-header__actions')
+    expect(navigation).toHaveClass('yumi-page-header__navigation')
+    expect(
+      navigation.compareDocumentPosition(titleRow!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(within(navigation).getByRole('button', { name: '返回订单列表' })).toBeVisible()
+    expect(within(actions).queryByRole('button', { name: '返回订单列表' })).not.toBeInTheDocument()
+    expect(within(actions).getByRole('button', { name: '编辑订单' })).toBeVisible()
+    expect(screen.getByText('订单编号 YUMI-20260909-40DA4997')).toHaveClass(
+      'yumi-page-header__meta'
+    )
+    expect(screen.getByText('罗小雨 · 待收 ¥6,900.00 · 预计 2026-09-26 发货')).toBeVisible()
+
+    fireEvent.click(within(navigation).getByRole('button', { name: '返回订单列表' }))
+    expect(onBack).toHaveBeenCalledTimes(1)
+  })
+
   it('将实体编号作为标题旁的次级元数据，不挤占页头主信息', () => {
     render(
       <YumiPageHeader

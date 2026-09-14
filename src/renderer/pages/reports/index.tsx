@@ -140,6 +140,7 @@ export function ReportsPage({ onNavigate }: ReportsPageProps) {
           }
         }}
         description="只读取已确认的订单、排班、收付款和工资事实；风险记录只提供进入实际处理区的入口。"
+        meta={`${month} 统计`}
         title="经营报表"
       />
       {loading ? (

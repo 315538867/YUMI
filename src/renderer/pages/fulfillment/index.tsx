@@ -25,7 +25,6 @@ import {
   YumiPageHeader,
   YumiPrimaryTabs,
   YumiRecordSummary,
-  YumiSegmentedTabs,
   YumiSection,
   YumiSelect,
   YumiTextArea,
@@ -265,19 +264,17 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
     return (
       <section className="yumi-page fulfillment-workspace">
         <YumiPageHeader
-          actions={{
-            ariaLabel: '期初在制品页面动作',
-            secondaryAction: {
-              label: '返回排班队列',
-              onClick: returnToQueue,
-              variant: 'ghost'
-            }
+          navigation={{
+            ariaLabel: '期初在制品导航',
+            label: '返回排班队列',
+            onClick: returnToQueue
           }}
           description="系统中途启用时，将已经开始生产、但尚未走完流程的订单商品一次性登记到实际阶段。"
           title="补录期初在制品"
         />
         <YumiSection
-          ariaLabel="选择对应订单商品"
+          ariaLabel="可补录订单商品"
+          className="yumi-workflow-step yumi-opening-wip__selection"
           description="先搜索并选择需要承接这批在制品的订单商品；不是从当前订单详情继承上下文。"
           title="1. 选择对应订单商品"
         >
@@ -290,39 +287,51 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
               value={openingSearch}
             />
           </YumiField>
-          <div className="yumi-opening-wip__candidates" role="list">
-            {openingCandidates.map((item) => {
-              const selected = item.orderItemId === openingOrderItemId
-              return (
-                <article
-                  className="yumi-opening-wip__candidate"
-                  key={item.orderItemId}
-                  role="listitem"
-                >
-                  <div>
-                    <strong>{item.orderCode}</strong>
-                    <span>{item.customerName}</span>
-                  </div>
-                  <div>
-                    <strong>{item.productName}</strong>
-                    <span>确认 {item.confirmedQuantity} 件</span>
-                  </div>
-                  <YumiButton
-                    aria-pressed={selected}
-                    onClick={() => setOpeningOrderItemId(item.orderItemId)}
-                    variant={selected ? 'primary' : 'secondary'}
+          <div aria-label="可补录订单商品" className="yumi-opening-wip__candidates" role="list">
+            {openingCandidates.length ? (
+              openingCandidates.map((item) => {
+                const selected = item.orderItemId === openingOrderItemId
+                return (
+                  <article
+                    aria-label={`${item.orderCode} ${item.customerName} ${item.productName}，确认 ${item.confirmedQuantity} 件`}
+                    className="yumi-opening-wip__candidate"
+                    data-selected={selected ? 'true' : 'false'}
+                    key={item.orderItemId}
+                    role="listitem"
                   >
-                    {selected ? '已选择' : `选择：${item.productName}`}
-                  </YumiButton>
-                </article>
-              )
-            })}
+                    <div>
+                      <strong>{item.orderCode}</strong>
+                      <span>{item.customerName}</span>
+                    </div>
+                    <div>
+                      <strong>{item.productName}</strong>
+                      <span>确认 {item.confirmedQuantity} 件</span>
+                    </div>
+                    <YumiButton
+                      aria-pressed={selected}
+                      onClick={() => setOpeningOrderItemId(item.orderItemId)}
+                      variant={selected ? 'primary' : 'secondary'}
+                    >
+                      {selected ? '已选择' : `选择：${item.productName}`}
+                    </YumiButton>
+                  </article>
+                )
+              })
+            ) : (
+              <p className="yumi-opening-wip__empty" role="status">
+                没有符合搜索条件的订单商品。
+              </p>
+            )}
           </div>
           <p className="yumi-section__hint">
             订单商品仅用于归属和后续交期、发货闭环；入口本身是工作室级的初始化工具。
           </p>
         </YumiSection>
-        <form className="yumi-form-panel" onSubmit={handleOpeningWip}>
+        <form
+          aria-label="登记当前实际阶段"
+          className="yumi-opening-wip__form yumi-workflow-step"
+          onSubmit={handleOpeningWip}
+        >
           <YumiFormSection
             description="只登记期初状态；正常派工、质检与发货仍通过后续排班任务和订单详情处理。"
             title="2. 登记当前实际阶段"
@@ -394,14 +403,12 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
     return (
       <section className="yumi-page fulfillment-workspace">
         <YumiPageHeader
-          actions={{
-            ariaLabel: '排班处理页面动作',
-            secondaryAction: {
-              label: '返回排班队列',
-              onClick: returnToQueue,
-              variant: 'ghost'
-            }
+          navigation={{
+            ariaLabel: '排班处理导航',
+            label: '返回排班队列',
+            onClick: returnToQueue
           }}
+          actions={{ ariaLabel: '排班处理页面动作' }}
           description={`${selectedOrder.code} · ${focusedOrderItem.productSnapshot.name} · ${
             focusedReassignmentTask?.stage === 'making'
               ? '制作'
@@ -566,6 +573,15 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
         }
         title="排班"
       />
+      <YumiPrimaryTabs
+        ariaLabel="排班视角"
+        items={[
+          { id: 'orders', label: '订单视角' },
+          { id: 'workers', label: '人员周历' }
+        ]}
+        onValueChange={setOverview}
+        value={overview}
+      />
       <YumiMetricStrip
         ariaLabel="排班阶段总量"
         items={[
@@ -584,15 +600,6 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
         />
       ) : (
         <>
-          <YumiSegmentedTabs
-            ariaLabel="排班视角"
-            items={[
-              { id: 'orders', label: '订单视角' },
-              { id: 'workers', label: '人员周历' }
-            ]}
-            onValueChange={setOverview}
-            value={overview}
-          />
           {overview === 'orders' ? (
             <>
               {queueItems.length === 0 ? (

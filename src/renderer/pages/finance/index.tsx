@@ -222,7 +222,7 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
   }
 
   return (
-    <div className="yumi-finance-workspace">
+    <section className="yumi-page yumi-finance-workspace">
       <YumiPageHeader
         actions={{
           ariaLabel: '财务页面动作',
@@ -659,7 +659,7 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
           </YumiField>
         </form>
       </YumiSheet>
-    </div>
+    </section>
   )
 }
 

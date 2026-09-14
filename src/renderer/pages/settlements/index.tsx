@@ -232,17 +232,14 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
   }
 
   return (
-    <div className="yumi-settlements-workspace">
+    <section className="yumi-page yumi-settlements-workspace">
       <YumiPageHeader
-        actions={
-          workspace === 'settlements'
-            ? {
-                ariaLabel: '工资页面动作',
-                primaryAction: { label: '新建结算', onClick: openDraftForm }
-              }
-            : undefined
-        }
+        actions={{
+          ariaLabel: '工资页面动作',
+          primaryAction: { label: '新建结算', onClick: openDraftForm }
+        }}
         description="负责人确认实际工资；已确认工资后发现的不合格，不回写历史实发，改由负责人单独处理退款。"
+        meta={`${workers.length} 位人员`}
         title="工资"
       />
       <YumiPrimaryTabs
@@ -607,6 +604,6 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
         open={refundConfirmOpen}
         title="确认登记兼职退款？"
       />
-    </div>
+    </section>
   )
 }

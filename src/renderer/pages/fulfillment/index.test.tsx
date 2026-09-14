@@ -14,7 +14,28 @@ import { YumiNotificationProvider } from '../../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
   renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import { installDomInteractionPolyfills } from '../../test/dom'
+import { today } from '../../composables/v2-utils'
 import { FulfillmentPage } from './index'
+
+function dateParts(date: Date): string {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function startOfWeekFrom(dateStr: string): string {
+  const current = new Date(`${dateStr}T00:00:00`)
+  const day = current.getDay() || 7
+  current.setDate(current.getDate() - day + 1)
+  return dateParts(current)
+}
+
+function addDays(dateStr: string, count: number): string {
+  const next = new Date(`${dateStr}T00:00:00`)
+  next.setDate(next.getDate() + count)
+  return dateParts(next)
+}
 
 const mocks = vi.hoisted(() => {
   const emptySchedule = {
@@ -142,20 +163,23 @@ describe('履约排班双视角交互', () => {
     render(<FulfillmentPage />)
 
     const viewSwitch = screen.getByRole('navigation', { name: '排班视角' })
-    expect(viewSwitch).toHaveClass('yumi-segmented-tabs')
+    expect(viewSwitch).toHaveClass('yumi-primary-tabs')
     expect(within(viewSwitch).getByRole('button', { name: '订单视角' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
+      'aria-current',
+      'page'
     )
     expect(screen.getByRole('region', { name: '订单排班队列' })).toBeVisible()
     expect(screen.getByRole('heading', { name: '订单排班队列' })).toBeVisible()
     expect(screen.getByRole('toolbar', { name: '排班队列列表工具' })).toBeVisible()
-    expect(screen.getByRole('table', { name: '排班队列列表' })).toBeVisible()
-    expect(
-      within(screen.getByRole('table', { name: '排班队列列表' })).getByText('制作')
-    ).toBeVisible()
-    expect(screen.getByText('未派 8')).toBeVisible()
-    expect(screen.getByRole('button', { name: /小王 12.*待完成/ })).toBeVisible()
+    const table = screen.getByRole('table', { name: '排班队列列表' })
+    expect(table).toBeVisible()
+    expect(within(table).getByRole('columnheader', { name: '任务分配' })).toBeVisible()
+    expect(within(table).getAllByText('制作').length).toBeGreaterThan(0)
+    expect(table.querySelectorAll('.yumi-fulfillment-stage')).toHaveLength(2)
+    expect(table.querySelectorAll('.yumi-fulfillment-task-card')).toHaveLength(0)
+    expect(screen.getByText('已指派：小王 12 件')).toBeVisible()
+    expect(screen.getByText('未指派：8 件')).toBeVisible()
+    expect(screen.getByRole('button', { name: '查看制作任务' })).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: '进入处理：草莓捏捏' }))
     expect(mocks.selectOrder).toHaveBeenCalledWith('order-1')
@@ -163,6 +187,153 @@ describe('履约排班双视角交互', () => {
     fireEvent.click(screen.getByRole('button', { name: '派工制作' }))
     expect(screen.getByRole('dialog', { name: '派工：制作' })).toBeVisible()
     expect(screen.getByText('待派上限：8 件')).toBeVisible()
+  })
+
+  it('订单视角按工序独立汇总未派、单人已派、多人已派与超派数量，不重复渲染任务卡片', () => {
+    const originalQueueItems = mocks.queueItems
+    mocks.queueItems = [
+      {
+        ...originalQueueItems[0],
+        stages: { making: 10, fluffingBagging: 5, packing: 10, readyToShip: 6, shipped: 0 },
+        stageSchedules: {
+          making: {
+            wipQuantity: 10,
+            reservedQuantity: 0,
+            unassignedQuantity: 10,
+            overassignedQuantity: 0,
+            tasks: []
+          },
+          fluffing_bagging: {
+            wipQuantity: 5,
+            reservedQuantity: 5,
+            unassignedQuantity: 0,
+            overassignedQuantity: 0,
+            tasks: [
+              {
+                assignmentId: 'assignment-fluffing',
+                taskId: 'task-fluffing',
+                workerId: 'worker-li',
+                workerName: '小李',
+                assignedOn: '2026-09-10',
+                processType: 'fluffing_bagging',
+                stage: 'fluffing_bagging',
+                plannedQuantity: 5,
+                status: 'pending'
+              }
+            ]
+          },
+          packing: {
+            wipQuantity: 10,
+            reservedQuantity: 8,
+            unassignedQuantity: 2,
+            overassignedQuantity: 0,
+            tasks: [
+              {
+                assignmentId: 'assignment-packing-1',
+                taskId: 'task-packing-1',
+                workerId: 'worker-wang',
+                workerName: '小王',
+                assignedOn: '2026-09-10',
+                processType: 'packing',
+                stage: 'packing',
+                plannedQuantity: 3,
+                status: 'pending'
+              },
+              {
+                assignmentId: 'assignment-packing-2',
+                taskId: 'task-packing-2',
+                workerId: 'worker-li',
+                workerName: '小李',
+                assignedOn: '2026-09-10',
+                processType: 'packing',
+                stage: 'packing',
+                plannedQuantity: 5,
+                status: 'pending_inspection'
+              }
+            ]
+          },
+          ready_to_ship: {
+            wipQuantity: 6,
+            reservedQuantity: 8,
+            unassignedQuantity: 0,
+            overassignedQuantity: 2,
+            tasks: [
+              {
+                assignmentId: 'assignment-shipping',
+                taskId: 'task-shipping',
+                workerId: 'worker-wang',
+                workerName: '小王',
+                assignedOn: '2026-09-10',
+                processType: 'shipping',
+                stage: 'ready_to_ship',
+                plannedQuantity: 8,
+                status: 'pending'
+              }
+            ]
+          }
+        }
+      }
+    ]
+
+    try {
+      render(<FulfillmentPage />)
+
+      const table = screen.getByRole('table', { name: '排班队列列表' })
+      expect(table.querySelectorAll('.yumi-fulfillment-stage')).toHaveLength(4)
+      expect(table.querySelectorAll('.yumi-fulfillment-task-card')).toHaveLength(0)
+      expect(screen.getByText('已指派：0 件')).toBeVisible()
+      expect(screen.getByText('未指派：10 件')).toBeVisible()
+      expect(screen.getByText('已指派：小李 5 件')).toBeVisible()
+      expect(screen.getAllByText('未指派：0 件')).toHaveLength(2)
+      expect(screen.getByText('已指派：2 人 8 件')).toBeVisible()
+      expect(screen.getByText('未指派：2 件')).toBeVisible()
+      expect(screen.getByText('已指派：小王 8 件')).toBeVisible()
+      expect(screen.getByText('超派：2 件')).toBeVisible()
+    } finally {
+      mocks.queueItems = originalQueueItems
+    }
+  })
+
+  it('排班页将页头、阶段总量、视图切换和队列内容按固定顺序排列', () => {
+    render(<FulfillmentPage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '排班' }).closest('header')
+    const metrics = screen.getByRole('region', { name: '排班阶段总量' })
+    const viewSwitch = screen.getByRole('navigation', { name: '排班视角' })
+    const queue = screen.getByRole('region', { name: '订单排班队列' })
+
+    expect(header).not.toBeNull()
+    expect(within(header!).getByRole('group', { name: '排班页面动作' })).toBeVisible()
+    expect(
+      header!.compareDocumentPosition(viewSwitch) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      viewSwitch.compareDocumentPosition(metrics) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(metrics.compareDocumentPosition(queue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('切换排班视角后页头动作组仍固定在页头，主 Tab 不回落到内容区', () => {
+    render(<FulfillmentPage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '排班' }).closest('header')
+    const viewSwitch = screen.getByRole('navigation', { name: '排班视角' })
+    const actionGroup = within(header!).getByRole('group', { name: '排班页面动作' })
+
+    fireEvent.click(within(viewSwitch).getByRole('button', { name: '人员周历' }))
+
+    const workersHeading = screen.getByRole('heading', { name: '人员周历' })
+    expect(within(header!).getByRole('group', { name: '排班页面动作' })).toBe(actionGroup)
+    expect(
+      header!.compareDocumentPosition(viewSwitch) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      viewSwitch.compareDocumentPosition(workersHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(within(viewSwitch).getByRole('button', { name: '人员周历' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
   })
 
   it('行内派工会限制待派数量，并提交到既有创建工作安排接口', async () => {
@@ -210,6 +381,7 @@ describe('履约排班双视角交互', () => {
   })
 
   it('人员周历按人员和日期展示任务，并能从任务卡进入精确处理上下文', () => {
+    mocks.queueItems[0].stageSchedules.making.tasks[0].assignedOn = startOfWeekFrom(today())
     render(<FulfillmentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: '人员周历' }))
@@ -228,8 +400,14 @@ describe('履约排班双视角交互', () => {
     mocks.showSelectedOrder = true
     render(<FulfillmentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '小王 12 2026-09-10 待完成' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看制作任务' }))
     expect(await screen.findByRole('heading', { name: '任务处理' })).toBeVisible()
+    expect(screen.getByRole('navigation', { name: '排班处理导航' })).toBeVisible()
+    expect(
+      within(screen.getByRole('group', { name: '排班处理页面动作' })).queryByRole('button', {
+        name: '返回排班队列'
+      })
+    ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '负责人调整' }))
 
     expect(screen.getByText('当前安排')).toBeVisible()
@@ -246,17 +424,37 @@ describe('履约排班双视角交互', () => {
     await waitFor(() =>
       expect(mocks.reassignProcessTask).toHaveBeenCalledWith('task-making', {
         workerId: 'worker-li',
-        effectiveOn: '2026-09-12',
+        effectiveOn: new Date().toISOString().slice(0, 10),
         reason: '原负责人临时请假'
       })
     )
+    fireEvent.click(
+      within(screen.getByRole('navigation', { name: '排班处理导航' })).getByRole('button', {
+        name: '返回排班队列'
+      })
+    )
+    expect(screen.getByRole('heading', { level: 1, name: '排班' })).toBeVisible()
   }, 20_000)
+
+  it('期初在制品通过页头导航返回排班队列，不把返回混入页面动作', () => {
+    render(<FulfillmentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '补录期初在制品' }))
+
+    const navigation = screen.getByRole('navigation', { name: '期初在制品导航' })
+    expect(within(navigation).getByRole('button', { name: '返回排班队列' })).toBeVisible()
+    expect(screen.queryByRole('group', { name: '期初在制品页面动作' })).not.toBeInTheDocument()
+
+    fireEvent.click(within(navigation).getByRole('button', { name: '返回排班队列' }))
+    expect(screen.getByRole('heading', { level: 1, name: '排班' })).toBeVisible()
+  })
 
   it('按设计图在排班页头显示完整入口、阶段总量，并从工作室级入口补录期初在制品', async () => {
     render(<FulfillmentPage />)
 
     expect(screen.getByRole('button', { name: '导出排班' })).toBeVisible()
     expect(screen.getByRole('button', { name: '补录期初在制品' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '更多操作' })).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: '排班阶段总量' })).toBeVisible()
     expect(screen.getByText('订单总量')).toBeVisible()
     expect(screen.getByText('已发货')).toBeVisible()
@@ -266,6 +464,14 @@ describe('履约排班双视角交互', () => {
     expect(screen.getByRole('heading', { name: '补录期初在制品' })).toBeVisible()
     expect(screen.getByText('1. 选择对应订单商品')).toBeVisible()
     expect(screen.getByText('2. 登记当前实际阶段')).toBeVisible()
+    expect(screen.getByRole('navigation', { name: '期初在制品导航' })).toBeVisible()
+    const workspace = screen
+      .getByRole('heading', { name: '补录期初在制品' })
+      .closest('.fulfillment-workspace')
+    expect(workspace).not.toBeNull()
+    expect(workspace!.querySelectorAll(':scope > .yumi-workflow-step')).toHaveLength(2)
+    expect(screen.getByRole('form', { name: '登记当前实际阶段' })).toHaveClass('yumi-workflow-step')
+    expect(screen.getByRole('list', { name: '可补录订单商品' })).toBeVisible()
     expect(screen.queryByRole('tab', { name: '补录期初在制品' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '选择：草莓捏捏' })).toBeVisible()
 
@@ -281,23 +487,76 @@ describe('履约排班双视角交互', () => {
       orderItemId: 'item-making',
       targetStage: 'ready_to_ship',
       quantity: 5,
-      occurredOn: '2026-09-12',
+      occurredOn: today(),
       note: undefined
     })
+  })
+
+  it('期初在制品候选支持多项、搜索过滤、选中切换和无结果提示，并按业务字段分列展示', () => {
+    render(<FulfillmentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '补录期初在制品' }))
+
+    const candidates = screen.getByRole('list', { name: '可补录订单商品' })
+    expect(within(candidates).getAllByRole('listitem')).toHaveLength(2)
+    const strawberry = within(candidates).getByRole('listitem', { name: /草莓捏捏/ })
+    expect(within(strawberry).getByText('YD-001')).toBeVisible()
+    expect(within(strawberry).getByText('小满')).toBeVisible()
+    expect(within(strawberry).getByText('草莓捏捏')).toBeVisible()
+    expect(within(strawberry).getByText('确认 20 件')).toBeVisible()
+
+    fireEvent.click(within(strawberry).getByRole('button', { name: '选择：草莓捏捏' }))
+    expect(within(strawberry).getByRole('button', { name: '已选择' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(strawberry).toHaveAttribute('data-selected', 'true')
+
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索订单号、客户或商品' }), {
+      target: { value: '奶油' }
+    })
+    expect(within(candidates).getAllByRole('listitem')).toHaveLength(1)
+    const cream = within(candidates).getByRole('listitem', { name: /奶油捏捏/ })
+    expect(within(cream).getByRole('button', { name: '选择：奶油捏捏' })).toBeVisible()
+
+    fireEvent.click(within(cream).getByRole('button', { name: '选择：奶油捏捏' }))
+    expect(within(cream).getByRole('button', { name: '已选择' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索订单号、客户或商品' }), {
+      target: { value: '不存在的订单商品' }
+    })
+    expect(within(candidates).queryAllByRole('listitem')).toHaveLength(0)
+    expect(within(candidates).getByRole('status')).toHaveTextContent('没有符合搜索条件的订单商品。')
   })
 
   it('人员周历支持自然周切换，并为人员日期空白格预填派工抽屉', () => {
     render(<FulfillmentPage />)
 
+    const currentWeekStart = startOfWeekFrom(today())
+    const currentWeekEnd = addDays(currentWeekStart, 6)
+    const previousWeekStart = addDays(currentWeekStart, -7)
+    const previousWeekEnd = addDays(currentWeekStart, -1)
+    const todayDate = new Date()
+    const todayLabel = dateParts(todayDate)
+
     fireEvent.click(screen.getByRole('button', { name: '人员周历' }))
-    expect(screen.getByText('2026-09-07 至 2026-09-13 · 仅显示待完成与待质检任务')).toBeVisible()
+    expect(
+      screen.getByText(`${currentWeekStart} 至 ${currentWeekEnd} · 仅显示待完成与待质检任务`)
+    ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '上一周' }))
-    expect(screen.getByText('2026-08-31 至 2026-09-06 · 仅显示待完成与待质检任务')).toBeVisible()
+    expect(
+      screen.getByText(`${previousWeekStart} 至 ${previousWeekEnd} · 仅显示待完成与待质检任务`)
+    ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '本周' }))
 
-    fireEvent.click(screen.getByRole('button', { name: '为小王2026-09-11派工' }))
+    fireEvent.click(screen.getByRole('button', { name: `为小王${todayLabel}派工` }))
     expect(screen.getByRole('dialog', { name: '派工：制作' })).toBeVisible()
     expect(screen.getByRole('combobox', { name: '派工人员' })).toHaveTextContent('小王')
-    expect(screen.getByRole('button', { name: '派工日期' })).toHaveTextContent('2026/9/11')
+    expect(screen.getByRole('button', { name: '派工日期' })).toHaveTextContent(
+      `${todayDate.getFullYear()}/${todayDate.getMonth() + 1}/${todayDate.getDate()}`
+    )
   })
 })

@@ -139,12 +139,101 @@ afterEach(() => {
   mocks.finance.deleteAdvancePayer.mockReset()
 })
 
+describe('页面级骨架与信息层级', () => {
+  it('设置页将页头、页面级 Tab 和首个内容区按固定顺序排列，并让说明承载业务边界', () => {
+    render(<SettingsPage />)
+
+    const page = screen.getByRole('heading', { level: 1, name: '工作室参数' }).closest('.yumi-page')
+    const header = screen.getByRole('heading', { level: 1, name: '工作室参数' })
+    const tabs = screen.getByRole('navigation', { name: '设置区域' })
+    const content = screen.getByRole('region', { name: '工作室参数查看' })
+
+    expect(page).not.toBeNull()
+    expect(
+      screen.getByText('维护全工作室统一使用的参数；商品只记录自身实际胶水用量。')
+    ).toBeVisible()
+    expect(header.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(tabs.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('切换设置区域后页头动作组仍固定在页头，页面级 Tab 不进入内容区', () => {
+    render(<SettingsPage />)
+
+    const page = screen.getByRole('heading', { level: 1, name: '工作室参数' }).closest('.yumi-page')
+    const header = page?.querySelector('.yumi-page-header')
+    const tabs = screen.getByRole('navigation', { name: '设置区域' })
+    const actionGroup = within(header!).getByRole('group', { name: '工作室参数页面动作' })
+
+    fireEvent.click(within(tabs).getByRole('button', { name: '计算公式' }))
+
+    const contentHeading = screen.getByRole('heading', { level: 2, name: '计算公式' })
+    expect(within(header!).getByRole('group', { name: '计算公式页面动作' })).toBe(actionGroup)
+    expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      tabs.compareDocumentPosition(contentHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(within(tabs).getByRole('button', { name: '计算公式' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+  })
+
+  it('商品页将列表工具条置于页头之后，并使用已有商品规则说明页面范围', () => {
+    render(<ProductsPage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '商品' })
+    const toolbar = screen.getByRole('toolbar', { name: '商品列表工具' })
+    const list = document.querySelector('.yumi-list-surface')
+
+    expect(
+      screen.getByText('商品参数会在下单时冻结；胶水单价由工作室统一维护，商品只填写实际用量。')
+    ).toBeVisible()
+    expect(within(toolbar).getByText('共 0 款商品')).toBeVisible()
+    expect(screen.getByRole('status', { name: '首次使用' })).toBeVisible()
+    expect(screen.getByText('还没有商品资料')).toBeVisible()
+    expect(screen.queryByRole('table', { name: '商品列表' })).not.toBeInTheDocument()
+    const headerEl = header.closest('header')
+    expect(within(headerEl!).getByRole('group', { name: '商品页面动作' })).toBeVisible()
+    expect(header.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(list).not.toBeNull()
+    expect(header.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(list).toContainElement(toolbar)
+  })
+
+  it('客户页将页头动作固定在页头，工具条与业务表紧随其后', () => {
+    mocks.customers.customers = [
+      {
+        id: 'customer-1',
+        name: '木木工作室',
+        contact: '王女士',
+        defaultAddress: '上海市静安区',
+        notes: null,
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      }
+    ]
+    render(<CustomersPage />)
+
+    const header = screen.getByRole('heading', { level: 1, name: '客户' }).closest('header')
+    const toolbar = screen.getByRole('toolbar', { name: '客户列表工具' })
+    const table = screen.getByRole('table', { name: '客户列表' })
+
+    expect(within(header!).getByRole('group', { name: '客户页面动作' })).toBeVisible()
+    expect(header!.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(toolbar.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
 describe('YUMI 基础资料按需录入', () => {
   it('客户空状态复用页面唯一的新建入口，点击后才打开抽屉', () => {
     render(<CustomersPage />)
 
+    const toolbar = screen.getByRole('toolbar', { name: '客户列表工具' })
+    expect(within(toolbar).getByText('共 0 位客户')).toBeVisible()
     expect(screen.getByRole('status', { name: '首次使用' })).toBeVisible()
     expect(screen.getByText('还没有客户资料')).toBeVisible()
+    expect(screen.queryByRole('table', { name: '客户列表' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     expect(screen.queryByRole('button', { name: '建立首个客户' })).not.toBeInTheDocument()
@@ -208,9 +297,21 @@ describe('YUMI 基础资料按需录入', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '查看客户资料：木木工作室' }))
 
-    const detail = screen.getByRole('dialog', { name: '客户资料：木木工作室' })
-    expect(within(detail).queryByLabelText('默认收货地址')).not.toBeInTheDocument()
-    expect(await within(detail).findByText('YUMI-001')).toBeVisible()
+    const detail = screen.getByRole('region', { name: '客户详情：木木工作室' })
+    const detailHeader = screen
+      .getByRole('heading', { level: 1, name: '木木工作室' })
+      .closest('header')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(detailHeader).not.toBeNull()
+    expect(within(detailHeader!).getByRole('group', { name: '客户详情页面动作' })).toBeVisible()
+    expect(
+      detailHeader!.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(screen.getByRole('navigation', { name: '客户详情导航' })).toBeVisible()
+    expect(within(detail).getByText('默认收货地址')).toBeVisible()
+    const historyTable = await within(detail).findByRole('table', { name: '客户历史订单' })
+    expect(within(historyTable).getByText('YUMI-001')).toBeVisible()
+    expect(historyTable.closest('.yumi-customer-order-history')).not.toBeNull()
     expect(within(detail).getByText('排班中 · 未发货')).toBeVisible()
     expect(within(detail).getAllByText('¥128.00')).toHaveLength(2)
     fireEvent.click(within(detail).getByRole('button', { name: '查看订单' }))
@@ -219,9 +320,24 @@ describe('YUMI 基础资料按需录入', () => {
       orderId: 'order-1',
       orderView: 'overview'
     })
-    fireEvent.click(within(detail).getByRole('button', { name: '编辑客户' }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑客户' }))
     expect(screen.getByRole('dialog', { name: '编辑客户：木木工作室' })).toBeVisible()
     expect(screen.getByLabelText('默认收货地址')).toHaveValue('上海市静安区')
+    fireEvent.change(screen.getByLabelText('默认收货地址'), {
+      target: { value: '上海市徐汇区' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(screen.getByRole('alertdialog', { name: '放弃未保存的修改？' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '放弃修改' }))
+    expect(screen.getByRole('region', { name: '客户详情：木木工作室' })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: '木木工作室' })).toBeVisible()
+
+    fireEvent.click(
+      within(screen.getByRole('navigation', { name: '客户详情导航' })).getByRole('button', {
+        name: '返回客户列表'
+      })
+    )
+    expect(screen.getByRole('heading', { level: 1, name: '客户' })).toBeVisible()
   })
 
   it('客户列表使用统一工具条，并支持关键字与状态筛选', async () => {
@@ -252,6 +368,7 @@ describe('YUMI 基础资料按需录入', () => {
     expect(screen.getByRole('toolbar', { name: '客户列表工具' })).toBeVisible()
     expect(screen.getByRole('table', { name: '客户列表' })).toBeVisible()
     expect(screen.getByText('共 2 位客户')).toBeVisible()
+    expect(screen.getByText('共 2 位')).toBeVisible()
 
     fireEvent.change(screen.getByRole('textbox', { name: '搜索客户' }), {
       target: { value: '云朵' }
@@ -303,6 +420,7 @@ describe('YUMI 基础资料按需录入', () => {
     expect(screen.getByRole('toolbar', { name: '商品列表工具' })).toBeVisible()
     expect(screen.getByRole('table', { name: '商品列表' })).toBeVisible()
     expect(screen.getByRole('textbox', { name: '搜索商品' })).toBeVisible()
+    expect(screen.getByText('共 1 款')).toBeVisible()
     expect(screen.getByText('40 件')).toBeVisible()
     expect(screen.getByText(/材料 20 克 · 损耗 10%/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '查看商品资料：羊毛杯垫' }))

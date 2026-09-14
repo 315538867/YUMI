@@ -407,6 +407,48 @@ describe('订单列表信息架构', () => {
     expect(screen.getByRole('button', { name: '查看详情' })).toBeVisible()
   })
 
+  it('将资金状态与交付排班作为订单工具条中的两个独立筛选槽位', () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    const toolbar = screen.getByRole('toolbar', { name: '订单列表工具' })
+    const controls = toolbar.querySelector('.yumi-list-toolbar__controls')
+    const search = toolbar.querySelector('.yumi-list-toolbar__search')
+    const filters = toolbar.querySelectorAll('.yumi-list-toolbar__filter')
+    const count = toolbar.querySelector('.yumi-list-toolbar__count')
+
+    expect(controls).not.toBeNull()
+    expect(search).not.toBeNull()
+    expect(filters).toHaveLength(2)
+    expect(controls).toContainElement(search as HTMLElement)
+    expect(controls).toContainElement(filters[0] as HTMLElement)
+    expect(controls).toContainElement(filters[1] as HTMLElement)
+    expect(
+      within(filters[0] as HTMLElement).getByRole('combobox', { name: '资金状态筛选' })
+    ).toBeVisible()
+    expect(
+      within(filters[1] as HTMLElement).getByRole('combobox', { name: '交付排班筛选' })
+    ).toBeVisible()
+    expect(count).not.toBeNull()
+    expect(controls).not.toContainElement(count as HTMLElement)
+  })
+
+  it('订单为空时仍保留工具条、统计与首次使用空状态', () => {
+    const originalOrders = mocks.orders
+    mocks.orders = []
+
+    try {
+      render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+      const toolbar = screen.getByRole('toolbar', { name: '订单列表工具' })
+      expect(within(toolbar).getByText('共 0 张订单')).toBeVisible()
+      expect(screen.getByRole('status', { name: '首次使用' })).toBeVisible()
+      expect(screen.getByText('还没有订单')).toBeVisible()
+      expect(screen.queryByRole('table', { name: '订单列表' })).not.toBeInTheDocument()
+    } finally {
+      mocks.orders = originalOrders
+    }
+  })
+
   it('从订单列表以抽屉新建订单，背景列表保持作为上下文', () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
@@ -436,13 +478,19 @@ describe('订单列表信息架构', () => {
 })
 
 describe('订单详情概览信息架构', () => {
-  it('以订单主体、全宽关键指标、商品表和最近发货组成默认只读概览', async () => {
+  it('概览只保留订单主体、全宽关键指标、商品表和排班概览，不重复发货记录', async () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
 
     expect(await screen.findByRole('button', { name: '导出订单表' })).toBeVisible()
     expect(screen.getByRole('button', { name: '返回订单列表' })).toBeVisible()
+    expect(screen.getByRole('navigation', { name: '订单详情导航' })).toBeVisible()
+    expect(
+      within(screen.getByRole('group', { name: '订单详情页面动作' })).queryByRole('button', {
+        name: '返回订单列表'
+      })
+    ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '发货汇总' })).toBeVisible()
     expect(screen.getByRole('button', { name: '编辑订单' })).toBeVisible()
     expect(screen.getByRole('heading', { name: '订单详情' })).toBeVisible()
@@ -474,20 +522,26 @@ describe('订单详情概览信息架构', () => {
         .getAllByRole('button')
         .map((button) => button.textContent)
     ).toEqual(['概览', '排班', '发货', '资金', '盈利', '售后'])
-    expect(screen.getByText('最近发货')).toBeVisible()
+    expect(screen.queryByRole('table', { name: '最近发货记录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: '发货批次列表' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '查看全部发货' })).not.toBeInTheDocument()
     expect(screen.queryByText('订单档案')).not.toBeInTheDocument()
     expect(document.querySelector('.yumi-order-archive-grid')).not.toBeInTheDocument()
     expect(document.querySelector('.yumi-order-archive')).not.toBeInTheDocument()
-    expect(screen.getByRole('table', { name: '最近发货记录' })).toBeVisible()
-    expect(screen.getByRole('columnheader', { name: '物流 / 运单号' })).toBeVisible()
-    expect(screen.getByRole('columnheader', { name: '操作' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '发货' }))
+    expect(await screen.findByRole('table', { name: '发货批次列表' })).toBeVisible()
     expect(screen.getByRole('button', { name: '查看发货清单' })).toBeVisible()
     expect(screen.getByRole('button', { name: '导出本批清单' })).toBeVisible()
     expect(screen.getByRole('button', { name: '作废批次' })).toBeVisible()
     expect(screen.getByText('顺丰 · SF001')).toBeVisible()
 
-    fireEvent.click(screen.getByRole('button', { name: '查看全部发货' }))
-    expect(await screen.findByRole('table', { name: '发货批次列表' })).toBeVisible()
+    fireEvent.click(
+      within(screen.getByRole('navigation', { name: '订单详情导航' })).getByRole('button', {
+        name: '返回订单列表'
+      })
+    )
+    expect(screen.getByRole('heading', { level: 1, name: '订单' })).toBeVisible()
   })
 })
 
@@ -684,6 +738,26 @@ describe('订单分批发货交互', () => {
     expect(screen.getByRole('button', { name: '作废批次' })).toBeVisible()
   })
 
+  it('发货记录为空时仍保留工具条、统计与具名空表状态', async () => {
+    const originalShipments = mocks.shipments
+    mocks.shipments = []
+
+    try {
+      render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+      fireEvent.click(await screen.findByRole('button', { name: '发货' }))
+
+      const toolbar = screen.getByRole('toolbar', { name: '发货批次列表工具' })
+      expect(within(toolbar).getByText('共 0 个批次')).toBeVisible()
+      expect(screen.getByRole('table', { name: '发货批次列表' })).toBeVisible()
+      expect(screen.getByText('尚未登记发货批次。')).toBeVisible()
+      expect(screen.queryByRole('button', { name: '查看发货清单' })).not.toBeInTheDocument()
+    } finally {
+      mocks.shipments = originalShipments
+    }
+  })
+
   it('按本批次打开只读发货清单快照，并在关闭后保留原发货列表', async () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
@@ -743,6 +817,58 @@ describe('订单分批发货交互', () => {
     expect(screen.getByRole('button', { name: '发货汇总' })).toBeVisible()
     expect(screen.getByRole('button', { name: '编辑订单' })).toBeVisible()
     expect(screen.queryByRole('button', { name: '更多操作' })).not.toBeInTheDocument()
+  })
+
+  it('切换六个详情 Tab 时保持同一页头、导航和右侧动作位置', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    expect(await screen.findByRole('heading', { name: '订单详情' })).toBeVisible()
+
+    const header = screen.getByRole('banner')
+    const workNavigation = screen.getByRole('navigation', { name: '订单详情工作视图' })
+    const actionGroup = screen.getByRole('group', { name: '订单详情页面动作' })
+    expect(
+      header.compareDocumentPosition(workNavigation) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    for (const tab of ['概览', '排班', '发货', '资金', '盈利', '售后']) {
+      fireEvent.click(screen.getByRole('button', { name: tab, exact: true }))
+      expect(screen.getByRole('heading', { name: '订单详情' })).toBeVisible()
+      expect(screen.getByRole('navigation', { name: '订单详情导航' })).toBeVisible()
+      expect(screen.getByRole('button', { name: '返回订单列表' })).toBeVisible()
+      expect(screen.getByRole('group', { name: '订单详情页面动作' })).toBe(actionGroup)
+      expect(screen.getByRole('button', { name: '发货汇总' })).toBeVisible()
+      expect(screen.getByRole('button', { name: '导出订单表' })).toBeVisible()
+      expect(screen.getByRole('button', { name: '编辑订单' })).toBeVisible()
+    }
+  })
+
+  it('订单详情页头、六个 Tab 与首个内容区按固定顺序排列', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    expect(await screen.findByRole('heading', { name: '订单详情' })).toBeVisible()
+
+    const header = screen.getByRole('banner')
+    const actionGroup = within(header).getByRole('group', { name: '订单详情页面动作' })
+    const workNavigation = screen.getByRole('navigation', { name: '订单详情工作视图' })
+    const firstSection = screen.getByRole('heading', { level: 2, name: '订单商品' })
+
+    for (const tab of ['概览', '排班', '发货', '资金', '盈利', '售后']) {
+      expect(within(workNavigation).getByRole('button', { name: tab, exact: true })).toBeVisible()
+    }
+    expect(within(workNavigation).getByRole('button', { name: '概览' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    expect(actionGroup).toBeVisible()
+    expect(
+      header.compareDocumentPosition(workNavigation) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      workNavigation.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('资金页默认展示流水，登记表单仅在操作抽屉中打开', async () => {

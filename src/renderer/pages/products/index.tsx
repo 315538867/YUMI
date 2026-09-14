@@ -217,6 +217,7 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
           primaryAction: { label: '新建商品', onClick: openCreate }
         }}
         description="商品参数会在下单时冻结；胶水单价由工作室统一维护，商品只填写实际用量。"
+        meta={`共 ${visibleProducts.length} 款`}
         title="商品"
       />
       <YumiListSurface ariaLabel={`商品列表，共 ${visibleProducts.length} 款`}>
