@@ -563,7 +563,7 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
       <YumiPageHeader
         actions={{
           ariaLabel: '排班页面动作',
-          visibleActions: [{ label: '导出排班', onClick: () => undefined }],
+          secondaryAction: { label: '导出排班', onClick: () => undefined },
           primaryAction: { label: '补录期初在制品', onClick: openOpeningWip }
         }}
         description={

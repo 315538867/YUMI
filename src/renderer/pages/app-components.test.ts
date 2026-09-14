@@ -228,8 +228,9 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
       expect(pageSource).not.toContain('yumi-primary-tabs__item')
     }
 
+    // 排班视角已迁移为页面级主 Tab，次级分段控件只剩设置页；两页仍不得自行拼装分段控件样式
+    expect(settingsPageSource).toContain('YumiSegmentedTabs')
     for (const pageSource of [fulfillmentPageSource, settingsPageSource]) {
-      expect(pageSource).toContain('YumiSegmentedTabs')
       expect(pageSource).not.toContain('yumi-segmented-tabs__item')
     }
   })
@@ -560,7 +561,7 @@ describe('V2 履约工作区', () => {
     expect(fulfillmentPageSource).toContain(
       "type FulfillmentWorkspaceMode = 'queue' | 'processing' | 'opening_wip'"
     )
-    expect(fulfillmentPageSource).toContain('YumiSegmentedTabs')
+    expect(fulfillmentPageSource).toContain('YumiPrimaryTabs')
     expect(fulfillmentPageSource).toContain('排班视角')
     expect(fulfillmentPageSource).toContain('补录期初在制品')
     expect(fulfillmentPageSource).toContain('OrderDispatchBoard')
@@ -568,7 +569,7 @@ describe('V2 履约工作区', () => {
     expect(fulfillmentPageSource).toContain(
       'focusedTaskId={focusedProcessTaskId || navigationTarget?.processTaskId}'
     )
-    expect(fulfillmentDispatchViewsSource).toContain('未派')
+    expect(fulfillmentDispatchViewsSource).toContain('未指派')
     expect(fulfillmentDispatchViewsSource).toContain('超派')
     expect(workAssignmentsPageSource).toContain('focusedTaskId?: string')
     expect(workAssignmentsPageSource).toContain('visibleAssignments')
