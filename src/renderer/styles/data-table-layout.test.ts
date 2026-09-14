@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const css = readFileSync(new URL('./components.css', import.meta.url), 'utf8')
+const css = readFileSync(new URL('./components.css', import.meta.url), 'utf8').replace(
+  /\/\*[\s\S]*?\*\//g,
+  ''
+)
 
 function rule(selector: string) {
   const blocks = css.matchAll(/(?:^|\n)\s*([^{}]+?)\s*\{([^{}]*)\}/g)
@@ -21,9 +24,12 @@ describe('共享业务表格布局契约', () => {
     expect(rule('.yumi-data-table')).toMatch(/min-width:\s*720px/)
   })
 
-  it('操作单元格保留最小可读宽度，按钮标签不逐字换行', () => {
-    expect(rule('.yumi-list-cell--actions')).toMatch(/min-width:\s*124px/)
-    expect(rule('.yumi-list-cell--actions')).toMatch(/white-space:\s*nowrap/)
+  it('操作单元格保留最小可读宽度，按钮横向排列且标签不逐字换行', () => {
+    const actionsCell = rule('.yumi-list-cell--actions')
+    expect(actionsCell).toMatch(/min-width:\s*124px/)
+    expect(actionsCell).toMatch(/white-space:\s*nowrap/)
+    expect(actionsCell).toMatch(/display:\s*flex/)
+    expect(actionsCell).toMatch(/flex-wrap:\s*wrap/)
     expect(rule('.yumi-list-cell--actions .yumi-button')).toMatch(/white-space:\s*nowrap/)
   })
 

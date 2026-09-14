@@ -254,7 +254,8 @@
   padding: var(--yumi-space-3);
   background: var(--yumi-brand-subtle);
 }
-.yumi-order-detail-stack {
+.yumi-order-detail-stack,
+.yumi-order-schedule-stack {
   display: grid;
   gap: var(--yumi-space-5);
 }
@@ -395,7 +396,8 @@
   display: grid;
   gap: var(--yumi-space-5);
 }
-.yumi-reference-workspace {
+.yumi-reference-workspace,
+.yumi-reference-workspace__sections {
   display: grid;
   gap: var(--yumi-space-5);
 }
@@ -445,7 +447,8 @@
 }
 
 .yumi-workers-workspace,
-.yumi-settings-workspace {
+.yumi-settings-workspace,
+.yumi-library-workspace {
   display: grid;
   gap: var(--yumi-space-5);
 }

@@ -103,6 +103,27 @@ afterEach(() => {
 })
 
 describe('工作安排记录骨架', () => {
+  it('工作安排列表与详情显示人员姓名而不是人员标识', () => {
+    render(
+      <WorkAssignmentsPage
+        onChanged={vi.fn()}
+        order={
+          {
+            items: [{ id: 'item-1', productSnapshot: { name: '草莓捏捏' } }]
+          } as never
+        }
+      />
+    )
+
+    const table = screen.getByRole('table', { name: '工作安排列表' })
+    expect(within(table).getByText('小王')).toBeVisible()
+    expect(within(table).queryByText('worker-wang')).not.toBeInTheDocument()
+
+    fireEvent.click(within(table).getByRole('button', { name: '查看详情' }))
+    const detail = screen.getByRole('dialog', { name: '工作安排详情' })
+    expect(within(detail).getByText('制作 · 小王 · 2026-09-10')).toBeVisible()
+  })
+
   it('默认只展示具名记录列表，点击记录后才在详情上下文显示任务提交入口', () => {
     render(
       <WorkAssignmentsPage

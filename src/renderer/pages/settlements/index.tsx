@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import type {
   V2NavigationTarget,
   V2WorkerRefundRecord,
@@ -118,6 +118,10 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
     () => new Map(workers.map((worker) => [worker.id, worker.name])),
     [workers]
   )
+  const workerLabel = useCallback(
+    (workerId: string) => workerNames.get(workerId) ?? '未知人员',
+    [workerNames]
+  )
   const workerOptions = useMemo(
     () =>
       workers.map((worker) => ({ label: worker.name, searchText: worker.name, value: worker.id })),
@@ -158,7 +162,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
   const visibleSettlements = useMemo(() => {
     const query = settlementSearchQuery.trim().toLocaleLowerCase()
     return settlements.filter((settlement) => {
-      const workerName = workerNames.get(settlement.workerId) ?? settlement.workerId
+      const workerName = workerLabel(settlement.workerId)
       const matchesStatus =
         settlementStatusFilter === 'all' || settlement.status === settlementStatusFilter
       const matchesQuery =
@@ -169,11 +173,11 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
           .includes(query)
       return matchesStatus && matchesQuery
     })
-  }, [settlementSearchQuery, settlementStatusFilter, settlements, workerNames])
+  }, [settlementSearchQuery, settlementStatusFilter, settlements, workerLabel])
   const visibleRefunds = useMemo(() => {
     const query = refundSearchQuery.trim().toLocaleLowerCase()
     return refunds.filter((refund) => {
-      const workerName = workerNames.get(refund.workerId) ?? refund.workerId
+      const workerName = workerLabel(refund.workerId)
       const matchesStatus = refundStatusFilter === 'all' || refund.status === refundStatusFilter
       const matchesQuery =
         !query ||
@@ -184,7 +188,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
           .includes(query)
       return matchesStatus && matchesQuery
     })
-  }, [refundSearchQuery, refundStatusFilter, refunds, workerNames])
+  }, [refundSearchQuery, refundStatusFilter, refunds, workerLabel])
 
   const openDraftForm = () => {
     setShowDraftForm(true)
@@ -336,7 +340,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
                     label: '人员 / 原结算',
                     render: (refund) => (
                       <div className="yumi-list-cell">
-                        <strong>{workerNames.get(refund.workerId) ?? refund.workerId}</strong>
+                        <strong>{workerLabel(refund.workerId)}</strong>
                         <span>原结算 {refund.originalSettlementId}</span>
                       </div>
                     )
@@ -373,7 +377,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
                     render: (refund) =>
                       refund.status === 'pending' ? (
                         <YumiButton
-                          aria-label={`处理退款：${workerNames.get(refund.workerId) ?? refund.workerId}`}
+                          aria-label={`处理退款：${workerLabel(refund.workerId)}`}
                           onClick={() => openRefund(refund)}
                           variant="secondary"
                         >
@@ -436,9 +440,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
                       label: '兼职人员',
                       render: (settlement) => (
                         <div className="yumi-list-cell">
-                          <strong>
-                            {workerNames.get(settlement.workerId) ?? settlement.workerId}
-                          </strong>
+                          <strong>{workerLabel(settlement.workerId)}</strong>
                           <span>
                             {settlement.id === selectedSettlementId ? '当前查看' : '工资结算记录'}
                           </span>
@@ -475,7 +477,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
                       label: '操作',
                       render: (settlement) => (
                         <YumiButton
-                          aria-label={`查看结算详情：${workerNames.get(settlement.workerId) ?? settlement.workerId}`}
+                          aria-label={`查看结算详情：${workerLabel(settlement.workerId)}`}
                           onClick={() => {
                             setSelectedSettlementId(settlement.id)
                             setShowDraftForm(false)
@@ -501,9 +503,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
               addWorkTimeAdjustment={addWorkTimeAdjustment}
               adjustableReviews={confirmedReviewOptions}
               settlement={selectedSettlement}
-              workerName={
-                workerNames.get(selectedSettlement.workerId) ?? selectedSettlement.workerId
-              }
+              workerName={workerLabel(selectedSettlement.workerId)}
               updateDraft={updateDraft}
               confirmSettlement={confirmSettlement}
             />
@@ -566,7 +566,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
       <YumiSheet
         description={
           selectedRefund
-            ? `${workerNames.get(selectedRefund.workerId) ?? selectedRefund.workerId} · 待退款 ${formatCents(selectedRefund.materialRefundCents)}，原结算不会被改写。`
+            ? `${workerLabel(selectedRefund.workerId)} · 待退款 ${formatCents(selectedRefund.materialRefundCents)}，原结算不会被改写。`
             : undefined
         }
         footer={

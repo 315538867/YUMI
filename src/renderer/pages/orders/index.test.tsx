@@ -447,20 +447,24 @@ describe('订单列表信息架构', () => {
     }
   })
 
-  it('从订单列表以抽屉新建订单，背景列表保持作为上下文', () => {
+  it('从订单列表进入全页新建订单工作区，页头同时提供返回与保存动作', () => {
     render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
 
-    const sheet = screen.getByRole('dialog', { name: '新建订单' })
-    expect(screen.getByRole('heading', { name: '订单', hidden: true })).toBeInTheDocument()
-    expect(document.querySelector('.yumi-order-list-surface')).not.toBeNull()
-    expect(within(sheet).getByText(/客户、商品、订单优惠和本次成交条件会冻结/)).toBeVisible()
-    expect(within(sheet).getByRole('combobox', { name: '客户' })).toBeVisible()
-    expect(within(sheet).getByRole('textbox', { name: '订单优惠（元）' })).toBeVisible()
-    expect(within(sheet).getByText('定制服务')).toBeVisible()
-    expect(within(sheet).getByRole('button', { name: '取消' })).toBeVisible()
-    expect(within(sheet).getByRole('button', { name: '保存并进入详情' })).toBeVisible()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.querySelector('.yumi-order-list-surface')).toBeNull()
+    expect(screen.getByRole('heading', { level: 1, name: '新建订单' })).toBeVisible()
+    expect(screen.getByRole('navigation', { name: '新建订单导航' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '返回订单列表' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '保存并进入详情' })).toBeVisible()
+    expect(screen.getByText(/客户、商品、订单优惠和本次成交条件会冻结/)).toBeVisible()
+    expect(screen.getByRole('combobox', { name: '客户' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: '订单优惠（元）' })).toBeVisible()
+    expect(screen.getByText('定制服务')).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '返回订单列表' }))
+    expect(screen.getByRole('heading', { level: 1, name: '订单' })).toBeVisible()
   })
 
   it('按订单号或客户筛选列表，避免在业务表中保留无关行', () => {

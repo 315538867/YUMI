@@ -484,6 +484,19 @@ describe('V2 订单工作区', () => {
     expect(orderPageSource).toContain('待发')
   })
 
+  it('页面纵向堆叠容器都在样式表中声明间距，避免区块相互贴住', () => {
+    for (const className of [
+      'yumi-order-detail-stack',
+      'yumi-order-profit-stack',
+      'yumi-order-schedule-stack',
+      'yumi-reference-workspace__sections',
+      'yumi-library-workspace'
+    ]) {
+      expect(pageStylesSource).toMatch(new RegExp(`\\.${className}[^{]*\\{[^}]*gap:`))
+    }
+    expect(orderPageSource).toContain('"yumi-order-schedule-stack"')
+  })
+
   it('订单使用 YUMI 具名数据表与自定义表单控件，而非 Radix Themes 或原生选择框', () => {
     expect(orderPageSource).not.toContain('@radix-ui/themes')
     expect(orderPageSource).not.toContain('<select')

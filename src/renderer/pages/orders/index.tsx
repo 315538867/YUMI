@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import type {
   V2Customer,
   V2CustomerInput,
@@ -379,6 +379,7 @@ export function OrdersPage({
   const [exportMessage, setExportMessage] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [submitting, setSubmitting] = useState<string | null>(null)
+  const createFormRef = useRef<HTMLFormElement>(null)
   useYumiNotificationMessage(loadError)
   useYumiNotificationMessage(error)
   useYumiNotificationMessage(quickCreateError)
@@ -905,7 +906,7 @@ export function OrdersPage({
 
   return (
     <section className="yumi-page order-workspace-page">
-      {workspaceMode !== 'detail' && (
+      {workspaceMode === 'list' && (
         <>
           <YumiPageHeader
             actions={{
@@ -970,7 +971,7 @@ export function OrdersPage({
                       key: 'order',
                       label: '订单号 / 客户',
                       render: (order) => (
-                        <div className="yumi-list-cell yumi-order-list-cell">
+                        <div className="yumi-list-cell">
                           <strong>{order.code}</strong>
                           <span>
                             {order.customerName} · 共 {order.itemCount} 款
@@ -1066,35 +1067,26 @@ export function OrdersPage({
       )}
 
       {workspaceMode === 'create' && (
-        <YumiSheet
-          description="客户、商品、订单优惠和本次成交条件会冻结为订单快照；缝边只作用于本订单商品行。"
-          footer={
-            baseDataReady ? (
-              <>
-                <YumiButton onClick={returnToOrderList} variant="ghost">
-                  取消
-                </YumiButton>
-                <YumiButton
-                  form="order-create-form"
-                  loading={submitting === 'create'}
-                  type="submit"
-                  variant="primary"
-                >
-                  保存并进入详情
-                </YumiButton>
-              </>
-            ) : (
-              <YumiButton onClick={returnToOrderList} variant="ghost">
-                返回订单列表
-              </YumiButton>
-            )
-          }
-          onOpenChange={(open) => {
-            if (!open) returnToOrderList()
-          }}
-          open
-          title="新建订单"
-        >
+        <>
+          <YumiPageHeader
+            actions={{
+              ariaLabel: '新建订单动作',
+              primaryAction: baseDataReady
+                ? {
+                    label: '保存并进入详情',
+                    loading: submitting === 'create',
+                    onClick: () => createFormRef.current?.requestSubmit()
+                  }
+                : undefined
+            }}
+            description="客户、商品、订单优惠和本次成交条件会冻结为订单快照；缝边只作用于本订单商品行。"
+            navigation={{
+              ariaLabel: '新建订单导航',
+              label: '返回订单列表',
+              onClick: returnToOrderList
+            }}
+            title="新建订单"
+          />
           {!baseDataReady ? (
             <OrderSetupGuide
               customersReady={availableCustomers.length > 0}
@@ -1106,6 +1098,7 @@ export function OrdersPage({
               className="yumi-form-panel order-create-form"
               id="order-create-form"
               onSubmit={handleCreateOrder}
+              ref={createFormRef}
             >
               <div className="yumi-form-grid yumi-form-grid--two">
                 <YumiField>
@@ -1180,7 +1173,7 @@ export function OrdersPage({
               </YumiField>
             </form>
           )}
-        </YumiSheet>
+        </>
       )}
 
       {workspaceMode === 'detail' && selectedOrder && (

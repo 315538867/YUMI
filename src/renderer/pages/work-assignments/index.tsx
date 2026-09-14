@@ -113,6 +113,11 @@ export function WorkAssignmentsPage(props: {
     () => new Map(props.order?.items.map((item) => [item.id, item.productSnapshot.name]) ?? []),
     [props.order]
   )
+  const workerNames = useMemo(
+    () => new Map(workers.map((worker) => [worker.id, worker.name])),
+    [workers]
+  )
+  const workerLabel = (workerId: string) => workerNames.get(workerId) ?? '未知人员'
   const orderItemOptions =
     props.order?.items.map((item) => ({ value: item.id, label: item.productSnapshot.name })) ?? []
   const workerOptions = workers
@@ -309,7 +314,7 @@ export function WorkAssignmentsPage(props: {
                 {
                   key: 'worker',
                   label: '兼职人员',
-                  render: (assignment) => assignment.workerId
+                  render: (assignment) => workerLabel(assignment.workerId)
                 },
                 {
                   key: 'tasks',
@@ -319,10 +324,12 @@ export function WorkAssignmentsPage(props: {
                       <strong>共 {assignment.tasks.length} 项任务</strong>
                       <span>
                         {assignment.tasks
-                          .map(
-                            (task) =>
-                              `${itemNames.get(task.orderItemId ?? '') ?? task.orderItemId ?? '未关联订单产品'} · 计划 ${task.scheduledMinutes} 分钟`
-                          )
+                          .map((task) => {
+                            const itemLabel = task.orderItemId
+                              ? (itemNames.get(task.orderItemId) ?? '未知商品')
+                              : '未关联订单产品'
+                            return `${itemLabel} · 计划 ${task.scheduledMinutes} 分钟`
+                          })
                           .join('；')}
                       </span>
                     </div>
@@ -360,7 +367,7 @@ export function WorkAssignmentsPage(props: {
       <YumiSheet
         description={
           selectedAssignment
-            ? `${processLabels[selectedAssignment.processType]} · ${selectedAssignment.workerId} · ${selectedAssignment.assignedOn}`
+            ? `${processLabels[selectedAssignment.processType]} · ${workerLabel(selectedAssignment.workerId)} · ${selectedAssignment.assignedOn}`
             : undefined
         }
         dirty={detailDraftDirty}
