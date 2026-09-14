@@ -1,0 +1,94 @@
+<h2>商品工作台：盈利信息放在哪里？</h2>
+<p class="subtitle">三种方案都沿用当前 YUMI 的页头、连续指标、主页签、区块和表格风格，不引入卡片墙。示例金额仅用于展示布局。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">方案 A · 只在商品概览展示利润</div>
+        <div class="mockup-body">
+          <div class="mock-nav">← 商品列表　　奶油小熊 / X-001　<span style="float:right">停用　编辑商品</span></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:12px 0;background:#dfe4ea;border:1px solid #dfe4ea">
+            <div style="background:white;padding:12px">默认售价<br><strong>¥68.00</strong></div>
+            <div style="background:white;padding:12px">基准成本<br><strong>¥43.80</strong></div>
+            <div style="background:white;padding:12px">预计利润<br><strong style="color:#16784b">¥24.20</strong></div>
+            <div style="background:white;padding:12px">预计利润率<br><strong style="color:#16784b">35.59%</strong></div>
+          </div>
+          <div class="mock-nav"><strong>商品概览</strong>　成本与提成　制作产能　商品存量</div>
+          <div class="placeholder" style="margin-top:12px">基础资料与当前存量摘要</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 概览指标</h3>
+      <p>利润只作为商品详情顶部的四项核心指标，不提供历史趋势和订单明细。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>最简洁</li><li>打开商品即可看到</li></ul></div>
+        <div class="cons"><h4>不足</h4><ul><li>无法解释利润来源</li><li>看不到实际经营结果</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">方案 B · 顶部摘要 + 独立盈利分析（推荐）</div>
+        <div class="mockup-body">
+          <div class="mock-nav">← 商品列表　　奶油小熊 / X-001　<span style="float:right">停用　编辑商品</span></div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;margin:12px 0;background:#dfe4ea;border:1px solid #dfe4ea">
+            <div style="background:white;padding:10px">默认售价<br><strong>¥68.00</strong></div>
+            <div style="background:white;padding:10px">基准成本<br><strong>¥43.80</strong></div>
+            <div style="background:white;padding:10px">预计利润<br><strong style="color:#16784b">¥24.20</strong></div>
+            <div style="background:white;padding:10px">预计利润率<br><strong style="color:#16784b">35.59%</strong></div>
+            <div style="background:white;padding:10px">可发货存量<br><strong>80件</strong></div>
+          </div>
+          <div class="mock-nav">商品概览　成本与提成　制作产能　商品存量　<strong>盈利分析</strong></div>
+          <div class="placeholder" style="margin-top:12px;text-align:left">
+            <strong>当前单件盈利测算</strong>　　不缝边 / 缝边场景<br><br>
+            默认售价 ¥68.00　－ 材料 ¥10.00　－ 包装配饰 ¥4.00　－ 固定成本 ¥5.00　－ 提成 ¥15.20<br><br>
+            <strong>预计利润 ¥33.80</strong>　　<span style="color:#7b8490">负责人核算工时产生后再显示完整实际利润</span>
+          </div>
+          <div class="placeholder" style="margin-top:8px;text-align:left">
+            <strong>历史实际盈利</strong>　期间：近30天<br><br>
+            销售收入　实际成本　实际利润　实际利润率　完成订单数
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 摘要与独立分析页签</h3>
+      <p>顶部保留最重要的利润指标；“盈利分析”页签解释成本构成，并展示历史订单的实际收入、成本、利润和利润率。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>概览和深入分析兼顾</li><li>能区分预计与实际</li><li>后续可加期间筛选和订单明细</li></ul></div>
+        <div class="cons"><h4>代价</h4><ul><li>需要新增一个页签</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">方案 C · 成本与盈利合并</div>
+        <div class="mockup-body">
+          <div class="mock-nav">← 商品列表　　奶油小熊 / X-001　<span style="float:right">编辑商品</span></div>
+          <div class="mock-nav" style="margin-top:12px">商品概览　<strong>成本与盈利</strong>　制作产能　商品存量</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+            <div class="placeholder">成本参数<br><br>材料重量<br>包装成本<br>固定成本<br>三道工序提成</div>
+            <div class="placeholder">盈利结果<br><br>默认售价 ¥68<br>基准成本 ¥43.80<br>利润 ¥24.20<br>利润率 35.59%</div>
+          </div>
+          <div class="placeholder" style="margin-top:8px">历史实际盈利与订单明细</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 成本与盈利放在同一页签</h3>
+      <p>输入参数和计算结果并排展示，适合调价时即时观察利润变化。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>参数与结果距离近</li><li>调价反馈直观</li></ul></div>
+        <div class="cons"><h4>不足</h4><ul><li>只读详情与编辑职责容易混合</li><li>历史分析会让页面变重</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:20px">推荐 B：顶部只放关键指标，详细的计算口径、缝边场景和历史实际盈利放在独立“盈利分析”页签。</p>

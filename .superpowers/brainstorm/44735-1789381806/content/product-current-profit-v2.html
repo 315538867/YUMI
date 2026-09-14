@@ -1,0 +1,58 @@
+<h2>商品工作台 · 当前预计盈利（修正版）</h2>
+<p class="subtitle">已去掉历史盈利、时间筛选和订单盈利明细。这里只根据商品当前录入参数，展示当前定价下的单件预计盈利。</p>
+
+<div class="mockup">
+  <div class="mockup-header">商品详情 / 奶油小熊</div>
+  <div class="mockup-body">
+    <div class="mock-nav">← 商品列表　　<strong>奶油小熊</strong>　X-001　启用 <span style="float:right">停用商品　编辑商品</span></div>
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;margin:14px 0;background:#dfe4ea;border:1px solid #dfe4ea">
+      <div style="background:white;padding:12px">默认售价<br><strong>¥68.00</strong></div>
+      <div style="background:white;padding:12px">单件成本<br><strong>¥43.80</strong></div>
+      <div style="background:white;padding:12px">预计利润<br><strong style="color:#16784b">¥24.20</strong></div>
+      <div style="background:white;padding:12px">预计利润率<br><strong style="color:#16784b">35.59%</strong></div>
+      <div style="background:white;padding:12px">可发货存量<br><strong>80 件</strong></div>
+    </div>
+
+    <div class="mock-nav">商品概览　<strong>成本与利润</strong>　制作产能　商品存量</div>
+
+    <div style="display:grid;grid-template-columns:1.35fr .9fr;gap:14px;margin-top:14px">
+      <div class="placeholder" style="text-align:left;min-height:270px">
+        <strong>单件成本构成</strong><br><br>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:9px">
+          <span>材料成本</span><strong>¥10.00</strong>
+          <span>包装成本</span><strong>¥2.00</strong>
+          <span>配饰成本</span><strong>¥1.00</strong>
+          <span>替换袋成本</span><strong>¥0.80</strong>
+          <span>单件固定成本</span><strong>¥5.00</strong>
+          <span>制作提成</span><strong>¥15.00</strong>
+          <span>捏毛装袋提成</span><strong>¥10.00</strong>
+        </div>
+        <hr style="border:0;border-top:1px solid #dfe4ea;margin:14px 0">
+        <div style="display:flex;justify-content:space-between"><strong>单件已知成本</strong><strong>¥43.80</strong></div>
+        <p style="color:#7b8490;margin-bottom:0">捏毛装袋、缝边、打包发货的计时工资需根据负责人核算工时产生，不在商品静态参数中虚构。</p>
+      </div>
+
+      <div class="placeholder" style="text-align:left;min-height:270px">
+        <strong>当前预计盈利</strong><br><br>
+        <span style="color:#7b8490">默认销售单价</span><br>
+        <strong style="font-size:24px">¥68.00</strong><br><br>
+        <span style="color:#7b8490">预计利润</span><br>
+        <strong style="font-size:28px;color:#16784b">¥24.20</strong><br><br>
+        <span style="color:#7b8490">预计利润率</span><br>
+        <strong style="font-size:24px;color:#16784b">35.59%</strong><br><br>
+        <span style="color:#7b8490">计算：默认售价 − 当前单件已知成本</span>
+      </div>
+    </div>
+
+    <div class="placeholder" style="margin-top:12px;text-align:left">
+      <strong>缝边附加成本</strong>　缝边耗材 ¥1.50/件　＋　缝边提成 ¥3.00/件<br>
+      <span style="color:#7b8490">是否缝边、缝边数量和对客收费由订单决定，因此不混入商品默认利润。</span>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:18px">
+  <h3>商品编辑时</h3>
+  <p>完整页面左侧录入商品字段，右侧使用紧凑的“盈利预览”区块；修改售价、重量、成本、固定成本或提成后，利润与利润率立即刷新。保存后才正式生效。</p>
+</div>

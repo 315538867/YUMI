@@ -45,9 +45,9 @@ function mediaRule(maxWidth: number, selector: string) {
 }
 
 describe('共享列表工具栏布局契约', () => {
-  it('桌面端搜索占剩余空间、筛选项固定可读宽度、统计独立不收缩', () => {
+  it('桌面端搜索紧凑排列不撑满、筛选项固定可读宽度、统计独立不收缩', () => {
     expect(rule('.yumi-list-toolbar')).toMatch(/flex-wrap:\s*nowrap/)
-    expect(rule('.yumi-list-toolbar__search')).toMatch(/flex:\s*1\s+1\s+280px/)
+    expect(rule('.yumi-list-toolbar__search')).toMatch(/flex:\s*0\s+1\s+280px/)
     expect(rule('.yumi-list-toolbar__filter')).toMatch(/flex:\s*0\s+0\s+184px/)
     expect(rule('.yumi-list-toolbar__count')).toMatch(/margin-left:\s*auto/)
     expect(rule('.yumi-list-toolbar__count')).toMatch(/white-space:\s*nowrap/)

@@ -1,0 +1,84 @@
+<h2>商品录入与商品详情：选择页面结构</h2>
+<p class="subtitle">商品现在包含基础资料、材料成本、三道工序提成、产能参数和商品存量，抽屉空间已经不足。请选择更符合日常操作的结构。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A · 商品工作台（推荐）</div>
+        <div class="mockup-body">
+          <div class="mock-nav">← 商品列表　　奶油小熊　<span style="float:right">停用　编辑商品</span></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0">
+            <div class="placeholder">默认售价<br><strong>¥68.00</strong></div>
+            <div class="placeholder">日产能<br><strong>240件</strong></div>
+            <div class="placeholder">可发货<br><strong>80件</strong></div>
+            <div class="placeholder">待加工<br><strong>195件</strong></div>
+          </div>
+          <div class="mock-nav">基本资料　 成本与提成　 制作产能　 <strong>商品存量</strong></div>
+          <div style="display:grid;grid-template-columns:1fr 1.8fr;gap:12px;margin-top:12px">
+            <div class="placeholder">阶段余额<br><br>待捏毛 120<br>待缝边 30<br>待打包 45<br>可发货 80</div>
+            <div class="placeholder">存量变动记录<br><br>09-14　期初录入　+80　可发货<br>09-13　制作完成　+40　待捏毛<br>09-12　订单领用　-20　可发货</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 独立商品工作台</h3>
+      <p>列表点击商品后进入完整详情页；通过页签承载资料、成本、提成、产能和存量。编辑时进入同一工作台的编辑状态。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>信息层级清晰</li><li>库存流水有足够空间</li><li>后续扩展最自然</li></ul></div>
+        <div class="cons"><h4>代价</h4><ul><li>需要从列表进入详情页</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B · 单页纵向详情</div>
+        <div class="mockup-body">
+          <div class="mock-nav">← 商品列表　　奶油小熊　<span style="float:right">编辑商品</span></div>
+          <div class="placeholder" style="margin-top:12px">基础资料<br><br>名称　编码　分类　售价　状态</div>
+          <div class="placeholder" style="margin-top:8px">成本与提成<br><br>材料重量　固定成本　制作提成　捏毛提成　缝边提成</div>
+          <div class="placeholder" style="margin-top:8px">制作产能<br><br>标准分钟　模具数量　每模产出　每日批次</div>
+          <div class="placeholder" style="margin-top:8px">商品存量与流水</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 独立长页面</h3>
+      <p>所有商品信息在一个页面纵向排列，通过区块标题区分；新建和编辑也是同样的长表单。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>不用切换页签</li><li>一次能看到全部字段</li></ul></div>
+        <div class="cons"><h4>代价</h4><ul><li>页面很长</li><li>存量流水容易淹没资料</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C · 商品列表与详情左右分栏</div>
+        <div class="mockup-body" style="display:grid;grid-template-columns:0.8fr 1.6fr;gap:10px">
+          <div class="placeholder">商品列表<br><br><strong>奶油小熊</strong><br>星星挂件<br>云朵摆件<br>花朵挂件</div>
+          <div>
+            <div class="mock-nav">奶油小熊　<span style="float:right">编辑</span></div>
+            <div class="placeholder" style="margin-top:8px">基础资料与成本</div>
+            <div class="placeholder" style="margin-top:8px">提成与产能</div>
+            <div class="placeholder" style="margin-top:8px">存量摘要</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 固定左右分栏</h3>
+      <p>左边长期保留商品列表，右边显示详情；比抽屉稳定，但详情区域仍会受到宽度限制。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>切换商品速度快</li><li>保留列表上下文</li></ul></div>
+        <div class="cons"><h4>代价</h4><ul><li>小屏空间紧张</li><li>复杂表单仍显拥挤</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:20px">请点击选择一个方案。推荐 A：独立商品工作台，最适合商品资料与轻量存量逐步扩展。</p>

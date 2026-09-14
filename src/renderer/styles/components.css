@@ -627,6 +627,12 @@
   font-weight: 650;
 }
 
+/* Radix Popper 会把下拉、日期等浮层内容包在 position: fixed 的包裹层里；包裹层自建层叠上下文，
+   浮层内部元素的 z-index 不参与和抽屉/对话框的比较，层级必须加在包裹层上。 */
+[data-radix-popper-content-wrapper] {
+  z-index: 90;
+}
+
 .yumi-date-popover {
   z-index: 60;
   width: max-content;
@@ -1225,14 +1231,14 @@
 .yumi-list-toolbar__controls {
   display: flex;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   flex-wrap: nowrap;
   align-items: center;
   gap: var(--yumi-space-3);
 }
 .yumi-list-toolbar__search {
   min-width: min(100%, 280px);
-  flex: 1 1 280px;
+  flex: 0 1 280px;
 }
 .yumi-list-toolbar__search .yumi-input {
   width: 100%;

@@ -11,10 +11,12 @@ function zIndexOf(selector: string) {
 }
 
 describe('弹层层级', () => {
-  it('下拉菜单在抽屉表单之上显示', () => {
-    const sheet = zIndexOf('.yumi-sheet')
+  // Radix Popper 把下拉、日期等浮层内容包在 position: fixed 的 [data-radix-popper-content-wrapper] 里，
+  // 包裹层自建层叠上下文，浮层内部元素的 z-index 不参与和抽屉/对话框的比较，层级必须加在包裹层上。
+  it('Radix 浮层包裹层在抽屉与对话框之上显示', () => {
+    const popperWrapper = zIndexOf('[data-radix-popper-content-wrapper]')
 
-    expect(zIndexOf('.yumi-select__content')).toBeGreaterThan(sheet)
-    expect(zIndexOf('.yumi-select__search-content')).toBeGreaterThan(sheet)
+    expect(popperWrapper).toBeGreaterThan(zIndexOf('.yumi-sheet'))
+    expect(popperWrapper).toBeGreaterThan(zIndexOf('.yumi-dialog__content'))
   })
 })
