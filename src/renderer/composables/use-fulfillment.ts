@@ -3,7 +3,6 @@ import type {
   V2FulfillmentAdjustmentInput,
   V2FulfillmentProgressReportRow,
   V2FulfillmentStageBalances,
-  V2OpeningWipInput,
   V2Order,
   V2OrderItemFulfillment,
   V2OrderSummary,
@@ -14,7 +13,7 @@ import type {
 import { getErrorMessage } from './v2-utils'
 
 export type FulfillmentQueueStage =
-  'all' | 'making' | 'fluffing_bagging' | 'packing' | 'ready_to_ship'
+  'all' | 'making' | 'fluffing_bagging' | 'edge_sewing' | 'packing'
 export type ActionableFulfillmentQueueStage = Exclude<FulfillmentQueueStage, 'all'>
 
 type FulfillmentTaskStage = ActionableFulfillmentQueueStage
@@ -25,7 +24,7 @@ export interface FulfillmentScheduledTask {
   workerId: string
   workerName: string
   assignedOn: string
-  processType: 'making' | 'fluffing_bagging' | 'packing' | 'shipping'
+  processType: 'making' | 'fluffing_bagging' | 'edge_sewing' | 'packing'
   stage: FulfillmentTaskStage
   plannedQuantity: number
   /** 任务创建时已冻结的计件提成；不能回读当前商品费率。 */
@@ -63,26 +62,30 @@ export interface WorkerWeekTask extends FulfillmentScheduledTask {
 const actionableStages: ActionableFulfillmentQueueStage[] = [
   'making',
   'fluffing_bagging',
-  'packing',
-  'ready_to_ship'
+  'edge_sewing',
+  'packing'
 ]
 const activeTaskStatuses = new Set<V2ProcessTaskStatus>(['pending', 'pending_inspection'])
+
+const stageBalanceKeys: Record<ActionableFulfillmentQueueStage, keyof V2FulfillmentStageBalances> =
+  {
+    making: 'making',
+    fluffing_bagging: 'fluffingBagging',
+    edge_sewing: 'edgeSewing',
+    packing: 'packing'
+  }
 
 function getStageWip(
   stages: V2FulfillmentStageBalances,
   stage: ActionableFulfillmentQueueStage
 ): number {
-  if (stage === 'making') return stages.making
-  if (stage === 'fluffing_bagging') return stages.fluffingBagging
-  if (stage === 'packing') return stages.packing
-  return stages.readyToShip
+  return stages[stageBalanceKeys[stage]]
 }
 
 function mapProcessTypeToStage(processType: string): ActionableFulfillmentQueueStage | null {
-  if (processType === 'making' || processType === 'fluffing_bagging' || processType === 'packing')
-    return processType
-  if (processType === 'shipping') return 'ready_to_ship'
-  return null
+  return actionableStages.includes(processType as ActionableFulfillmentQueueStage)
+    ? (processType as ActionableFulfillmentQueueStage)
+    : null
 }
 
 function createStageSchedules(
@@ -128,10 +131,7 @@ export function buildFulfillmentQueue(
       productName: row.productName,
       confirmedQuantity: row.confirmedQuantity,
       outstandingQuantity:
-        row.stages.making +
-        row.stages.fluffingBagging +
-        row.stages.packing +
-        row.stages.readyToShip,
+        row.stages.making + row.stages.fluffingBagging + row.stages.edgeSewing + row.stages.packing,
       stages: row.stages,
       stageSchedules: createStageSchedules(row.stages)
     }))
@@ -356,15 +356,6 @@ export function useFulfillment() {
     [reload]
   )
 
-  const recordOpeningWip = useCallback(
-    async (input: V2OpeningWipInput) => {
-      const result = await window.yumiV2.fulfillment.recordOpeningWip(input)
-      await reload(result.orderId)
-      return result
-    },
-    [reload]
-  )
-
   const reassignProcessTask = useCallback(
     async (...args: Parameters<typeof window.yumiV2.fulfillment.reassignProcessTask>) => {
       const assignment = await window.yumiV2.fulfillment.reassignProcessTask(...args)
@@ -394,7 +385,6 @@ export function useFulfillment() {
     reload,
     selectOrder,
     createWorkAssignment,
-    recordOpeningWip,
     reassignProcessTask,
     adjustStageQuantity
   }

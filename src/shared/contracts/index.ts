@@ -1,7 +1,7 @@
 export type {
   BusinessDate,
   Cents,
-  GluePriceMicroYuanPerGram,
+  MaterialPriceMicroYuanPerGram,
   IsoDateTime,
   WeightMilligrams,
   V2AttachmentReference,
@@ -23,10 +23,12 @@ export type {
 export type { V2StudioSettings, V2StudioSettingsUpdateInput } from './settings'
 export type {
   V2Product,
+  V2ProductExpectedProfit,
   V2ProductInput,
   V2ProductOrderSnapshot,
   V2ProductUpdateInput
 } from './products'
+export type { V2OrderEdgeInput } from './orders'
 export type {
   V2Order,
   V2OrderAmountAdjustment,
@@ -58,7 +60,6 @@ export type {
   V2FulfillmentEventType,
   V2FulfillmentStage,
   V2FulfillmentStageBalances,
-  V2OpeningWipInput,
   V2OrderItemFulfillment,
   V2ProcessResult,
   V2ProcessResultInput,
@@ -148,6 +149,31 @@ export type {
   V2ShippingListExportRow
 } from './reports'
 
+export type {
+  V2ProductInventoryAdjustInput,
+  V2ProductInventoryAllocationResult,
+  V2ProductInventoryAllocateInput,
+  V2ProductInventorySourceType,
+  V2ProductInventorySummary,
+  V2ProductOpeningInput,
+  V2ProductStage,
+  V2ProductStageBalances,
+  V2ProductStageInventoryEvent
+} from './product-inventory'
+
+export type {
+  V2WorkTimeReview,
+  V2WorkTimeReviewInput,
+  V2WorkTimeReviewItem,
+  V2WorkTimeReviewItemInput,
+  V2WorkTimeReviewProcessType,
+  V2WorkTimeReviewQuery,
+  V2WorkTimeReviewSource,
+  V2WorkTimeReviewStatus,
+  V2WorkTimeReviewUpdateInput,
+  V2WorkTimeReviewVoidInput
+} from './work-time-reviews'
+
 export type { V2YumiApi } from './v2-api'
 
 export type {
@@ -163,10 +189,14 @@ export type {
   V2WorkerSettlementCreateInput,
   V2WorkerSettlementDeductionAllocation,
   V2WorkerSettlementDetail,
-  V2WorkerSettlementQuery,
   V2WorkerSettlementDraftUpdateInput,
+  V2WorkerSettlementMakingSource,
+  V2WorkerSettlementQuery,
   V2WorkerSettlementStatus,
-  V2WorkerSettlementTask,
+  V2WorkerSettlementTimedItem,
+  V2WorkerSettlementTimedSource,
+  V2WorkerSettlementWorkTimeAdjustment,
+  V2WorkerSettlementWorkTimeAdjustmentInput,
   V2WorkerWageHistory,
   V2WorkerWageHistoryInput
 } from './settlements'

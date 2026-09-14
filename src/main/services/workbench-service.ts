@@ -226,7 +226,7 @@ export class WorkbenchService {
           title: '处理兼职退款',
           description: `不合格 ${refund.unqualifiedQuantity} 件 · 已确认工资需单独处理`
         },
-        quantityOrAmount: asCurrency(refund.requestedRefundCents),
+        quantityOrAmount: asCurrency(refund.materialRefundCents),
         dueHint: `关联结算 ${refund.originalSettlementId}`,
         navigationTarget: {
           view: 'settlements',
@@ -317,8 +317,11 @@ export class WorkbenchService {
   }
 
   private processLabel(processType: V2WorkAssignment['processType']): string {
-    return { making: '制作', fluffing_bagging: '捏毛装袋', packing: '打包', shipping: '发货' }[
-      processType
-    ]
+    return {
+      making: '制作',
+      fluffing_bagging: '捏毛装袋',
+      edge_sewing: '缝边',
+      packing: '打包发货'
+    }[processType]
   }
 }

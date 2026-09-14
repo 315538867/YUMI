@@ -4,6 +4,8 @@ import { createFulfillmentState, applyFulfillmentEvent } from '@main/domain/fulf
 import { calculateOrderFundSummary } from '@main/domain/order-funds'
 import { ReportRepository } from '@main/repositories/report-repository'
 import { calculateProductSnapshotCostCents } from '@main/domain/product-costing'
+import { calculateProductProfit } from '@shared/calculations/product-profit'
+import type { V2StudioSettings } from '@shared/contracts/index'
 import { calculateOrderSchedule } from '@main/domain/order-schedule'
 import { DomainValidationError } from '@main/domain/errors'
 import type { V2Database } from '@main/database/v2-connection'
@@ -103,9 +105,11 @@ function toStageBalances(state: ReturnType<typeof createFulfillmentState>) {
   return {
     making: state.making,
     fluffingBagging: state.fluffingBagging,
+    edgeSewing: state.edgeSewing,
     packing: state.packing,
     readyToShip: state.readyToShip,
-    shipped: state.shipped
+    shipped: state.shipped,
+    edgeSewingRouted: state.edgeSewingRouted
   }
 }
 
@@ -123,10 +127,43 @@ interface CustomerOrderFulfillmentStatus {
  * V2 报表只从 V2 事实表读取：订单资金、商品快照、履约事件、已确认工资与财务流水。
  * 草稿工资、未写入资金事实的数据和 V1 数据库均不会进入这里的汇总。
  */
+/**
+ * 订单商品快照 + 当前工作室预计基准时薪 → 商品预计盈利输入。
+ * 缺少快照字段的历史记录按 0 处理；这里只用于订单成本详情的预计口径展示。
+ */
+function toProfitInput(
+  snapshot: V2ProductOrderSnapshot,
+  settings: V2StudioSettings | undefined
+): Parameters<typeof calculateProductProfit>[0] {
+  return {
+    basePriceCents: snapshot.basePriceCents ?? 0,
+    unitWeightMilligrams: snapshot.unitWeightMilligrams ?? 0,
+    materialPriceMicroYuanPerGram:
+      snapshot.materialPriceMicroYuanPerGram ?? settings?.materialPriceMicroYuanPerGram ?? 0,
+    packagingCostCents: snapshot.packagingCostCents ?? 0,
+    accessoryCostCents: snapshot.accessoryCostCents ?? 0,
+    replacementBagCostCents: snapshot.replacementBagCostCents ?? 0,
+    fixedCostCents: snapshot.fixedCostCents ?? 0,
+    makingCommissionCents: snapshot.makingCommissionCents ?? 0,
+    fluffingBaggingCommissionCents: snapshot.fluffingBaggingCommissionCents ?? 0,
+    expectedFluffingBaggingMinutes: snapshot.expectedFluffingBaggingMinutes ?? 0,
+    expectedEdgeSewingMinutes: snapshot.expectedEdgeSewingMinutes ?? 0,
+    expectedPackingMinutes: snapshot.expectedPackingMinutes ?? 0,
+    fluffingBaggingExpectedHourlyWageCents: settings?.fluffingBaggingExpectedHourlyWageCents ?? 0,
+    edgeSewingExpectedHourlyWageCents: settings?.edgeSewingExpectedHourlyWageCents ?? 0,
+    packingExpectedHourlyWageCents: settings?.packingExpectedHourlyWageCents ?? 0,
+    edgeConsumableCostCents: snapshot.edgeConsumableCostCents ?? 0,
+    edgeSewingCommissionCents: snapshot.edgeSewingCommissionCents ?? 0
+  }
+}
+
 export class ReportService {
   private readonly repository: ReportRepository
 
-  constructor(database: V2Database) {
+  constructor(
+    database: V2Database,
+    private readonly studioSettings?: { get(): V2StudioSettings }
+  ) {
     this.repository = new ReportRepository(database)
   }
 
@@ -163,6 +200,7 @@ export class ReportService {
       currentAmountCents: amount.currentAmountCents,
       entries: source.funds
     })
+    const settings = this.studioSettings?.get()
     const items = source.itemSnapshots.map((item, index) => {
       const productSnapshot = parseJson<V2ProductOrderSnapshot>(item.productSnapshotJson)
       const productCostCents = calculateProductSnapshotCostCents(
@@ -170,6 +208,13 @@ export class ReportService {
         item.quantity,
         item.edgeEnabled ? item.edgeQuantity : 0
       )
+      // 缝边预计增加成本只使用快照事实与当前预计基准时薪；不把订单级缝边客户收入计入商品成本。
+      const expectedEdgeIncrementalCostCents = calculateProductProfit({
+        ...toProfitInput(productSnapshot, settings)
+      }).edgeIncrementalCost.amountCents
+      const expectedEdgeIncrementalProfitCents = item.edgeEnabled
+        ? item.edgeUnitPriceCents - expectedEdgeIncrementalCostCents
+        : 0
       const orderRevenueCents = itemAmounts[index].lineAmountCents
       const knownGrossMarginCents = orderRevenueCents - productCostCents
       return {
@@ -178,6 +223,8 @@ export class ReportService {
         quantity: item.quantity,
         orderRevenueCents,
         productCostCents,
+        expectedEdgeIncrementalCostCents,
+        expectedEdgeIncrementalProfitCents,
         knownGrossMarginCents,
         knownGrossMarginRateBasisPoints:
           orderRevenueCents > 0

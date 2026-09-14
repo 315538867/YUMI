@@ -18,13 +18,21 @@ export interface V2OrderBusinessReportRow {
   knownMarginCents: Cents
 }
 
-/** 订单盈利详情中的单商品行；订单级优惠与金额调整不强行摊分到商品行。 */
+/**
+ * 订单盈利详情中的单商品行；订单级优惠与金额调整不强行摊分到商品行。
+ * 成本与缝边增量利润均为快照预计口径；同一工时处理多个商品时不提供订单实际计时成本。
+ */
 export interface V2OrderBusinessItemReportRow {
   orderItemId: string
   productName: string
   quantity: number
   orderRevenueCents: Cents
+  /** 按订单商品快照与当前预计基准时薪计算的预计直接成本（材料、包装、配饰、替换袋、固定成本与缝边耗材）。 */
   productCostCents: Cents
+  /** 每件缝边预计增加成本：缝边耗材 + 缝边提成 + 预计缝边计时人工。 */
+  expectedEdgeIncrementalCostCents: Cents
+  /** 每件缝边预计增量利润：缝边对客单价 − 每件缝边预计增加成本；未选择缝边时为 0。 */
+  expectedEdgeIncrementalProfitCents: Cents
   knownGrossMarginCents: Cents
   /** 毛利率以万分比表达；商品行收入为 0 时不计算。 */
   knownGrossMarginRateBasisPoints: number | null

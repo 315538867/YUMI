@@ -6,6 +6,7 @@ import type {
   V2WorkerSettlementDetail,
   V2WorkerSettlementDraftUpdateInput,
   V2WorkerSettlementQuery,
+  V2WorkerSettlementWorkTimeAdjustmentInput,
   V2WorkerRefundRecord,
   V2WorkerRefundResolveInput,
   V2WorkerWageHistory,
@@ -96,6 +97,16 @@ export function useSettlements() {
     [reload]
   )
 
+  /** 已结算工时差异：在草稿结算中建立来源关联调整。 */
+  const addWorkTimeAdjustment = useCallback(
+    async (id: string, input: V2WorkerSettlementWorkTimeAdjustmentInput) => {
+      const settlement = await window.yumiV2.settlements.addWorkTimeAdjustment(id, input)
+      await reload()
+      return settlement
+    },
+    [reload]
+  )
+
   const resolveRefund = useCallback(
     async (id: string, input: V2WorkerRefundResolveInput) => {
       const refund = await window.yumiV2.settlements.resolveRefund(id, input)
@@ -118,6 +129,7 @@ export function useSettlements() {
     createDraft,
     updateDraft,
     confirmSettlement,
+    addWorkTimeAdjustment,
     resolveRefund
   }
 }

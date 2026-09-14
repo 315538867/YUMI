@@ -10,6 +10,8 @@ import { V2BackupService } from '@main/services/v2-backup-service'
 import { V2OrderService } from '@main/services/v2-order-service'
 import { OrderFundAttachmentService } from '@main/services/order-fund-attachment-service'
 import { FulfillmentService } from '@main/services/fulfillment-service'
+import { ProductInventoryService } from '@main/services/product-inventory-service'
+import { WorkTimeReviewService } from '@main/services/work-time-review-service'
 import { SettlementService } from '@main/services/settlement-service'
 import { FinanceService } from '@main/services/finance-service'
 import { AfterSalesService } from '@main/services/after-sales-service'
@@ -34,6 +36,8 @@ interface V2RuntimeReferences {
   studioSettingsService: StudioSettingsService
   workbenchService: WorkbenchService
   fulfillmentService: FulfillmentService
+  productInventoryService: ProductInventoryService
+  workTimeReviewService: WorkTimeReviewService
   settlementService: SettlementService
   financeService: FinanceService
   afterSalesService: AfterSalesService
@@ -86,6 +90,14 @@ export class V2ApplicationRuntime {
 
   get fulfillmentService(): FulfillmentService {
     return this.requireReferences().fulfillmentService
+  }
+
+  get productInventoryService(): ProductInventoryService {
+    return this.requireReferences().productInventoryService
+  }
+
+  get workTimeReviewService(): WorkTimeReviewService {
+    return this.requireReferences().workTimeReviewService
   }
 
   get settlementService(): SettlementService {
@@ -151,14 +163,16 @@ export class V2ApplicationRuntime {
   private createReferences(): V2RuntimeReferences {
     const database = createV2Database(this.storage.databasePath)
     const repository = new V2OrderRepository(database)
-    const reportService = new ReportService(database)
     const studioSettingsService = new StudioSettingsService(database, repository)
+    const reportService = new ReportService(database, studioSettingsService)
     const orderService = new V2OrderService(repository, undefined, studioSettingsService)
     const orderFundAttachmentService = new OrderFundAttachmentService(
       database,
       this.storage.attachmentDirectory
     )
     const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database))
+    const productInventoryService = new ProductInventoryService(database)
+    const workTimeReviewService = new WorkTimeReviewService(database)
     const settlementService = new SettlementService(database)
     const financeService = new FinanceService(database)
     const afterSalesService = new AfterSalesService(database)
@@ -176,6 +190,8 @@ export class V2ApplicationRuntime {
         finance: financeService
       }),
       fulfillmentService,
+      productInventoryService,
+      workTimeReviewService,
       settlementService,
       financeService,
       afterSalesService,

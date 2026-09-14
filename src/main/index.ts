@@ -42,6 +42,8 @@ app.whenReady().then(() => {
     currentRuntime.studioSettingsService,
     currentRuntime.workbenchService,
     currentRuntime.fulfillmentService,
+    currentRuntime.productInventoryService,
+    currentRuntime.workTimeReviewService,
     currentRuntime.settlementService,
     currentRuntime.financeService,
     currentRuntime.afterSalesService,

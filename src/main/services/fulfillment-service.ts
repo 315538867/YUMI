@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto'
 import {
   applyFulfillmentEvent,
   calculateTaskPlannedMinutes,
+  createEdgeSewingCompletedEvent,
+  createFluffingBaggingCompletedEvents,
   createFulfillmentState,
-  createOpeningWipEvent,
+  createMakingQualifiedEvent,
   createPackingCompletedEvent,
-  createQualityQualifiedEvent,
   fulfillmentStages,
   processTaskSources,
   processTypes,
@@ -22,7 +23,6 @@ import {
 import type {
   V2FulfillmentAdjustmentInput,
   V2FulfillmentEvent,
-  V2OpeningWipInput,
   V2OrderItemFulfillment,
   V2ProcessResult,
   V2ProcessResultInput,
@@ -82,9 +82,11 @@ function asState(state: FulfillmentState) {
   return {
     making: state.making,
     fluffingBagging: state.fluffingBagging,
+    edgeSewing: state.edgeSewing,
     packing: state.packing,
     readyToShip: state.readyToShip,
-    shipped: state.shipped
+    shipped: state.shipped,
+    edgeSewingRouted: state.edgeSewingRouted
   }
 }
 
@@ -222,26 +224,15 @@ export class FulfillmentService {
       }
       this.repository.insertProcessResult(result)
       const now = this.clock.now()
-      if (task.processType === 'packing') {
-        const orderItemId = this.requireOrderItemId(task)
-        const event = this.toPersistedEvent(
-          orderItemId,
-          createPackingCompletedEvent(result.completedQuantity),
-          'process_result',
-          result.id,
-          result.submittedOn,
-          result.note,
-          now
-        )
-        this.assertEventCanApply(event)
-        this.repository.insertFulfillmentEvent(event)
-        this.repository.updateTaskStatus(task.id, 'confirmed', now)
-        this.repository.completeWorkAssignmentWhenResolved(task.workAssignmentId, now)
-      } else if (task.processType === 'shipping') {
-        this.repository.updateTaskStatus(task.id, 'confirmed', now)
-        this.repository.completeWorkAssignmentWhenResolved(task.workAssignmentId, now)
-      } else {
+      if (task.processType === 'making') {
         this.repository.updateTaskStatus(task.id, 'pending_inspection', now)
+      } else {
+        for (const event of this.completionEventsFor(task, result)) {
+          this.assertEventCanApply(event)
+          this.repository.insertFulfillmentEvent(event)
+        }
+        this.repository.updateTaskStatus(task.id, 'confirmed', now)
+        this.repository.completeWorkAssignmentWhenResolved(task.workAssignmentId, now)
       }
       this.recordAudit(
         'fulfillment.result_submitted',
@@ -264,8 +255,8 @@ export class FulfillmentService {
     return this.repository.transaction(() => {
       const result = this.requireResult(processResultId)
       const task = this.requireTask(result.processTaskId)
-      if (task.processType !== 'making' && task.processType !== 'fluffing_bagging') {
-        throw new DomainValidationError('只有制作或捏毛装袋任务需要质检')
+      if (task.processType !== 'making') {
+        throw new DomainValidationError('只有制作任务需要质量确认')
       }
       validateQualityInspection({
         completedQuantity: result.completedQuantity,
@@ -291,15 +282,15 @@ export class FulfillmentService {
       this.repository.insertQualityInspection(inspection)
       if (inspection.qualifiedQuantity > 0) {
         const orderItemId = this.requireOrderItemId(task)
-        const draft =
+        const draft: FulfillmentEventDraft =
           task.sourceType === 'after_sales_replacement'
             ? {
-                eventType: 'after_sales_replacement' as const,
+                eventType: 'after_sales_replacement',
                 quantity: inspection.qualifiedQuantity,
                 sourceStage: null,
-                targetStage: 'fluffing_bagging' as const
+                targetStage: 'fluffing_bagging'
               }
-            : createQualityQualifiedEvent(task.processType, inspection.qualifiedQuantity)
+            : createMakingQualifiedEvent(inspection.qualifiedQuantity)
         const event = this.toPersistedEvent(
           orderItemId,
           draft,
@@ -324,42 +315,6 @@ export class FulfillmentService {
         { processTaskId: task.id }
       )
       return inspection
-    })
-  }
-
-  recordOpeningWip(input: V2OpeningWipInput): V2OrderItemFulfillment {
-    const occurredOn = requireBusinessDate(input.occurredOn, '期初在制品日期')
-    return this.repository.transaction(() => {
-      this.requireOrderItem(input.orderItemId)
-      const now = this.clock.now()
-      const draft = createOpeningWipEvent(input.targetStage, input.quantity)
-      const event = this.toPersistedEvent(
-        input.orderItemId,
-        draft,
-        'opening_wip_record',
-        null,
-        occurredOn,
-        nullableText(input.note),
-        now
-      )
-      this.assertEventCanApply(event)
-      this.repository.insertFulfillmentEvent(event)
-      this.repository.insertOpeningWipRecord(
-        this.clock.createId(),
-        { ...input, occurredOn, note: nullableText(input.note) },
-        event.id,
-        now
-      )
-      const summary = this.getOrderItemFulfillment(input.orderItemId)
-      this.recordAudit(
-        'fulfillment.opening_wip_recorded',
-        'opening_wip_record',
-        event.id,
-        undefined,
-        event,
-        now
-      )
-      return summary
     })
   }
 
@@ -432,12 +387,12 @@ export class FulfillmentService {
     if (!processTaskSources.includes(input.sourceType))
       throw new DomainValidationError('任务来源不合法')
     const orderItem = input.orderItemId ? this.requireOrderItem(input.orderItemId) : null
-    if (processType !== 'shipping' && !orderItem)
-      throw new DomainValidationError('该工序任务必须关联订单产品')
-    if (processType === 'making' && !orderItem)
-      throw new DomainValidationError('制作任务必须关联订单产品')
+    if (!orderItem) throw new DomainValidationError('该工序任务必须关联订单产品')
     if (input.sourceType === 'after_sales_replacement' && processType !== 'making') {
       throw new DomainValidationError('售后补发任务必须从制作工序开始')
+    }
+    if (processType === 'edge_sewing') {
+      this.assertEdgeSewingDemand(orderItem.id)
     }
 
     const extraMinutes = input.extraMinutes ?? 0
@@ -469,26 +424,25 @@ export class FulfillmentService {
         ? orderItem!.productSnapshot.makingCommissionCents
         : processType === 'fluffing_bagging'
           ? (orderItem!.productSnapshot.fluffingBaggingCommissionCents ?? 0)
-          : null
+          : processType === 'edge_sewing'
+            ? (orderItem!.productSnapshot.edgeSewingCommissionCents ?? 0)
+            : null
     const pieceRateCents =
       snapshotPieceRateCents === null
         ? requireOptionalNonNegativeCents(input.pieceRateCents, '计件提成')
         : (input.pieceRateCents ?? snapshotPieceRateCents)
-    const hasGlueFormula =
-      productSnapshot?.gluePriceMicroYuanPerGram !== undefined &&
-      productSnapshot.glueWeightMilligrams !== undefined
-    const gluePriceMicroYuanPerGram = hasGlueFormula
-      ? productSnapshot!.gluePriceMicroYuanPerGram!
+    const hasMaterialSnapshot =
+      productSnapshot !== null && productSnapshot.materialPriceMicroYuanPerGram !== undefined
+    const materialPriceMicroYuanPerGram = hasMaterialSnapshot
+      ? productSnapshot!.materialPriceMicroYuanPerGram
       : null
-    const glueWeightMilligrams = hasGlueFormula ? productSnapshot!.glueWeightMilligrams! : null
+    const glueWeightMilligrams = hasMaterialSnapshot ? productSnapshot!.unitWeightMilligrams : null
     const glueCostCents =
       processType === 'making'
-        ? hasGlueFormula
-          ? null
-          : (input.glueCostCents ?? productSnapshot!.makingGlueCostCents)
-        : requireOptionalNonNegativeCents(input.glueCostCents, '胶水成本')
+        ? null
+        : requireOptionalNonNegativeCents(input.glueCostCents, '材料成本')
     requireOptionalNonNegativeCents(pieceRateCents, '计件提成')
-    requireOptionalNonNegativeCents(glueCostCents, '胶水成本')
+    requireOptionalNonNegativeCents(glueCostCents, '材料成本')
 
     return {
       id: this.clock.createId(),
@@ -504,7 +458,7 @@ export class FulfillmentService {
       hourlyWageCents,
       pieceRateCents,
       glueCostCents,
-      gluePriceMicroYuanPerGram,
+      materialPriceMicroYuanPerGram,
       glueWeightMilligrams,
       rateSnapshot:
         input.rateSnapshot ??
@@ -514,6 +468,70 @@ export class FulfillmentService {
       note: nullableText(input.note),
       createdAt: now,
       updatedAt: now
+    }
+  }
+
+  /**
+   * 非制作工序按完成数量直接流转：捏毛装袋按订单剩余缝边需求分流，
+   * 缝边完成后进入待打包发货，打包完成后进入已发货前的待发货阶段。
+   */
+  private completionEventsFor(task: V2ProcessTask, result: V2ProcessResult): V2FulfillmentEvent[] {
+    const orderItemId = this.requireOrderItemId(task)
+    const item = this.requireOrderItem(orderItemId)
+    const state = this.fulfillmentStateOf(orderItemId, item.quantity)
+    let drafts: FulfillmentEventDraft[]
+    if (task.processType === 'fluffing_bagging') {
+      const edgeQuantity = item.edgeEnabled ? item.edgeQuantity : 0
+      drafts = createFluffingBaggingCompletedEvents({
+        completedQuantity: result.completedQuantity,
+        edgeQuantity,
+        edgeSewingRouted: state.edgeSewingRouted
+      })
+    } else if (task.processType === 'edge_sewing') {
+      drafts = [createEdgeSewingCompletedEvent(result.completedQuantity)]
+    } else {
+      drafts = [createPackingCompletedEvent(result.completedQuantity)]
+    }
+    return drafts.map((draft) =>
+      this.toPersistedEvent(
+        orderItemId,
+        draft,
+        'process_result',
+        result.id,
+        result.submittedOn,
+        result.note,
+        this.clock.now()
+      )
+    )
+  }
+
+  private fulfillmentStateOf(orderItemId: string, orderQuantity: number) {
+    let state = createFulfillmentState(orderQuantity)
+    for (const event of this.repository.listFulfillmentEvents(orderItemId)) {
+      state = applyFulfillmentEvent(state, {
+        eventType: event.eventType,
+        quantity: event.quantity,
+        sourceStage: event.sourceStage,
+        targetStage: event.targetStage
+      })
+    }
+    return state
+  }
+
+  /** 只有订单商品选择了缝边且仍有未完成、未派工的缝边需求时才能安排缝边任务。 */
+  private assertEdgeSewingDemand(orderItemId: string): void {
+    const item = this.requireOrderItem(orderItemId)
+    if (!item.edgeEnabled || item.edgeQuantity <= 0) {
+      throw new DomainValidationError('该订单商品未选择缝边，不能安排缝边任务')
+    }
+    const state = this.fulfillmentStateOf(orderItemId, item.quantity)
+    const completedSewing = state.edgeSewingRouted - state.edgeSewing
+    const assignedPending = this.repository
+      .listTasksByOrderItem(orderItemId)
+      .filter((task) => task.processType === 'edge_sewing' && task.status === 'pending')
+      .reduce((total, task) => total + (task.plannedQuantity ?? 0), 0)
+    if (item.edgeQuantity - completedSewing - assignedPending <= 0) {
+      throw new DomainValidationError('该订单商品已无剩余缝边需求，不能安排缝边任务')
     }
   }
 

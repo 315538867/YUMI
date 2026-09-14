@@ -5,9 +5,6 @@ import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { createV2Database } from './v2-connection'
 import { runV2Migrations } from './v2-migrations'
-import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
-import { V2OrderRepository } from '@main/repositories/v2-order-repository'
-import { FulfillmentService } from '@main/services/fulfillment-service'
 import {
   V2_ATTACHMENT_DIRECTORY_NAME,
   V2_BACKUP_DIRECTORY_NAME,
@@ -44,22 +41,34 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 17 })
-    expect(
-      database
-        .prepare('PRAGMA table_info(products)')
-        .all()
-        .map((column) => column.name)
-    ).toEqual(
+    ).toEqual({ version: 14 })
+    const productColumns = (
+      database.prepare('PRAGMA table_info(products)').all() as Array<{ name: string }>
+    ).map((column) => column.name)
+    expect(productColumns).toEqual(
       expect.arrayContaining([
         'unit_weight_milligrams',
-        'material_loss_rate_basis_points',
+        'edge_consumable_cost_cents',
+        'fixed_cost_cents',
+        'expected_fluffing_bagging_minutes',
+        'expected_edge_sewing_minutes',
+        'expected_packing_minutes',
+        'edge_sewing_commission_cents',
         'mold_count',
         'output_per_mold_per_batch',
         'max_batches_per_day',
         'daily_capacity'
       ])
     )
+    for (const removed of [
+      'material_cost_cents',
+      'making_glue_cost_cents',
+      'glue_weight_milligrams',
+      'material_loss_rate_basis_points',
+      'internal_edge_cost_cents'
+    ]) {
+      expect(productColumns).not.toContain(removed)
+    }
     database.close()
 
     await expect(readFile(v1DatabasePath, 'utf8')).resolves.toBe('v1-test-data')
@@ -96,223 +105,36 @@ describe('V2 独立数据空间', () => {
     inspected.close()
   })
 
-  it('仅识别 V2 迁移记录，并将较早 V2 数据库增量升级', async () => {
-    const userDataDirectory = await mkdtemp(join(tmpdir(), 'yumi-v2-migration-'))
+  it('最新结构重复启动保持同一目标模型，不重复执行迁移且保留既有数据', async () => {
+    const userDataDirectory = await mkdtemp(join(tmpdir(), 'yumi-v2-repeat-start-'))
     const storage = resolveV2StoragePaths(userDataDirectory)
-    const earlierV2 = new Database(storage.databasePath)
-    earlierV2.exec(`
-      CREATE TABLE v2_schema_migrations (
-        version INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        applied_at TEXT NOT NULL
-      );
-      INSERT INTO v2_schema_migrations (version, name, applied_at)
-      VALUES (1, 'v2_master_data', '2026-09-06T00:00:00.000Z');
-      CREATE TABLE customers (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        contact TEXT,
-        default_address TEXT,
-        notes TEXT,
-        enabled INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE products (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        code TEXT UNIQUE,
-        category TEXT,
-        base_price_cents INTEGER NOT NULL DEFAULT 0,
-        material_cost_cents INTEGER NOT NULL DEFAULT 0,
-        packaging_cost_cents INTEGER NOT NULL DEFAULT 0,
-        accessory_cost_cents INTEGER NOT NULL DEFAULT 0,
-        replacement_bag_cost_cents INTEGER NOT NULL DEFAULT 0,
-        internal_edge_cost_cents INTEGER NOT NULL DEFAULT 0,
-        standard_making_minutes INTEGER NOT NULL DEFAULT 0,
-        making_commission_cents INTEGER NOT NULL DEFAULT 0,
-        making_glue_cost_cents INTEGER NOT NULL DEFAULT 0,
-        enabled INTEGER NOT NULL DEFAULT 1,
-        image_attachment_id TEXT,
-        notes TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE attachments (
-        id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        original_name TEXT NOT NULL,
-        storage_key TEXT NOT NULL UNIQUE,
-        mime_type TEXT,
-        size_bytes INTEGER NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE audit_logs (
-        id TEXT PRIMARY KEY,
-        action TEXT NOT NULL,
-        entity_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        before_json TEXT,
-        after_json TEXT,
-        metadata_json TEXT,
-        created_at TEXT NOT NULL
-      );
-    `)
-    earlierV2
-      .prepare('INSERT INTO customers (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
-      .run('customer-1', 'V2 客户', '2026-09-07T00:00:00.000Z', '2026-09-07T00:00:00.000Z')
-    earlierV2
+    const first = createV2Database(storage.databasePath)
+    first
       .prepare(
-        `INSERT INTO products (
-        id, name, base_price_cents, packaging_cost_cents, accessory_cost_cents,
-        replacement_bag_cost_cents, internal_edge_cost_cents, standard_making_minutes,
-        making_commission_cents, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        'legacy-product',
-        '旧商品',
-        1_000,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        '2026-09-07T00:00:00.000Z',
-        '2026-09-07T00:00:00.000Z'
-      )
-    earlierV2.close()
-
-    const upgraded = createV2Database(storage.databasePath)
-    expect(upgraded.prepare('SELECT name FROM customers WHERE id = ?').get('customer-1')).toEqual({
-      name: 'V2 客户'
-    })
-    expect(upgraded.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 17
-    })
-    expect(
-      upgraded
-        .prepare('SELECT fluffing_bagging_commission_cents FROM products WHERE id = ?')
-        .get('legacy-product')
-    ).toEqual({ fluffing_bagging_commission_cents: 0 })
-    expect(
-      upgraded
-        .prepare(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'order_content_changes'"
-        )
-        .get()
-    ).toBeTruthy()
-    upgraded.close()
-  })
-
-  it('兼容已标记 V2 迁移但缺少订单金额与缝边字段的早期订单表', () => {
-    const database = new Database(':memory:')
-    database.exec(`
-      CREATE TABLE v2_schema_migrations (
-        version INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        applied_at TEXT NOT NULL
-      );
-      INSERT INTO v2_schema_migrations (version, name, applied_at)
-      SELECT value, 'legacy', '2026-09-09T00:00:00.000Z'
-      FROM json_each('[1,2,3,4,5,6,7,8,9,10,11,12,13]');
-
-      CREATE TABLE orders (
-        id TEXT PRIMARY KEY,
-        code TEXT NOT NULL UNIQUE,
-        customer_id TEXT,
-        customer_snapshot_json TEXT NOT NULL,
-        initial_confirmed_amount_cents INTEGER NOT NULL DEFAULT 0,
-        expected_ship_date TEXT,
-        notes TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        reserved_days INTEGER NOT NULL DEFAULT 2
-      );
-      CREATE TABLE order_items (
-        id TEXT PRIMARY KEY,
-        order_id TEXT NOT NULL,
-        product_id TEXT,
-        product_snapshot_json TEXT NOT NULL,
-        quantity INTEGER NOT NULL,
-        unit_price_cents INTEGER NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        line_no INTEGER NOT NULL DEFAULT 0
-      );
-    `)
-    database
-      .prepare(
-        `
-      INSERT INTO orders (
-        id, code, customer_snapshot_json, initial_confirmed_amount_cents, created_at, updated_at
-      ) VALUES ('legacy-order', 'LEGACY-001', '{"name":"历史客户"}', 9_999, '2026-09-09T00:00:00.000Z', '2026-09-09T00:00:00.000Z')
-    `
+        `INSERT INTO customers (id, name, enabled, created_at, updated_at)
+         VALUES ('customer-1', '重复启动客户', 1, '2026-09-14T00:00:00.000Z', '2026-09-14T00:00:00.000Z')`
       )
       .run()
-    database
-      .prepare(
-        `
-      INSERT INTO order_items (
-        id, order_id, product_snapshot_json, quantity, unit_price_cents, created_at, updated_at
-      ) VALUES ('legacy-item', 'legacy-order', '{}', 10, 1_000, '2026-09-09T00:00:00.000Z', '2026-09-09T00:00:00.000Z')
-    `
-      )
-      .run()
+    const firstColumns = (
+      first.prepare('PRAGMA table_info(products)').all() as Array<{ name: string }>
+    ).map((column) => column.name)
+    first.close()
 
-    runV2Migrations(database)
-
-    expect(
-      database
-        .prepare('PRAGMA table_info(orders)')
-        .all()
-        .map((column) => column.name)
-    ).toContain('order_discount_cents')
-    expect(
-      database
-        .prepare('PRAGMA table_info(order_items)')
-        .all()
-        .map((column) => column.name)
-    ).toEqual(
-      expect.arrayContaining([
-        'edge_enabled',
-        'edge_quantity',
-        'edge_unit_price_cents',
-        'item_discount_cents'
-      ])
-    )
-    expect(
-      database
-        .prepare(
-          `
-      SELECT initial_confirmed_amount_cents, order_discount_cents FROM orders WHERE id = 'legacy-order'
-    `
-        )
-        .get()
-    ).toEqual({ initial_confirmed_amount_cents: 9_999, order_discount_cents: 0 })
-    expect(
-      database
-        .prepare(
-          `
-      SELECT edge_enabled, edge_quantity, edge_unit_price_cents, item_discount_cents
-      FROM order_items WHERE id = 'legacy-item'
-    `
-        )
-        .get()
-    ).toEqual({
-      edge_enabled: 0,
-      edge_quantity: 0,
-      edge_unit_price_cents: 0,
-      item_discount_cents: 0
+    const reopened = createV2Database(storage.databasePath)
+    expect(reopened.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
+      count: 14
     })
-    expect(
-      database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 17 })
-    database.close()
+    expect(reopened.prepare('SELECT name FROM customers WHERE id = ?').get('customer-1')).toEqual({
+      name: '重复启动客户'
+    })
+    const reopenedColumns = (
+      reopened.prepare('PRAGMA table_info(products)').all() as Array<{ name: string }>
+    ).map((column) => column.name)
+    expect(reopenedColumns).toEqual(firstColumns)
+    reopened.close()
   })
 
-  it('为已记录 V14 的旧商品表补齐内部缝边成本列', () => {
+  it('旧版业务库缺少目标模型列时拒绝启动并提示重建', () => {
     const database = new Database(':memory:')
     database.exec(`
       CREATE TABLE v2_schema_migrations (
@@ -323,139 +145,46 @@ describe('V2 独立数据空间', () => {
       WITH RECURSIVE versions(version) AS (
         SELECT 1
         UNION ALL
-        SELECT version + 1 FROM versions WHERE version < 14
+        SELECT version + 1 FROM versions WHERE version < 12
       )
       INSERT INTO v2_schema_migrations (version, name, applied_at)
-      SELECT version, 'already-applied', '2026-09-09T00:00:00.000Z' FROM versions;
+      SELECT version, 'legacy-applied', '2026-09-01T00:00:00.000Z' FROM versions;
+
       CREATE TABLE products (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        edge_cost_cents INTEGER NOT NULL DEFAULT 0
+        internal_edge_cost_cents INTEGER NOT NULL DEFAULT 0,
+        material_cost_cents INTEGER NOT NULL DEFAULT 0
       );
-      INSERT INTO products (id, name, edge_cost_cents) VALUES ('legacy-product', '历史商品', 100);
+      INSERT INTO products (id, name) VALUES ('legacy-product', '旧版商品');
     `)
 
-    runV2Migrations(database)
-
-    expect(
-      database
-        .prepare('PRAGMA table_info(products)')
-        .all()
-        .map((column) => column.name)
-    ).toContain('internal_edge_cost_cents')
-    expect(
-      database
-        .prepare(
-          `
-      SELECT edge_cost_cents, internal_edge_cost_cents FROM products WHERE id = 'legacy-product'
-    `
-        )
-        .get()
-    ).toEqual({ edge_cost_cents: 100, internal_edge_cost_cents: 0 })
-    expect(
-      database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 17 })
+    expect(() => runV2Migrations(database)).toThrow('数据库结构与当前版本不兼容')
+    expect(() => runV2Migrations(database)).toThrow('请先备份旧业务库，再按最新结构重建数据库')
+    expect(database.prepare('SELECT COUNT(*) AS count FROM products').get()).toEqual({ count: 1 })
     database.close()
   })
 
-  it('将阶段 A 已发货记录回填为履约事实，且不会形成负的待发货数量', () => {
+  it('空数据库直接建立目标模型，商品快照与结算字段不含旧胶水口径', () => {
     const database = createV2Database(':memory:')
-    database
-      .prepare(
-        `
-      INSERT INTO orders (
-        id, code, customer_snapshot_json, order_discount_cents, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `
-      )
-      .run(
-        'legacy-order',
-        'LEGACY-001',
-        '{"name":"历史客户"}',
-        10_000,
-        '2026-09-06T08:00:00.000Z',
-        '2026-09-06T08:00:00.000Z'
-      )
-    database
-      .prepare(
-        `
-      INSERT INTO order_items (
-        id, order_id, product_snapshot_json, quantity, unit_price_cents, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `
-      )
-      .run(
-        'legacy-order-item',
-        'legacy-order',
-        '{}',
-        10,
-        1_000,
-        '2026-09-06T08:00:00.000Z',
-        '2026-09-06T08:00:00.000Z'
-      )
-    database
-      .prepare(
-        `
-      INSERT INTO shipments (id, order_id, shipped_on, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-    `
-      )
-      .run(
-        'legacy-shipment',
-        'legacy-order',
-        '2026-09-07',
-        '2026-09-07T08:00:00.000Z',
-        '2026-09-07T08:00:00.000Z'
-      )
-    database
-      .prepare(
-        `
-      INSERT INTO shipment_items (id, shipment_id, order_item_id, quantity, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `
-      )
-      .run(
-        'legacy-shipment-item',
-        'legacy-shipment',
-        'legacy-order-item',
-        4,
-        '2026-09-07T08:00:00.000Z'
-      )
+    const productColumns = (
+      database.prepare('PRAGMA table_info(products)').all() as Array<{ name: string }>
+    ).map((column) => column.name)
+    expect(productColumns).toContain('edge_sewing_commission_cents')
+    expect(productColumns).not.toContain('material_loss_rate_basis_points')
 
-    database.prepare('DELETE FROM v2_schema_migrations WHERE version = ?').run(5)
-    runV2Migrations(database)
-
-    expect(
-      database
-        .prepare(
-          `
-      SELECT event_type, source_stage, target_stage, quantity, source_record_type, source_record_id
-      FROM fulfillment_events WHERE id = ?
-    `
-        )
-        .get('legacy-shipment:legacy-shipment-item')
-    ).toEqual({
-      event_type: 'shipment',
-      source_stage: 'making',
-      target_stage: 'shipped',
-      quantity: 4,
-      source_record_type: 'shipment_item',
-      source_record_id: 'legacy-shipment-item'
-    })
-    expect(new V2OrderRepository(database).listShipments('legacy-order')).toEqual([
-      expect.objectContaining({
-        id: 'legacy-shipment',
-        items: [{ orderItemId: 'legacy-order-item', quantity: 4 }]
-      })
-    ])
-    expect(
-      new FulfillmentService(new V2FulfillmentRepository(database)).getOrderItemFulfillment(
-        'legacy-order-item'
-      ).stages
-    ).toMatchObject({ making: 6, readyToShip: 0, shipped: 4 })
-    expect(database.prepare('SELECT COUNT(*) AS count FROM fulfillment_events').get()).toEqual({
-      count: 1
-    })
+    const orderItemColumns = (
+      database.prepare('PRAGMA table_info(order_items)').all() as Array<{ name: string }>
+    ).map((column) => column.name)
+    expect(orderItemColumns).toEqual(
+      expect.arrayContaining([
+        'product_snapshot_json',
+        'edge_enabled',
+        'edge_quantity',
+        'edge_unit_price_cents',
+        'item_discount_cents'
+      ])
+    )
     database.close()
   })
 
@@ -472,7 +201,10 @@ describe('V2 独立数据空间', () => {
         'process_results',
         'quality_inspections',
         'fulfillment_events',
-        'opening_wip_records'
+        'product_stage_inventory_events',
+        'work_time_reviews',
+        'work_time_review_assignments',
+        'work_time_review_items'
       ])
     )
     expect(() =>
@@ -515,7 +247,7 @@ describe('V2 独立数据空间', () => {
           `
       INSERT INTO fulfillment_events (
         id, order_item_id, event_type, quantity, occurred_on, created_at
-      ) VALUES ('event-negative', 'item-missing', 'opening_wip', -1, '2026-09-07', '2026-09-07T00:00:00.000Z')
+      ) VALUES ('event-negative', 'item-missing', 'making_qualified', -1, '2026-09-07', '2026-09-07T00:00:00.000Z')
     `
         )
         .run()
@@ -524,9 +256,9 @@ describe('V2 独立数据空间', () => {
       database
         .prepare(
           `
-      INSERT INTO opening_wip_records (
-        id, order_item_id, target_stage, quantity, occurred_on, fulfillment_event_id, created_at
-      ) VALUES ('wip-negative', 'item-missing', 'packing', -1, '2026-09-07', 'event-missing', '2026-09-07T00:00:00.000Z')
+      INSERT INTO product_stage_inventory_events (
+        id, product_id, stage, quantity_delta, source_type, occurred_on, created_at
+      ) VALUES ('inventory-zero', 'product-missing', 'packed', 0, 'opening', '2026-09-07', '2026-09-07T00:00:00.000Z')
     `
         )
         .run()
@@ -544,7 +276,10 @@ describe('V2 独立数据空间', () => {
         'workers',
         'worker_wage_history',
         'worker_settlements',
-        'worker_settlement_tasks',
+        'worker_settlement_making_sources',
+        'worker_settlement_timed_sources',
+        'worker_settlement_timed_items',
+        'worker_settlement_adjustments',
         'worker_deduction_records',
         'worker_settlement_deduction_allocations',
         'worker_deduction_balances',
@@ -553,7 +288,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 17 })
+    ).toEqual({ version: 14 })
     expect(
       database
         .prepare(
@@ -656,30 +391,32 @@ describe('V2 独立数据空间', () => {
     database
       .prepare(
         `
-      INSERT INTO worker_settlement_tasks (id, settlement_id, process_task_id, status, created_at)
-      VALUES ('settlement-task-1', 'settlement-1', 'task-1', 'confirmed', '2026-09-08T00:00:00.000Z')
+      INSERT INTO work_time_reviews (
+        id, worker_id, worked_on, process_type, approved_minutes, hourly_wage_cents_snapshot,
+        source_type, status, created_at, updated_at
+      ) VALUES ('review-1', 'worker-1', '2026-09-08', 'packing', 240, 2_000, 'manual_review', 'confirmed', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
     `
       )
       .run()
-    expect(() =>
-      database
-        .prepare(
-          `
-      INSERT INTO worker_settlement_tasks (id, settlement_id, process_task_id, status, created_at)
-      VALUES ('settlement-task-2', 'settlement-2', 'task-1', 'confirmed', '2026-09-08T00:00:00.000Z')
+    const insertTimedSource = database.prepare(
+      `
+      INSERT INTO worker_settlement_timed_sources (
+        id, settlement_id, work_time_review_id, process_type, occurred_on, approved_minutes,
+        hourly_wage_cents_snapshot, timed_wage_cents, commission_cents, status, created_at
+      ) VALUES (?, ?, 'review-1', 'packing', '2026-09-08', 240, 2_000, 8_000, 0, 'confirmed', '2026-09-08T00:00:00.000Z')
     `
-        )
-        .run()
-    ).toThrow()
+    )
+    insertTimedSource.run('timed-1', 'settlement-1')
+    expect(() => insertTimedSource.run('timed-2', 'settlement-2')).toThrow('UNIQUE')
 
     database
       .prepare(
         `
       INSERT INTO worker_deduction_records (
-        id, worker_id, process_task_id, unqualified_quantity, commission_deduction_cents,
-        wage_deduction_cents, glue_deduction_cents, total_deduction_cents, deducted_cents,
+        id, worker_id, process_task_id, unqualified_quantity, material_deduction_cents,
+        total_deduction_cents, deducted_cents,
         remaining_carryover_cents, status, created_at, updated_at
-      ) VALUES ('deduction-1', 'worker-1', 'task-1', 1, 300, 667, 50, 1_017, 0, 1_017, 'pending', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+      ) VALUES ('deduction-1', 'worker-1', 'task-1', 1, 50, 50, 0, 50, 'pending', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
     `
       )
       .run()
@@ -688,7 +425,7 @@ describe('V2 独立数据空间', () => {
         `
       INSERT INTO worker_settlement_deduction_allocations (
         id, settlement_id, deduction_record_id, allocated_cents, status, created_at
-      ) VALUES ('allocation-1', 'settlement-1', 'deduction-1', 1_017, 'confirmed', '2026-09-08T00:00:00.000Z')
+      ) VALUES ('allocation-1', 'settlement-1', 'deduction-1', 50, 'confirmed', '2026-09-08T00:00:00.000Z')
     `
       )
       .run()
@@ -698,7 +435,7 @@ describe('V2 独立数据空间', () => {
           `
       INSERT INTO worker_settlement_deduction_allocations (
         id, settlement_id, deduction_record_id, allocated_cents, status, created_at
-      ) VALUES ('allocation-2', 'settlement-2', 'deduction-1', 1_017, 'confirmed', '2026-09-08T00:00:00.000Z')
+      ) VALUES ('allocation-2', 'settlement-2', 'deduction-1', 50, 'confirmed', '2026-09-08T00:00:00.000Z')
     `
         )
         .run()
@@ -707,7 +444,7 @@ describe('V2 独立数据空间', () => {
       .prepare(
         `
       INSERT INTO worker_deduction_balances (id, worker_id, deduction_record_id, remaining_cents, status, created_at, updated_at)
-      VALUES ('balance-1', 'worker-1', 'deduction-1', 1_017, 'open', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+      VALUES ('balance-1', 'worker-1', 'deduction-1', 50, 'open', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
     `
       )
       .run()
@@ -716,7 +453,7 @@ describe('V2 独立数据空间', () => {
         .prepare(
           `
       INSERT INTO worker_deduction_balances (id, worker_id, deduction_record_id, remaining_cents, status, created_at, updated_at)
-      VALUES ('balance-duplicate', 'worker-1', 'deduction-1', 1_017, 'open', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+      VALUES ('balance-duplicate', 'worker-1', 'deduction-1', 50, 'open', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
     `
         )
         .run()
@@ -741,7 +478,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 17 })
+    ).toEqual({ version: 14 })
 
     database
       .prepare(

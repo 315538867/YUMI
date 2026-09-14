@@ -25,9 +25,29 @@ import type {
   V2ShipmentInput,
   V2ShipmentVoidInput
 } from './orders'
-import type { V2Product, V2ProductInput, V2ProductUpdateInput } from './products'
+import type {
+  V2Product,
+  V2ProductExpectedProfit,
+  V2ProductInput,
+  V2ProductUpdateInput
+} from './products'
 import type { V2StudioSettings, V2StudioSettingsUpdateInput } from './settings'
 import type { V2WorkbenchSnapshot } from './workbench'
+import type {
+  V2WorkTimeReview,
+  V2WorkTimeReviewInput,
+  V2WorkTimeReviewQuery,
+  V2WorkTimeReviewUpdateInput,
+  V2WorkTimeReviewVoidInput
+} from './work-time-reviews'
+import type {
+  V2ProductInventoryAdjustInput,
+  V2ProductInventoryAllocationResult,
+  V2ProductInventoryAllocateInput,
+  V2ProductInventorySummary,
+  V2ProductOpeningInput,
+  V2ProductStageInventoryEvent
+} from './product-inventory'
 import type {
   V2AdvancePayer,
   V2AdvancePayerCreateInput,
@@ -55,7 +75,6 @@ import type {
 } from './after-sales'
 import type {
   V2FulfillmentAdjustmentInput,
-  V2OpeningWipInput,
   V2OrderItemFulfillment,
   V2ProcessResult,
   V2ProcessResultInput,
@@ -68,6 +87,7 @@ import type {
 import type {
   V2Worker,
   V2WorkerCreateInput,
+  V2WorkerSettlementWorkTimeAdjustmentInput,
   V2WorkerSettlementDetail,
   V2WorkerSettlementCreateInput,
   V2WorkerSettlementDraftUpdateInput,
@@ -113,6 +133,8 @@ export interface V2YumiApi {
     list(includeDisabled?: boolean): Promise<V2Product[]>
     create(input: V2ProductInput): Promise<V2Product>
     update(input: V2ProductUpdateInput): Promise<V2Product>
+    /** 读取主进程基于当前商品与全局设置计算的权威预计盈利。 */
+    getExpectedProfit(productId: string): Promise<V2ProductExpectedProfit | null>
   }
   orders: {
     list(): Promise<V2OrderSummary[]>
@@ -155,9 +177,25 @@ export interface V2YumiApi {
       resultId: string,
       input: V2QualityInspectionInput
     ): Promise<V2QualityInspection>
-    recordOpeningWip(input: V2OpeningWipInput): Promise<V2OrderItemFulfillment>
     adjustStageQuantity(input: V2FulfillmentAdjustmentInput): Promise<V2OrderItemFulfillment>
     getOrderItem(orderItemId: string): Promise<V2OrderItemFulfillment>
+  }
+  workTimeReviews: {
+    list(query?: V2WorkTimeReviewQuery): Promise<V2WorkTimeReview[]>
+    get(id: string): Promise<V2WorkTimeReview | null>
+    createDraft(input: V2WorkTimeReviewInput): Promise<V2WorkTimeReview>
+    updateDraft(input: V2WorkTimeReviewUpdateInput): Promise<V2WorkTimeReview>
+    confirm(id: string): Promise<V2WorkTimeReview>
+    void(id: string, input: V2WorkTimeReviewVoidInput): Promise<V2WorkTimeReview>
+  }
+  productInventory: {
+    getSummary(productId: string): Promise<V2ProductInventorySummary>
+    listEvents(productId: string): Promise<V2ProductStageInventoryEvent[]>
+    recordOpening(input: V2ProductOpeningInput): Promise<V2ProductInventorySummary>
+    adjust(input: V2ProductInventoryAdjustInput): Promise<V2ProductInventorySummary>
+    allocateToOrder(
+      input: V2ProductInventoryAllocateInput
+    ): Promise<V2ProductInventoryAllocationResult>
   }
   workers: {
     list(): Promise<V2Worker[]>
@@ -174,6 +212,10 @@ export interface V2YumiApi {
       input: V2WorkerSettlementDraftUpdateInput
     ): Promise<V2WorkerSettlementDetail>
     confirm(id: string): Promise<V2WorkerSettlementDetail>
+    addWorkTimeAdjustment(
+      id: string,
+      input: V2WorkerSettlementWorkTimeAdjustmentInput
+    ): Promise<V2WorkerSettlementDetail>
     listRefunds(query?: V2WorkerRefundQuery): Promise<V2WorkerRefundRecord[]>
     resolveRefund(id: string, input: V2WorkerRefundResolveInput): Promise<V2WorkerRefundRecord>
   }

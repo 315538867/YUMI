@@ -26,6 +26,7 @@ describe('registerV2Ipc', () => {
       listProducts: vi.fn(() => []),
       createProduct: vi.fn(),
       updateProduct: vi.fn(),
+      getProductExpectedProfit: vi.fn(() => null),
       listOrders: vi.fn(() => []),
       getOrder: vi.fn(),
       createOrder: vi.fn(),
@@ -39,7 +40,7 @@ describe('registerV2Ipc', () => {
     }
     const studioSettings = {
       get: vi.fn(() => ({
-        gluePriceMicroYuanPerGram: 3_400,
+        materialPriceMicroYuanPerGram: 3_400,
         orderReservedDays: 2,
         updatedAt: null
       })),
@@ -52,6 +53,21 @@ describe('registerV2Ipc', () => {
         firstUseGuide: null,
         generatedOn: '2026-09-08'
       }))
+    }
+    const workTimeReviews = {
+      listReviews: vi.fn(() => []),
+      getReview: vi.fn(),
+      createDraft: vi.fn(),
+      updateDraft: vi.fn(),
+      confirm: vi.fn(),
+      void: vi.fn()
+    }
+    const productInventory = {
+      getSummary: vi.fn(),
+      listEvents: vi.fn(),
+      recordOpening: vi.fn(),
+      adjust: vi.fn(),
+      allocateToOrder: vi.fn()
     }
     const fulfillment = {
       createWorkAssignment: vi.fn(),
@@ -132,6 +148,8 @@ describe('registerV2Ipc', () => {
       studioSettings as never,
       workbench as never,
       fulfillment as never,
+      productInventory as never,
+      workTimeReviews as never,
       settlement as never,
       finance as never,
       afterSales as never,
@@ -149,6 +167,7 @@ describe('registerV2Ipc', () => {
         'v2:studio-settings:update',
         'v2:customers:list',
         'v2:products:create',
+        'v2:products:expected-profit',
         'v2:orders:create',
         'v2:orders:change-content',
         'v2:orders:funds:list',
@@ -166,8 +185,14 @@ describe('registerV2Ipc', () => {
         'v2:fulfillment:tasks:result:get',
         'v2:fulfillment:results:submit',
         'v2:fulfillment:inspections:confirm',
-        'v2:fulfillment:opening-wip:record',
         'v2:fulfillment:adjustments:create',
+        'v2:product-inventory:summary:get',
+        'v2:product-inventory:opening:record',
+        'v2:product-inventory:allocations:create',
+        'v2:work-time-reviews:list',
+        'v2:work-time-reviews:drafts:create',
+        'v2:work-time-reviews:confirm',
+        'v2:work-time-reviews:void',
         'v2:fulfillment:order-item:get',
         'v2:workers:list',
         'v2:workers:create',
@@ -207,8 +232,9 @@ describe('registerV2Ipc', () => {
     await handlers.get('v2:workbench:get')!(undefined)
     await handlers.get('v2:studio-settings:get')!(undefined)
     await handlers.get('v2:studio-settings:update')!(undefined, {
-      gluePriceMicroYuanPerGram: 3_400
+      materialPriceMicroYuanPerGram: 3_400
     })
+    await handlers.get('v2:products:expected-profit')!(undefined, 'product-1')
     await handlers.get('v2:orders:change-content')!(undefined, 'order-1', { description: '加封边' })
     await handlers.get('v2:orders:funds:list')!(undefined, 'order-1')
     await handlers.get('v2:orders:record-fund')!(undefined, 'order-1', { amountCents: 100 })
@@ -223,7 +249,26 @@ describe('registerV2Ipc', () => {
     await handlers.get('v2:fulfillment:inspections:confirm')!(undefined, 'result-1', {
       qualifiedQuantity: 3
     })
-    await handlers.get('v2:fulfillment:opening-wip:record')!(undefined, {
+    await handlers.get('v2:work-time-reviews:list')!(undefined, { workerId: 'worker-1' })
+    await handlers.get('v2:work-time-reviews:drafts:create')!(undefined, {
+      workerId: 'worker-1',
+      workedOn: '2026-09-14',
+      processType: 'fluffing_bagging',
+      approvedMinutes: 120,
+      assignmentIds: ['assignment-1'],
+      items: [{ processTaskId: 'task-1', completedQuantity: 20 }]
+    })
+    await handlers.get('v2:work-time-reviews:confirm')!(undefined, 'review-1')
+    await handlers.get('v2:work-time-reviews:void')!(undefined, 'review-1', { reason: '录错' })
+    await handlers.get('v2:product-inventory:summary:get')!(undefined, 'product-1')
+    await handlers.get('v2:product-inventory:opening:record')!(undefined, {
+      productId: 'product-1',
+      stage: 'made',
+      quantity: 3
+    })
+    await handlers.get('v2:product-inventory:allocations:create')!(undefined, {
+      productId: 'product-1',
+      stage: 'made',
       orderItemId: 'item-1',
       quantity: 3
     })
@@ -276,7 +321,8 @@ describe('registerV2Ipc', () => {
     await handlers.get('v2:reports:export:shipping-list')!(undefined)
     expect(workbench.getSnapshot).toHaveBeenCalledTimes(1)
     expect(studioSettings.get).toHaveBeenCalledTimes(1)
-    expect(studioSettings.update).toHaveBeenCalledWith({ gluePriceMicroYuanPerGram: 3_400 })
+    expect(studioSettings.update).toHaveBeenCalledWith({ materialPriceMicroYuanPerGram: 3_400 })
+    expect(service.getProductExpectedProfit).toHaveBeenCalledWith('product-1')
     expect(service.changeOrderContent).toHaveBeenCalledWith('order-1', { description: '加封边' })
     expect(service.listOrderFunds).toHaveBeenCalledWith('order-1')
     expect(service.recordOrderFund).toHaveBeenCalledWith('order-1', { amountCents: 100 })
@@ -289,7 +335,26 @@ describe('registerV2Ipc', () => {
     expect(fulfillment.confirmQualityInspection).toHaveBeenCalledWith('result-1', {
       qualifiedQuantity: 3
     })
-    expect(fulfillment.recordOpeningWip).toHaveBeenCalledWith({
+    expect(workTimeReviews.listReviews).toHaveBeenCalledWith({ workerId: 'worker-1' })
+    expect(workTimeReviews.createDraft).toHaveBeenCalledWith({
+      workerId: 'worker-1',
+      workedOn: '2026-09-14',
+      processType: 'fluffing_bagging',
+      approvedMinutes: 120,
+      assignmentIds: ['assignment-1'],
+      items: [{ processTaskId: 'task-1', completedQuantity: 20 }]
+    })
+    expect(workTimeReviews.confirm).toHaveBeenCalledWith('review-1')
+    expect(workTimeReviews.void).toHaveBeenCalledWith('review-1', { reason: '录错' })
+    expect(productInventory.getSummary).toHaveBeenCalledWith('product-1')
+    expect(productInventory.recordOpening).toHaveBeenCalledWith({
+      productId: 'product-1',
+      stage: 'made',
+      quantity: 3
+    })
+    expect(productInventory.allocateToOrder).toHaveBeenCalledWith({
+      productId: 'product-1',
+      stage: 'made',
       orderItemId: 'item-1',
       quantity: 3
     })

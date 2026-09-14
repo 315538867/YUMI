@@ -19,7 +19,15 @@ const fulfillmentRows = [
     orderItemId: 'item-making',
     productName: '草莓捏捏',
     confirmedQuantity: 100,
-    stages: { making: 100, fluffingBagging: 0, packing: 0, readyToShip: 0, shipped: 0 }
+    stages: {
+      making: 100,
+      fluffingBagging: 0,
+      edgeSewing: 0,
+      packing: 0,
+      readyToShip: 0,
+      shipped: 0,
+      edgeSewingRouted: 0
+    }
   },
   {
     orderId: 'order-1',
@@ -27,7 +35,15 @@ const fulfillmentRows = [
     orderItemId: 'item-packing',
     productName: '云朵捏捏',
     confirmedQuantity: 12,
-    stages: { making: 0, fluffingBagging: 0, packing: 7, readyToShip: 5, shipped: 0 }
+    stages: {
+      making: 0,
+      fluffingBagging: 0,
+      edgeSewing: 0,
+      packing: 7,
+      readyToShip: 5,
+      shipped: 0,
+      edgeSewingRouted: 0
+    }
   },
   {
     orderId: 'order-2',
@@ -35,7 +51,15 @@ const fulfillmentRows = [
     orderItemId: 'item-done',
     productName: '星星捏捏',
     confirmedQuantity: 8,
-    stages: { making: 0, fluffingBagging: 0, packing: 0, readyToShip: 0, shipped: 8 }
+    stages: {
+      making: 0,
+      fluffingBagging: 0,
+      edgeSewing: 0,
+      packing: 0,
+      readyToShip: 0,
+      shipped: 8,
+      edgeSewingRouted: 0
+    }
   }
 ]
 
@@ -48,14 +72,16 @@ describe('buildFulfillmentQueue', () => {
     expect(queue[1]).toMatchObject({
       orderCode: 'DD-001',
       customerName: '小满',
-      outstandingQuantity: 12
+      outstandingQuantity: 7
     })
     expect(queue[1].stages).toEqual({
       making: 0,
       fluffingBagging: 0,
+      edgeSewing: 0,
       packing: 7,
       readyToShip: 5,
-      shipped: 0
+      shipped: 0,
+      edgeSewingRouted: 0
     })
   })
 
@@ -148,19 +174,51 @@ describe('filterFulfillmentQueue', () => {
   const queue = [
     {
       orderItemId: 'making',
-      stages: { making: 8, fluffingBagging: 0, packing: 0, readyToShip: 0, shipped: 0 }
+      stages: {
+        making: 8,
+        fluffingBagging: 0,
+        edgeSewing: 0,
+        packing: 0,
+        readyToShip: 0,
+        shipped: 0,
+        edgeSewingRouted: 0
+      }
     },
     {
       orderItemId: 'fluffing',
-      stages: { making: 0, fluffingBagging: 6, packing: 0, readyToShip: 0, shipped: 0 }
+      stages: {
+        making: 0,
+        fluffingBagging: 6,
+        edgeSewing: 0,
+        packing: 0,
+        readyToShip: 0,
+        shipped: 0,
+        edgeSewingRouted: 0
+      }
     },
     {
       orderItemId: 'packing',
-      stages: { making: 0, fluffingBagging: 0, packing: 4, readyToShip: 0, shipped: 0 }
+      stages: {
+        making: 0,
+        fluffingBagging: 0,
+        edgeSewing: 0,
+        packing: 4,
+        readyToShip: 0,
+        shipped: 0,
+        edgeSewingRouted: 0
+      }
     },
     {
-      orderItemId: 'shipment',
-      stages: { making: 0, fluffingBagging: 0, packing: 0, readyToShip: 2, shipped: 0 }
+      orderItemId: 'edge',
+      stages: {
+        making: 0,
+        fluffingBagging: 0,
+        edgeSewing: 2,
+        packing: 0,
+        readyToShip: 0,
+        shipped: 0,
+        edgeSewingRouted: 2
+      }
     }
   ]
 
@@ -169,7 +227,7 @@ describe('filterFulfillmentQueue', () => {
       'making',
       'fluffing',
       'packing',
-      'shipment'
+      'edge'
     ])
     expect(
       filterFulfillmentQueue(queue as never, 'making').map((item) => item.orderItemId)
@@ -181,8 +239,8 @@ describe('filterFulfillmentQueue', () => {
       filterFulfillmentQueue(queue as never, 'packing').map((item) => item.orderItemId)
     ).toEqual(['packing'])
     expect(
-      filterFulfillmentQueue(queue as never, 'ready_to_ship').map((item) => item.orderItemId)
-    ).toEqual(['shipment'])
+      filterFulfillmentQueue(queue as never, 'edge_sewing').map((item) => item.orderItemId)
+    ).toEqual(['edge'])
   })
 
   it('用待派件数而不是订单商品行数作为阶段筛选计数', () => {
@@ -212,7 +270,7 @@ describe('filterFulfillmentQueue', () => {
 
     expect(getFulfillmentQueueStageUnassignedQuantity(queueWithSchedules[0], 'making')).toBe(40)
     expect(getFulfillmentQueueFilterCount(queueWithSchedules, 'making')).toBe(40)
-    expect(getFulfillmentQueueFilterCount(queueWithSchedules, 'all')).toBe(52)
+    expect(getFulfillmentQueueFilterCount(queueWithSchedules, 'all')).toBe(47)
   })
 })
 
@@ -242,13 +300,13 @@ describe('getWorkerWeekTasks', () => {
           id: 'assignment-2',
           workerId: 'worker-li',
           assignedOn: '2026-09-13',
-          processType: 'packing',
+          processType: 'making',
           status: 'scheduled',
           tasks: [
             {
               id: 'task-sunday',
               orderItemId: 'item-packing',
-              processType: 'packing',
+              processType: 'making',
               plannedQuantity: 4,
               status: 'pending_inspection'
             }
@@ -258,13 +316,13 @@ describe('getWorkerWeekTasks', () => {
           id: 'assignment-3',
           workerId: 'worker-li',
           assignedOn: '2026-09-14',
-          processType: 'packing',
+          processType: 'making',
           status: 'scheduled',
           tasks: [
             {
               id: 'task-next-week',
               orderItemId: 'item-packing',
-              processType: 'packing',
+              processType: 'making',
               plannedQuantity: 4,
               status: 'pending_inspection'
             }

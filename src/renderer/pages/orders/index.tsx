@@ -16,6 +16,12 @@ import type {
   V2OrderBusinessDetail
 } from '@shared/contracts/index'
 import {
+  calculateOrderItemAmounts,
+  createOrderAmountCalculation,
+  type OrderAmountSummaryInput,
+  type OrderItemAmountInput
+} from '@shared/calculations'
+import {
   centsToYuan,
   formatCents,
   getErrorMessage,
@@ -99,15 +105,9 @@ const itemToDraft = (item: V2OrderItem): OrderLineDraft => ({
   itemDiscount: centsToYuan(item.itemDiscountCents ?? 0)
 })
 
-interface OrderDraftAmountSummary {
-  itemAndEdgeCents: number
-  itemDiscountCents: number
-  orderDiscountCents: number
-  orderAmountCents: number
-}
-
 /**
  * 编辑过程允许暂存未完成的输入；预览只在输入可解析时参与计算，最终金额仍由主进程领域校验确认。
+ * 预览本身不重复求和：行金额与订单金额一律委托共享订单公式。
  */
 function previewCents(value: string): number {
   if (!value.trim()) return 0
@@ -123,30 +123,38 @@ function previewQuantity(value: string): number {
   return Number.isFinite(quantity) ? Math.max(Math.round(quantity), 0) : 0
 }
 
-function summarizeDraftOrderAmount(
+/** 将可含未完成输入的草稿裁剪成共享公式可接受的原始字段。 */
+function toDraftAmountInput(
   lines: readonly OrderLineDraft[],
   orderDiscount: string
-): OrderDraftAmountSummary {
-  const lineSummary = lines.reduce(
-    (summary, line) => {
-      const quantity = previewQuantity(line.quantity)
-      const itemCents = quantity * previewCents(line.unitPrice)
-      const edgeCents = line.edgeEnabled
-        ? previewQuantity(line.edgeQuantity) * previewCents(line.edgeUnitPrice)
-        : 0
-      return {
-        itemAndEdgeCents: summary.itemAndEdgeCents + itemCents + edgeCents,
-        itemDiscountCents: summary.itemDiscountCents + previewCents(line.itemDiscount)
-      }
-    },
-    { itemAndEdgeCents: 0, itemDiscountCents: 0 }
-  )
-  const orderDiscountCents = previewCents(orderDiscount)
+): OrderAmountSummaryInput | null {
+  const items: OrderItemAmountInput[] = []
+  let lineTotalCents = 0
+  for (const line of lines) {
+    const quantity = previewQuantity(line.quantity)
+    if (quantity <= 0) continue
+    const unitPriceCents = previewCents(line.unitPrice)
+    const edgeQuantity = line.edgeEnabled
+      ? Math.min(previewQuantity(line.edgeQuantity), quantity)
+      : 0
+    const edge: OrderItemAmountInput['edge'] =
+      edgeQuantity > 0
+        ? {
+            enabled: true,
+            quantity: edgeQuantity,
+            unitPriceCents: previewCents(line.edgeUnitPrice)
+          }
+        : undefined
+    const lineSummary = calculateOrderItemAmounts({ quantity, unitPriceCents, edge })
+    const grossCents = lineSummary.itemAmountCents + lineSummary.edgeAmountCents
+    const itemDiscountCents = Math.min(previewCents(line.itemDiscount), grossCents)
+    items.push({ quantity, unitPriceCents, edge, itemDiscountCents })
+    lineTotalCents += grossCents - itemDiscountCents
+  }
+  if (!items.length) return null
   return {
-    ...lineSummary,
-    orderDiscountCents,
-    orderAmountCents:
-      lineSummary.itemAndEdgeCents - lineSummary.itemDiscountCents - orderDiscountCents
+    items,
+    orderDiscountCents: Math.min(previewCents(orderDiscount), lineTotalCents)
   }
 }
 
@@ -161,23 +169,35 @@ function OrderAmountPreview({
   lines: readonly OrderLineDraft[]
   orderDiscount: string
 }) {
-  const summary = summarizeDraftOrderAmount(lines, orderDiscount)
+  const input = toDraftAmountInput(lines, orderDiscount)
+  const calculation = input ? createOrderAmountCalculation(input) : null
   return (
     <YumiMetricStrip
       ariaLabel="订单金额预览"
       items={[
-        { label: '商品与缝边小计', value: formatCents(summary.itemAndEdgeCents) },
+        {
+          label: '商品与缝边小计',
+          note: calculation?.itemAndEdge.expression,
+          value: formatCents(calculation?.itemAndEdge.amountCents ?? 0)
+        },
         {
           label: '明细优惠',
+          note: calculation?.itemDiscount.expression,
           tone: 'warning',
-          value: formatDiscountCents(summary.itemDiscountCents)
+          value: formatDiscountCents(calculation?.itemDiscount.amountCents ?? 0)
         },
         {
           label: '订单优惠',
+          note: calculation?.orderDiscount.expression,
           tone: 'warning',
-          value: formatDiscountCents(summary.orderDiscountCents)
+          value: formatDiscountCents(calculation?.orderDiscount.amountCents ?? 0)
         },
-        { label: '预计订单金额', tone: 'brand', value: formatCents(summary.orderAmountCents) }
+        {
+          label: '预计订单金额',
+          note: calculation?.orderAmount.expression,
+          tone: 'brand',
+          value: formatCents(calculation?.orderAmount.amountCents ?? 0)
+        }
       ]}
     />
   )
@@ -215,14 +235,12 @@ const toQuickProductInput = (draft: QuickProductDraft): V2ProductInput => ({
   code: null,
   category: null,
   basePriceCents: yuanToCents(draft.basePrice),
-  materialCostCents: 0,
   packagingCostCents: 0,
   accessoryCostCents: 0,
   replacementBagCostCents: 0,
-  internalEdgeCostCents: 0,
+  edgeConsumableCostCents: 0,
   standardMakingMinutes: 0,
   makingCommissionCents: 0,
-  makingGlueCostCents: 0,
   notes: null
 })
 
@@ -1648,18 +1666,18 @@ function OrderProfitPanel({
       </section>
 
       <YumiSnapshotNotice title="核算边界">
-        仅呈现订单冻结商品快照、订单资金和已确认售后成本；运费、兼职时薪、制作与捏毛装袋提成尚未建立订单级归属或分摊规则，因此不会估算或平均摊入。
+        仅呈现订单冻结商品快照、订单资金和已确认售后成本；同一工序时段可处理多个商品，系统不把实际计时工资按数量或预计分钟分摊为订单实际成本，因此这里只展示预计口径和明确可归属金额。
       </YumiSnapshotNotice>
 
       <YumiSection
-        description="仅展示后端已确认的订单商品快照与售后成本，不对未建立归属的成本作推算。"
-        title="已知成本构成"
+        description="按订单商品快照展示预计直接成本与已确认售后成本；实际计时工资无法唯一归属到单个订单商品，不作分摊。"
+        title="预计成本构成"
       >
-        <dl aria-label="已知成本构成明细" className="yumi-order-profit-costs">
+        <dl aria-label="预计成本构成明细" className="yumi-order-profit-costs">
           <div>
-            <dt>已知商品直接成本</dt>
+            <dt>预计商品直接成本</dt>
             <dd>{formatCents(summary.productCostCents)}</dd>
-            <small>按订单冻结商品快照计算</small>
+            <small>按订单冻结商品快照与当前预计基准时薪计算</small>
           </div>
           <div>
             <dt>售后成本</dt>
@@ -1667,16 +1685,16 @@ function OrderProfitPanel({
             <small>已确认售后核算成本</small>
           </div>
           <div>
-            <dt>人工及其他</dt>
-            <dd className="yumi-order-profit-costs__pending">待分摊</dd>
-            <small>暂不计入已知成本</small>
+            <dt>实际计时人工</dt>
+            <dd className="yumi-order-profit-costs__pending">不分摊</dd>
+            <small>同一工时处理多个商品时无法唯一归属</small>
           </div>
         </dl>
       </YumiSection>
 
       <YumiSection
-        description="按商品行展示订单收入、冻结成本与已知毛利；订单级优惠与金额调整不强行分摊到商品行。"
-        title="商品盈利明细"
+        description="按商品行展示订单收入、快照预计成本与已知毛利，并展示每件缝边预计增量利润；订单级优惠与金额调整不强行分摊到商品行。"
+        title="商品预计盈利明细"
       >
         <YumiDataTable
           ariaLabel="商品盈利明细"
@@ -1691,9 +1709,18 @@ function OrderProfitPanel({
             },
             {
               key: 'productCostCents',
-              label: '冻结成本',
+              label: '预计直接成本',
               align: 'right',
               render: (item) => formatCents(item.productCostCents)
+            },
+            {
+              key: 'expectedEdgeIncrementalProfitCents',
+              label: '缝边预计增量利润 / 件',
+              align: 'right',
+              render: (item) =>
+                item.expectedEdgeIncrementalProfitCents === 0
+                  ? '—'
+                  : formatCents(item.expectedEdgeIncrementalProfitCents)
             },
             {
               key: 'knownGrossMarginCents',
@@ -1996,8 +2023,9 @@ function OrderDetail(props: {
   const scheduleStages = [
     { stage: 'making', label: '制作', fulfillmentKey: 'making' },
     { stage: 'fluffing_bagging', label: '捏毛装袋', fulfillmentKey: 'fluffingBagging' },
-    { stage: 'packing', label: '打包', fulfillmentKey: 'packing' },
-    { stage: 'shipping', label: '待发货', fulfillmentKey: 'readyToShip' }
+    { stage: 'edge_sewing', label: '缝边', fulfillmentKey: 'edgeSewing' },
+    { stage: 'packing', label: '打包发货', fulfillmentKey: 'packing' },
+    { stage: 'ready_to_ship', label: '待发货', fulfillmentKey: 'readyToShip' }
   ] as const
   const assignedTaskRows = (props.orderSchedule?.assignments ?? [])
     .filter((assignment) => assignment.status !== 'cancelled')

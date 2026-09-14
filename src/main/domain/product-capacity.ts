@@ -1,12 +1,9 @@
 import Decimal from 'decimal.js'
 import { DomainValidationError } from './errors'
 
-const BASIS_POINTS_PER_RATE = 10_000
-
 export interface MaterialRequirementInput {
   quantity: number
   unitWeightMilligrams: number
-  materialLossRateBasisPoints: number
 }
 
 export interface MoldCapacityInput {
@@ -17,7 +14,6 @@ export interface MoldCapacityInput {
 
 export interface ProductMaterialAndCapacityInput extends MoldCapacityInput {
   unitWeightMilligrams: number
-  materialLossRateBasisPoints: number
 }
 
 function requireNonNegativeInteger(value: number, label: string): void {
@@ -34,10 +30,6 @@ function requirePositiveInteger(value: number, label: string): void {
 
 export function validateProductMaterialAndCapacity(input: ProductMaterialAndCapacityInput): void {
   requireNonNegativeInteger(input.unitWeightMilligrams, '单件材料重量')
-  requireNonNegativeInteger(input.materialLossRateBasisPoints, '损耗率')
-  if (input.materialLossRateBasisPoints >= BASIS_POINTS_PER_RATE) {
-    throw new DomainValidationError('损耗率必须小于 100%')
-  }
   const capacityValues = [input.moldCount, input.outputPerMoldPerBatch, input.maxBatchesPerDay]
   if (capacityValues.some((value) => value > 0)) {
     requirePositiveInteger(input.moldCount, '模具数量')
@@ -66,18 +58,11 @@ export function calculateDailyMoldCapacity(input: MoldCapacityInput): number {
   return capacity.toNumber()
 }
 
+/** 单件材料重量同时表示实际使用量和成品材料重量，用量等于数量乘单件重量。 */
 export function calculateMaterialRequirementMilligrams(input: MaterialRequirementInput): number {
   requirePositiveInteger(input.quantity, '商品数量')
   requireNonNegativeInteger(input.unitWeightMilligrams, '单件材料重量')
-  requireNonNegativeInteger(input.materialLossRateBasisPoints, '损耗率')
-  if (input.materialLossRateBasisPoints >= BASIS_POINTS_PER_RATE) {
-    throw new DomainValidationError('损耗率必须小于 100%')
-  }
-  const requirement = new Decimal(input.quantity)
-    .times(input.unitWeightMilligrams)
-    .times(BASIS_POINTS_PER_RATE + input.materialLossRateBasisPoints)
-    .div(BASIS_POINTS_PER_RATE)
-    .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
+  const requirement = new Decimal(input.quantity).times(input.unitWeightMilligrams)
   if (requirement.gt(Number.MAX_SAFE_INTEGER)) {
     throw new DomainValidationError('预计材料用量超出安全范围')
   }

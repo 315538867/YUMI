@@ -15,6 +15,56 @@ afterEach(() => {
 })
 
 describe('V2 报表服务', () => {
+  it('订单成本详情展示快照预计成本与每件缝边预计增量利润，不分摊实际计时工资', () => {
+    const database = createV2Database(':memory:')
+    databases.push(database)
+    const orders = new V2OrderService(new V2OrderRepository(database))
+    const reports = new ReportService(database, {
+      get: () => ({
+        materialPriceMicroYuanPerGram: 0,
+        orderReservedDays: 2,
+        fluffingBaggingExpectedHourlyWageCents: 0,
+        edgeSewingExpectedHourlyWageCents: 0,
+        packingExpectedHourlyWageCents: 0,
+        updatedAt: null
+      })
+    })
+    const product = orders.createProduct({
+      name: '缝边成本商品',
+      basePriceCents: 1_000,
+      packagingCostCents: 0,
+      accessoryCostCents: 0,
+      replacementBagCostCents: 0,
+      edgeConsumableCostCents: 80,
+      edgeSewingCommissionCents: 40,
+      expectedEdgeSewingMinutes: 10,
+      standardMakingMinutes: 10,
+      makingCommissionCents: 0
+    })
+    const order = orders.createOrder({
+      customer: { name: '客户 B' },
+      items: [
+        {
+          productId: product.id,
+          quantity: 2,
+          unitPriceCents: 500,
+          edge: { enabled: true, quantity: 2, unitPriceCents: 300 }
+        }
+      ]
+    })
+
+    const detail = reports.getOrderBusinessDetail(order.id)!
+    const item = detail.items[0]!
+    // 每件缝边预计增加成本 = 缝边耗材 80 + 缝边提成 40 + 预计缝边计时 0
+    expect(item.expectedEdgeIncrementalCostCents).toBe(120)
+    // 每件缝边预计增量利润 = 缝边对客单价 300 − 预计增加成本 120
+    expect(item.expectedEdgeIncrementalProfitCents).toBe(180)
+    // 预计直接成本只含材料、包装、配饰、替换袋、固定成本与缝边耗材，不含任何计时人工。
+    expect(item.productCostCents).toBe(160)
+    expect(item.knownGrossMarginCents).toBe(1_600 - 160)
+    expect(detail.summary.productCostCents).toBe(160)
+  })
+
   it('只根据 V2 已落库事实汇总订单核算、履约和已确认工资', () => {
     const database = createV2Database(':memory:')
     databases.push(database)
@@ -27,14 +77,12 @@ describe('V2 报表服务', () => {
     const product = orders.createProduct({
       name: '草莓小熊',
       basePriceCents: 600,
-      materialCostCents: 100,
       packagingCostCents: 20,
       accessoryCostCents: 30,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
-      makingCommissionCents: 40,
-      makingGlueCostCents: 5
+      makingCommissionCents: 40
     })
     const order = orders.createOrder({
       customer: { name: '客户 A' },
@@ -60,8 +108,9 @@ describe('V2 报表服务', () => {
       accountingCostCents: 80,
       status: 'processing'
     })
-    fulfillment.recordOpeningWip({
+    fulfillment.adjustStageQuantity({
       orderItemId: order.items[0].id,
+      sourceStage: 'making',
       targetStage: 'ready_to_ship',
       quantity: 1,
       occurredOn: '2026-09-05',
@@ -106,11 +155,11 @@ describe('V2 报表服务', () => {
     database
       .prepare(
         `INSERT INTO worker_settlements (
-      id, worker_id, period_start_on, period_end_on, status, scheduled_minutes, attendance_minutes, attendance_note,
-      scheduled_reference_wage_cents, attendance_reference_wage_cents, qualified_commission_cents,
+      id, worker_id, period_start_on, period_end_on, status, timed_wage_cents, commission_cents,
+      material_deduction_cents, adjustment_cents, candidate_wage_cents,
       current_deduction_cents, carried_deduction_cents, actual_deduction_cents, continuing_carryover_cents,
       other_adjustment_cents, final_paid_amount_cents, paid_on, manager_note, financial_entry_id, created_at, updated_at
-    ) VALUES (?, ?, '2026-09-08', '2026-09-14', 'draft', 0, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, ?, ?)`
+    ) VALUES (?, ?, '2026-09-08', '2026-09-14', 'draft', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, ?, ?)`
       )
       .run(draftId, worker.id, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
 
@@ -159,7 +208,15 @@ describe('V2 报表服务', () => {
           orderId: order.id,
           orderItemId: order.items[0].id,
           confirmedQuantity: 2,
-          stages: { making: 0, fluffingBagging: 1, packing: 0, readyToShip: 1, shipped: 0 }
+          stages: {
+            making: 0,
+            fluffingBagging: 1,
+            edgeSewing: 0,
+            packing: 0,
+            readyToShip: 1,
+            shipped: 0,
+            edgeSewingRouted: 0
+          }
         })
       ]
     })
@@ -191,14 +248,12 @@ describe('V2 报表服务', () => {
     const product = orders.createProduct({
       name: '同日流转测试产品',
       basePriceCents: 100,
-      materialCostCents: 10,
       packagingCostCents: 5,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
-      makingCommissionCents: 10,
-      makingGlueCostCents: 0
+      makingCommissionCents: 10
     })
     const order = orders.createOrder({
       customer: { name: '客户 B' },
@@ -213,7 +268,7 @@ describe('V2 报表服务', () => {
     insertEvent.run(
       'a-fluffing-second',
       itemId,
-      'fluffing_bagging_qualified',
+      'fluffing_bagging_completed',
       'fluffing_bagging',
       'packing'
     )
@@ -222,7 +277,15 @@ describe('V2 报表服务', () => {
     expect(reports.getFulfillmentProgress().rows).toEqual([
       expect.objectContaining({
         orderItemId: itemId,
-        stages: { making: 0, fluffingBagging: 0, packing: 0, readyToShip: 1, shipped: 0 }
+        stages: {
+          making: 0,
+          fluffingBagging: 0,
+          edgeSewing: 0,
+          packing: 0,
+          readyToShip: 1,
+          shipped: 0,
+          edgeSewingRouted: 0
+        }
       })
     ])
   })
@@ -236,20 +299,18 @@ describe('V2 报表服务', () => {
     const product = orders.createProduct({
       name: '预览快照云朵',
       basePriceCents: 1_000,
-      materialCostCents: 0,
       packagingCostCents: 0,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
-      makingCommissionCents: 0,
-      makingGlueCostCents: 0
+      makingCommissionCents: 0
     })
     const order = orders.createOrder({
       customer: { name: '预览客户', contact: '微信 preview', defaultAddress: '上海市' },
       items: [{ productId: product.id, quantity: 2, unitPriceCents: 1_000 }]
     })
-    fulfillment.recordOpeningWip({
+    fulfillment.adjustStageQuantity({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
       quantity: 2,
@@ -297,21 +358,19 @@ describe('V2 报表服务', () => {
     const product = orders.createProduct({
       name: '快照云朵',
       basePriceCents: 1_000,
-      materialCostCents: 100,
       packagingCostCents: 20,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
-      makingCommissionCents: 20,
-      makingGlueCostCents: 0
+      makingCommissionCents: 20
     })
     const order = orders.createOrder({
       customer: { name: '小雨', contact: '微信 yumi', defaultAddress: '上海市静安区' },
       expectedShipDate: '2026-09-12',
       items: [{ productId: product.id, quantity: 3, unitPriceCents: 1_000 }]
     })
-    fulfillment.recordOpeningWip({
+    fulfillment.adjustStageQuantity({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
       quantity: 3,
@@ -360,14 +419,12 @@ describe('订单与发货单导出事实', () => {
     const product = orders.createProduct({
       name: '导出云朵',
       basePriceCents: 1_990,
-      materialCostCents: 100,
       packagingCostCents: 0,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
       makingCommissionCents: 0,
-      makingGlueCostCents: 0,
       imageAttachmentId: 'image-1',
       notes: '奶油白'
     })
@@ -386,7 +443,7 @@ describe('订单与发货单导出事实', () => {
         }
       ]
     })
-    fulfillment.recordOpeningWip({
+    fulfillment.adjustStageQuantity({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
       quantity: 2,
@@ -461,20 +518,18 @@ describe('订单与发货单导出事实', () => {
     const product = orders.createProduct({
       name: '作废批次云朵',
       basePriceCents: 1_000,
-      materialCostCents: 0,
       packagingCostCents: 0,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
-      makingCommissionCents: 0,
-      makingGlueCostCents: 0
+      makingCommissionCents: 0
     })
     const order = orders.createOrder({
       customer: { name: '小雨' },
       items: [{ productId: product.id, quantity: 2, unitPriceCents: 1_000 }]
     })
-    fulfillment.recordOpeningWip({
+    fulfillment.adjustStageQuantity({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
       quantity: 2,
@@ -555,14 +610,12 @@ describe('订单与发货单导出事实', () => {
     const product = orders.createProduct({
       name: '客户统计产品',
       basePriceCents: 1_000,
-      materialCostCents: 0,
       packagingCostCents: 0,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
-      makingCommissionCents: 0,
-      makingGlueCostCents: 0
+      makingCommissionCents: 0
     })
     const customerA = orders.createCustomer({ name: '客户 A' })
     const customerB = orders.createCustomer({ name: '客户 B' })
@@ -628,16 +681,13 @@ describe('V2 产能与交期风险报表', () => {
     const product = orders.createProduct({
       name: '产能风险产品',
       basePriceCents: 1_000,
-      materialCostCents: 0,
       packagingCostCents: 0,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
       makingCommissionCents: 0,
-      makingGlueCostCents: 0,
       unitWeightMilligrams: 100,
-      materialLossRateBasisPoints: 0,
       moldCount: 1,
       outputPerMoldPerBatch: 10,
       maxBatchesPerDay: 1
@@ -704,14 +754,12 @@ describe('V2 产能与交期风险报表', () => {
     const product = orders.createProduct({
       name: '交期风险产品',
       basePriceCents: 1_000,
-      materialCostCents: 0,
       packagingCostCents: 0,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
-      makingCommissionCents: 0,
-      makingGlueCostCents: 0
+      makingCommissionCents: 0
     })
     const overdue = orders.createOrder({
       customer: { name: '逾期客户' },
@@ -735,7 +783,7 @@ describe('V2 产能与交期风险报表', () => {
       reservedDays: 2,
       items: [{ productId: product.id, quantity: 1, unitPriceCents: 1_000 }]
     })
-    fulfillment.recordOpeningWip({
+    fulfillment.adjustStageQuantity({
       orderItemId: completed.items[0].id,
       targetStage: 'ready_to_ship',
       quantity: 1,

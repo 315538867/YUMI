@@ -29,14 +29,12 @@ describe('V2 订单核心链路', () => {
       code: 'NY-001',
       category: '水果',
       basePriceCents: 8_000,
-      materialCostCents: 1_500,
       packagingCostCents: 300,
       accessoryCostCents: 200,
       replacementBagCostCents: 50,
-      internalEdgeCostCents: 100,
+      edgeConsumableCostCents: 100,
       standardMakingMinutes: 15,
-      makingCommissionCents: 500,
-      makingGlueCostCents: 80
+      makingCommissionCents: 500
     })
     const order = service.createOrder({
       customerId: customer.id,
@@ -57,14 +55,12 @@ describe('V2 订单核心链路', () => {
       code: product.code,
       category: product.category,
       basePriceCents: 9_000,
-      materialCostCents: product.materialCostCents,
       packagingCostCents: product.packagingCostCents,
       accessoryCostCents: product.accessoryCostCents,
       replacementBagCostCents: product.replacementBagCostCents,
-      internalEdgeCostCents: product.internalEdgeCostCents,
+      edgeConsumableCostCents: product.edgeConsumableCostCents,
       standardMakingMinutes: product.standardMakingMinutes,
       makingCommissionCents: product.makingCommissionCents,
-      makingGlueCostCents: product.makingGlueCostCents,
       enabled: true
     })
     service.recordOrderFund(order.id, {
@@ -77,7 +73,7 @@ describe('V2 订单核心链路', () => {
       amountCents: 1_000,
       occurredOn: '2026-09-08'
     })
-    runtime.fulfillmentService.recordOpeningWip({
+    runtime.fulfillmentService.adjustStageQuantity({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
       quantity: 3,

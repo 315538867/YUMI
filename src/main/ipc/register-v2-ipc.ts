@@ -6,6 +6,8 @@ import type { V2OrderService } from '@main/services/v2-order-service'
 import type { StudioSettingsService } from '@main/services/studio-settings-service'
 import type { WorkbenchService } from '@main/services/workbench-service'
 import type { FulfillmentService } from '@main/services/fulfillment-service'
+import type { ProductInventoryService } from '@main/services/product-inventory-service'
+import type { WorkTimeReviewService } from '@main/services/work-time-review-service'
 import type { SettlementService } from '@main/services/settlement-service'
 import type { FinanceService } from '@main/services/finance-service'
 import type { AfterSalesService } from '@main/services/after-sales-service'
@@ -43,6 +45,8 @@ export function registerV2Ipc(
   studioSettings: StudioSettingsService,
   workbench: WorkbenchService,
   fulfillment: FulfillmentService,
+  productInventory: ProductInventoryService,
+  workTimeReviews: WorkTimeReviewService,
   settlement: SettlementService,
   finance: FinanceService,
   afterSales: AfterSalesService,
@@ -67,6 +71,9 @@ export function registerV2Ipc(
   )
   ipc.handle('v2:products:create', (_event, input) => service.createProduct(input as never))
   ipc.handle('v2:products:update', (_event, input) => service.updateProduct(input as never))
+  ipc.handle('v2:products:expected-profit', (_event, productId) =>
+    service.getProductExpectedProfit(String(productId))
+  )
 
   ipc.handle('v2:orders:list', () => service.listOrders())
   ipc.handle('v2:orders:get', (_event, orderId) => service.getOrder(orderId as string))
@@ -136,14 +143,42 @@ export function registerV2Ipc(
   ipc.handle('v2:fulfillment:inspections:confirm', (_event, resultId, input) =>
     fulfillment.confirmQualityInspection(resultId as string, input as never)
   )
-  ipc.handle('v2:fulfillment:opening-wip:record', (_event, input) =>
-    fulfillment.recordOpeningWip(input as never)
-  )
   ipc.handle('v2:fulfillment:adjustments:create', (_event, input) =>
     fulfillment.adjustStageQuantity(input as never)
   )
   ipc.handle('v2:fulfillment:order-item:get', (_event, orderItemId) =>
     fulfillment.getOrderItemFulfillment(orderItemId as string)
+  )
+
+  ipc.handle('v2:product-inventory:summary:get', (_event, productId) =>
+    productInventory.getSummary(productId as string)
+  )
+  ipc.handle('v2:product-inventory:events:list', (_event, productId) =>
+    productInventory.listEvents(productId as string)
+  )
+  ipc.handle('v2:product-inventory:opening:record', (_event, input) =>
+    productInventory.recordOpening(input as never)
+  )
+  ipc.handle('v2:product-inventory:adjustments:create', (_event, input) =>
+    productInventory.adjust(input as never)
+  )
+  ipc.handle('v2:product-inventory:allocations:create', (_event, input) =>
+    productInventory.allocateToOrder(input as never)
+  )
+
+  ipc.handle('v2:work-time-reviews:list', (_event, query) =>
+    workTimeReviews.listReviews(query as never)
+  )
+  ipc.handle('v2:work-time-reviews:get', (_event, id) => workTimeReviews.getReview(id as string))
+  ipc.handle('v2:work-time-reviews:drafts:create', (_event, input) =>
+    workTimeReviews.createDraft(input as never)
+  )
+  ipc.handle('v2:work-time-reviews:drafts:update', (_event, input) =>
+    workTimeReviews.updateDraft(input as never)
+  )
+  ipc.handle('v2:work-time-reviews:confirm', (_event, id) => workTimeReviews.confirm(id as string))
+  ipc.handle('v2:work-time-reviews:void', (_event, id, input) =>
+    workTimeReviews.void(id as string, input as never)
   )
 
   registerSettlementIpc(ipc, settlement)

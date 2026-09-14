@@ -12,6 +12,7 @@ import {
   yuanToCents
 } from '../../composables/v2-utils'
 import { useSettlements } from '../../composables/use-settlements'
+import { useWorkTimeReviews } from '../../composables/use-work-time-reviews'
 import { SettlementDetail } from '../../components/settlement/settlement-detail'
 import {
   YumiButton,
@@ -60,8 +61,10 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
     createDraft,
     updateDraft,
     confirmSettlement,
+    addWorkTimeAdjustment,
     resolveRefund
   } = useSettlements()
+  const workTimeReviews = useWorkTimeReviews()
   const [workspace, setWorkspace] = useState<SettlementsWorkspace>('settlements')
   const [showDraftForm, setShowDraftForm] = useState(false)
   const [workerId, setWorkerId] = useState('')
@@ -120,6 +123,30 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
       workers.map((worker) => ({ label: worker.name, searchText: worker.name, value: worker.id })),
     [workers]
   )
+  const selectedSettlementWorkerId = useMemo(
+    () => settlements.find((settlement) => settlement.id === selectedSettlementId)?.workerId ?? '',
+    [settlements, selectedSettlementId]
+  )
+  const confirmedReviewOptions = useMemo(
+    () =>
+      workTimeReviews.reviews
+        .filter(
+          (review) =>
+            review.status === 'confirmed' && review.workerId === selectedSettlementWorkerId
+        )
+        .map((review) => ({
+          id: review.id,
+          label: `${review.workedOn} · ${
+            review.processType === 'fluffing_bagging'
+              ? '捏毛装袋'
+              : review.processType === 'edge_sewing'
+                ? '缝边'
+                : '打包发货'
+          } · ${review.approvedMinutes} 分钟`
+        })),
+    [workTimeReviews.reviews, selectedSettlementWorkerId]
+  )
+
   const selectedSettlement: V2WorkerSettlementDetail | null =
     settlements.find((settlement) => settlement.id === selectedSettlementId) ?? null
   const selectedRefund: V2WorkerRefundRecord | null =
@@ -166,7 +193,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
   }
   const openRefund = (refund: V2WorkerRefundRecord) => {
     setSelectedRefundId(refund.id)
-    setActualRefundAmount(centsToYuan(refund.requestedRefundCents))
+    setActualRefundAmount(centsToYuan(refund.materialRefundCents))
     setRefundedOn(today())
     setRefundNote(refund.managerNote ?? '')
     setError(null)
@@ -204,7 +231,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
       setError('请填写实际退款金额。')
       return
     }
-    if (actualRefundCents > selectedRefund.requestedRefundCents) {
+    if (actualRefundCents > selectedRefund.materialRefundCents) {
       setError('实际退款不能超过待退款金额。')
       return
     }
@@ -326,7 +353,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
                     render: (refund) =>
                       formatCents(
                         refund.status === 'pending'
-                          ? refund.requestedRefundCents
+                          ? refund.materialRefundCents
                           : (refund.actualRefundCents ?? 0)
                       )
                   },
@@ -471,6 +498,8 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
           </YumiSection>
           {selectedSettlement && (
             <SettlementDetail
+              addWorkTimeAdjustment={addWorkTimeAdjustment}
+              adjustableReviews={confirmedReviewOptions}
               settlement={selectedSettlement}
               workerName={
                 workerNames.get(selectedSettlement.workerId) ?? selectedSettlement.workerId
@@ -482,7 +511,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
         </>
       )}
       <YumiSheet
-        description="结算日期范围可按任意周或负责人指定周期填写；排班与考勤只作两套参考，最终实发由负责人确认。"
+        description="结算日期范围可按任意周或负责人指定周期填写；工资期间按工作日期归属，最终实发由负责人确认。"
         footer={
           <div className="yumi-form-actions">
             <YumiButton onClick={() => setShowDraftForm(false)} variant="ghost">
@@ -537,7 +566,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
       <YumiSheet
         description={
           selectedRefund
-            ? `${workerNames.get(selectedRefund.workerId) ?? selectedRefund.workerId} · 待退款 ${formatCents(selectedRefund.requestedRefundCents)}，原结算不会被改写。`
+            ? `${workerNames.get(selectedRefund.workerId) ?? selectedRefund.workerId} · 待退款 ${formatCents(selectedRefund.materialRefundCents)}，原结算不会被改写。`
             : undefined
         }
         footer={

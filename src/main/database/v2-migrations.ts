@@ -58,14 +58,23 @@ const v2MasterData: V2Migration = {
         code TEXT UNIQUE,
         category TEXT,
         base_price_cents INTEGER NOT NULL DEFAULT 0 CHECK(base_price_cents >= 0),
-        material_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(material_cost_cents >= 0),
         packaging_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(packaging_cost_cents >= 0),
         accessory_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(accessory_cost_cents >= 0),
         replacement_bag_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(replacement_bag_cost_cents >= 0),
-        internal_edge_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(internal_edge_cost_cents >= 0),
+        edge_consumable_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(edge_consumable_cost_cents >= 0),
+        fixed_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(fixed_cost_cents >= 0),
+        unit_weight_milligrams INTEGER NOT NULL DEFAULT 0 CHECK(unit_weight_milligrams >= 0),
         standard_making_minutes INTEGER NOT NULL DEFAULT 0 CHECK(standard_making_minutes >= 0),
+        expected_fluffing_bagging_minutes INTEGER NOT NULL DEFAULT 0 CHECK(expected_fluffing_bagging_minutes >= 0),
+        expected_edge_sewing_minutes INTEGER NOT NULL DEFAULT 0 CHECK(expected_edge_sewing_minutes >= 0),
+        expected_packing_minutes INTEGER NOT NULL DEFAULT 0 CHECK(expected_packing_minutes >= 0),
         making_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(making_commission_cents >= 0),
-        making_glue_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(making_glue_cost_cents >= 0),
+        fluffing_bagging_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(fluffing_bagging_commission_cents >= 0),
+        edge_sewing_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(edge_sewing_commission_cents >= 0),
+        mold_count INTEGER NOT NULL DEFAULT 0 CHECK(mold_count >= 0),
+        output_per_mold_per_batch INTEGER NOT NULL DEFAULT 0 CHECK(output_per_mold_per_batch >= 0),
+        max_batches_per_day INTEGER NOT NULL DEFAULT 0 CHECK(max_batches_per_day >= 0),
+        daily_capacity INTEGER NOT NULL DEFAULT 0 CHECK(daily_capacity >= 0),
         enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
         image_attachment_id TEXT,
         notes TEXT,
@@ -219,7 +228,7 @@ const v2FulfillmentFoundation: V2Migration = {
         id TEXT PRIMARY KEY,
         worker_id TEXT NOT NULL,
         assigned_on TEXT NOT NULL,
-        process_type TEXT NOT NULL CHECK(process_type IN ('making', 'fluffing_bagging', 'packing', 'shipping')),
+        process_type TEXT NOT NULL CHECK(process_type IN ('making', 'fluffing_bagging', 'edge_sewing', 'packing')),
         status TEXT NOT NULL CHECK(status IN ('draft', 'scheduled', 'cancelled', 'completed')),
         note TEXT,
         created_at TEXT NOT NULL,
@@ -230,7 +239,7 @@ const v2FulfillmentFoundation: V2Migration = {
         id TEXT PRIMARY KEY,
         work_assignment_id TEXT NOT NULL REFERENCES work_assignments(id) ON DELETE CASCADE,
         order_item_id TEXT REFERENCES order_items(id),
-        process_type TEXT NOT NULL CHECK(process_type IN ('making', 'fluffing_bagging', 'packing', 'shipping')),
+        process_type TEXT NOT NULL CHECK(process_type IN ('making', 'fluffing_bagging', 'edge_sewing', 'packing')),
         source_type TEXT NOT NULL CHECK(source_type IN ('normal_production', 'rework', 'after_sales_replacement', 'manager_arrangement')),
         planned_quantity INTEGER CHECK(planned_quantity IS NULL OR planned_quantity >= 0),
         planned_minutes INTEGER NOT NULL CHECK(planned_minutes >= 0),
@@ -272,27 +281,16 @@ const v2FulfillmentFoundation: V2Migration = {
         id TEXT PRIMARY KEY,
         order_item_id TEXT NOT NULL REFERENCES order_items(id) ON DELETE RESTRICT,
         event_type TEXT NOT NULL CHECK(event_type IN (
-          'opening_wip', 'making_qualified', 'fluffing_bagging_qualified', 'packing_completed',
-          'shipment', 'manager_adjustment', 'after_sales_return', 'after_sales_replacement'
+          'inventory_allocation', 'making_qualified', 'fluffing_bagging_completed', 'edge_sewing_completed',
+          'packing_completed', 'shipment', 'manager_adjustment', 'after_sales_return', 'after_sales_replacement'
         )),
         quantity INTEGER NOT NULL CHECK(quantity > 0),
-        source_stage TEXT CHECK(source_stage IS NULL OR source_stage IN ('making', 'fluffing_bagging', 'packing', 'ready_to_ship', 'shipped')),
-        target_stage TEXT CHECK(target_stage IS NULL OR target_stage IN ('making', 'fluffing_bagging', 'packing', 'ready_to_ship', 'shipped')),
+        source_stage TEXT CHECK(source_stage IS NULL OR source_stage IN ('making', 'fluffing_bagging', 'edge_sewing', 'packing', 'ready_to_ship', 'shipped')),
+        target_stage TEXT CHECK(target_stage IS NULL OR target_stage IN ('making', 'fluffing_bagging', 'edge_sewing', 'packing', 'ready_to_ship', 'shipped')),
         source_record_type TEXT,
         source_record_id TEXT,
         occurred_on TEXT NOT NULL,
         note TEXT,
-        created_at TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS opening_wip_records (
-        id TEXT PRIMARY KEY,
-        order_item_id TEXT NOT NULL REFERENCES order_items(id) ON DELETE RESTRICT,
-        target_stage TEXT NOT NULL CHECK(target_stage IN ('fluffing_bagging', 'packing', 'ready_to_ship')),
-        quantity INTEGER NOT NULL CHECK(quantity > 0),
-        occurred_on TEXT NOT NULL,
-        note TEXT,
-        fulfillment_event_id TEXT NOT NULL UNIQUE REFERENCES fulfillment_events(id) ON DELETE RESTRICT,
         created_at TEXT NOT NULL
       );
 
@@ -308,47 +306,12 @@ const v2FulfillmentFoundation: V2Migration = {
         ON quality_inspections(process_task_id, inspected_on);
       CREATE INDEX IF NOT EXISTS idx_fulfillment_events_order_item
         ON fulfillment_events(order_item_id, occurred_on, event_type);
-      CREATE INDEX IF NOT EXISTS idx_opening_wip_order_item
-        ON opening_wip_records(order_item_id, target_stage, occurred_on);
-    `)
-  }
-}
-
-const v2BackfillShipmentFulfillmentEvents: V2Migration = {
-  version: 5,
-  name: 'v2_backfill_shipment_fulfillment_events',
-  run(database) {
-    database.exec(`
-      INSERT INTO fulfillment_events (
-        id, order_item_id, event_type, quantity, source_stage, target_stage,
-        source_record_type, source_record_id, occurred_on, note, created_at
-      )
-      SELECT
-        'legacy-shipment:' || shipment_items.id,
-        shipment_items.order_item_id,
-        'shipment',
-        shipment_items.quantity,
-        'making',
-        'shipped',
-        'shipment_item',
-        shipment_items.id,
-        shipments.shipped_on,
-        '阶段 A 历史发货回填',
-        shipments.created_at
-      FROM shipment_items
-      JOIN shipments ON shipments.id = shipment_items.shipment_id
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM fulfillment_events
-        WHERE fulfillment_events.source_record_type = 'shipment_item'
-          AND fulfillment_events.source_record_id = shipment_items.id
-      );
     `)
   }
 }
 
 const v2WorkerSettlementFoundation: V2Migration = {
-  version: 6,
+  version: 5,
   name: 'v2_worker_settlement_foundation',
   run(database) {
     database.exec(`
@@ -376,12 +339,11 @@ const v2WorkerSettlementFoundation: V2Migration = {
         period_start_on TEXT NOT NULL,
         period_end_on TEXT NOT NULL,
         status TEXT NOT NULL CHECK(status IN ('draft', 'confirmed', 'adjusted')),
-        scheduled_minutes INTEGER NOT NULL DEFAULT 0 CHECK(scheduled_minutes >= 0),
-        attendance_minutes INTEGER CHECK(attendance_minutes IS NULL OR attendance_minutes >= 0),
-        attendance_note TEXT,
-        scheduled_reference_wage_cents INTEGER NOT NULL DEFAULT 0 CHECK(scheduled_reference_wage_cents >= 0),
-        attendance_reference_wage_cents INTEGER NOT NULL DEFAULT 0 CHECK(attendance_reference_wage_cents >= 0),
-        qualified_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(qualified_commission_cents >= 0),
+        timed_wage_cents INTEGER NOT NULL DEFAULT 0 CHECK(timed_wage_cents >= 0),
+        commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(commission_cents >= 0),
+        material_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(material_deduction_cents >= 0),
+        adjustment_cents INTEGER NOT NULL DEFAULT 0,
+        candidate_wage_cents INTEGER NOT NULL DEFAULT 0 CHECK(candidate_wage_cents >= 0),
         current_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(current_deduction_cents >= 0),
         carried_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(carried_deduction_cents >= 0),
         actual_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(actual_deduction_cents >= 0),
@@ -396,16 +358,69 @@ const v2WorkerSettlementFoundation: V2Migration = {
         CHECK(period_end_on >= period_start_on)
       );
 
-      CREATE TABLE IF NOT EXISTS worker_settlement_tasks (
+      CREATE TABLE IF NOT EXISTS worker_settlement_making_sources (
         id TEXT PRIMARY KEY,
         settlement_id TEXT NOT NULL REFERENCES worker_settlements(id) ON DELETE CASCADE,
         process_task_id TEXT NOT NULL REFERENCES process_tasks(id) ON DELETE RESTRICT,
-        scheduled_minutes INTEGER NOT NULL DEFAULT 0 CHECK(scheduled_minutes >= 0),
+        quality_inspection_id TEXT NOT NULL REFERENCES quality_inspections(id) ON DELETE RESTRICT,
+        order_id TEXT REFERENCES orders(id) ON DELETE RESTRICT,
+        order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
+        occurred_on TEXT NOT NULL,
         qualified_quantity INTEGER NOT NULL DEFAULT 0 CHECK(qualified_quantity >= 0),
+        unqualified_quantity INTEGER NOT NULL DEFAULT 0 CHECK(unqualified_quantity >= 0),
+        piece_rate_cents INTEGER CHECK(piece_rate_cents IS NULL OR piece_rate_cents >= 0),
         qualified_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(qualified_commission_cents >= 0),
+        material_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(material_deduction_cents >= 0),
         status TEXT NOT NULL CHECK(status IN ('draft', 'confirmed', 'cancelled')),
         created_at TEXT NOT NULL,
-        UNIQUE(settlement_id, process_task_id)
+        UNIQUE(settlement_id, quality_inspection_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS worker_settlement_timed_sources (
+        id TEXT PRIMARY KEY,
+        settlement_id TEXT NOT NULL REFERENCES worker_settlements(id) ON DELETE CASCADE,
+        work_time_review_id TEXT NOT NULL REFERENCES work_time_reviews(id) ON DELETE RESTRICT,
+        process_type TEXT NOT NULL CHECK(process_type IN ('fluffing_bagging', 'edge_sewing', 'packing')),
+        occurred_on TEXT NOT NULL,
+        approved_minutes INTEGER NOT NULL CHECK(approved_minutes > 0),
+        hourly_wage_cents_snapshot INTEGER NOT NULL CHECK(hourly_wage_cents_snapshot >= 0),
+        timed_wage_cents INTEGER NOT NULL DEFAULT 0 CHECK(timed_wage_cents >= 0),
+        commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(commission_cents >= 0),
+        status TEXT NOT NULL CHECK(status IN ('draft', 'confirmed', 'cancelled')),
+        created_at TEXT NOT NULL,
+        UNIQUE(settlement_id, work_time_review_id)
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_worker_settlement_timed_review_confirmed
+        ON worker_settlement_timed_sources(work_time_review_id) WHERE status = 'confirmed';
+
+      CREATE TABLE IF NOT EXISTS worker_settlement_timed_items (
+        id TEXT PRIMARY KEY,
+        timed_source_id TEXT NOT NULL REFERENCES worker_settlement_timed_sources(id) ON DELETE CASCADE,
+        process_task_id TEXT NOT NULL REFERENCES process_tasks(id) ON DELETE RESTRICT,
+        order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
+        completed_quantity INTEGER NOT NULL CHECK(completed_quantity > 0),
+        piece_rate_cents INTEGER CHECK(piece_rate_cents IS NULL OR piece_rate_cents >= 0),
+        commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(commission_cents >= 0),
+        created_at TEXT NOT NULL,
+        UNIQUE(timed_source_id, process_task_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS worker_settlement_adjustments (
+        id TEXT PRIMARY KEY,
+        settlement_id TEXT NOT NULL REFERENCES worker_settlements(id) ON DELETE CASCADE,
+        work_time_review_id TEXT NOT NULL REFERENCES work_time_reviews(id) ON DELETE RESTRICT,
+        original_settlement_id TEXT NOT NULL REFERENCES worker_settlements(id) ON DELETE RESTRICT,
+        process_type TEXT NOT NULL CHECK(process_type IN ('fluffing_bagging', 'edge_sewing', 'packing')),
+        original_minutes INTEGER NOT NULL CHECK(original_minutes >= 0),
+        corrected_minutes INTEGER NOT NULL CHECK(corrected_minutes >= 0),
+        hourly_wage_cents_snapshot INTEGER NOT NULL CHECK(hourly_wage_cents_snapshot >= 0),
+        amount_cents INTEGER NOT NULL,
+        reason TEXT NOT NULL CHECK(length(trim(reason)) > 0),
+        note TEXT,
+        status TEXT NOT NULL CHECK(status IN ('draft', 'confirmed', 'cancelled')),
+        created_at TEXT NOT NULL,
+        UNIQUE(settlement_id, work_time_review_id)
       );
 
       CREATE TABLE IF NOT EXISTS worker_deduction_records (
@@ -418,9 +433,7 @@ const v2WorkerSettlementFoundation: V2Migration = {
         order_id TEXT REFERENCES orders(id) ON DELETE RESTRICT,
         order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
         unqualified_quantity INTEGER NOT NULL CHECK(unqualified_quantity > 0),
-        commission_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(commission_deduction_cents >= 0),
-        wage_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(wage_deduction_cents >= 0),
-        glue_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(glue_deduction_cents >= 0),
+        material_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(material_deduction_cents >= 0),
         total_deduction_cents INTEGER NOT NULL CHECK(total_deduction_cents >= 0),
         deducted_cents INTEGER NOT NULL DEFAULT 0 CHECK(deducted_cents >= 0),
         remaining_carryover_cents INTEGER NOT NULL DEFAULT 0 CHECK(remaining_carryover_cents >= 0),
@@ -454,10 +467,16 @@ const v2WorkerSettlementFoundation: V2Migration = {
         ON worker_wage_history(worker_id, effective_on DESC);
       CREATE INDEX IF NOT EXISTS idx_worker_settlements_worker_period
         ON worker_settlements(worker_id, period_start_on, period_end_on, status);
-      CREATE INDEX IF NOT EXISTS idx_worker_settlement_tasks_settlement
-        ON worker_settlement_tasks(settlement_id, status);
-      CREATE UNIQUE INDEX IF NOT EXISTS uq_worker_settlement_tasks_confirmed_task
-        ON worker_settlement_tasks(process_task_id) WHERE status = 'confirmed';
+      CREATE INDEX IF NOT EXISTS idx_worker_settlement_making_sources_settlement
+        ON worker_settlement_making_sources(settlement_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_worker_settlement_making_source_confirmed
+        ON worker_settlement_making_sources(quality_inspection_id) WHERE status = 'confirmed';
+      CREATE INDEX IF NOT EXISTS idx_worker_settlement_timed_sources_settlement
+        ON worker_settlement_timed_sources(settlement_id, status);
+      CREATE INDEX IF NOT EXISTS idx_worker_settlement_timed_items_source
+        ON worker_settlement_timed_items(timed_source_id);
+      CREATE INDEX IF NOT EXISTS idx_worker_settlement_adjustments_settlement
+        ON worker_settlement_adjustments(settlement_id, status);
       CREATE INDEX IF NOT EXISTS idx_worker_deduction_records_worker_status
         ON worker_deduction_records(worker_id, status, created_at);
       CREATE INDEX IF NOT EXISTS idx_worker_settlement_deduction_allocations_settlement
@@ -471,7 +490,7 @@ const v2WorkerSettlementFoundation: V2Migration = {
 }
 
 const v2WagePaymentFinancialSource: V2Migration = {
-  version: 7,
+  version: 6,
   name: 'v2_wage_payment_financial_source',
   run(database) {
     database.exec(`
@@ -484,7 +503,7 @@ const v2WagePaymentFinancialSource: V2Migration = {
 }
 
 const v2FinanceAndAfterSalesFoundation: V2Migration = {
-  version: 8,
+  version: 7,
   name: 'v2_finance_and_after_sales_foundation',
   requiresForeignKeysDisabled: true,
   run(database) {
@@ -606,7 +625,7 @@ const v2FinanceAndAfterSalesFoundation: V2Migration = {
 }
 
 const v2WorkerSettlementRefunds: V2Migration = {
-  version: 9,
+  version: 8,
   name: 'v2_worker_settlement_refunds',
   run(database) {
     database.exec(`
@@ -620,10 +639,7 @@ const v2WorkerSettlementRefunds: V2Migration = {
         order_id TEXT REFERENCES orders(id) ON DELETE RESTRICT,
         order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
         unqualified_quantity INTEGER NOT NULL CHECK(unqualified_quantity > 0),
-        commission_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(commission_deduction_cents >= 0),
-        wage_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(wage_deduction_cents >= 0),
-        glue_deduction_cents INTEGER NOT NULL DEFAULT 0 CHECK(glue_deduction_cents >= 0),
-        requested_refund_cents INTEGER NOT NULL CHECK(requested_refund_cents > 0),
+        material_refund_cents INTEGER NOT NULL CHECK(material_refund_cents > 0),
         actual_refund_cents INTEGER CHECK(actual_refund_cents IS NULL OR actual_refund_cents > 0),
         refunded_on TEXT,
         manager_note TEXT,
@@ -644,13 +660,11 @@ const v2WorkerSettlementRefunds: V2Migration = {
   }
 }
 
-const v2StudioGlueFormula: V2Migration = {
-  version: 10,
-  name: 'v2_studio_glue_formula',
+const v2ProcessTaskMaterialSnapshot: V2Migration = {
+  version: 9,
+  name: 'v2_process_task_material_snapshot',
   run(database) {
     database.exec(`
-      ALTER TABLE products
-        ADD COLUMN glue_weight_milligrams INTEGER NOT NULL DEFAULT 0 CHECK(glue_weight_milligrams >= 0);
       ALTER TABLE process_tasks
         ADD COLUMN glue_price_micro_yuan_per_gram INTEGER CHECK(glue_price_micro_yuan_per_gram >= 0);
       ALTER TABLE process_tasks
@@ -660,7 +674,7 @@ const v2StudioGlueFormula: V2Migration = {
 }
 
 const v2ShipmentDocumentSnapshots: V2Migration = {
-  version: 11,
+  version: 10,
   name: 'v2_shipment_document_snapshots',
   run(database) {
     database.exec(`
@@ -670,7 +684,7 @@ const v2ShipmentDocumentSnapshots: V2Migration = {
 }
 
 const v2OrderSchedule: V2Migration = {
-  version: 12,
+  version: 11,
   name: 'v2_order_schedule',
   run(database) {
     database.exec(`
@@ -680,85 +694,8 @@ const v2OrderSchedule: V2Migration = {
   }
 }
 
-const v2ProductMaterialAndCapacity: V2Migration = {
-  version: 13,
-  name: 'v2_product_material_and_capacity',
-  run(database) {
-    database.exec(`
-      ALTER TABLE products
-        ADD COLUMN unit_weight_milligrams INTEGER NOT NULL DEFAULT 0 CHECK(unit_weight_milligrams >= 0);
-      ALTER TABLE products
-        ADD COLUMN material_loss_rate_basis_points INTEGER NOT NULL DEFAULT 0 CHECK(material_loss_rate_basis_points >= 0 AND material_loss_rate_basis_points < 10000);
-      ALTER TABLE products
-        ADD COLUMN mold_count INTEGER NOT NULL DEFAULT 0 CHECK(mold_count >= 0);
-      ALTER TABLE products
-        ADD COLUMN output_per_mold_per_batch INTEGER NOT NULL DEFAULT 0 CHECK(output_per_mold_per_batch >= 0);
-      ALTER TABLE products
-        ADD COLUMN max_batches_per_day INTEGER NOT NULL DEFAULT 0 CHECK(max_batches_per_day >= 0);
-      ALTER TABLE products
-        ADD COLUMN daily_capacity INTEGER NOT NULL DEFAULT 0 CHECK(daily_capacity >= 0);
-    `)
-  }
-}
-
-const v2OrderAmountAndEdgeFields: V2Migration = {
-  version: 14,
-  name: 'v2_order_amount_and_edge_fields',
-  run(database) {
-    // V2 初版订单表已在部分用户设备上落库。后续补写初版建表 SQL 不会影响已有表，
-    // 因此必须通过独立的增量迁移补齐金额与订单级缝边字段。
-    addColumnIfMissing(
-      database,
-      'orders',
-      'order_discount_cents',
-      'order_discount_cents INTEGER NOT NULL DEFAULT 0 CHECK(order_discount_cents >= 0)'
-    )
-    addColumnIfMissing(
-      database,
-      'order_items',
-      'edge_enabled',
-      'edge_enabled INTEGER NOT NULL DEFAULT 0 CHECK(edge_enabled IN (0, 1))'
-    )
-    addColumnIfMissing(
-      database,
-      'order_items',
-      'edge_quantity',
-      'edge_quantity INTEGER NOT NULL DEFAULT 0 CHECK(edge_quantity >= 0)'
-    )
-    addColumnIfMissing(
-      database,
-      'order_items',
-      'edge_unit_price_cents',
-      'edge_unit_price_cents INTEGER NOT NULL DEFAULT 0 CHECK(edge_unit_price_cents >= 0)'
-    )
-    addColumnIfMissing(
-      database,
-      'order_items',
-      'item_discount_cents',
-      'item_discount_cents INTEGER NOT NULL DEFAULT 0 CHECK(item_discount_cents >= 0)'
-    )
-  }
-}
-
-const v2ProductInternalEdgeCost: V2Migration = {
-  version: 15,
-  name: 'v2_product_internal_edge_cost',
-  run(database) {
-    // 早期 V2 产品表使用 edge_cost_cents。订单级缝边改造后，产品页读取的是内部成本字段；
-    // 已应用旧迁移的数据库不会重建 products 表，必须增量补齐该列，避免读取时产生 NaN。
-    // 历史测试/异常的半成品库可能还没有 products 表；此时保持迁移可继续执行。
-    if (!hasTable(database, 'products')) return
-    addColumnIfMissing(
-      database,
-      'products',
-      'internal_edge_cost_cents',
-      'internal_edge_cost_cents INTEGER NOT NULL DEFAULT 0 CHECK(internal_edge_cost_cents >= 0)'
-    )
-  }
-}
-
 const v2ShipmentVoidLifecycle: V2Migration = {
-  version: 16,
+  version: 12,
   name: 'v2_shipment_void_lifecycle',
   run(database) {
     // 兼容历史半成品库：其迁移记录可能完整但从未创建 shipments 表。
@@ -778,18 +715,80 @@ const v2ShipmentVoidLifecycle: V2Migration = {
   }
 }
 
-const v2ProductFluffingBaggingCommission: V2Migration = {
-  version: 17,
-  name: 'v2_product_fluffing_bagging_commission',
+const v2ProductStageInventory: V2Migration = {
+  version: 13,
+  name: 'v2_product_stage_inventory',
   run(database) {
-    // 历史数据库与测试中的半成品库可能尚未创建 products 表，保持迁移幂等可继续执行。
-    if (!hasTable(database, 'products')) return
-    addColumnIfMissing(
-      database,
-      'products',
-      'fluffing_bagging_commission_cents',
-      'fluffing_bagging_commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(fluffing_bagging_commission_cents >= 0)'
-    )
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS product_stage_inventory_events (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+        stage TEXT NOT NULL CHECK(stage IN ('made', 'fluffing_bagging_done', 'edge_sewing_done', 'packed')),
+        quantity_delta INTEGER NOT NULL CHECK(quantity_delta <> 0),
+        source_type TEXT NOT NULL CHECK(source_type IN ('opening', 'order_allocation', 'manager_adjustment')),
+        order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
+        occurred_on TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_product_stage_inventory_product_stage
+        ON product_stage_inventory_events(product_id, stage, occurred_on);
+      CREATE INDEX IF NOT EXISTS idx_product_stage_inventory_order_item
+        ON product_stage_inventory_events(order_item_id);
+    `)
+  }
+}
+
+const v2WorkTimeReviews: V2Migration = {
+  version: 14,
+  name: 'v2_work_time_reviews',
+  run(database) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS work_time_reviews (
+        id TEXT PRIMARY KEY,
+        worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE RESTRICT,
+        worked_on TEXT NOT NULL,
+        process_type TEXT NOT NULL CHECK(process_type IN ('fluffing_bagging', 'edge_sewing', 'packing')),
+        approved_minutes INTEGER NOT NULL CHECK(approved_minutes > 0),
+        hourly_wage_cents_snapshot INTEGER CHECK(hourly_wage_cents_snapshot IS NULL OR hourly_wage_cents_snapshot >= 0),
+        source_type TEXT NOT NULL CHECK(source_type IN ('manual_review', 'attendance_device')),
+        external_record_id TEXT,
+        raw_started_at TEXT,
+        raw_ended_at TEXT,
+        status TEXT NOT NULL CHECK(status IN ('draft', 'confirmed', 'voided')),
+        review_note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK(status <> 'confirmed' OR hourly_wage_cents_snapshot IS NOT NULL)
+      );
+
+      CREATE TABLE IF NOT EXISTS work_time_review_assignments (
+        review_id TEXT NOT NULL REFERENCES work_time_reviews(id) ON DELETE CASCADE,
+        work_assignment_id TEXT NOT NULL REFERENCES work_assignments(id) ON DELETE RESTRICT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(review_id, work_assignment_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS work_time_review_items (
+        id TEXT PRIMARY KEY,
+        review_id TEXT NOT NULL REFERENCES work_time_reviews(id) ON DELETE CASCADE,
+        process_task_id TEXT NOT NULL REFERENCES process_tasks(id) ON DELETE RESTRICT,
+        order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
+        completed_quantity INTEGER NOT NULL CHECK(completed_quantity > 0),
+        created_at TEXT NOT NULL,
+        UNIQUE(review_id, process_task_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_work_time_reviews_worker_day
+        ON work_time_reviews(worker_id, worked_on, process_type, status);
+      CREATE INDEX IF NOT EXISTS idx_work_time_review_assignments_assignment
+        ON work_time_review_assignments(work_assignment_id);
+      CREATE INDEX IF NOT EXISTS idx_work_time_review_items_review
+        ON work_time_review_items(review_id);
+      CREATE INDEX IF NOT EXISTS idx_work_time_review_items_task
+        ON work_time_review_items(process_task_id);
+    `)
   }
 }
 
@@ -798,20 +797,42 @@ const migrations: readonly V2Migration[] = [
   v2OrderFoundation,
   v2OrderItemPosition,
   v2FulfillmentFoundation,
-  v2BackfillShipmentFulfillmentEvents,
   v2WorkerSettlementFoundation,
   v2WagePaymentFinancialSource,
   v2FinanceAndAfterSalesFoundation,
   v2WorkerSettlementRefunds,
-  v2StudioGlueFormula,
+  v2ProcessTaskMaterialSnapshot,
   v2ShipmentDocumentSnapshots,
   v2OrderSchedule,
-  v2ProductMaterialAndCapacity,
-  v2OrderAmountAndEdgeFields,
-  v2ProductInternalEdgeCost,
   v2ShipmentVoidLifecycle,
-  v2ProductFluffingBaggingCommission
+  v2ProductStageInventory,
+  v2WorkTimeReviews
 ]
+
+/**
+ * 目标模型必需列：旧版业务库缺少这些列时拒绝启动，避免在未重建的数据库上静默运行。
+ * 本提案不做历史业务数据迁移；部署前必须先备份旧库并按最新结构重建。
+ */
+const requiredTargetColumns: ReadonlyArray<readonly [string, string]> = [
+  ['products', 'edge_consumable_cost_cents'],
+  ['products', 'fixed_cost_cents'],
+  ['products', 'expected_fluffing_bagging_minutes'],
+  ['products', 'expected_edge_sewing_minutes'],
+  ['products', 'expected_packing_minutes'],
+  ['products', 'edge_sewing_commission_cents'],
+  ['product_stage_inventory_events', 'stage'],
+  ['work_time_reviews', 'approved_minutes']
+]
+
+function assertTargetSchema(database: Database.Database): void {
+  for (const [table, column] of requiredTargetColumns) {
+    if (!hasColumn(database, table, column)) {
+      throw new Error(
+        `数据库结构与当前版本不兼容：缺少 ${table}.${column}。请先备份旧业务库，再按最新结构重建数据库。`
+      )
+    }
+  }
+}
 
 /**
  * V2 使用独立的迁移表，不会把 V1 的 schema_migrations 当成已初始化状态。
@@ -862,4 +883,6 @@ export function runV2Migrations(database: Database.Database): void {
       if (foreignKeysEnabled) database.pragma('foreign_keys = ON')
     }
   }
+
+  assertTargetSchema(database)
 }

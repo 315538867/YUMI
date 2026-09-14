@@ -7,36 +7,56 @@ const modernSnapshot = {
   code: null,
   category: '捏捏',
   basePriceCents: 8_000,
-  materialCostCents: 0,
   packagingCostCents: 20,
   accessoryCostCents: 5,
   replacementBagCostCents: 0,
-  internalEdgeCostCents: 0,
+  edgeConsumableCostCents: 0,
+  fixedCostCents: 0,
+  unitWeightMilligrams: 25_000,
+  materialPriceMicroYuanPerGram: 3_400,
   standardMakingMinutes: 20,
+  expectedFluffingBaggingMinutes: 5,
+  expectedEdgeSewingMinutes: 0,
+  expectedPackingMinutes: 3,
   makingCommissionCents: 80,
-  makingGlueCostCents: 0,
-  glueWeightMilligrams: 25_000,
-  gluePriceMicroYuanPerGram: 3_400
+  fluffingBaggingCommissionCents: 0,
+  edgeSewingCommissionCents: 0,
+  moldCount: 0,
+  outputPerMoldPerBatch: 0,
+  maxBatchesPerDay: 0,
+  dailyCapacity: 0
 } as const
 
 describe('calculateProductSnapshotCostCents', () => {
-  it('按冻结的胶水单价、克重和订单批量计算，最后才折算为分', () => {
+  it('按冻结的材料单价、单件材料重量和订单批量计算，最后才折算为分', () => {
     expect(calculateProductSnapshotCostCents(modernSnapshot, 100)).toBe(3_350)
   })
 
-  it('优先按冻结的单件材料重量和损耗率计算新商品材料成本', () => {
+  it('单件固定成本按数量进入商品直接成本', () => {
     expect(
       calculateProductSnapshotCostCents(
         {
           ...modernSnapshot,
-          unitWeightMilligrams: 20_000,
-          materialLossRateBasisPoints: 1_000,
-          glueWeightMilligrams: 0,
-          gluePriceMicroYuanPerGram: 500_000
+          unitWeightMilligrams: 0,
+          fixedCostCents: 120
         },
         10
       )
-    ).toBe(11_250)
+    ).toBe(1_450)
+  })
+
+  it('缝边耗材成本只按缝边数量进入成本，未选缝边时不产生金额', () => {
+    const base = {
+      ...modernSnapshot,
+      unitWeightMilligrams: 0,
+      packagingCostCents: 0,
+      accessoryCostCents: 0,
+      replacementBagCostCents: 0,
+      fixedCostCents: 0,
+      edgeConsumableCostCents: 100
+    }
+    expect(calculateProductSnapshotCostCents(base, 2, 1)).toBe(100)
+    expect(calculateProductSnapshotCostCents(base, 2, 0)).toBe(0)
   })
 
   it('产品成本不计入运费、制作提成或捏毛装袋提成', () => {
@@ -44,33 +64,21 @@ describe('calculateProductSnapshotCostCents', () => {
       calculateProductSnapshotCostCents(
         {
           ...modernSnapshot,
+          unitWeightMilligrams: 0,
           makingCommissionCents: 9_999,
           fluffingBaggingCommissionCents: 8_888
         },
         2
       )
-    ).toBe(67)
+    ).toBe(50)
   })
 
-  it('缺少新字段的历史快照仍沿用旧成本字段', () => {
-    const legacySnapshot = {
-      ...modernSnapshot,
-      materialCostCents: 125,
-      glueWeightMilligrams: undefined,
-      gluePriceMicroYuanPerGram: undefined
-    }
-    expect(calculateProductSnapshotCostCents(legacySnapshot, 2)).toBe(300)
-  })
-
-  it('兼容仅保存旧 edgeCostCents 的历史订单快照，未选缝边时不产生无效金额', () => {
-    const legacySnapshot = {
-      ...modernSnapshot,
-      internalEdgeCostCents: undefined,
-      edgeCostCents: 100
-    }
-
-    expect(calculateProductSnapshotCostCents(legacySnapshot as typeof modernSnapshot, 2, 0)).toBe(
-      67
+  it('拒绝负数量和非整数输入', () => {
+    expect(() => calculateProductSnapshotCostCents(modernSnapshot, -1)).toThrow(
+      '商品数量必须是非负整数'
+    )
+    expect(() => calculateProductSnapshotCostCents(modernSnapshot, 2, 1.5)).toThrow(
+      '缝边数量必须是非负整数'
     )
   })
 })

@@ -1561,6 +1561,180 @@
   }
 }
 
+/* 金额与比例公式：结果、公式主干与代入值始终直接可见，组成明细按需展开。 */
+.yumi-calculated-amount {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--yumi-space-4);
+  row-gap: 2px;
+  align-items: baseline;
+}
+.yumi-calculated-amount__label {
+  color: var(--yumi-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+.yumi-calculated-amount__value {
+  color: var(--yumi-ink);
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 28px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.yumi-calculated-amount--comfortable .yumi-calculated-amount__value {
+  font-size: 22px;
+  line-height: 30px;
+}
+.yumi-calculated-amount__value--profit {
+  color: var(--yumi-success);
+}
+.yumi-calculated-amount__value--loss {
+  color: var(--yumi-danger);
+}
+.yumi-calculated-amount__value--muted {
+  color: var(--yumi-muted);
+}
+.yumi-calculated-amount__expression,
+.yumi-calculated-amount__substitution,
+.yumi-calculated-amount__note {
+  grid-column: 1 / -1;
+  color: var(--yumi-muted);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.yumi-calculated-amount__substitution {
+  font-variant-numeric: tabular-nums;
+}
+.yumi-calculated-amount__breakdown {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 6px;
+  margin: 4px 0 0;
+}
+.yumi-calculated-amount__breakdown-item {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--yumi-space-4);
+  border-top: 1px solid var(--yumi-border);
+  padding-top: 6px;
+}
+.yumi-calculated-amount__breakdown-item dt {
+  color: var(--yumi-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+.yumi-calculated-amount__breakdown-item dd {
+  display: grid;
+  justify-items: end;
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: 13px;
+  line-height: 18px;
+}
+.yumi-calculated-amount__breakdown-expression {
+  color: var(--yumi-muted);
+  font-size: 12px;
+}
+.yumi-calculated-amount__breakdown-substitution {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 工时核算：待核算安排勾选与预计时长核对并排展示。 */
+.yumi-work-time-review__candidates {
+  display: grid;
+  gap: var(--yumi-space-2);
+  margin: 0 0 var(--yumi-space-4);
+  padding: 0;
+  list-style: none;
+}
+.yumi-work-time-review__candidates label {
+  display: flex;
+  align-items: center;
+  gap: var(--yumi-space-2);
+  color: var(--yumi-ink);
+  font-size: 13px;
+  line-height: 20px;
+}
+.yumi-work-time-review__comparison {
+  display: grid;
+  gap: var(--yumi-space-2);
+  border: 1px solid var(--yumi-border);
+  border-radius: 12px;
+  background: var(--yumi-surface-muted);
+  padding: var(--yumi-space-4);
+  margin: var(--yumi-space-3) 0;
+}
+.yumi-work-time-review__formula {
+  margin: 0;
+  color: var(--yumi-muted);
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* 商品全页工作区：左侧录入、右侧持续显示预计盈利预览；窄屏折为上下两段。 */
+.yumi-product-workspace {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: var(--yumi-space-4);
+  align-items: start;
+}
+.yumi-product-workspace__form {
+  display: grid;
+  min-width: 0;
+  gap: var(--yumi-space-5);
+  border: 1px solid var(--yumi-border);
+  border-radius: 14px;
+  background: var(--yumi-surface);
+  box-shadow: var(--yumi-shadow-sm);
+  padding: var(--yumi-space-5);
+}
+.yumi-product-workspace__aside {
+  display: grid;
+  min-width: 0;
+  position: sticky;
+  top: var(--yumi-space-4);
+}
+.yumi-product-profit-preview {
+  display: grid;
+  min-width: 0;
+  gap: var(--yumi-space-4);
+}
+.yumi-product-profit-preview__price {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--yumi-space-3);
+  border-bottom: 1px solid var(--yumi-border);
+  padding-bottom: var(--yumi-space-3);
+}
+.yumi-product-profit-preview__price span {
+  color: var(--yumi-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+.yumi-product-profit-preview__price strong {
+  color: var(--yumi-ink);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  line-height: 28px;
+}
+@media (max-width: 1080px) {
+  .yumi-product-workspace {
+    grid-template-columns: 1fr;
+  }
+  .yumi-product-workspace__aside {
+    position: static;
+  }
+}
+
 /* 实体主体：客户、商品等真实业务对象优先，编码退为紧凑元数据。 */
 .yumi-entity-summary {
   display: grid;

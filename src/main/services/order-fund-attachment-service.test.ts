@@ -31,14 +31,12 @@ describe('OrderFundAttachmentService', () => {
     const product = orderService.createProduct({
       name: '凭证测试商品',
       basePriceCents: 5_000,
-      materialCostCents: 0,
       packagingCostCents: 0,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 0,
-      makingCommissionCents: 0,
-      makingGlueCostCents: 0
+      makingCommissionCents: 0
     })
     const order = orderService.createOrder({
       customer: { name: '小雨' },

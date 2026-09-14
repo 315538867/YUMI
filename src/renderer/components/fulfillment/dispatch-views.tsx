@@ -28,24 +28,15 @@ import {
 const dispatchStageLabels: Record<ActionableFulfillmentQueueStage, string> = {
   making: '制作',
   fluffing_bagging: '捏毛装袋',
-  packing: '打包',
-  ready_to_ship: '待发货'
+  edge_sewing: '缝边',
+  packing: '打包发货'
 }
 
-const stageProcessTypes: Record<
-  ActionableFulfillmentQueueStage,
-  V2WorkAssignmentCreateInput['processType']
-> = {
-  making: 'making',
-  fluffing_bagging: 'fluffing_bagging',
-  packing: 'packing',
-  ready_to_ship: 'shipping'
-}
 const stages: ActionableFulfillmentQueueStage[] = [
   'making',
   'fluffing_bagging',
-  'packing',
-  'ready_to_ship'
+  'edge_sewing',
+  'packing'
 ]
 
 export interface DispatchPrefill {
@@ -63,8 +54,8 @@ function stageTone(
   stage: ActionableFulfillmentQueueStage
 ): 'neutral' | 'info' | 'brand' | 'warning' {
   if (stage === 'fluffing_bagging') return 'info'
+  if (stage === 'edge_sewing') return 'warning'
   if (stage === 'packing') return 'brand'
-  if (stage === 'ready_to_ship') return 'warning'
   return 'neutral'
 }
 
@@ -369,7 +360,6 @@ export function WorkAssignmentSheet(props: {
   const [orderItemId, setOrderItemId] = useState('')
   const [stage, setStage] = useState<ActionableFulfillmentQueueStage>('making')
   const [quantity, setQuantity] = useState('')
-  const [plannedMinutes, setPlannedMinutes] = useState('')
   const [extraMinutes, setExtraMinutes] = useState('0')
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -382,7 +372,6 @@ export function WorkAssignmentSheet(props: {
     setOrderItemId(props.prefill?.orderItemId ?? '')
     setStage(props.prefill?.stage ?? 'making')
     setQuantity('')
-    setPlannedMinutes('')
     setExtraMinutes('0')
     setNote('')
     setError(null)
@@ -402,7 +391,6 @@ export function WorkAssignmentSheet(props: {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     const parsedQuantity = Number(quantity)
-    const parsedMinutes = Number(plannedMinutes)
     const parsedExtraMinutes = Number(extraMinutes || '0')
     if (
       !orderItemId ||
@@ -419,10 +407,6 @@ export function WorkAssignmentSheet(props: {
       setError(`计划数量不能超过当前待派上限 ${schedule?.unassignedQuantity ?? 0} 件。`)
       return
     }
-    if (!isMaking && (!Number.isInteger(parsedMinutes) || parsedMinutes <= 0)) {
-      setError('非制作工序必须填写正整数计划分钟。')
-      return
-    }
     if (isMaking && (!Number.isInteger(parsedExtraMinutes) || parsedExtraMinutes < 0)) {
       setError('额外预留分钟必须是非负整数。')
       return
@@ -433,14 +417,14 @@ export function WorkAssignmentSheet(props: {
       await props.onSubmit({
         workerId,
         assignedOn,
-        processType: stageProcessTypes[stage],
+        processType: stage,
         note: note || undefined,
         tasks: [
           {
             orderItemId,
             sourceType: 'normal_production',
             plannedQuantity: parsedQuantity,
-            plannedMinutes: isMaking ? null : parsedMinutes,
+            plannedMinutes: null,
             extraMinutes: isMaking ? parsedExtraMinutes : 0,
             note: note || undefined
           }
@@ -525,18 +509,11 @@ export function WorkAssignmentSheet(props: {
                 value={extraMinutes}
               />
             </YumiField>
-          ) : (
-            <YumiField>
-              <YumiFieldLabel required>计划分钟</YumiFieldLabel>
-              <YumiNumberField
-                aria-label="计划分钟"
-                min="1"
-                onChange={(event) => setPlannedMinutes(event.target.value)}
-                value={plannedMinutes}
-              />
-            </YumiField>
-          )}
+          ) : null}
         </div>
+        <YumiFormMessage tone="hint">
+          最终工作时长与完成数量由负责人次日核算，排班只安排人员、日期与工序。
+        </YumiFormMessage>
         <YumiField>
           <YumiFieldLabel>备注</YumiFieldLabel>
           <YumiTextArea onChange={(event) => setNote(event.target.value)} value={note} />

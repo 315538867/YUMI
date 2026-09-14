@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { calculateProductProfit } from '@shared/calculations/product-profit'
 import { validateOrderFundInput, validateOrderFundReversal } from '@main/domain/order-funds'
 import { DomainValidationError } from '@main/domain/errors'
 import { applyFulfillmentEvent, createFulfillmentState } from '@main/domain/fulfillment'
@@ -26,6 +27,7 @@ import type {
   V2OrderItemInput,
   V2OrderSummary,
   V2Product,
+  V2ProductExpectedProfit,
   V2ProductInput,
   V2ProductOrderSnapshot,
   V2ProductUpdateInput,
@@ -100,7 +102,7 @@ function createFulfillmentEventTimestamp(
 
 function createProductSnapshot(
   product: V2Product,
-  gluePriceMicroYuanPerGram: number
+  materialPriceMicroYuanPerGram: number
 ): V2ProductOrderSnapshot {
   return {
     productId: product.id,
@@ -108,21 +110,22 @@ function createProductSnapshot(
     code: product.code,
     category: product.category,
     basePriceCents: product.basePriceCents,
-    materialCostCents: product.materialCostCents,
     packagingCostCents: product.packagingCostCents,
     accessoryCostCents: product.accessoryCostCents,
     replacementBagCostCents: product.replacementBagCostCents,
-    internalEdgeCostCents: product.internalEdgeCostCents,
+    edgeConsumableCostCents: product.edgeConsumableCostCents,
+    fixedCostCents: product.fixedCostCents,
+    unitWeightMilligrams: product.unitWeightMilligrams,
+    materialPriceMicroYuanPerGram,
     standardMakingMinutes: product.standardMakingMinutes,
+    expectedFluffingBaggingMinutes: product.expectedFluffingBaggingMinutes,
+    expectedEdgeSewingMinutes: product.expectedEdgeSewingMinutes,
+    expectedPackingMinutes: product.expectedPackingMinutes,
     makingCommissionCents: product.makingCommissionCents,
     fluffingBaggingCommissionCents: product.fluffingBaggingCommissionCents,
-    makingGlueCostCents: product.makingGlueCostCents,
-    glueWeightMilligrams: product.glueWeightMilligrams,
-    gluePriceMicroYuanPerGram,
+    edgeSewingCommissionCents: product.edgeSewingCommissionCents,
     imageAttachmentId: product.imageAttachmentId,
     notes: product.notes,
-    unitWeightMilligrams: product.unitWeightMilligrams,
-    materialLossRateBasisPoints: product.materialLossRateBasisPoints,
     moldCount: product.moldCount,
     outputPerMoldPerBatch: product.outputPerMoldPerBatch,
     maxBatchesPerDay: product.maxBatchesPerDay,
@@ -173,6 +176,32 @@ export class V2OrderService {
 
   listProducts(includeDisabled = false): V2Product[] {
     return this.repository.listProducts(includeDisabled)
+  }
+
+  /** 主进程权威预计盈利：使用当前商品参数与工作室预计基准时薪重新计算。 */
+  getProductExpectedProfit(productId: string): V2ProductExpectedProfit | null {
+    const product = this.repository.getProduct(productId)
+    if (!product) return null
+    const settings = this.studioSettings?.get()
+    return calculateProductProfit({
+      basePriceCents: product.basePriceCents,
+      unitWeightMilligrams: product.unitWeightMilligrams,
+      materialPriceMicroYuanPerGram: settings?.materialPriceMicroYuanPerGram ?? 0,
+      packagingCostCents: product.packagingCostCents,
+      accessoryCostCents: product.accessoryCostCents,
+      replacementBagCostCents: product.replacementBagCostCents,
+      fixedCostCents: product.fixedCostCents,
+      makingCommissionCents: product.makingCommissionCents,
+      fluffingBaggingCommissionCents: product.fluffingBaggingCommissionCents,
+      expectedFluffingBaggingMinutes: product.expectedFluffingBaggingMinutes,
+      expectedEdgeSewingMinutes: product.expectedEdgeSewingMinutes,
+      expectedPackingMinutes: product.expectedPackingMinutes,
+      fluffingBaggingExpectedHourlyWageCents: settings?.fluffingBaggingExpectedHourlyWageCents ?? 0,
+      edgeSewingExpectedHourlyWageCents: settings?.edgeSewingExpectedHourlyWageCents ?? 0,
+      packingExpectedHourlyWageCents: settings?.packingExpectedHourlyWageCents ?? 0,
+      edgeConsumableCostCents: product.edgeConsumableCostCents,
+      edgeSewingCommissionCents: product.edgeSewingCommissionCents
+    })
   }
 
   createProduct(input: V2ProductInput): V2Product {
@@ -650,7 +679,6 @@ export class V2OrderService {
     requireText(input.name, '商品名称')
     const normalizedMaterialAndCapacity = {
       unitWeightMilligrams: input.unitWeightMilligrams ?? 0,
-      materialLossRateBasisPoints: input.materialLossRateBasisPoints ?? 0,
       moldCount: input.moldCount ?? 0,
       outputPerMoldPerBatch: input.outputPerMoldPerBatch ?? 0,
       maxBatchesPerDay: input.maxBatchesPerDay ?? 0
@@ -660,21 +688,21 @@ export class V2OrderService {
       ['包装成本', input.packagingCostCents],
       ['配饰成本', input.accessoryCostCents],
       ['替换袋成本', input.replacementBagCostCents],
-      ['内部缝边成本', input.internalEdgeCostCents],
-      ['标准制作分钟', input.standardMakingMinutes],
+      ['缝边耗材成本', input.edgeConsumableCostCents],
+      ['单件固定成本', input.fixedCostCents ?? 0],
+      ['预计单件制作时长', input.standardMakingMinutes],
+      ['预计单件捏毛装袋时长', input.expectedFluffingBaggingMinutes ?? 0],
+      ['预计单件缝边时长', input.expectedEdgeSewingMinutes ?? 0],
+      ['预计单件打包发货时长', input.expectedPackingMinutes ?? 0],
       ['制作提成', input.makingCommissionCents],
-      ['胶水用量（毫克）', input.glueWeightMilligrams ?? 0],
-      ['旧版原材料成本', input.materialCostCents ?? 0],
-      ['旧版制作胶水成本', input.makingGlueCostCents ?? 0]
+      ['捏毛装袋提成', input.fluffingBaggingCommissionCents ?? 0],
+      ['缝边提成', input.edgeSewingCommissionCents ?? 0]
     ] as const)
       requireNonNegativeInteger(value, label)
     validateProductMaterialAndCapacity(normalizedMaterialAndCapacity)
     return {
       ...input,
       ...normalizedMaterialAndCapacity,
-      materialCostCents: input.materialCostCents ?? 0,
-      makingGlueCostCents: input.makingGlueCostCents ?? 0,
-      glueWeightMilligrams: input.glueWeightMilligrams ?? 0,
       name: input.name.trim(),
       code: nullableText(input.code),
       category: nullableText(input.category),
@@ -750,7 +778,7 @@ export class V2OrderService {
         productId: product.id,
         productSnapshot: createProductSnapshot(
           product,
-          this.studioSettings?.get().gluePriceMicroYuanPerGram ?? 0
+          this.studioSettings?.get().materialPriceMicroYuanPerGram ?? 0
         ),
         quantity: item.quantity,
         unitPriceCents: item.unitPriceCents,

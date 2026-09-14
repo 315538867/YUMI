@@ -4,8 +4,19 @@ import {
   calculateOrderItemAmounts,
   normalizeOrderEdge
 } from './order-amounts'
+import {
+  calculateOrderAmountSummary as sharedCalculateOrderAmountSummary,
+  calculateOrderItemAmounts as sharedCalculateOrderItemAmounts,
+  normalizeOrderEdge as sharedNormalizeOrderEdge
+} from '@shared/calculations/order-amount'
 
 describe('V2 订单金额', () => {
+  it('main 领域金额函数直接委托共享公式中心，不维护第二套同义公式', () => {
+    expect(calculateOrderAmountSummary).toBe(sharedCalculateOrderAmountSummary)
+    expect(calculateOrderItemAmounts).toBe(sharedCalculateOrderItemAmounts)
+    expect(normalizeOrderEdge).toBe(sharedNormalizeOrderEdge)
+  })
+
   it('按商品金额、缝边金额、明细优惠和订单优惠计算订单金额', () => {
     expect(
       calculateOrderAmountSummary({
@@ -87,5 +98,17 @@ describe('V2 订单金额', () => {
     expect(() =>
       calculateOrderAmountSummary({ items: [{ quantity: 1, unitPriceCents: 100.5 }] })
     ).toThrow('成交单价必须使用整数分')
+  })
+
+  it('拒绝空明细并保留商品金额与缝边金额的分离口径', () => {
+    expect(() => calculateOrderAmountSummary({ items: [] })).toThrow('订单至少需要一条商品明细')
+    const summary = calculateOrderItemAmounts({
+      quantity: 3,
+      unitPriceCents: 500,
+      edge: { enabled: true, quantity: 3, unitPriceCents: 50 }
+    })
+    expect(summary.itemAmountCents).toBe(1_500)
+    expect(summary.edgeAmountCents).toBe(150)
+    expect(summary.lineAmountCents).toBe(1_650)
   })
 })

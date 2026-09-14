@@ -1,500 +1,447 @@
+import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createV2Database, type V2Database } from '@main/database/v2-connection'
 import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
 import { V2OrderRepository } from '@main/repositories/v2-order-repository'
-import { FulfillmentService } from './fulfillment-service'
-import { SettlementService } from './settlement-service'
-import { V2OrderService } from './v2-order-service'
-
-const databases: V2Database[] = []
-
-afterEach(() => databases.splice(0).forEach((database) => database.close()))
+import { FulfillmentService } from '@main/services/fulfillment-service'
+import { SettlementService } from '@main/services/settlement-service'
+import { V2OrderService } from '@main/services/v2-order-service'
+import { WorkTimeReviewService } from '@main/services/work-time-review-service'
 
 describe('SettlementService', () => {
-  it('从已确认任务与不合格质检创建工资草稿，填写考勤和最终实发后确认任务及扣款归属', () => {
+  const databases: V2Database[] = []
+
+  afterEach(() => {
+    databases.splice(0).forEach((database) => database.close())
+  })
+
+  function createFixture() {
     const database = createV2Database(':memory:')
     databases.push(database)
-    const orderService = new V2OrderService(new V2OrderRepository(database))
-    const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database))
-    const settlementService = new SettlementService(database)
-    const worker = settlementService.createWorker({
+    const clock = { createId: () => randomUUID(), now: () => '2026-09-15T08:00:00.000Z' }
+    const orderService = new V2OrderService(new V2OrderRepository(database), clock, {
+      get: () => ({
+        materialPriceMicroYuanPerGram: 3_400,
+        orderReservedDays: 2,
+        fluffingBaggingExpectedHourlyWageCents: 0,
+        edgeSewingExpectedHourlyWageCents: 0,
+        packingExpectedHourlyWageCents: 0,
+        updatedAt: null
+      })
+    })
+    const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database), clock)
+    const settlements = new SettlementService(database, clock)
+    const reviews = new WorkTimeReviewService(database, clock)
+    const worker = settlements.createWorker({
       name: '小林',
-      hourlyWageCents: 2_000,
+      hourlyWageCents: 3_000,
       effectiveOn: '2026-09-01'
     })
     const product = orderService.createProduct({
       name: '奶油小熊',
       basePriceCents: 6_000,
-      materialCostCents: 1_000,
       packagingCostCents: 100,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
+      fixedCostCents: 0,
+      unitWeightMilligrams: 25_000,
       standardMakingMinutes: 12,
       makingCommissionCents: 300,
-      makingGlueCostCents: 50
+      fluffingBaggingCommissionCents: 85
     })
     const order = orderService.createOrder({
       customer: { name: '小雨' },
-      items: [{ productId: product.id, quantity: 3, unitPriceCents: 6_000 }]
+      items: [{ productId: product.id, quantity: 30, unitPriceCents: 6_000 }]
     })
+    return {
+      database,
+      clock,
+      orderService,
+      fulfillmentService,
+      settlements,
+      reviews,
+      worker,
+      orderItem: order.items[0]!
+    }
+  }
+
+  /** 制作完成 22 件：20 合格进入待捏毛装袋，2 件不合格只扣材料成本。 */
+  function completeMakingWithDefects(
+    fulfillmentService: FulfillmentService,
+    workerId: string,
+    orderItemId: string,
+    assignedOn = '2026-09-13'
+  ) {
     const assignment = fulfillmentService.createWorkAssignment({
-      workerId: worker.id,
-      assignedOn: '2026-09-07',
+      workerId,
+      assignedOn,
       processType: 'making',
-      tasks: [
-        { orderItemId: order.items[0].id, sourceType: 'normal_production', plannedQuantity: 3 }
-      ]
+      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 22 }]
     })
-    const result = fulfillmentService.submitProcessResult(assignment.tasks[0].id, {
-      completedQuantity: 3,
-      submittedOn: '2026-09-07'
+    const result = fulfillmentService.submitProcessResult(assignment.tasks[0]!.id, {
+      completedQuantity: 22,
+      submittedOn: assignedOn
     })
     fulfillmentService.confirmQualityInspection(result.id, {
-      qualifiedQuantity: 2,
-      unqualifiedQuantity: 1,
-      inspectedOn: '2026-09-08'
+      qualifiedQuantity: 20,
+      unqualifiedQuantity: 2,
+      inspectedOn: assignedOn
     })
+    return { assignment, result }
+  }
 
-    const beforeInspectionDraft = settlementService.createDraft({
-      workerId: worker.id,
-      periodStartOn: '2026-09-07',
-      periodEndOn: '2026-09-07'
+  /** 制作完成 20 件全部合格，用于已结算后更正为不合格的待退款场景。 */
+  function completeMakingAllQualified(
+    fulfillmentService: FulfillmentService,
+    workerId: string,
+    orderItemId: string
+  ) {
+    const assignment = fulfillmentService.createWorkAssignment({
+      workerId,
+      assignedOn: '2026-09-13',
+      processType: 'making',
+      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 20 }]
     })
-    expect(beforeInspectionDraft).toMatchObject({
-      currentDeductionCents: 0,
-      actualDeductionCents: 0
+    const result = fulfillmentService.submitProcessResult(assignment.tasks[0]!.id, {
+      completedQuantity: 20,
+      submittedOn: '2026-09-13'
     })
-    expect(beforeInspectionDraft.deductionAllocations).toHaveLength(0)
-
-    const draft = settlementService.createDraft({
-      workerId: worker.id,
-      periodStartOn: '2026-09-07',
-      periodEndOn: '2026-09-08'
-    })
-    expect(draft).toMatchObject({
-      status: 'draft',
-      scheduledMinutes: 36,
-      qualifiedCommissionCents: 600,
-      currentDeductionCents: 700,
-      actualDeductionCents: 700,
-      scheduledReferenceWageCents: 1_100,
-      continuingCarryoverCents: 0
-    })
-    expect(draft.tasks).toHaveLength(1)
-    expect(draft.deductions).toHaveLength(1)
-    expect(draft.deductions[0]).toMatchObject({
-      occurredOn: '2026-09-08',
-      totalDeductionCents: 700
-    })
-
-    settlementService.updateDraft(draft.id, {
-      finalPaidAmountCents: 0,
-      paidOn: '2026-09-09'
-    })
-    expect(() => settlementService.confirm(draft.id)).toThrow('最终实发金额必须大于零')
-    expect(database.prepare('SELECT COUNT(*) AS count FROM financial_entries').get()).toEqual({
-      count: 0
-    })
-
-    const updated = settlementService.updateDraft(draft.id, {
-      attendanceMinutes: 60,
-      attendanceNote: '打卡汇总',
-      actualDeductionCents: 500,
-      finalPaidAmountCents: 1_800,
-      paidOn: '2026-09-09',
-      managerNote: '负责人确认'
-    })
-    expect(updated).toMatchObject({
-      attendanceReferenceWageCents: 2_100,
-      actualDeductionCents: 500,
-      continuingCarryoverCents: 200
-    })
-    expect(updated.deductionAllocations).toHaveLength(1)
-    expect(updated.deductionAllocations[0].allocatedCents).toBe(500)
-
-    const confirmed = settlementService.confirm(draft.id)
-    expect(confirmed).toMatchObject({
-      status: 'confirmed',
-      finalPaidAmountCents: 1_800,
-      paidOn: '2026-09-09',
-      scheduledReferenceWageCents: 1_300,
-      attendanceReferenceWageCents: 2_100,
-      actualDeductionCents: 500,
-      continuingCarryoverCents: 200
-    })
-    expect(confirmed.financialEntryId).toEqual(expect.any(String))
-    expect(
-      database
-        .prepare(
-          `
-      SELECT id, source_type, direction, business_type, amount_cents, occurred_on, order_id, note
-      FROM financial_entries
-    `
-        )
-        .all()
-    ).toEqual([
-      {
-        id: confirmed.financialEntryId,
-        source_type: 'worker_settlement',
-        direction: 'expense',
-        business_type: 'wage_payment',
-        amount_cents: 1_800,
-        occurred_on: '2026-09-09',
-        order_id: null,
-        note: '负责人确认'
-      }
-    ])
-    expect(() => settlementService.confirm(draft.id)).toThrow('只有草稿结算单可以编辑或确认')
-    expect(
-      database.prepare('SELECT remaining_cents, status FROM worker_deduction_balances').all()
-    ).toEqual([{ remaining_cents: 200, status: 'open' }])
-    expect(settlementService.listWorkers()).toMatchObject([{ id: worker.id, name: '小林' }])
-    expect(settlementService.listWageHistory(worker.id)).toMatchObject([{ hourlyWageCents: 2_000 }])
-    expect(settlementService.listSettlements({ workerId: worker.id })).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: draft.id, status: 'confirmed' })])
-    )
-    expect(() =>
-      settlementService.createDraft({
-        workerId: worker.id,
-        periodStartOn: '2026-09-07',
-        periodEndOn: '2026-09-08'
-      })
-    ).toThrow('已确认结算')
-  })
-
-  it('结算捏毛装袋时始终使用任务冻结的计件提成，不受商品后续改价影响', () => {
-    const database = createV2Database(':memory:')
-    databases.push(database)
-    const orders = new V2OrderService(new V2OrderRepository(database))
-    const fulfillment = new FulfillmentService(new V2FulfillmentRepository(database))
-    const settlements = new SettlementService(database)
-    const worker = settlements.createWorker({
-      name: '小夏',
-      hourlyWageCents: 2_000,
-      effectiveOn: '2026-09-01'
-    })
-    const product = orders.createProduct({
-      name: '捏毛提成冻结商品',
-      basePriceCents: 6_000,
-      materialCostCents: 1_000,
-      packagingCostCents: 100,
-      accessoryCostCents: 0,
-      replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
-      standardMakingMinutes: 12,
-      makingCommissionCents: 300,
-      makingGlueCostCents: 50,
-      fluffingBaggingCommissionCents: 85
-    })
-    const order = orders.createOrder({
-      customer: { name: '小雨' },
-      items: [{ productId: product.id, quantity: 2, unitPriceCents: 6_000 }]
-    })
-    const assignment = fulfillment.createWorkAssignment({
-      workerId: worker.id,
-      assignedOn: '2026-09-07',
-      processType: 'fluffing_bagging',
-      tasks: [
-        {
-          orderItemId: order.items[0].id,
-          sourceType: 'normal_production',
-          plannedQuantity: 2,
-          plannedMinutes: 20
-        }
-      ]
-    })
-    expect(assignment.tasks[0].pieceRateCents).toBe(85)
-    fulfillment.recordOpeningWip({
-      orderItemId: order.items[0].id,
-      targetStage: 'fluffing_bagging',
-      quantity: 2,
-      occurredOn: '2026-09-07'
-    })
-
-    orders.updateProduct({ ...product, fluffingBaggingCommissionCents: 120 })
-    const result = fulfillment.submitProcessResult(assignment.tasks[0].id, {
-      completedQuantity: 2,
-      submittedOn: '2026-09-07'
-    })
-    fulfillment.confirmQualityInspection(result.id, {
-      qualifiedQuantity: 2,
+    fulfillmentService.confirmQualityInspection(result.id, {
+      qualifiedQuantity: 20,
       unqualifiedQuantity: 0,
-      inspectedOn: '2026-09-07'
+      inspectedOn: '2026-09-13'
     })
+    return { assignment, result }
+  }
+
+  /** 2026-09-14 完成 20 件捏毛装袋并由负责人次日核算 240 分钟。 */
+  function completeFluffingWithReview(
+    fulfillmentService: FulfillmentService,
+    reviews: WorkTimeReviewService,
+    workerId: string,
+    orderItemId: string
+  ) {
+    const assignment = fulfillmentService.createWorkAssignment({
+      workerId,
+      assignedOn: '2026-09-14',
+      processType: 'fluffing_bagging',
+      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 20 }]
+    })
+    const draft = reviews.createDraft({
+      workerId,
+      workedOn: '2026-09-14',
+      processType: 'fluffing_bagging',
+      approvedMinutes: 240,
+      assignmentIds: [assignment.id],
+      items: [{ processTaskId: assignment.tasks[0]!.id, completedQuantity: 20 }]
+    })
+    reviews.confirm(draft.id)
+    return { assignment, review: draft }
+  }
+
+  /** 完成 10 件打包发货并由负责人核算 60 分钟，用于后续期间的来源。 */
+  function completePackingWithReview(
+    fulfillmentService: FulfillmentService,
+    reviews: WorkTimeReviewService,
+    workerId: string,
+    orderItemId: string,
+    workedOn = '2026-09-16'
+  ) {
+    const assignment = fulfillmentService.createWorkAssignment({
+      workerId,
+      assignedOn: workedOn,
+      processType: 'packing',
+      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 10 }]
+    })
+    const draft = reviews.createDraft({
+      workerId,
+      workedOn,
+      processType: 'packing',
+      approvedMinutes: 60,
+      assignmentIds: [assignment.id],
+      items: [{ processTaskId: assignment.tasks[0]!.id, completedQuantity: 10 }]
+    })
+    reviews.confirm(draft.id)
+    return { assignment, review: draft }
+  }
+
+  it('制作按合格提成减材料扣款、捏毛装袋按确认工时加完成提成汇总唯一候选应发', () => {
+    const { fulfillmentService, settlements, reviews, worker, orderItem } = createFixture()
+    completeMakingWithDefects(fulfillmentService, worker.id, orderItem.id)
+    completeFluffingWithReview(fulfillmentService, reviews, worker.id, orderItem.id)
 
     const draft = settlements.createDraft({
       workerId: worker.id,
-      periodStartOn: '2026-09-07',
-      periodEndOn: '2026-09-07'
-    })
-    expect(draft.tasks).toMatchObject([{ qualifiedCommissionCents: 170 }])
-    expect(draft.qualifiedCommissionCents).toBe(170)
-  })
-
-  it('分别汇总制作、捏毛装袋、打包和发货任务，参考工资只按单一口径计算且捏毛不合格不扣胶水', () => {
-    const database = createV2Database(':memory:')
-    databases.push(database)
-    const orderService = new V2OrderService(new V2OrderRepository(database))
-    const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database))
-    const settlementService = new SettlementService(database)
-    const worker = settlementService.createWorker({
-      name: '小夏',
-      hourlyWageCents: 2_000,
-      effectiveOn: '2026-09-01'
-    })
-    const product = orderService.createProduct({
-      name: '栗子小熊',
-      basePriceCents: 6_000,
-      materialCostCents: 1_000,
-      packagingCostCents: 100,
-      accessoryCostCents: 0,
-      replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
-      standardMakingMinutes: 12,
-      makingCommissionCents: 300,
-      makingGlueCostCents: 50
-    })
-    const order = orderService.createOrder({
-      customer: { name: '小雨' },
-      items: [{ productId: product.id, quantity: 2, unitPriceCents: 6_000 }]
-    })
-    const orderItemId = order.items[0].id
-
-    const making = fulfillmentService.createWorkAssignment({
-      workerId: worker.id,
-      assignedOn: '2026-09-07',
-      processType: 'making',
-      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 2, extraMinutes: 6 }]
-    })
-    const makingResult = fulfillmentService.submitProcessResult(making.tasks[0].id, {
-      completedQuantity: 2,
-      submittedOn: '2026-09-07'
-    })
-    fulfillmentService.confirmQualityInspection(makingResult.id, {
-      qualifiedQuantity: 1,
-      unqualifiedQuantity: 1,
-      inspectedOn: '2026-09-07'
+      periodStartOn: '2026-09-13',
+      periodEndOn: '2026-09-14'
     })
 
-    const rework = fulfillmentService.createWorkAssignment({
-      workerId: worker.id,
-      assignedOn: '2026-09-07',
-      processType: 'making',
-      tasks: [{ orderItemId, sourceType: 'rework', plannedQuantity: 1 }]
+    // 计时：240 分钟 × 3000 分/时 = 12,000 分
+    // 计件：制作 20 × 300 = 6,000；捏毛装袋 20 × 85 = 1,700
+    // 材料扣款：不合格 2 × (3400 微元/克 × 25000 毫克) 在整批边界 = 17 分
+    expect(draft).toMatchObject({
+      status: 'draft',
+      timedWageCents: 12_000,
+      commissionCents: 6_000 + 1_700,
+      materialDeductionCents: 17,
+      adjustmentCents: 0,
+      candidateWageCents: 12_000 + 6_000 + 1_700 - 17,
+      actualDeductionCents: 17
     })
-    const reworkResult = fulfillmentService.submitProcessResult(rework.tasks[0].id, {
-      completedQuantity: 1,
-      submittedOn: '2026-09-07'
+    expect(draft.makingSources).toHaveLength(1)
+    expect(draft.makingSources[0]).toMatchObject({
+      occurredOn: '2026-09-13',
+      qualifiedQuantity: 20,
+      unqualifiedQuantity: 2,
+      qualifiedCommissionCents: 6_000,
+      materialDeductionCents: 17
     })
-    fulfillmentService.confirmQualityInspection(reworkResult.id, {
-      qualifiedQuantity: 1,
-      unqualifiedQuantity: 0,
-      inspectedOn: '2026-09-07'
-    })
-
-    const fluffing = fulfillmentService.createWorkAssignment({
-      workerId: worker.id,
-      assignedOn: '2026-09-07',
+    expect(draft.timedSources).toHaveLength(1)
+    expect(draft.timedSources[0]).toMatchObject({
+      occurredOn: '2026-09-14',
       processType: 'fluffing_bagging',
-      tasks: [
-        {
-          orderItemId,
-          sourceType: 'normal_production',
-          plannedQuantity: 2,
-          plannedMinutes: 20,
-          pieceRateCents: 100
-        }
-      ]
+      approvedMinutes: 240,
+      hourlyWageCentsSnapshot: 3_000,
+      timedWageCents: 12_000,
+      commissionCents: 1_700
     })
-    const fluffingResult = fulfillmentService.submitProcessResult(fluffing.tasks[0].id, {
-      completedQuantity: 2,
-      submittedOn: '2026-09-07'
-    })
-    fulfillmentService.confirmQualityInspection(fluffingResult.id, {
-      qualifiedQuantity: 1,
-      unqualifiedQuantity: 1,
-      inspectedOn: '2026-09-07'
-    })
-
-    const packing = fulfillmentService.createWorkAssignment({
-      workerId: worker.id,
-      assignedOn: '2026-09-07',
-      processType: 'packing',
-      tasks: [
-        { orderItemId, sourceType: 'normal_production', plannedQuantity: 1, plannedMinutes: 10 }
-      ]
-    })
-    fulfillmentService.submitProcessResult(packing.tasks[0].id, {
-      completedQuantity: 1,
-      submittedOn: '2026-09-07'
-    })
-
-    const shipping = fulfillmentService.createWorkAssignment({
-      workerId: worker.id,
-      assignedOn: '2026-09-07',
-      processType: 'shipping',
-      tasks: [
-        { orderItemId, sourceType: 'normal_production', plannedQuantity: 1, plannedMinutes: 15 }
-      ]
-    })
-    fulfillmentService.submitProcessResult(shipping.tasks[0].id, {
-      completedQuantity: 1,
-      submittedOn: '2026-09-07'
-    })
-
-    const draft = settlementService.createDraft({
-      workerId: worker.id,
-      periodStartOn: '2026-09-07',
-      periodEndOn: '2026-09-07',
-      attendanceMinutes: 90
-    })
-
-    expect(draft.tasks).toHaveLength(5)
-    expect(draft.scheduledMinutes).toBe(87)
-    expect(draft.qualifiedCommissionCents).toBe(700)
-    expect(draft.deductions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          commissionDeductionCents: 300,
-          wageDeductionCents: 400,
-          glueDeductionCents: 0,
-          totalDeductionCents: 700
-        }),
-        expect.objectContaining({
-          commissionDeductionCents: 100,
-          wageDeductionCents: 333,
-          glueDeductionCents: 0,
-          totalDeductionCents: 433
-        })
-      ])
-    )
-    expect(draft.scheduledReferenceWageCents).toBe(2_467)
-    expect(draft.attendanceReferenceWageCents).toBe(2_567)
-    expect(draft.attendanceReferenceWageCents).not.toBe(
-      draft.scheduledReferenceWageCents + draft.attendanceReferenceWageCents
-    )
+    expect(draft.timedSources[0]!.items).toEqual([
+      expect.objectContaining({ completedQuantity: 20, pieceRateCents: 85, commissionCents: 1_700 })
+    ])
   })
 
-  it('已确认工资在后续发现制作不合格时保留历史实发并转为待退款，负责人可登记退款结果', () => {
-    const database = createV2Database(':memory:')
-    databases.push(database)
-    const orderService = new V2OrderService(new V2OrderRepository(database))
-    const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database))
-    const settlementService = new SettlementService(database)
-    const worker = settlementService.createWorker({
-      name: '小林',
-      hourlyWageCents: 2_000,
-      effectiveOn: '2026-09-01'
-    })
-    const product = orderService.createProduct({
-      name: '奶油小熊',
-      basePriceCents: 6_000,
-      materialCostCents: 1_000,
-      packagingCostCents: 100,
-      accessoryCostCents: 0,
-      replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
-      standardMakingMinutes: 12,
-      makingCommissionCents: 300,
-      makingGlueCostCents: 50
-    })
-    const order = orderService.createOrder({
-      customer: { name: '小雨' },
-      items: [{ productId: product.id, quantity: 3, unitPriceCents: 6_000 }]
-    })
-    const makingAssignment = fulfillmentService.createWorkAssignment({
+  it('工资期间按工作日期归属，草稿工时核算不进入结算', () => {
+    const { fulfillmentService, settlements, reviews, worker, orderItem } = createFixture()
+    completeMakingWithDefects(fulfillmentService, worker.id, orderItem.id)
+    const confirmedReview = completeFluffingWithReview(
+      fulfillmentService,
+      reviews,
+      worker.id,
+      orderItem.id
+    )
+    const draftAssignment = fulfillmentService.createWorkAssignment({
       workerId: worker.id,
-      assignedOn: '2026-09-07',
-      processType: 'making',
-      tasks: [
-        { orderItemId: order.items[0].id, sourceType: 'normal_production', plannedQuantity: 3 }
-      ]
+      assignedOn: '2026-09-15',
+      processType: 'packing',
+      tasks: [{ orderItemId: orderItem.id, sourceType: 'normal_production', plannedQuantity: 5 }]
     })
-    const makingResult = fulfillmentService.submitProcessResult(makingAssignment.tasks[0].id, {
-      completedQuantity: 3,
-      submittedOn: '2026-09-07'
-    })
-    fulfillmentService.confirmQualityInspection(makingResult.id, {
-      qualifiedQuantity: 3,
-      unqualifiedQuantity: 0,
-      inspectedOn: '2026-09-08'
-    })
-    const settled = settlementService.createDraft({
+    const draftReview = reviews.createDraft({
       workerId: worker.id,
-      periodStartOn: '2026-09-07',
-      periodEndOn: '2026-09-08'
+      workedOn: '2026-09-15',
+      processType: 'packing',
+      approvedMinutes: 60,
+      assignmentIds: [draftAssignment.id],
+      items: [{ processTaskId: draftAssignment.tasks[0]!.id, completedQuantity: 5 }]
     })
-    settlementService.updateDraft(settled.id, {
-      finalPaidAmountCents: 1_800,
-      paidOn: '2026-09-09',
-      managerNote: '已实际发放'
-    })
-    const confirmed = settlementService.confirm(settled.id)
 
-    // 模拟付款后复核发现制作不合格：历史工资不允许回写。
+    const makingOnly = settlements.createDraft({
+      workerId: worker.id,
+      periodStartOn: '2026-09-13',
+      periodEndOn: '2026-09-13'
+    })
+    expect(makingOnly.timedWageCents).toBe(0)
+    expect(makingOnly.commissionCents).toBe(6_000)
+    expect(() =>
+      settlements.createDraft({
+        workerId: worker.id,
+        periodStartOn: '2026-09-13',
+        periodEndOn: '2026-09-13'
+      })
+    ).toThrow('结算周期内没有可结算的已确认制作结果或工时核算')
+
+    const timedDeposit = settlements.createDraft({
+      workerId: worker.id,
+      periodStartOn: '2026-09-14',
+      periodEndOn: '2026-09-15'
+    })
+    expect(timedDeposit.timedWageCents).toBe(12_000)
+    expect(timedDeposit.timedSources.map((source) => source.workTimeReviewId)).toEqual([
+      confirmedReview.review.id
+    ])
+    expect(timedDeposit.timedSources[0]!.workTimeReviewId).not.toBe(draftReview.id)
+  })
+
+  it('一条已确认工时最多进入一个有效结算', () => {
+    const { fulfillmentService, settlements, reviews, worker, orderItem } = createFixture()
+    completeMakingWithDefects(fulfillmentService, worker.id, orderItem.id)
+    completeFluffingWithReview(fulfillmentService, reviews, worker.id, orderItem.id)
+    const deposit = settlements.createDraft({
+      workerId: worker.id,
+      periodStartOn: '2026-09-14',
+      periodEndOn: '2026-09-14'
+    })
+    settlements.updateDraft(deposit.id, {
+      finalPaidAmountCents: 12_000,
+      paidOn: '2026-09-15',
+      managerNote: '已发放'
+    })
+    settlements.confirm(deposit.id)
+
+    expect(() =>
+      settlements.createDraft({
+        workerId: worker.id,
+        periodStartOn: '2026-09-14',
+        periodEndOn: '2026-09-14'
+      })
+    ).toThrow('不能重复纳入')
+  })
+
+  it('已确认结算后的制作质量更正只形成材料成本待退款，不改写历史实发', () => {
+    const { database, fulfillmentService, settlements, reviews, worker, orderItem } =
+      createFixture()
+    const making = completeMakingAllQualified(fulfillmentService, worker.id, orderItem.id)
+    const deposit = settlements.createDraft({
+      workerId: worker.id,
+      periodStartOn: '2026-09-13',
+      periodEndOn: '2026-09-13'
+    })
+    settlements.updateDraft(deposit.id, {
+      finalPaidAmountCents: 6_000,
+      paidOn: '2026-09-15',
+      managerNote: '已发放'
+    })
+    settlements.confirm(deposit.id)
+
+    // 复核发现 1 件不合格：历史实发不变，只形成材料成本待退款。
     database
       .prepare(
-        'UPDATE quality_inspections SET qualified_quantity = 2, unqualified_quantity = 1, inspected_on = ? WHERE process_result_id = ?'
+        'UPDATE quality_inspections SET qualified_quantity = 19, unqualified_quantity = 1 WHERE process_result_id = ?'
       )
-      .run('2026-09-10', makingResult.id)
-    const shippingAssignment = fulfillmentService.createWorkAssignment({
+      .run(making.result.id)
+    completeFluffingWithReview(fulfillmentService, reviews, worker.id, orderItem.id)
+    completePackingWithReview(fulfillmentService, reviews, worker.id, orderItem.id)
+    settlements.createDraft({
       workerId: worker.id,
-      assignedOn: '2026-09-10',
-      processType: 'shipping',
-      tasks: [
-        {
-          orderItemId: order.items[0].id,
-          sourceType: 'normal_production',
-          plannedQuantity: 1,
-          plannedMinutes: 30
-        }
-      ]
-    })
-    fulfillmentService.submitProcessResult(shippingAssignment.tasks[0].id, {
-      completedQuantity: 1,
-      submittedOn: '2026-09-10'
-    })
-    settlementService.createDraft({
-      workerId: worker.id,
-      periodStartOn: '2026-09-10',
-      periodEndOn: '2026-09-10'
+      periodStartOn: '2026-09-16',
+      periodEndOn: '2026-09-16'
     })
 
-    const pendingRefunds = settlementService.listPendingRefunds(worker.id)
-    expect(pendingRefunds).toEqual([
-      expect.objectContaining({
-        workerId: worker.id,
-        originalSettlementId: confirmed.id,
-        requestedRefundCents: 700,
-        status: 'pending',
-        actualRefundCents: null,
-        refundedOn: null
-      })
-    ])
-    expect(settlementService.getSettlement(confirmed.id)).toMatchObject({
+    const pendingRefunds = settlements.listPendingRefunds(worker.id)
+    expect(pendingRefunds).toHaveLength(1)
+    expect(pendingRefunds[0]).toMatchObject({
+      originalSettlementId: deposit.id,
+      unqualifiedQuantity: 1,
+      materialRefundCents: 9,
+      status: 'pending'
+    })
+    expect(settlements.getSettlement(deposit.id)).toMatchObject({
       status: 'confirmed',
-      finalPaidAmountCents: 1_800,
-      paidOn: '2026-09-09'
+      finalPaidAmountCents: 6_000
     })
 
-    const resolved = settlementService.resolveRefund(pendingRefunds[0].id, {
-      actualRefundCents: 700,
-      refundedOn: '2026-09-11',
-      managerNote: '已退回'
+    const resolved = settlements.resolveRefund(pendingRefunds[0]!.id, {
+      actualRefundCents: 9,
+      refundedOn: '2026-09-16',
+      managerNote: '已退回材料成本'
     })
-    expect(resolved).toMatchObject({
-      status: 'refunded',
-      actualRefundCents: 700,
-      refundedOn: '2026-09-11',
-      managerNote: '已退回'
+    expect(resolved).toMatchObject({ status: 'refunded', actualRefundCents: 9 })
+  })
+
+  it('已结算工时差异在后续草稿结算中建立关联原工时的负向调整', () => {
+    const { fulfillmentService, settlements, reviews, worker, orderItem } = createFixture()
+    completeMakingWithDefects(fulfillmentService, worker.id, orderItem.id)
+    const fluffing = completeFluffingWithReview(
+      fulfillmentService,
+      reviews,
+      worker.id,
+      orderItem.id
+    )
+    const firstDeposit = settlements.createDraft({
+      workerId: worker.id,
+      periodStartOn: '2026-09-14',
+      periodEndOn: '2026-09-14'
     })
-    expect(settlementService.listPendingRefunds(worker.id)).toEqual([])
+    settlements.updateDraft(firstDeposit.id, {
+      finalPaidAmountCents: 12_000,
+      paidOn: '2026-09-15',
+      managerNote: '已发放'
+    })
+    settlements.confirm(firstDeposit.id)
+
+    // 后续期间：一条尚未进入结算的已确认工时，用于验证“必须先进入确认结算”的约束。
+    const packing = completePackingWithReview(fulfillmentService, reviews, worker.id, orderItem.id)
+    const later = settlements.createDraft({
+      workerId: worker.id,
+      periodStartOn: '2026-09-16',
+      periodEndOn: '2026-09-16'
+    })
     expect(() =>
-      settlementService.resolveRefund(resolved.id, {
-        actualRefundCents: 700,
-        refundedOn: '2026-09-11'
+      settlements.addWorkTimeAdjustment(later.id, {
+        workTimeReviewId: packing.review.id,
+        correctedMinutes: 45,
+        reason: '尚未结算'
       })
-    ).toThrow('只有待退款记录可以处理')
+    ).toThrow('该工时尚未进入已确认结算')
+
+    // 已结算工时（240 → 210 分钟，冻结时薪 3000 分/时）产生 -1,500 分调整。
+    const adjusted = settlements.addWorkTimeAdjustment(later.id, {
+      workTimeReviewId: fluffing.review.id,
+      correctedMinutes: 210,
+      reason: '时长录错',
+      note: '按打卡更正'
+    })
+    expect(adjusted.adjustments).toHaveLength(1)
+    expect(adjusted.adjustments[0]).toMatchObject({
+      workTimeReviewId: fluffing.review.id,
+      originalSettlementId: firstDeposit.id,
+      originalMinutes: 240,
+      correctedMinutes: 210,
+      hourlyWageCentsSnapshot: 3_000,
+      amountCents: -1_500,
+      reason: '时长录错'
+    })
+    expect(adjusted.adjustmentCents).toBe(-1_500)
+    // 本期来源：打包发货 60 分钟 × 3000 分/时 = 3,000 分；无提成。
+    expect(adjusted.timedWageCents).toBe(3_000)
+    expect(adjusted.candidateWageCents).toBe(3_000 - 1_500)
+    expect(() =>
+      settlements.addWorkTimeAdjustment(later.id, {
+        workTimeReviewId: fluffing.review.id,
+        correctedMinutes: 200,
+        reason: '重复调整'
+      })
+    ).toThrow()
+  })
+
+  it('制作材料扣款按发生顺序抵扣、确认后写入财务流水且重复确认被拒绝', () => {
+    const { database, fulfillmentService, settlements, worker, orderItem } = createFixture()
+    completeMakingWithDefects(fulfillmentService, worker.id, orderItem.id)
+
+    const draft = settlements.createDraft({
+      workerId: worker.id,
+      periodStartOn: '2026-09-13',
+      periodEndOn: '2026-09-13'
+    })
+    // 材料扣款 17 分 < 候选应发 6000 分，全部本期抵扣。
+    expect(draft.deductions).toHaveLength(1)
+    expect(draft.deductions[0]).toMatchObject({
+      materialDeductionCents: 17,
+      totalDeductionCents: 17,
+      occurredOn: '2026-09-13'
+    })
+    expect(draft.actualDeductionCents).toBe(17)
+    expect(draft.candidateWageCents).toBe(6_000 - 17)
+
+    settlements.updateDraft(draft.id, {
+      finalPaidAmountCents: 5_900,
+      paidOn: '2026-09-15',
+      managerNote: '负责人确认实发'
+    })
+    const confirmed = settlements.confirm(draft.id)
+    expect(confirmed).toMatchObject({
+      status: 'confirmed',
+      finalPaidAmountCents: 5_900,
+      paidOn: '2026-09-15'
+    })
+    expect(
+      database
+        .prepare(
+          "SELECT COUNT(*) AS count FROM financial_entries WHERE source_type = 'worker_settlement'"
+        )
+        .get()
+    ).toEqual({ count: 1 })
+    expect(() => settlements.confirm(draft.id)).toThrow('只有草稿结算单可以编辑或确认')
+    expect(settlements.getSettlement(draft.id)?.makingSources[0]?.status).toBe('confirmed')
   })
 })

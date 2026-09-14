@@ -26,6 +26,9 @@ export function registerSettlementIpc(ipc: SettlementIpcMain, service: Settlemen
   ipc.handle('v2:settlements:confirm', (_event, settlementId) =>
     service.confirm(settlementId as string)
   )
+  ipc.handle('v2:settlements:work-time-adjustments:create', (_event, settlementId, input) =>
+    service.addWorkTimeAdjustment(settlementId as string, input as never)
+  )
   ipc.handle('v2:settlements:refunds:list', (_event, query) => service.listRefunds(query as never))
   ipc.handle('v2:settlements:refunds:resolve', (_event, refundId, input) =>
     service.resolveRefund(refundId as string, input as never)

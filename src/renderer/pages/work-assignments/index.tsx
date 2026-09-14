@@ -39,8 +39,8 @@ interface TaskDraft {
 const processLabels: Record<V2ProcessType, string> = {
   making: '制作',
   fluffing_bagging: '捏毛装袋',
-  packing: '打包',
-  shipping: '发货'
+  edge_sewing: '缝边',
+  packing: '打包发货'
 }
 const sourceOptions: Array<{ value: TaskDraft['sourceType']; label: string }> = [
   { value: 'normal_production', label: '正常生产' },
@@ -61,7 +61,7 @@ function createTaskDraft(order?: V2Order): TaskDraft {
 }
 
 function taskStatus(taskStatus: string) {
-  if (taskStatus === 'pending_inspection') return { label: '待次日质检', tone: 'warning' as const }
+  if (taskStatus === 'pending_inspection') return { label: '待质量确认', tone: 'warning' as const }
   if (taskStatus === 'confirmed' || taskStatus === 'completed') {
     return { label: '已完成', tone: 'success' as const }
   }
@@ -269,7 +269,7 @@ export function WorkAssignmentsPage(props: {
         description={
           props.focusedTaskId
             ? '已定位到当前待处理任务，仅展示这项任务所在的工作安排。'
-            : '完成记录提交后，负责人可以在次日质检中填写合格与不合格数量。'
+            : '完成记录提交后，负责人可以在质量确认中填写合格与不合格数量；其他工序只登记完成数量。'
         }
       >
         {loading ? (
@@ -283,7 +283,7 @@ export function WorkAssignmentsPage(props: {
             description={
               props.focusedTaskId
                 ? '该任务可能已完成或已发生变化，请返回排班队列刷新后继续处理。'
-                : '负责人新建安排后，任务和质检入口会出现在这里。'
+                : '负责人新建安排后，任务与结果确认入口会出现在这里。'
             }
             title={props.focusedTaskId ? '未找到当前任务' : '暂时没有工作安排'}
           />
@@ -435,50 +435,52 @@ export function WorkAssignmentsPage(props: {
                       </YumiButton>
                     </form>
                   )}
-                  {task.status === 'pending_inspection' && result && (
-                    <form
-                      className="yumi-inline-form"
-                      onSubmit={(event) => handleInspection(event, task.id, result.id)}
-                    >
-                      <strong>次日质检</strong>
-                      <YumiNumberField
-                        aria-label="合格数量"
-                        min="0"
-                        onChange={(event) =>
-                          setInspectionDrafts((current) => ({
-                            ...current,
-                            [task.id]: { ...inspectionDraft, qualified: event.target.value }
-                          }))
-                        }
-                        placeholder="合格"
-                        required
-                        value={inspectionDraft.qualified}
-                      />
-                      <YumiNumberField
-                        aria-label="不合格数量"
-                        min="0"
-                        onChange={(event) =>
-                          setInspectionDrafts((current) => ({
-                            ...current,
-                            [task.id]: { ...inspectionDraft, unqualified: event.target.value }
-                          }))
-                        }
-                        placeholder="不合格"
-                        required
-                        value={inspectionDraft.unqualified}
-                      />
-                      <YumiButton
-                        loading={submitting === `inspection:${task.id}`}
-                        type="submit"
-                        variant="primary"
+                  {task.processType === 'making' &&
+                    task.status === 'pending_inspection' &&
+                    result && (
+                      <form
+                        className="yumi-inline-form"
+                        onSubmit={(event) => handleInspection(event, task.id, result.id)}
                       >
-                        确认质检
-                      </YumiButton>
-                    </form>
-                  )}
-                  {task.status === 'pending_inspection' && !result && (
-                    <YumiFormMessage>正在读取待质检完成记录…</YumiFormMessage>
-                  )}
+                        <strong>质量确认</strong>
+                        <YumiNumberField
+                          aria-label="合格数量"
+                          min="0"
+                          onChange={(event) =>
+                            setInspectionDrafts((current) => ({
+                              ...current,
+                              [task.id]: { ...inspectionDraft, qualified: event.target.value }
+                            }))
+                          }
+                          placeholder="合格"
+                          required
+                          value={inspectionDraft.qualified}
+                        />
+                        <YumiNumberField
+                          aria-label="不合格数量"
+                          min="0"
+                          onChange={(event) =>
+                            setInspectionDrafts((current) => ({
+                              ...current,
+                              [task.id]: { ...inspectionDraft, unqualified: event.target.value }
+                            }))
+                          }
+                          placeholder="不合格"
+                          required
+                          value={inspectionDraft.unqualified}
+                        />
+                        <YumiButton
+                          loading={submitting === `inspection:${task.id}`}
+                          type="submit"
+                          variant="primary"
+                        >
+                          确认质量结果
+                        </YumiButton>
+                      </form>
+                    )}
+                  {task.processType === 'making' &&
+                    task.status === 'pending_inspection' &&
+                    !result && <YumiFormMessage>正在读取待确认的完成记录…</YumiFormMessage>}
                 </div>
               )
             })}
@@ -557,14 +559,8 @@ export function WorkAssignmentsPage(props: {
                   <YumiSelect
                     aria-label={`任务 ${index + 1} 订单产品`}
                     onValueChange={(value) => updateTask(index, { orderItemId: value })}
-                    options={[
-                      {
-                        value: '',
-                        label: processType === 'shipping' ? '不关联订单产品' : '请选择订单产品'
-                      },
-                      ...orderItemOptions
-                    ]}
-                    placeholder={processType === 'shipping' ? '不关联订单产品' : '请选择订单产品'}
+                    options={[{ value: '', label: '请选择订单产品' }, ...orderItemOptions]}
+                    placeholder="请选择订单产品"
                     value={task.orderItemId}
                   />
                 </YumiField>

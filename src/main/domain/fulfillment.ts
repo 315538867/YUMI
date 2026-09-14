@@ -1,6 +1,6 @@
 import { DomainValidationError } from './errors'
 
-export const processTypes = ['making', 'fluffing_bagging', 'packing', 'shipping'] as const
+export const processTypes = ['making', 'fluffing_bagging', 'edge_sewing', 'packing'] as const
 export type ProcessType = (typeof processTypes)[number]
 
 export const processTaskSources = [
@@ -14,6 +14,7 @@ export type ProcessTaskSource = (typeof processTaskSources)[number]
 export const fulfillmentStages = [
   'making',
   'fluffing_bagging',
+  'edge_sewing',
   'packing',
   'ready_to_ship',
   'shipped'
@@ -21,9 +22,10 @@ export const fulfillmentStages = [
 export type FulfillmentStage = (typeof fulfillmentStages)[number]
 
 export type FulfillmentEventType =
-  | 'opening_wip'
+  | 'inventory_allocation'
   | 'making_qualified'
-  | 'fluffing_bagging_qualified'
+  | 'fluffing_bagging_completed'
+  | 'edge_sewing_completed'
   | 'packing_completed'
   | 'shipment'
   | 'manager_adjustment'
@@ -60,14 +62,18 @@ export interface FulfillmentEventDraft {
 export interface FulfillmentState {
   making: number
   fluffingBagging: number
+  edgeSewing: number
   packing: number
   readyToShip: number
   shipped: number
+  /** 累计进入过待缝边的数量，用于计算订单商品剩余缝边需求。 */
+  edgeSewingRouted: number
 }
 
 const stageProperty: Record<FulfillmentStage, keyof FulfillmentState> = {
   making: 'making',
   fluffing_bagging: 'fluffingBagging',
+  edge_sewing: 'edgeSewing',
   packing: 'packing',
   ready_to_ship: 'readyToShip',
   shipped: 'shipped'
@@ -100,6 +106,7 @@ function requireProcessType(value: ProcessType): ProcessType {
   return value
 }
 
+/** 制作按标准制作分钟乘计划数量加额外预留；其他工序不要求排班时填写最终分钟。 */
 export function calculateTaskPlannedMinutes(input: TaskMinutesInput): number {
   const processType = requireProcessType(input.processType)
   const extraMinutes = input.extraMinutes ?? 0
@@ -114,17 +121,11 @@ export function calculateTaskPlannedMinutes(input: TaskMinutesInput): number {
   if (extraMinutes !== 0) {
     throw new DomainValidationError('额外预留分钟仅适用于制作任务')
   }
-
-  if (processType === 'shipping') {
-    if (input.plannedQuantity !== null && input.plannedQuantity !== undefined) {
-      requireNonNegativeInteger(input.plannedQuantity, '计划数量')
-    }
-  } else {
-    requirePositiveInteger(input.plannedQuantity, '计划数量')
+  if (input.plannedQuantity !== null && input.plannedQuantity !== undefined) {
+    requireNonNegativeInteger(input.plannedQuantity, '计划数量')
   }
-
-  const plannedMinutes = requireNonNegativeInteger(input.plannedMinutes, '计划分钟')
-  return plannedMinutes + extraMinutes
+  const plannedMinutes = requireNonNegativeInteger(input.plannedMinutes ?? 0, '计划分钟')
+  return plannedMinutes
 }
 
 export function validateProcessResult(input: ProcessResultInput): void {
@@ -132,6 +133,7 @@ export function validateProcessResult(input: ProcessResultInput): void {
   requireOptionalNonNegativeInteger(input.actualMinutes, '实际分钟')
 }
 
+/** 只有制作需要质量确认，且合格数量加不合格数量必须等于完成数量。 */
 export function validateQualityInspection(input: QualityInspectionInput): void {
   if (input.alreadyInspected) throw new DomainValidationError('该完成申报已质检，不能重复确认')
   requirePositiveInteger(input.completedQuantity, '完成数量')
@@ -146,44 +148,70 @@ export function createFulfillmentState(orderQuantity: number): FulfillmentState 
   return {
     making: requirePositiveInteger(orderQuantity, '订单数量'),
     fluffingBagging: 0,
+    edgeSewing: 0,
     packing: 0,
     readyToShip: 0,
-    shipped: 0
+    shipped: 0,
+    edgeSewingRouted: 0
   }
 }
 
-export function createOpeningWipEvent(
-  targetStage: Exclude<FulfillmentStage, 'making' | 'shipped'>,
-  quantity: number
-): FulfillmentEventDraft {
-  if (!['fluffing_bagging', 'packing', 'ready_to_ship'].includes(targetStage)) {
-    throw new DomainValidationError('期初在制品只能进入待捏毛装袋、待打包或待发货阶段')
-  }
+export function createMakingQualifiedEvent(quantity: number): FulfillmentEventDraft {
   return {
-    eventType: 'opening_wip',
-    quantity: requirePositiveInteger(quantity, '期初在制品数量'),
+    eventType: 'making_qualified',
+    quantity: requirePositiveInteger(quantity, '合格数量'),
     sourceStage: 'making',
-    targetStage
+    targetStage: 'fluffing_bagging'
   }
 }
 
-export function createQualityQualifiedEvent(
-  processType: Extract<ProcessType, 'making' | 'fluffing_bagging'>,
-  quantity: number
-): FulfillmentEventDraft {
-  requirePositiveInteger(quantity, '合格数量')
-  if (processType === 'making') {
-    return {
-      eventType: 'making_qualified',
-      quantity,
-      sourceStage: 'making',
-      targetStage: 'fluffing_bagging'
-    }
+/**
+ * 捏毛装袋完成后按订单商品剩余缝边需求分流：需求内进入待缝边，其余直接进入待打包发货。
+ */
+export function routeFluffingBaggingCompletion(input: {
+  completedQuantity: number
+  edgeQuantity: number
+  edgeSewingRouted: number
+}): { toEdgeSewing: number; toPacking: number } {
+  const completedQuantity = requirePositiveInteger(input.completedQuantity, '捏毛装袋完成数量')
+  const edgeQuantity = requireNonNegativeInteger(input.edgeQuantity, '订单缝边数量')
+  const edgeSewingRouted = requireNonNegativeInteger(input.edgeSewingRouted, '已分流缝边数量')
+  const remainingEdgeDemand = Math.max(edgeQuantity - edgeSewingRouted, 0)
+  const toEdgeSewing = Math.min(completedQuantity, remainingEdgeDemand)
+  return { toEdgeSewing, toPacking: completedQuantity - toEdgeSewing }
+}
+
+export function createFluffingBaggingCompletedEvents(input: {
+  completedQuantity: number
+  edgeQuantity: number
+  edgeSewingRouted: number
+}): FulfillmentEventDraft[] {
+  const { toEdgeSewing, toPacking } = routeFluffingBaggingCompletion(input)
+  const events: FulfillmentEventDraft[] = []
+  if (toEdgeSewing > 0) {
+    events.push({
+      eventType: 'fluffing_bagging_completed',
+      quantity: toEdgeSewing,
+      sourceStage: 'fluffing_bagging',
+      targetStage: 'edge_sewing'
+    })
   }
+  if (toPacking > 0) {
+    events.push({
+      eventType: 'fluffing_bagging_completed',
+      quantity: toPacking,
+      sourceStage: 'fluffing_bagging',
+      targetStage: 'packing'
+    })
+  }
+  return events
+}
+
+export function createEdgeSewingCompletedEvent(quantity: number): FulfillmentEventDraft {
   return {
-    eventType: 'fluffing_bagging_qualified',
-    quantity,
-    sourceStage: 'fluffing_bagging',
+    eventType: 'edge_sewing_completed',
+    quantity: requirePositiveInteger(quantity, '缝边完成数量'),
+    sourceStage: 'edge_sewing',
     targetStage: 'packing'
   }
 }
@@ -194,6 +222,25 @@ export function createPackingCompletedEvent(quantity: number): FulfillmentEventD
     quantity: requirePositiveInteger(quantity, '打包完成数量'),
     sourceStage: 'packing',
     targetStage: 'ready_to_ship'
+  }
+}
+
+/**
+ * 商品存量投入订单：商品已经制作完成，因此从订单待制作数量中扣减并进入目标阶段。
+ * 目标阶段由存量阶段和订单缝边需求决定，不能直接投入制作或已发货阶段。
+ */
+export function createInventoryAllocationEvent(
+  targetStage: FulfillmentStage,
+  quantity: number
+): FulfillmentEventDraft {
+  if (!['fluffing_bagging', 'edge_sewing', 'packing', 'ready_to_ship'].includes(targetStage)) {
+    throw new DomainValidationError('商品存量不能直接投入制作或已发货阶段')
+  }
+  return {
+    eventType: 'inventory_allocation',
+    quantity: requirePositiveInteger(quantity, '投入数量'),
+    sourceStage: 'making',
+    targetStage
   }
 }
 
@@ -208,7 +255,10 @@ export function applyFulfillmentEvent(
     if (next[sourceProperty] < quantity) throw new DomainValidationError('来源阶段可用数量不足')
     next[sourceProperty] -= quantity
   }
-  if (event.targetStage) next[stageProperty[event.targetStage]] += quantity
+  if (event.targetStage) {
+    next[stageProperty[event.targetStage]] += quantity
+    if (event.targetStage === 'edge_sewing') next.edgeSewingRouted += quantity
+  }
   return next
 }
 

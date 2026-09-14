@@ -544,26 +544,25 @@ describe('YUMI 排班界面', () => {
 })
 
 describe('V2 履约工作区', () => {
-  it('提供阶段余额、期初在制品、负责人调整和工作安排入口', () => {
+  it('提供阶段余额、负责人调整和工作安排入口，并移除订单绑定期初在制品入口', () => {
     expect(fulfillmentPageSource).toContain('订单视角')
     expect(fulfillmentPageSource).toContain('人员周历')
-    expect(fulfillmentPageSource).toContain('工作安排与质检')
+    expect(fulfillmentPageSource).toContain('工作安排与结果确认')
     expect(fulfillmentComposableSource).toContain('buildFulfillmentQueue')
-    expect(fulfillmentPageSource).toContain('期初在制品')
+    expect(fulfillmentPageSource).not.toContain('期初在制品')
+    expect(fulfillmentComposableSource).not.toContain('recordOpeningWip')
     expect(fulfillmentPageSource).toContain('负责人调整')
     expect(fulfillmentPageSource).toContain('待发货')
     expect(workAssignmentsPageSource).toContain('新增工作安排')
     expect(workAssignmentsPageSource).toContain('提交完成')
-    expect(workAssignmentsPageSource).toContain('次日质检')
   })
 
-  it('将履约首页组织为单一队列与互斥阶段筛选，待发货事项直接进入订单的分批发货处理', () => {
+  it('将履约首页组织为单一队列与互斥阶段筛选，发货事项直接进入订单的分批发货处理', () => {
     expect(fulfillmentPageSource).toContain(
-      "type FulfillmentWorkspaceMode = 'queue' | 'processing' | 'opening_wip'"
+      "type FulfillmentWorkspaceMode = 'queue' | 'processing'"
     )
     expect(fulfillmentPageSource).toContain('YumiPrimaryTabs')
     expect(fulfillmentPageSource).toContain('排班视角')
-    expect(fulfillmentPageSource).toContain('补录期初在制品')
     expect(fulfillmentPageSource).toContain('OrderDispatchBoard')
     expect(fulfillmentPageSource).toContain("orderView: 'fulfillment'")
     expect(fulfillmentPageSource).toContain(
@@ -598,7 +597,6 @@ describe('V2 履约工作区', () => {
 
   it('通过 composable 完成履约写入并在失败时保留页面草稿', () => {
     expect(fulfillmentPageSource).toContain('setError')
-    expect(fulfillmentPageSource).toContain('await recordOpeningWip')
     expect(fulfillmentPageSource).toContain('await reassignProcessTask')
     expect(workAssignmentsPageSource).toContain('setError')
     expect(workAssignmentsPageSource).toContain('await createWorkAssignment')
@@ -608,16 +606,21 @@ describe('V2 履约工作区', () => {
 })
 
 describe('V2 兼职工资结算工作区', () => {
-  it('提供兼职人员、任意日期范围结算、双口径参考和确认入口', () => {
+  it('提供兼职人员、任意日期范围结算、计时与计件来源和确认入口', () => {
     expect(workersPageSource).toContain('新增兼职人员')
     expect(workersPageSource).toContain('时薪历史')
     expect(settlementsPageSource).toContain('新建结算草稿')
     expect(settlementsPageSource).toContain('结算日期范围')
-    expect(settlementDetailSource).toContain('排班口径')
-    expect(settlementDetailSource).toContain('考勤口径')
-    expect(settlementDetailSource).toContain('任务来源')
+    expect(settlementDetailSource).toContain('计时工资')
+    expect(settlementDetailSource).toContain('计算候选应发')
+    expect(settlementDetailSource).toContain('制作结果来源')
+    expect(settlementDetailSource).toContain('计时来源')
+    expect(settlementDetailSource).toContain('来源关联调整')
     expect(settlementDetailSource).toContain('扣款来源')
     expect(settlementDetailSource).toContain('确认并记账')
+    expect(settlementDetailSource).not.toContain('排班口径')
+    expect(settlementDetailSource).not.toContain('考勤口径')
+    expect(settlementDetailSource).not.toContain('考勤总分钟')
   })
 
   it('页面通过 composable 和纯展示组件提交草稿、更新和确认，失败保留页面草稿', () => {
@@ -787,8 +790,10 @@ describe('运营界面按需录入', () => {
   it('基础资料、工资和财务只在负责人主动操作时打开录入工作区', () => {
     expect(customerPageSource).toContain('useState(false)')
     expect(customerPageSource).toContain('open={editorOpen}')
-    expect(productPageSource).toContain('useState(false)')
-    expect(productPageSource).toContain('open={editorOpen}')
+    expect(productPageSource).toContain("useState<ProductsWorkspaceMode>('list')")
+    expect(productPageSource).toContain("setMode('create')")
+    expect(productPageSource).toContain('返回商品列表')
+    expect(productPageSource).not.toContain('YumiSheet')
     expect(settlementsPageSource).toContain("useState<SettlementsWorkspace>('settlements')")
     expect(settlementsPageSource).toContain('open={showDraftForm}')
     expect(settlementsPageSource).toContain('title="新建结算"')
@@ -859,7 +864,7 @@ describe('YUMI 售后处理界面', () => {
 })
 
 describe('YUMI 客户与商品资料界面', () => {
-  it('客户和商品使用经营资料列表与按需抽屉，不依赖 Radix Themes 或旧面板样式', () => {
+  it('客户与商品共用经营资料列表样式，商品全页工作区不再由抽屉承载完整表单', () => {
     for (const pageSource of [customerPageSource, productPageSource]) {
       expect(pageSource).not.toContain('@radix-ui/themes')
       expect(pageSource).not.toContain('TextField.Root')
@@ -868,12 +873,17 @@ describe('YUMI 客户与商品资料界面', () => {
       expect(pageSource).toContain('YumiListToolbar')
       expect(pageSource).toContain('YumiDataTable')
       expect(pageSource).toContain('YumiSelect')
-      expect(pageSource).toContain('YumiSheet')
       expect(pageSource).toContain('YumiTextField')
     }
+    expect(customerPageSource).toContain('YumiSheet')
     expect(customerPageSource).toContain('订单会保留当时的客户快照')
-    expect(productPageSource).toContain('标准制作分钟')
-    expect(productPageSource).toContain('胶水用量（克）')
+    expect(productPageSource).not.toContain('YumiSheet')
+    expect(productPageSource).toContain('yumi-product-workspace')
+    expect(productPageSource).toContain('YumiCalculatedAmount')
+    expect(productPageSource).toContain('预计单件制作时长')
+    expect(productPageSource).not.toContain('胶水用量')
+    expect(productPageSource).not.toContain('材料损耗率')
+    expect(productPageSource).toContain('预计单件缝边时长')
     expect(productPageSource).toContain('制作提成')
   })
 })

@@ -26,12 +26,11 @@ const mocks = vi.hoisted(() => ({
       periodStartOn: '2026-09-01',
       periodEndOn: '2026-09-07',
       status: 'draft' as const,
-      scheduledMinutes: 360,
-      attendanceMinutes: null,
-      attendanceNote: null,
-      scheduledReferenceWageCents: 12_000,
-      attendanceReferenceWageCents: 0,
-      qualifiedCommissionCents: 2_500,
+      timedWageCents: 0,
+      commissionCents: 2_500,
+      materialDeductionCents: 1_750,
+      adjustmentCents: 0,
+      candidateWageCents: 750,
       currentDeductionCents: 1_750,
       carriedDeductionCents: 0,
       actualDeductionCents: 1_500,
@@ -43,19 +42,25 @@ const mocks = vi.hoisted(() => ({
       financialEntryId: null,
       createdAt: '2026-09-08T00:00:00.000Z',
       updatedAt: '2026-09-08T00:00:00.000Z',
-      tasks: [
+      makingSources: [
         {
-          id: 'settlement-task-1',
+          id: 'making-source-1',
           processTaskId: 'task-making-1',
-          processType: 'making' as const,
-          pieceRateCents: 1_250,
-          scheduledMinutes: 60,
+          qualityInspectionId: 'inspection-1',
+          orderId: 'order-1',
+          orderItemId: 'item-1',
+          occurredOn: '2026-09-03',
           qualifiedQuantity: 2,
+          unqualifiedQuantity: 1,
+          pieceRateCents: 1_250,
           qualifiedCommissionCents: 2_500,
+          materialDeductionCents: 1_750,
           status: 'draft' as const,
           createdAt: '2026-09-08T00:00:00.000Z'
         }
       ],
+      timedSources: [],
+      adjustments: [],
       deductions: [
         {
           id: 'deduction-1',
@@ -69,9 +74,7 @@ const mocks = vi.hoisted(() => ({
           orderId: 'order-1',
           orderItemId: 'item-1',
           unqualifiedQuantity: 1,
-          commissionDeductionCents: 1_250,
-          wageDeductionCents: 450,
-          glueDeductionCents: 50,
+          materialDeductionCents: 1_750,
           totalDeductionCents: 1_750,
           deductedCents: 0,
           remainingCarryoverCents: 1_750,
@@ -97,12 +100,11 @@ const mocks = vi.hoisted(() => ({
       periodStartOn: '2026-09-08',
       periodEndOn: '2026-09-09',
       status: 'confirmed' as const,
-      scheduledMinutes: 240,
-      attendanceMinutes: 240,
-      attendanceNote: null,
-      scheduledReferenceWageCents: 8_000,
-      attendanceReferenceWageCents: 8_000,
-      qualifiedCommissionCents: 1_000,
+      timedWageCents: 8_000,
+      commissionCents: 1_000,
+      materialDeductionCents: 0,
+      adjustmentCents: 0,
+      candidateWageCents: 9_000,
       currentDeductionCents: 0,
       carriedDeductionCents: 0,
       actualDeductionCents: 0,
@@ -114,7 +116,9 @@ const mocks = vi.hoisted(() => ({
       financialEntryId: 'entry-1',
       createdAt: '2026-09-10T00:00:00.000Z',
       updatedAt: '2026-09-10T00:00:00.000Z',
-      tasks: [],
+      makingSources: [],
+      timedSources: [],
+      adjustments: [],
       deductions: [],
       deductionAllocations: []
     }
@@ -130,10 +134,7 @@ const mocks = vi.hoisted(() => ({
       orderId: null,
       orderItemId: null,
       unqualifiedQuantity: 2,
-      commissionDeductionCents: 200,
-      wageDeductionCents: 800,
-      glueDeductionCents: 0,
-      requestedRefundCents: 1_000,
+      materialRefundCents: 1_000,
       actualRefundCents: null,
       refundedOn: null,
       managerNote: null,
@@ -290,17 +291,22 @@ describe('工资列表页面', () => {
     expect(screen.getByRole('region', { name: '工资结算经营摘要' })).toHaveClass(
       'yumi-metric-strip'
     )
-    expect(screen.getByRole('table', { name: '任务来源记录' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '制作结果来源记录' })).toBeVisible()
+    expect(screen.getByRole('table', { name: '计时来源记录' })).toBeVisible()
     expect(screen.getByRole('table', { name: '扣款来源记录' })).toBeVisible()
     expect(document.querySelector('.yumi-settlement-detail__header')).not.toBeInTheDocument()
-    expect(screen.getByRole('table', { name: '任务来源记录' })).toHaveTextContent(
-      '制作 · 任务 task-making-1 · 排班 60 分钟 · 合格 2 件 · 冻结计件 ¥12.50 / 件 · 合格计件结算 ¥25.00'
+    expect(screen.getByRole('table', { name: '制作结果来源记录' })).toHaveTextContent(
+      '2026-09-03 · 合格 2 件 · 不合格 1 件 · 冻结提成 ¥12.50 / 件 · 制作提成 ¥25.00 · 材料成本扣款 ¥17.50'
     )
     expect(screen.getByRole('table', { name: '扣款来源记录' })).toHaveTextContent(
-      '制作不合格 1 件 · 原任务冻结计件 ¥12.50 / 件 · 计件提成扣款 ¥12.50 · 制作时薪扣款 ¥4.50 · 胶水扣款 ¥0.50 · 扣款总额 ¥17.50 · 本期抵扣 ¥15.00'
+      '制作不合格 1 件 · 材料成本扣款 ¥17.50 · 本期抵扣 ¥15.00'
     )
-    expect(screen.queryByText('本期无已完成任务。')).not.toBeInTheDocument()
-    expect(screen.queryByText('本期无不合格扣款。')).not.toBeInTheDocument()
+    expect(screen.queryByText('本期无已确认制作结果。')).not.toBeInTheDocument()
+    expect(screen.queryByText('本期无不合格材料扣款。')).not.toBeInTheDocument()
+    // 页面不再要求负责人填写整周期考勤分钟，也不展示排班/考勤两套参考。
+    expect(screen.queryByRole('textbox', { name: '考勤总分钟' })).not.toBeInTheDocument()
+    expect(screen.queryByText('排班口径')).not.toBeInTheDocument()
+    expect(screen.queryByText('考勤口径')).not.toBeInTheDocument()
     expect(document.querySelector('.yumi-settlement-reference-grid')).not.toBeInTheDocument()
     expect(document.querySelector('.yumi-source-list')).not.toBeInTheDocument()
   })

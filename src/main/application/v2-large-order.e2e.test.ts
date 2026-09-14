@@ -20,6 +20,7 @@ describe('V2 大订单端到端验收', () => {
     const orders = runtime.orderService
     const fulfillment = runtime.fulfillmentService
     const settlements = runtime.settlementService
+    const workTimeReviews = runtime.workTimeReviewService
     const finance = runtime.financeService
     const afterSales = runtime.afterSalesService
     const reports = runtime.reportService
@@ -40,28 +41,24 @@ describe('V2 大订单端到端验收', () => {
       code: 'BEAR',
       category: '动物',
       basePriceCents: 6_000,
-      materialCostCents: 1_000,
       packagingCostCents: 100,
       accessoryCostCents: 50,
       replacementBagCostCents: 50,
-      internalEdgeCostCents: 80,
+      edgeConsumableCostCents: 80,
       standardMakingMinutes: 12,
-      makingCommissionCents: 300,
-      makingGlueCostCents: 50
+      makingCommissionCents: 300
     })
     const fruit = orders.createProduct({
       name: '草莓捏捏',
       code: 'BERRY',
       category: '水果',
       basePriceCents: 5_000,
-      materialCostCents: 800,
       packagingCostCents: 100,
       accessoryCostCents: 0,
       replacementBagCostCents: 50,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 10,
-      makingCommissionCents: 250,
-      makingGlueCostCents: 40
+      makingCommissionCents: 250
     })
     const order = orders.createOrder({
       customerId: customer.id,
@@ -150,18 +147,19 @@ describe('V2 大订单端到端验收', () => {
         }
       ]
     })
-    for (const task of fluffing.tasks) {
-      const quantity = task.orderItemId === bearItem.id ? 3 : 2
-      const result = fulfillment.submitProcessResult(task.id, {
-        completedQuantity: quantity,
-        submittedOn: '2026-09-04'
-      })
-      fulfillment.confirmQualityInspection(result.id, {
-        qualifiedQuantity: quantity,
-        unqualifiedQuantity: 0,
-        inspectedOn: '2026-09-05'
-      })
-    }
+    // 捏毛装袋完成数量在次日由负责人核算：一条 75 分钟的工时记录登记两个商品。
+    const fluffingReview = workTimeReviews.createDraft({
+      workerId: fluffWorker.id,
+      workedOn: '2026-09-04',
+      processType: 'fluffing_bagging',
+      approvedMinutes: 75,
+      assignmentIds: [fluffing.id],
+      items: fluffing.tasks.map((task) => ({
+        processTaskId: task.id,
+        completedQuantity: task.orderItemId === bearItem.id ? 3 : 2
+      }))
+    })
+    workTimeReviews.confirm(fluffingReview.id)
 
     const packing = fulfillment.createWorkAssignment({
       workerId: fluffWorker.id,
@@ -182,13 +180,19 @@ describe('V2 大订单端到端验收', () => {
         }
       ]
     })
-    for (const task of packing.tasks) {
-      const quantity = task.orderItemId === bearItem.id ? 3 : 2
-      fulfillment.submitProcessResult(task.id, {
-        completedQuantity: quantity,
-        submittedOn: '2026-09-05'
-      })
-    }
+    // 打包发货只按核算时长计个人时薪，不产生计件提成。
+    const packingReview = workTimeReviews.createDraft({
+      workerId: fluffWorker.id,
+      workedOn: '2026-09-05',
+      processType: 'packing',
+      approvedMinutes: 50,
+      assignmentIds: [packing.id],
+      items: packing.tasks.map((task) => ({
+        processTaskId: task.id,
+        completedQuantity: task.orderItemId === bearItem.id ? 3 : 2
+      }))
+    })
+    workTimeReviews.confirm(packingReview.id)
 
     const firstShipment = orders.createShipment(order.id, {
       shippedOn: '2026-09-06',
@@ -248,8 +252,7 @@ describe('V2 大订单端到端验收', () => {
     const makingSettlement = settlements.createDraft({
       workerId: maker.id,
       periodStartOn: '2026-09-02',
-      periodEndOn: '2026-09-04',
-      attendanceMinutes: 180
+      periodEndOn: '2026-09-04'
     })
     const finalizedMakingSettlement = settlements.updateDraft(makingSettlement.id, {
       finalPaidAmountCents: 2_000,
@@ -260,8 +263,7 @@ describe('V2 大订单端到端验收', () => {
     const fluffSettlement = settlements.createDraft({
       workerId: fluffWorker.id,
       periodStartOn: '2026-09-04',
-      periodEndOn: '2026-09-05',
-      attendanceMinutes: 140
+      periodEndOn: '2026-09-05'
     })
     const finalizedFluffSettlement = settlements.updateDraft(fluffSettlement.id, {
       finalPaidAmountCents: 1_800,

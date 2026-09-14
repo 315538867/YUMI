@@ -1,5 +1,6 @@
 import type { Cents } from '@shared/contracts/index'
-import { calculateCentsForMinutes, calculateProportionalCents } from '@shared/money'
+import { calculateMaterialCostCents } from '@shared/calculations/material-cost'
+import { calculateCentsForMinutes } from '@shared/money'
 import { processTypes, type ProcessType } from './fulfillment'
 import { DomainValidationError } from './errors'
 
@@ -9,55 +10,6 @@ export interface QualifiedTaskCommissionInput {
   pieceRateCents: Cents
 }
 
-export interface MakingDefectDeductionInput {
-  unqualifiedQuantity: number
-  pieceRateCents: Cents
-  standardMakingMinutes: number
-  hourlyWageCents: Cents
-  /** 当前订单公式已冻结时，按整批精确计算后传入，避免逐件四舍五入。 */
-  glueDeductionCents?: Cents
-  /** 历史任务没有公式快照时，保留原有的逐件固定胶水成本。 */
-  glueDeductionCentsPerUnit?: Cents
-}
-
-export interface FluffingDefectDeductionInput {
-  unqualifiedQuantity: number
-  plannedQuantity: number
-  plannedMinutes: number
-  pieceRateCents: Cents
-  hourlyWageCents: Cents
-}
-
-export interface DefectDeductionResult {
-  unqualifiedQuantity: number
-  commissionDeductionCents: Cents
-  hourlyWageDeductionCents: Cents
-  glueDeductionCents: Cents
-  totalDeductionCents: Cents
-}
-
-export interface FluffingDefectDeductionResult extends DefectDeductionResult {
-  deductedMinutes: number
-}
-
-export interface SettlementReferenceWageInput {
-  scheduledMinutes: number
-  attendanceMinutes: number
-  hourlyWageCents: Cents
-  qualifiedCommissionCents: Cents
-  deductionCents: Cents
-  otherAdjustmentCents: Cents
-}
-
-export interface SettlementReferenceWages {
-  scheduledHourlyWageCents: Cents
-  attendanceHourlyWageCents: Cents
-  scheduledPreDeductionWageCents: Cents
-  attendancePreDeductionWageCents: Cents
-  scheduledReferenceWageCents: Cents
-  attendanceReferenceWageCents: Cents
-}
-
 export interface DeductionBalanceInput {
   id: string
   occurredAt: string
@@ -65,7 +17,7 @@ export interface DeductionBalanceInput {
 }
 
 export interface DeductionAllocationInput {
-  scheduledPreDeductionWageCents: Cents
+  preDeductionWageCents: Cents
   deductions: DeductionBalanceInput[]
 }
 
@@ -118,132 +70,97 @@ function requireProcessType(processType: ProcessType): ProcessType {
   return processType
 }
 
-/** 按分钟和整数分时薪计算时薪，所有除法均在分级别四舍五入。 */
-export function calculateHourlyWageCents(minutes: number, hourlyWageCents: Cents): Cents {
-  requireNonNegativeInteger(minutes, '工作分钟')
-  requireNonNegativeCents(hourlyWageCents, '时薪')
+/** 按整段分钟和冻结个人时薪计算计时工资，所有除法均在分级别四舍五入。 */
+export function calculateTimedWageCents(input: { minutes: number; hourlyWageCents: Cents }): Cents {
+  const minutes = requireNonNegativeInteger(input.minutes, '工作分钟')
+  const hourlyWageCents = requireNonNegativeCents(input.hourlyWageCents, '时薪')
   return calculateCentsForMinutes({ minutes, hourlyWageCents })
 }
 
-/** 仅制作和捏毛装袋的合格结果产生提成；返工与售后补发使用新任务结果，适用同一规则。 */
+export const calculateHourlyWageCents = calculateTimedWageCents
+
+/** 制作按合格数量计件、捏毛装袋与缝边按完成数量计件；打包发货不产生计件提成。 */
 export function calculateQualifiedCommissionCents(tasks: QualifiedTaskCommissionInput[]): Cents {
   return tasks.reduce<Cents>((total, task) => {
     const processType = requireProcessType(task.processType)
-    const qualifiedQuantity = requireNonNegativeInteger(task.qualifiedQuantity, '合格数量')
+    const quantity = requireNonNegativeInteger(task.qualifiedQuantity, '完成数量')
     const pieceRateCents = requireNonNegativeCents(task.pieceRateCents, '单件提成')
-    if (processType !== 'making' && processType !== 'fluffing_bagging') return total
-    return total + qualifiedQuantity * pieceRateCents
+    if (
+      processType !== 'making' &&
+      processType !== 'fluffing_bagging' &&
+      processType !== 'edge_sewing'
+    ) {
+      return total
+    }
+    return total + quantity * pieceRateCents
   }, 0)
 }
 
-/** 制作不合格：扣除应得提成、标准制作分钟对应时薪和胶水成本。 */
-export function calculateMakingDefectDeduction(
-  input: MakingDefectDeductionInput
-): DefectDeductionResult {
+/** 制作不合格材料扣款：不合格数量 × 冻结单件材料重量 × 冻结材料克单价。 */
+export function calculateMakingMaterialDeductionCents(input: {
+  unqualifiedQuantity: number
+  materialPriceMicroYuanPerGram: number
+  unitWeightMilligrams: number
+}): Cents {
   const unqualifiedQuantity = requirePositiveInteger(input.unqualifiedQuantity, '不合格数量')
-  const pieceRateCents = requireNonNegativeCents(input.pieceRateCents, '制作单件提成')
-  const standardMakingMinutes = requireNonNegativeInteger(
-    input.standardMakingMinutes,
-    '产品标准制作分钟'
+  const materialPriceMicroYuanPerGram = requireNonNegativeInteger(
+    input.materialPriceMicroYuanPerGram,
+    '冻结材料克单价'
   )
-  const hourlyWageCents = requireNonNegativeCents(input.hourlyWageCents, '任务时薪')
-  const glueDeductionCents =
-    input.glueDeductionCents === undefined
-      ? unqualifiedQuantity *
-        requireNonNegativeCents(input.glueDeductionCentsPerUnit ?? 0, '单位胶水扣款成本')
-      : requireNonNegativeCents(input.glueDeductionCents, '胶水扣款成本')
-  const commissionDeductionCents = unqualifiedQuantity * pieceRateCents
-  const hourlyWageDeductionCents = calculateHourlyWageCents(
-    unqualifiedQuantity * standardMakingMinutes,
-    hourlyWageCents
+  const unitWeightMilligrams = requireNonNegativeInteger(
+    input.unitWeightMilligrams,
+    '冻结单件材料重量'
   )
-
-  return {
-    unqualifiedQuantity,
-    commissionDeductionCents,
-    hourlyWageDeductionCents,
-    glueDeductionCents,
-    totalDeductionCents: commissionDeductionCents + hourlyWageDeductionCents + glueDeductionCents
-  }
-}
-
-/** 捏毛装袋不合格：按任务计划分钟与计划数量的比例扣除时薪，不扣胶水。 */
-export function calculateFluffingDefectDeduction(
-  input: FluffingDefectDeductionInput
-): FluffingDefectDeductionResult {
-  const unqualifiedQuantity = requirePositiveInteger(input.unqualifiedQuantity, '不合格数量')
-  const plannedQuantity = requirePositiveInteger(input.plannedQuantity, '任务计划数量')
-  if (unqualifiedQuantity > plannedQuantity) {
-    throw new DomainValidationError('不合格数量不能超过任务计划数量')
-  }
-  const plannedMinutes = requireNonNegativeInteger(input.plannedMinutes, '任务计划分钟')
-  const pieceRateCents = requireNonNegativeCents(input.pieceRateCents, '捏毛装袋单件提成')
-  const hourlyWageCents = requireNonNegativeCents(input.hourlyWageCents, '任务时薪')
-  const deductedMinutes = (plannedMinutes * unqualifiedQuantity) / plannedQuantity
-  const commissionDeductionCents = unqualifiedQuantity * pieceRateCents
-  const hourlyWageDeductionCents = calculateProportionalCents({
-    baseCents: hourlyWageCents,
-    numerator: plannedMinutes * unqualifiedQuantity,
-    denominator: plannedQuantity * 60
+  return calculateMaterialCostCents({
+    materialPriceMicroYuanPerGram,
+    weightMilligrams: unitWeightMilligrams,
+    quantity: unqualifiedQuantity
   })
-
-  return {
-    unqualifiedQuantity,
-    deductedMinutes,
-    commissionDeductionCents,
-    hourlyWageDeductionCents,
-    glueDeductionCents: 0,
-    totalDeductionCents: commissionDeductionCents + hourlyWageDeductionCents
-  }
 }
 
 /**
- * 两套参考工资共用提成、扣款和其他调整，唯有时薪由排班/考勤分钟分别计算。
- * 同一笔扣款按排班口径的扣前应发进行上限控制；各口径独立归零，避免出现负工资。
+ * 已结算工时差异调整：按原工时冻结的个人时薪计算分钟差对应金额，可为正负。
+ * 工时更正不改变任何履约完成数量。
  */
-export function calculateSettlementReferenceWages(
-  input: SettlementReferenceWageInput
-): SettlementReferenceWages {
-  const scheduledMinutes = requireNonNegativeInteger(input.scheduledMinutes, '排班总分钟')
-  const attendanceMinutes = requireNonNegativeInteger(input.attendanceMinutes, '考勤总分钟')
-  const hourlyWageCents = requireNonNegativeCents(input.hourlyWageCents, '时薪')
-  const qualifiedCommissionCents = requireNonNegativeCents(
-    input.qualifiedCommissionCents,
-    '合格提成'
+export function calculateWorkTimeAdjustmentCents(input: {
+  originalMinutes: number
+  correctedMinutes: number
+  hourlyWageCentsSnapshot: Cents
+}): Cents {
+  const originalMinutes = requireNonNegativeInteger(input.originalMinutes, '原核算分钟')
+  const correctedMinutes = requireNonNegativeInteger(input.correctedMinutes, '更正核算分钟')
+  const hourlyWageCentsSnapshot = requireNonNegativeCents(
+    input.hourlyWageCentsSnapshot,
+    '冻结个人时薪'
   )
-  const deductionCents = requireNonNegativeCents(input.deductionCents, '可扣款')
-  const otherAdjustmentCents = requireSignedCents(input.otherAdjustmentCents, '其他调整')
-  const scheduledHourlyWageCents = calculateHourlyWageCents(scheduledMinutes, hourlyWageCents)
-  const attendanceHourlyWageCents = calculateHourlyWageCents(attendanceMinutes, hourlyWageCents)
-  const scheduledPreDeductionWageCents = Math.max(
-    0,
-    scheduledHourlyWageCents + qualifiedCommissionCents + otherAdjustmentCents
-  )
-  const attendancePreDeductionWageCents = Math.max(
-    0,
-    attendanceHourlyWageCents + qualifiedCommissionCents + otherAdjustmentCents
-  )
-  const applicableDeductionCents = Math.min(deductionCents, scheduledPreDeductionWageCents)
-
-  return {
-    scheduledHourlyWageCents,
-    attendanceHourlyWageCents,
-    scheduledPreDeductionWageCents,
-    attendancePreDeductionWageCents,
-    scheduledReferenceWageCents: Math.max(
-      0,
-      scheduledPreDeductionWageCents - applicableDeductionCents
-    ),
-    attendanceReferenceWageCents: Math.max(
-      0,
-      attendancePreDeductionWageCents - applicableDeductionCents
-    )
+  const differenceMinutes = correctedMinutes - originalMinutes
+  if (differenceMinutes === 0) {
+    throw new DomainValidationError('更正核算分钟必须与原核算分钟不同')
   }
+  const minuteWageCents = calculateCentsForMinutes({
+    minutes: Math.abs(differenceMinutes),
+    hourlyWageCents: hourlyWageCentsSnapshot
+  })
+  return differenceMinutes > 0 ? minuteWageCents : -minuteWageCents
 }
 
-/** 默认抵扣上限为排班口径的扣前应发。 */
-export function calculateDefaultDeductionCapCents(scheduledPreDeductionWageCents: Cents): Cents {
-  return requireNonNegativeCents(scheduledPreDeductionWageCents, '排班口径扣前应发')
+/** 唯一计算候选应发：计时工资 + 计件提成 + 来源调整 + 其他调整，不为负。 */
+export function calculatePreDeductionWageCents(input: {
+  timedWageCents: Cents
+  commissionCents: Cents
+  adjustmentCents: Cents
+  otherAdjustmentCents: Cents
+}): Cents {
+  const timedWageCents = requireNonNegativeCents(input.timedWageCents, '计时工资')
+  const commissionCents = requireNonNegativeCents(input.commissionCents, '计件提成')
+  const adjustmentCents = requireSignedCents(input.adjustmentCents, '来源调整')
+  const otherAdjustmentCents = requireSignedCents(input.otherAdjustmentCents, '其他调整')
+  return Math.max(0, timedWageCents + commissionCents + adjustmentCents + otherAdjustmentCents)
+}
+
+/** 抵扣上限为本期扣前应发，避免出现负工资。 */
+export function calculateDefaultDeductionCapCents(preDeductionWageCents: Cents): Cents {
+  return requireNonNegativeCents(preDeductionWageCents, '扣前应发')
 }
 
 /**
@@ -253,7 +170,7 @@ export function calculateDefaultDeductionCapCents(scheduledPreDeductionWageCents
 export function allocateDeductionsInOccurrenceOrder(
   input: DeductionAllocationInput
 ): DeductionAllocationResult {
-  const deductionCapCents = calculateDefaultDeductionCapCents(input.scheduledPreDeductionWageCents)
+  const deductionCapCents = calculateDefaultDeductionCapCents(input.preDeductionWageCents)
   const ids = new Set<string>()
   const orderedDeductions = input.deductions
     .map((deduction, index) => {

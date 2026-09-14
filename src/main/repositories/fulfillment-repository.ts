@@ -2,7 +2,6 @@ import type { V2Database } from '@main/database/v2-connection'
 import type { V2AuditLog } from './v2-order-repository'
 import type {
   V2FulfillmentEvent,
-  V2OpeningWipInput,
   V2ProcessResult,
   V2ProcessTask,
   V2ProcessTaskStatus,
@@ -86,6 +85,8 @@ export interface V2OrderItemFulfillmentSource {
   id: string
   orderId: string
   quantity: number
+  edgeEnabled: boolean
+  edgeQuantity: number
   productSnapshot: V2ProductOrderSnapshot
 }
 
@@ -108,7 +109,7 @@ function mapTask(row: ProcessTaskRow): V2ProcessTask {
     hourlyWageCents: row.hourly_wage_cents,
     pieceRateCents: row.piece_rate_cents,
     glueCostCents: row.glue_cost_cents,
-    gluePriceMicroYuanPerGram: row.glue_price_micro_yuan_per_gram,
+    materialPriceMicroYuanPerGram: row.glue_price_micro_yuan_per_gram,
     glueWeightMilligrams: row.glue_weight_milligrams,
     rateSnapshot: parseJson<Record<string, unknown>>(row.rate_snapshot_json),
     note: row.note,
@@ -169,14 +170,26 @@ export class V2FulfillmentRepository {
 
   getOrderItemSource(orderItemId: string): V2OrderItemFulfillmentSource | null {
     const row = this.database
-      .prepare('SELECT id, order_id, quantity, product_snapshot_json FROM order_items WHERE id = ?')
+      .prepare(
+        'SELECT id, order_id, quantity, edge_enabled, edge_quantity, product_snapshot_json FROM order_items WHERE id = ?'
+      )
       .get(orderItemId) as
-      { id: string; order_id: string; quantity: number; product_snapshot_json: string } | undefined
+      | {
+          id: string
+          order_id: string
+          quantity: number
+          edge_enabled: number
+          edge_quantity: number
+          product_snapshot_json: string
+        }
+      | undefined
     if (!row) return null
     return {
       id: row.id,
       orderId: row.order_id,
       quantity: row.quantity,
+      edgeEnabled: Boolean(row.edge_enabled),
+      edgeQuantity: row.edge_quantity,
       productSnapshot: JSON.parse(row.product_snapshot_json) as V2ProductOrderSnapshot
     }
   }
@@ -265,7 +278,7 @@ export class V2FulfillmentRepository {
         task.hourlyWageCents,
         task.pieceRateCents,
         task.glueCostCents,
-        task.gluePriceMicroYuanPerGram,
+        task.materialPriceMicroYuanPerGram,
         task.glueWeightMilligrams,
         task.rateSnapshot ? JSON.stringify(task.rateSnapshot) : null,
         task.note,
@@ -280,12 +293,20 @@ export class V2FulfillmentRepository {
     return row ? mapTask(row) : null
   }
 
-  listTasksByAssignment(workAssignmentId: string): V2ProcessTask[] {
+  listTasksByOrderItem(orderItemId: string): V2ProcessTask[] {
     return (
       this.database
         .prepare(
-          'SELECT * FROM process_tasks WHERE work_assignment_id = ? ORDER BY created_at ASC, id ASC'
+          'SELECT * FROM process_tasks WHERE order_item_id = ? ORDER BY created_at ASC, rowid ASC'
         )
+        .all(orderItemId) as ProcessTaskRow[]
+    ).map(mapTask)
+  }
+
+  listTasksByAssignment(workAssignmentId: string): V2ProcessTask[] {
+    return (
+      this.database
+        .prepare('SELECT * FROM process_tasks WHERE work_assignment_id = ? ORDER BY rowid ASC')
         .all(workAssignmentId) as ProcessTaskRow[]
     ).map(mapTask)
   }
@@ -402,30 +423,6 @@ export class V2FulfillmentRepository {
         )
         .all(orderItemId) as FulfillmentEventRow[]
     ).map(mapEvent)
-  }
-
-  insertOpeningWipRecord(
-    id: string,
-    input: V2OpeningWipInput,
-    fulfillmentEventId: string,
-    createdAt: string
-  ): void {
-    this.database
-      .prepare(
-        `INSERT INTO opening_wip_records (
-        id, order_item_id, target_stage, quantity, occurred_on, note, fulfillment_event_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        id,
-        input.orderItemId,
-        input.targetStage,
-        input.quantity,
-        input.occurredOn,
-        input.note ?? null,
-        fulfillmentEventId,
-        createdAt
-      )
   }
 
   insertAudit(

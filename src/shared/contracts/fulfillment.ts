@@ -1,22 +1,23 @@
 import type {
   BusinessDate,
   Cents,
-  GluePriceMicroYuanPerGram,
+  MaterialPriceMicroYuanPerGram,
   IsoDateTime,
   WeightMilligrams
 } from './common'
 
-export type V2ProcessType = 'making' | 'fluffing_bagging' | 'packing' | 'shipping'
+export type V2ProcessType = 'making' | 'fluffing_bagging' | 'edge_sewing' | 'packing'
 export type V2ProcessTaskSource =
   'normal_production' | 'rework' | 'after_sales_replacement' | 'manager_arrangement'
 export type V2WorkAssignmentStatus = 'draft' | 'scheduled' | 'cancelled' | 'completed'
 export type V2ProcessTaskStatus = 'pending' | 'pending_inspection' | 'confirmed' | 'cancelled'
 export type V2FulfillmentStage =
-  'making' | 'fluffing_bagging' | 'packing' | 'ready_to_ship' | 'shipped'
+  'making' | 'fluffing_bagging' | 'edge_sewing' | 'packing' | 'ready_to_ship' | 'shipped'
 export type V2FulfillmentEventType =
-  | 'opening_wip'
+  | 'inventory_allocation'
   | 'making_qualified'
-  | 'fluffing_bagging_qualified'
+  | 'fluffing_bagging_completed'
+  | 'edge_sewing_completed'
   | 'packing_completed'
   | 'shipment'
   | 'manager_adjustment'
@@ -70,7 +71,7 @@ export interface V2ProcessTask {
   pieceRateCents: Cents | null
   /** 历史固定胶水成本；当前任务会使用冻结的单价和用量。 */
   glueCostCents: Cents | null
-  gluePriceMicroYuanPerGram: GluePriceMicroYuanPerGram | null
+  materialPriceMicroYuanPerGram: MaterialPriceMicroYuanPerGram | null
   glueWeightMilligrams: WeightMilligrams | null
   rateSnapshot: Record<string, unknown> | null
   note: string | null
@@ -126,14 +127,6 @@ export interface V2QualityInspection extends V2QualityInspectionInput {
   createdAt: IsoDateTime
 }
 
-export interface V2OpeningWipInput {
-  orderItemId: string
-  targetStage: Exclude<V2FulfillmentStage, 'making' | 'shipped'>
-  quantity: number
-  occurredOn: BusinessDate
-  note?: string | null
-}
-
 export interface V2FulfillmentAdjustmentInput {
   orderItemId: string
   quantity: number
@@ -160,9 +153,12 @@ export interface V2FulfillmentEvent {
 export interface V2FulfillmentStageBalances {
   making: number
   fluffingBagging: number
+  edgeSewing: number
   packing: number
   readyToShip: number
   shipped: number
+  /** 累计进入过待缝边的数量，用于展示订单商品剩余缝边需求。 */
+  edgeSewingRouted: number
 }
 
 export interface V2OrderItemFulfillment {

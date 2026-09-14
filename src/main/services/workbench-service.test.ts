@@ -66,8 +66,7 @@ function order(): V2Order {
           name: '草莓团子',
           unitPriceCents: 1_000,
           makingCommissionCents: 100,
-          makingStandardMinutes: 30,
-          makingGlueCostCents: 20
+          makingStandardMinutes: 30
         },
         quantity: 10,
         unitPriceCents: 1_000,
@@ -88,7 +87,15 @@ function fulfillment(readyToShip = 0): V2OrderItemFulfillment {
     orderItemId: 'item-1',
     orderId: 'order-1',
     confirmedQuantity: 10,
-    stages: { making: 0, fluffingBagging: 0, packing: 0, readyToShip, shipped: 0 },
+    stages: {
+      making: 0,
+      fluffingBagging: 0,
+      edgeSewing: 0,
+      packing: 0,
+      readyToShip,
+      shipped: 0,
+      edgeSewingRouted: 0
+    },
     events: []
   }
 }
@@ -100,12 +107,11 @@ function settlement(): V2WorkerSettlementDetail {
     periodStartOn: '2026-09-01',
     periodEndOn: '2026-09-07',
     status: 'draft',
-    scheduledMinutes: 300,
-    attendanceMinutes: null,
-    attendanceNote: null,
-    scheduledReferenceWageCents: 10_000,
-    attendanceReferenceWageCents: 0,
-    qualifiedCommissionCents: 1_000,
+    timedWageCents: 10_000,
+    commissionCents: 1_000,
+    materialDeductionCents: 0,
+    adjustmentCents: 0,
+    candidateWageCents: 11_000,
     currentDeductionCents: 0,
     carriedDeductionCents: 0,
     actualDeductionCents: 0,
@@ -117,7 +123,9 @@ function settlement(): V2WorkerSettlementDetail {
     financialEntryId: null,
     createdAt: iso,
     updatedAt: iso,
-    tasks: [],
+    makingSources: [],
+    timedSources: [],
+    adjustments: [],
     deductions: [],
     deductionAllocations: []
   }
@@ -167,10 +175,7 @@ function refund(): V2WorkerRefundRecord {
     orderId: 'order-1',
     orderItemId: 'item-1',
     unqualifiedQuantity: 1,
-    commissionDeductionCents: 300,
-    wageDeductionCents: 400,
-    glueDeductionCents: 50,
-    requestedRefundCents: 750,
+    materialRefundCents: 750,
     actualRefundCents: null,
     refundedOn: null,
     managerNote: null,

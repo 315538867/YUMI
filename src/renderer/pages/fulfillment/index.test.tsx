@@ -67,7 +67,6 @@ const mocks = vi.hoisted(() => {
   return {
     selectOrder: vi.fn().mockResolvedValue(undefined),
     createWorkAssignment: vi.fn().mockResolvedValue(undefined),
-    recordOpeningWip: vi.fn().mockResolvedValue(undefined),
     reassignProcessTask: vi.fn().mockResolvedValue(undefined),
     showSelectedOrder: false,
     queueItems: [
@@ -79,28 +78,44 @@ const mocks = vi.hoisted(() => {
         productName: '草莓捏捏',
         confirmedQuantity: 20,
         outstandingQuantity: 20,
-        stages: { making: 20, fluffingBagging: 0, packing: 0, readyToShip: 0, shipped: 0 },
+        stages: {
+          making: 20,
+          fluffingBagging: 0,
+          edgeSewing: 0,
+          packing: 0,
+          readyToShip: 0,
+          shipped: 0,
+          edgeSewingRouted: 0
+        },
         stageSchedules: {
           making: makingSchedule,
           fluffing_bagging: emptySchedule,
-          packing: emptySchedule,
-          ready_to_ship: emptySchedule
+          edge_sewing: emptySchedule,
+          packing: emptySchedule
         }
       },
       {
         orderId: 'order-1',
         orderCode: 'YD-001',
         customerName: '小满',
-        orderItemId: 'item-ready',
+        orderItemId: 'item-packing',
         productName: '奶油捏捏',
         confirmedQuantity: 12,
         outstandingQuantity: 4,
-        stages: { making: 0, fluffingBagging: 0, packing: 0, readyToShip: 4, shipped: 8 },
+        stages: {
+          making: 0,
+          fluffingBagging: 0,
+          edgeSewing: 0,
+          packing: 4,
+          readyToShip: 0,
+          shipped: 8,
+          edgeSewingRouted: 0
+        },
         stageSchedules: {
           making: emptySchedule,
           fluffing_bagging: emptySchedule,
-          packing: emptySchedule,
-          ready_to_ship: {
+          edge_sewing: emptySchedule,
+          packing: {
             wipQuantity: 4,
             reservedQuantity: 0,
             unassignedQuantity: 4,
@@ -134,17 +149,37 @@ vi.mock('../../composables/use-fulfillment', async (importOriginal) => {
       items: [
         {
           orderItemId: 'item-making',
-          stages: { making: 20, fluffingBagging: 0, packing: 0, readyToShip: 0, shipped: 0 }
+          stages: {
+            making: 20,
+            fluffingBagging: 0,
+            edgeSewing: 0,
+            packing: 0,
+            readyToShip: 0,
+            shipped: 0,
+            edgeSewingRouted: 0
+          }
         }
       ],
       loading: false,
       loadError: null,
       selectOrder: mocks.selectOrder,
       createWorkAssignment: mocks.createWorkAssignment,
-      recordOpeningWip: mocks.recordOpeningWip,
       reassignProcessTask: mocks.reassignProcessTask,
       adjustStageQuantity: vi.fn()
     })
+  }
+})
+
+Object.assign(window, {
+  yumiV2: {
+    workTimeReviews: {
+      list: vi.fn(async () => []),
+      get: vi.fn(async () => null),
+      createDraft: vi.fn(),
+      updateDraft: vi.fn(),
+      confirm: vi.fn(),
+      void: vi.fn()
+    }
   }
 })
 
@@ -153,7 +188,6 @@ afterEach(() => {
   cleanup()
   mocks.selectOrder.mockClear()
   mocks.createWorkAssignment.mockClear()
-  mocks.recordOpeningWip.mockClear()
   mocks.reassignProcessTask.mockClear()
   mocks.showSelectedOrder = false
 })
@@ -194,7 +228,15 @@ describe('履约排班双视角交互', () => {
     mocks.queueItems = [
       {
         ...originalQueueItems[0],
-        stages: { making: 10, fluffingBagging: 5, packing: 10, readyToShip: 6, shipped: 0 },
+        stages: {
+          making: 10,
+          fluffingBagging: 5,
+          edgeSewing: 4,
+          packing: 10,
+          readyToShip: 6,
+          shipped: 0,
+          edgeSewingRouted: 4
+        },
         stageSchedules: {
           making: {
             wipQuantity: 10,
@@ -252,21 +294,21 @@ describe('履约排班双视角交互', () => {
               }
             ]
           },
-          ready_to_ship: {
-            wipQuantity: 6,
-            reservedQuantity: 8,
+          edge_sewing: {
+            wipQuantity: 4,
+            reservedQuantity: 6,
             unassignedQuantity: 0,
             overassignedQuantity: 2,
             tasks: [
               {
-                assignmentId: 'assignment-shipping',
-                taskId: 'task-shipping',
+                assignmentId: 'assignment-edge',
+                taskId: 'task-edge',
                 workerId: 'worker-wang',
                 workerName: '小王',
                 assignedOn: '2026-09-10',
-                processType: 'shipping',
-                stage: 'ready_to_ship',
-                plannedQuantity: 8,
+                processType: 'edge_sewing',
+                stage: 'edge_sewing',
+                plannedQuantity: 6,
                 status: 'pending'
               }
             ]
@@ -287,7 +329,7 @@ describe('履约排班双视角交互', () => {
       expect(screen.getAllByText('未指派：0 件')).toHaveLength(2)
       expect(screen.getByText('已指派：2 人 8 件')).toBeVisible()
       expect(screen.getByText('未指派：2 件')).toBeVisible()
-      expect(screen.getByText('已指派：小王 8 件')).toBeVisible()
+      expect(screen.getByText('已指派：小王 6 件')).toBeVisible()
       expect(screen.getByText('超派：2 件')).toBeVisible()
     } finally {
       mocks.queueItems = originalQueueItems
@@ -367,17 +409,25 @@ describe('履约排班双视角交互', () => {
     )
   })
 
-  it('非制作工序未填写计划分钟时不能保存派工', () => {
+  it('非制作工序不要求计划分钟，排班只登记人员、日期、工序与数量', async () => {
     render(<FulfillmentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '派工待发货' }))
+    fireEvent.click(screen.getByRole('button', { name: '派工打包发货' }))
     const workerSelect = screen.getByRole('combobox', { name: '派工人员' })
     fireEvent.keyDown(workerSelect, { key: 'ArrowDown' })
     fireEvent.keyDown(screen.getByRole('option', { name: '小王' }), { key: 'Enter' })
     fireEvent.change(screen.getByRole('textbox', { name: '派工数量' }), { target: { value: '4' } })
+    expect(screen.queryByRole('textbox', { name: '计划分钟' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '保存派工' }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent('非制作工序必须填写正整数计划分钟。')
+    await waitFor(() =>
+      expect(mocks.createWorkAssignment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          processType: 'packing',
+          tasks: [expect.objectContaining({ orderItemId: 'item-packing', plannedQuantity: 4 })]
+        })
+      )
+    )
   })
 
   it('人员周历按人员和日期展示任务，并能从任务卡进入精确处理上下文', () => {
@@ -436,100 +486,52 @@ describe('履约排班双视角交互', () => {
     expect(screen.getByRole('heading', { level: 1, name: '排班' })).toBeVisible()
   }, 20_000)
 
-  it('期初在制品通过页头导航返回排班队列，不把返回混入页面动作', () => {
+  it('排班页不再提供期初在制品入口，存量投入订单在商品详情完成', () => {
     render(<FulfillmentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '补录期初在制品' }))
-
-    const navigation = screen.getByRole('navigation', { name: '期初在制品导航' })
-    expect(within(navigation).getByRole('button', { name: '返回排班队列' })).toBeVisible()
-    expect(screen.queryByRole('group', { name: '期初在制品页面动作' })).not.toBeInTheDocument()
-
-    fireEvent.click(within(navigation).getByRole('button', { name: '返回排班队列' }))
-    expect(screen.getByRole('heading', { level: 1, name: '排班' })).toBeVisible()
-  })
-
-  it('按设计图在排班页头显示完整入口、阶段总量，并从工作室级入口补录期初在制品', async () => {
-    render(<FulfillmentPage />)
-
+    expect(screen.queryByRole('button', { name: '补录期初在制品' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: '期初在制品导航' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '导出排班' })).toBeVisible()
-    expect(screen.getByRole('button', { name: '补录期初在制品' })).toBeVisible()
-    expect(screen.queryByRole('button', { name: '更多操作' })).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: '排班阶段总量' })).toBeVisible()
     expect(screen.getByText('订单总量')).toBeVisible()
     expect(screen.getByText('已发货')).toBeVisible()
-
-    fireEvent.click(screen.getByRole('button', { name: '补录期初在制品' }))
-
-    expect(screen.getByRole('heading', { name: '补录期初在制品' })).toBeVisible()
-    expect(screen.getByText('1. 选择对应订单商品')).toBeVisible()
-    expect(screen.getByText('2. 登记当前实际阶段')).toBeVisible()
-    expect(screen.getByRole('navigation', { name: '期初在制品导航' })).toBeVisible()
-    const workspace = screen
-      .getByRole('heading', { name: '补录期初在制品' })
-      .closest('.fulfillment-workspace')
-    expect(workspace).not.toBeNull()
-    expect(workspace!.querySelectorAll(':scope > .yumi-workflow-step')).toHaveLength(2)
-    expect(screen.getByRole('form', { name: '登记当前实际阶段' })).toHaveClass('yumi-workflow-step')
-    expect(screen.getByRole('list', { name: '可补录订单商品' })).toBeVisible()
-    expect(screen.queryByRole('tab', { name: '补录期初在制品' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '选择：草莓捏捏' })).toBeVisible()
-
-    fireEvent.click(screen.getByRole('button', { name: '选择：草莓捏捏' }))
-    expect(screen.getByText('小满 / 草莓捏捏')).toBeVisible()
-    fireEvent.change(screen.getByRole('textbox', { name: '期初数量' }), {
-      target: { value: '5' }
-    })
-    fireEvent.submit(screen.getByRole('button', { name: '登记期初在制品' }).closest('form')!)
-
-    await Promise.resolve()
-    expect(mocks.recordOpeningWip).toHaveBeenCalledWith({
-      orderItemId: 'item-making',
-      targetStage: 'ready_to_ship',
-      quantity: 5,
-      occurredOn: today(),
-      note: undefined
-    })
+    expect(screen.getByText('缝边')).toBeVisible()
   })
 
-  it('期初在制品候选支持多项、搜索过滤、选中切换和无结果提示，并按业务字段分列展示', () => {
-    render(<FulfillmentPage />)
+  it('待核算视图区分制作结果确认与计时工序工时核算', async () => {
+    const originalQueueItems = mocks.queueItems
+    mocks.queueItems = [
+      {
+        ...originalQueueItems[0],
+        stageSchedules: {
+          ...originalQueueItems[0].stageSchedules,
+          making: {
+            ...originalQueueItems[0].stageSchedules.making,
+            tasks: [
+              {
+                ...originalQueueItems[0].stageSchedules.making.tasks[0]!,
+                status: 'pending_inspection'
+              }
+            ]
+          }
+        }
+      }
+    ]
+    try {
+      render(<FulfillmentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '补录期初在制品' }))
+      fireEvent.click(screen.getByRole('button', { name: '待核算' }))
 
-    const candidates = screen.getByRole('list', { name: '可补录订单商品' })
-    expect(within(candidates).getAllByRole('listitem')).toHaveLength(2)
-    const strawberry = within(candidates).getByRole('listitem', { name: /草莓捏捏/ })
-    expect(within(strawberry).getByText('YD-001')).toBeVisible()
-    expect(within(strawberry).getByText('小满')).toBeVisible()
-    expect(within(strawberry).getByText('草莓捏捏')).toBeVisible()
-    expect(within(strawberry).getByText('确认 20 件')).toBeVisible()
-
-    fireEvent.click(within(strawberry).getByRole('button', { name: '选择：草莓捏捏' }))
-    expect(within(strawberry).getByRole('button', { name: '已选择' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-    expect(strawberry).toHaveAttribute('data-selected', 'true')
-
-    fireEvent.change(screen.getByRole('textbox', { name: '搜索订单号、客户或商品' }), {
-      target: { value: '奶油' }
-    })
-    expect(within(candidates).getAllByRole('listitem')).toHaveLength(1)
-    const cream = within(candidates).getByRole('listitem', { name: /奶油捏捏/ })
-    expect(within(cream).getByRole('button', { name: '选择：奶油捏捏' })).toBeVisible()
-
-    fireEvent.click(within(cream).getByRole('button', { name: '选择：奶油捏捏' }))
-    expect(within(cream).getByRole('button', { name: '已选择' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-
-    fireEvent.change(screen.getByRole('textbox', { name: '搜索订单号、客户或商品' }), {
-      target: { value: '不存在的订单商品' }
-    })
-    expect(within(candidates).queryAllByRole('listitem')).toHaveLength(0)
-    expect(within(candidates).getByRole('status')).toHaveTextContent('没有符合搜索条件的订单商品。')
+      const inspections = await screen.findByRole('table', { name: '制作结果待确认' })
+      expect(within(inspections).getByText('草莓捏捏')).toBeVisible()
+      expect(within(inspections).getByRole('button', { name: '确认制作结果' })).toBeVisible()
+      expect(screen.getByRole('heading', { name: '计时工序待核算' })).toBeVisible()
+      expect(screen.getByRole('button', { name: '查找待核算安排' })).toBeVisible()
+      expect(screen.getByRole('heading', { name: '已登记工时核算' })).toBeVisible()
+      expect(screen.queryByRole('button', { name: '补录期初在制品' })).not.toBeInTheDocument()
+    } finally {
+      mocks.queueItems = originalQueueItems
+    }
   })
 
   it('人员周历支持自然周切换，并为人员日期空白格预填派工抽屉', () => {

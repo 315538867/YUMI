@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { V2Product, V2ProductInput, V2ProductUpdateInput } from '@shared/contracts/index'
+import type {
+  V2Product,
+  V2ProductExpectedProfit,
+  V2ProductInput,
+  V2ProductUpdateInput
+} from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
 export function useProducts() {
@@ -41,5 +46,11 @@ export function useProducts() {
     [reload]
   )
 
-  return { products, loading, loadError, reload, createProduct, updateProduct }
+  const getExpectedProfit = useCallback(
+    (productId: string): Promise<V2ProductExpectedProfit | null> =>
+      window.yumiV2.products.getExpectedProfit(productId),
+    []
+  )
+
+  return { products, loading, loadError, reload, createProduct, updateProduct, getExpectedProfit }
 }

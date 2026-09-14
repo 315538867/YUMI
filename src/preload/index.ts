@@ -18,7 +18,8 @@ const yumiV2: V2YumiApi = {
   products: {
     list: (includeDisabled) => ipcRenderer.invoke('v2:products:list', includeDisabled),
     create: (input) => ipcRenderer.invoke('v2:products:create', input),
-    update: (input) => ipcRenderer.invoke('v2:products:update', input)
+    update: (input) => ipcRenderer.invoke('v2:products:update', input),
+    getExpectedProfit: (productId) => ipcRenderer.invoke('v2:products:expected-profit', productId)
   },
   orders: {
     list: () => ipcRenderer.invoke('v2:orders:list'),
@@ -57,9 +58,23 @@ const yumiV2: V2YumiApi = {
       ipcRenderer.invoke('v2:fulfillment:results:submit', taskId, input),
     confirmQualityInspection: (resultId, input) =>
       ipcRenderer.invoke('v2:fulfillment:inspections:confirm', resultId, input),
-    recordOpeningWip: (input) => ipcRenderer.invoke('v2:fulfillment:opening-wip:record', input),
     adjustStageQuantity: (input) => ipcRenderer.invoke('v2:fulfillment:adjustments:create', input),
     getOrderItem: (orderItemId) => ipcRenderer.invoke('v2:fulfillment:order-item:get', orderItemId)
+  },
+  workTimeReviews: {
+    list: (query) => ipcRenderer.invoke('v2:work-time-reviews:list', query),
+    get: (id) => ipcRenderer.invoke('v2:work-time-reviews:get', id),
+    createDraft: (input) => ipcRenderer.invoke('v2:work-time-reviews:drafts:create', input),
+    updateDraft: (input) => ipcRenderer.invoke('v2:work-time-reviews:drafts:update', input),
+    confirm: (id) => ipcRenderer.invoke('v2:work-time-reviews:confirm', id),
+    void: (id, input) => ipcRenderer.invoke('v2:work-time-reviews:void', id, input)
+  },
+  productInventory: {
+    getSummary: (productId) => ipcRenderer.invoke('v2:product-inventory:summary:get', productId),
+    listEvents: (productId) => ipcRenderer.invoke('v2:product-inventory:events:list', productId),
+    recordOpening: (input) => ipcRenderer.invoke('v2:product-inventory:opening:record', input),
+    adjust: (input) => ipcRenderer.invoke('v2:product-inventory:adjustments:create', input),
+    allocateToOrder: (input) => ipcRenderer.invoke('v2:product-inventory:allocations:create', input)
   },
   workers: {
     list: () => ipcRenderer.invoke('v2:workers:list'),
@@ -72,6 +87,8 @@ const yumiV2: V2YumiApi = {
     createDraft: (input) => ipcRenderer.invoke('v2:settlements:drafts:create', input),
     get: (id) => ipcRenderer.invoke('v2:settlements:get', id),
     updateDraft: (id, input) => ipcRenderer.invoke('v2:settlements:drafts:update', id, input),
+    addWorkTimeAdjustment: (id, input) =>
+      ipcRenderer.invoke('v2:settlements:work-time-adjustments:create', id, input),
     confirm: (id) => ipcRenderer.invoke('v2:settlements:confirm', id),
     listRefunds: (query) => ipcRenderer.invoke('v2:settlements:refunds:list', query),
     resolveRefund: (id, input) => ipcRenderer.invoke('v2:settlements:refunds:resolve', id, input)

@@ -100,8 +100,7 @@ const mocks = vi.hoisted(() => {
               hourlyWageCents: null,
               pieceRateCents: null,
               glueCostCents: null,
-              gluePriceMicroYuanPerGram: null,
-              glueWeightMilligrams: null,
+              materialPriceMicroYuanPerGram: null,
               rateSnapshot: null,
               note: null,
               createdAt: '2026-09-10T08:00:00.000Z',
@@ -145,6 +144,8 @@ const mocks = vi.hoisted(() => {
           quantity: 100,
           orderRevenueCents: 6000,
           productCostCents: 1000,
+          expectedEdgeIncrementalCostCents: 120,
+          expectedEdgeIncrementalProfitCents: 180,
           knownGrossMarginCents: 5000,
           knownGrossMarginRateBasisPoints: 8333
         },
@@ -154,6 +155,8 @@ const mocks = vi.hoisted(() => {
           quantity: 80,
           orderRevenueCents: 4000,
           productCostCents: 800,
+          expectedEdgeIncrementalCostCents: 0,
+          expectedEdgeIncrementalProfitCents: 0,
           knownGrossMarginCents: 3200,
           knownGrossMarginRateBasisPoints: 8000
         }
@@ -175,14 +178,12 @@ const mocks = vi.hoisted(() => {
       code: null,
       category: null,
       basePriceCents: 1880,
-      materialCostCents: 0,
       packagingCostCents: 0,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 0,
       makingCommissionCents: 0,
-      makingGlueCostCents: 0,
       imageAttachmentId: null,
       notes: null,
       enabled: true,
@@ -242,14 +243,12 @@ const mocks = vi.hoisted(() => {
         code: null,
         category: null,
         basePriceCents: 1000,
-        materialCostCents: 0,
         packagingCostCents: 0,
         accessoryCostCents: 0,
         replacementBagCostCents: 0,
-        internalEdgeCostCents: 0,
+        edgeConsumableCostCents: 0,
         standardMakingMinutes: 0,
         makingCommissionCents: 0,
-        makingGlueCostCents: 0,
         imageAttachmentId: null,
         notes: null,
         enabled: true,
@@ -346,7 +345,7 @@ vi.mock('../../composables/use-products', () => ({
 
 vi.mock('../../composables/use-studio-settings', () => ({
   useStudioSettings: () => ({
-    settings: { gluePriceMicroYuanPerGram: 3_400, orderReservedDays: 2, updatedAt: null },
+    settings: { materialPriceMicroYuanPerGram: 3_400, orderReservedDays: 2, updatedAt: null },
     loading: false,
     loadError: null,
     reload: vi.fn(),
@@ -589,15 +588,19 @@ describe('订单盈利核算', () => {
     expect(within(profitSummary).getByText('已知经营结余')).toBeVisible()
     expect(within(profitSummary).getByText('¥78.00')).toBeVisible()
     expect(mocks.getOrderBusinessDetail).toHaveBeenCalledWith('order-1')
-    expect(screen.getByRole('heading', { name: '已知成本构成' })).toBeVisible()
-    expect(screen.getByText('已知商品直接成本')).toBeVisible()
-    expect(screen.getByText('人工及其他')).toBeVisible()
-    expect(screen.getByText('待分摊')).toBeVisible()
-    expect(screen.getByRole('table', { name: '商品盈利明细' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: '预计成本构成' })).toBeVisible()
+    expect(screen.getByText('预计商品直接成本')).toBeVisible()
+    expect(screen.getByText('实际计时人工')).toBeVisible()
+    expect(screen.getByText('不分摊')).toBeVisible()
+    expect(screen.getByText('同一工时处理多个商品时无法唯一归属')).toBeVisible()
+    const itemsTable = screen.getByRole('table', { name: '商品盈利明细' })
+    expect(itemsTable).toBeVisible()
     expect(screen.getByText('草莓捏捏')).toBeVisible()
     expect(screen.getByText('83.3%')).toBeVisible()
-    expect(screen.getByText(/订单级优惠与金额调整不在商品行分摊/)).toBeVisible()
-    expect(screen.getByText(/运费、兼职时薪、制作与捏毛装袋提成/)).toBeVisible()
+    expect(within(itemsTable).getByText('缝边预计增量利润 / 件')).toBeVisible()
+    expect(within(itemsTable).getByText('¥1.80')).toBeVisible()
+    expect(within(itemsTable).getByText('—')).toBeVisible()
+    expect(screen.getByText(/不把实际计时工资按数量或预计分钟分摊为订单实际成本/)).toBeVisible()
   })
 })
 
@@ -618,6 +621,8 @@ describe('订单新建与内容变更金额', () => {
     expect(preview).toHaveTextContent('订单优惠')
     expect(preview).toHaveTextContent('预计订单金额')
     expect(preview).toHaveTextContent('¥7.50')
+    expect(preview).toHaveTextContent('商品金额合计 + 缝边金额合计')
+    expect(preview).toHaveTextContent('商品与缝边小计 − 明细优惠合计 − 订单优惠')
 
     fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }))
     await waitFor(() =>

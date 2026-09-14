@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type {
   V2WorkerSettlementDetail,
-  V2WorkerSettlementDraftUpdateInput
+  V2WorkerSettlementDraftUpdateInput,
+  V2WorkerSettlementWorkTimeAdjustmentInput
 } from '@shared/contracts/index'
 import {
   centsToYuan,
@@ -21,12 +22,18 @@ import {
   YumiNumberField,
   YumiRecordSummary,
   YumiSection,
+  YumiSelect,
   YumiStatusTag,
   YumiTextArea,
   YumiTextField,
-  useYumiNotificationMessage,
-  YumiConfirmDialog
+  YumiConfirmDialog,
+  useYumiNotificationMessage
 } from '../ui'
+
+export interface AdjustableReviewOption {
+  id: string
+  label: string
+}
 
 interface SettlementDetailProps {
   settlement: V2WorkerSettlementDetail
@@ -36,59 +43,82 @@ interface SettlementDetailProps {
     input: V2WorkerSettlementDraftUpdateInput
   ): Promise<V2WorkerSettlementDetail>
   confirmSettlement(id: string): Promise<V2WorkerSettlementDetail>
+  adjustableReviews?: AdjustableReviewOption[]
+  addWorkTimeAdjustment?(
+    id: string,
+    input: V2WorkerSettlementWorkTimeAdjustmentInput
+  ): Promise<V2WorkerSettlementDetail>
 }
 
 const processLabels = {
   making: '制作',
   fluffing_bagging: '捏毛装袋',
-  packing: '打包',
-  shipping: '发货'
+  edge_sewing: '缝边',
+  packing: '打包发货'
 } as const
 
-function formatTaskSource(task: V2WorkerSettlementDetail['tasks'][number]): string {
-  const label = processLabels[task.processType]
-  const base = `${label} · 任务 ${task.processTaskId} · 排班 ${task.scheduledMinutes} 分钟 · 合格 ${task.qualifiedQuantity} 件`
-  const commission = `合格计件结算 ${formatCents(task.qualifiedCommissionCents)}`
-  if (task.processType === 'packing') {
-    return `${base} · 包装成本属于物料成本，不是打包计件工资 · ${commission}`
-  }
+function formatSignedCents(cents: number): string {
+  return cents < 0 ? `-${formatCents(-cents)}` : formatCents(cents)
+}
+
+function formatMakingSource(source: V2WorkerSettlementDetail['makingSources'][number]): string {
+  const base = `${source.occurredOn} · 合格 ${source.qualifiedQuantity} 件 · 不合格 ${source.unqualifiedQuantity} 件`
   const rate =
-    task.pieceRateCents === null
-      ? '未设置计件提成'
-      : `冻结计件 ${formatCents(task.pieceRateCents)} / 件`
-  return `${base} · ${rate} · ${commission}`
+    source.pieceRateCents === null
+      ? '未设置冻结提成'
+      : `冻结提成 ${formatCents(source.pieceRateCents)} / 件`
+  const parts = [base, rate, `制作提成 ${formatCents(source.qualifiedCommissionCents)}`]
+  if (source.materialDeductionCents > 0) {
+    parts.push(`材料成本扣款 ${formatCents(source.materialDeductionCents)}`)
+  }
+  return parts.join(' · ')
+}
+
+function formatTimedSource(source: V2WorkerSettlementDetail['timedSources'][number]): string {
+  const label = processLabels[source.processType]
+  const parts = [
+    `${source.occurredOn} · ${label} · 核算 ${source.approvedMinutes} 分钟`,
+    `冻结时薪 ${formatCents(source.hourlyWageCentsSnapshot)} / 小时`,
+    `计时工资 ${formatCents(source.timedWageCents)}`
+  ]
+  if (source.processType === 'packing') {
+    parts.push('打包发货不产生计件提成')
+  } else {
+    parts.push(`完成计件提成 ${formatCents(source.commissionCents)}`)
+  }
+  const items = source.items
+    .map(
+      (item) =>
+        `${formatCents(item.pieceRateCents ?? 0)} / 件 × ${item.completedQuantity} 件 = ${formatCents(item.commissionCents)}`
+    )
+    .join('；')
+  if (items) parts.push(`商品完成明细：${items}`)
+  return parts.join(' · ')
+}
+
+function formatAdjustment(adjustment: V2WorkerSettlementDetail['adjustments'][number]): string {
+  const sign = adjustment.amountCents >= 0 ? '+' : '-'
+  return [
+    `${processLabels[adjustment.processType]} · 原核算 ${adjustment.originalMinutes} 分钟 → 更正 ${adjustment.correctedMinutes} 分钟`,
+    `原工时冻结时薪 ${formatCents(adjustment.hourlyWageCentsSnapshot)} / 小时`,
+    `调整金额 ${sign}${formatCents(Math.abs(adjustment.amountCents))}`,
+    `原因：${adjustment.reason}`,
+    `关联原结算 ${adjustment.originalSettlementId}`
+  ].join(' · ')
 }
 
 function formatDeductionSource(
   deduction: V2WorkerSettlementDetail['deductions'][number],
   allocatedCents: number
 ): string {
-  const label = processLabels[deduction.processType]
-  const parts = [`${deduction.occurredOn} · ${label}不合格 ${deduction.unqualifiedQuantity} 件`]
-  if (deduction.processType !== 'packing') {
-    parts.push(
-      deduction.pieceRateCents === null
-        ? '原任务未设置计件提成'
-        : `原任务冻结计件 ${formatCents(deduction.pieceRateCents)} / 件`
-    )
-  }
-  if (deduction.commissionDeductionCents > 0) {
-    parts.push(`计件提成扣款 ${formatCents(deduction.commissionDeductionCents)}`)
-  }
-  if (deduction.wageDeductionCents > 0) {
-    parts.push(`${label}时薪扣款 ${formatCents(deduction.wageDeductionCents)}`)
-  }
-  if (deduction.glueDeductionCents > 0) {
-    parts.push(`胶水扣款 ${formatCents(deduction.glueDeductionCents)}`)
-  }
-  parts.push(`扣款总额 ${formatCents(deduction.totalDeductionCents)}`)
-  parts.push(`本期抵扣 ${formatCents(allocatedCents)}`)
-  return parts.join(' · ')
+  return [
+    `${deduction.occurredOn} · 制作不合格 ${deduction.unqualifiedQuantity} 件`,
+    `材料成本扣款 ${formatCents(deduction.materialDeductionCents)}`,
+    `本期抵扣 ${formatCents(allocatedCents)}`
+  ].join(' · ')
 }
 
 interface DetailDraft {
-  attendanceMinutes: string
-  attendanceNote: string
   actualDeduction: string
   otherAdjustment: string
   finalPaid: string
@@ -98,9 +128,6 @@ interface DetailDraft {
 
 function createDraft(settlement: V2WorkerSettlementDetail): DetailDraft {
   return {
-    attendanceMinutes:
-      settlement.attendanceMinutes === null ? '' : String(settlement.attendanceMinutes),
-    attendanceNote: settlement.attendanceNote ?? '',
     actualDeduction: centsToYuan(settlement.actualDeductionCents),
     otherAdjustment: centsToYuan(settlement.otherAdjustmentCents),
     finalPaid:
@@ -116,6 +143,10 @@ export function SettlementDetail(props: SettlementDetailProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [adjustmentReviewId, setAdjustmentReviewId] = useState('')
+  const [correctedMinutes, setCorrectedMinutes] = useState('')
+  const [adjustmentReason, setAdjustmentReason] = useState('')
+  const [adjustmentNote, setAdjustmentNote] = useState('')
   useYumiNotificationMessage(error)
   useYumiNotificationMessage(message, { tone: 'success' })
   const allocationByDeductionId = useMemo(
@@ -134,14 +165,14 @@ export function SettlementDetail(props: SettlementDetailProps) {
     setError(null)
     setMessage(null)
     setConfirmOpen(false)
+    setAdjustmentReviewId('')
+    setCorrectedMinutes('')
+    setAdjustmentReason('')
+    setAdjustmentNote('')
   }, [props.settlement])
 
   const update = (patch: Partial<DetailDraft>) => setDraft((current) => ({ ...current, ...patch }))
   const buildUpdate = (): V2WorkerSettlementDraftUpdateInput => ({
-    attendanceMinutes: draft.attendanceMinutes.trim()
-      ? Math.round(Number(draft.attendanceMinutes))
-      : null,
-    attendanceNote: draft.attendanceNote,
     actualDeductionCents: yuanToCents(draft.actualDeduction),
     otherAdjustmentCents: signedYuanToCents(draft.otherAdjustment),
     finalPaidAmountCents: draft.finalPaid.trim() ? yuanToCents(draft.finalPaid) : null,
@@ -195,7 +226,33 @@ export function SettlementDetail(props: SettlementDetailProps) {
     }
   }
 
+  const handleAdjustment = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!props.addWorkTimeAdjustment) return
+    setError(null)
+    setMessage(null)
+    setSubmitting('adjustment')
+    try {
+      await props.addWorkTimeAdjustment(props.settlement.id, {
+        workTimeReviewId: adjustmentReviewId,
+        correctedMinutes: Math.round(Number(correctedMinutes)),
+        reason: adjustmentReason,
+        note: adjustmentNote || null
+      })
+      setAdjustmentReviewId('')
+      setCorrectedMinutes('')
+      setAdjustmentReason('')
+      setAdjustmentNote('')
+      setMessage('已建立来源关联的工时调整。')
+    } catch (cause) {
+      setError(getErrorMessage(cause))
+    } finally {
+      setSubmitting(null)
+    }
+  }
+
   const isDraft = props.settlement.status === 'draft'
+  const adjustableReviews = props.adjustableReviews ?? []
   return (
     <div className="yumi-settlement-detail">
       <YumiRecordSummary
@@ -211,40 +268,61 @@ export function SettlementDetail(props: SettlementDetailProps) {
         <YumiMetricStrip
           ariaLabel="工资结算经营摘要"
           items={[
+            { label: '计时工资', value: formatCents(props.settlement.timedWageCents) },
+            { label: '计件提成', value: formatCents(props.settlement.commissionCents) },
             {
-              label: '排班口径',
-              value: `${props.settlement.scheduledMinutes} 分钟 · ${formatCents(props.settlement.scheduledReferenceWageCents)}`
+              label: '材料扣款 / 来源调整',
+              tone: 'warning',
+              value: `${formatCents(props.settlement.materialDeductionCents)} · 调整 ${formatSignedCents(props.settlement.adjustmentCents)}`
             },
             {
-              label: '考勤口径',
-              value: `${props.settlement.attendanceMinutes ?? '未填'} 分钟 · ${formatCents(props.settlement.attendanceReferenceWageCents)}`
+              label: '计算候选应发',
+              tone: 'brand',
+              value: formatCents(props.settlement.candidateWageCents)
             },
             {
-              label: '合格提成 / 实际扣款',
-              value: `${formatCents(props.settlement.qualifiedCommissionCents)} · 扣 ${formatCents(props.settlement.actualDeductionCents)}`
-            },
-            {
-              label: '本期后续顺延',
-              value: `${formatCents(props.settlement.continuingCarryoverCents)} · 其他调整 ${formatCents(props.settlement.otherAdjustmentCents)}`
+              label: '本期抵扣 / 顺延',
+              value: `${formatCents(props.settlement.actualDeductionCents)} · ${formatCents(props.settlement.continuingCarryoverCents)}`
             }
           ]}
         />
       </YumiRecordSummary>
 
       <div className="yumi-settlement-sources">
-        <YumiSection title="任务来源">
+        <YumiSection
+          description="制作按合格数量计提成、按不合格数量扣除冻结材料成本，不含时薪。"
+          title="制作结果来源"
+        >
           <YumiDataTable
-            ariaLabel="任务来源记录"
-            columns={[
-              {
-                key: 'summary',
-                label: '任务记录',
-                render: formatTaskSource
-              }
-            ]}
-            emptyText="本期无已完成任务。"
-            getRowKey={(task) => task.id}
-            rows={props.settlement.tasks}
+            ariaLabel="制作结果来源记录"
+            columns={[{ key: 'summary', label: '制作记录', render: formatMakingSource }]}
+            emptyText="本期无已确认制作结果。"
+            getRowKey={(source) => source.id}
+            rows={props.settlement.makingSources}
+          />
+        </YumiSection>
+        <YumiSection
+          description="捏毛装袋与缝边按确认工时计个人时薪并加完成数量提成；打包发货只按确认工时。"
+          title="计时来源"
+        >
+          <YumiDataTable
+            ariaLabel="计时来源记录"
+            columns={[{ key: 'summary', label: '工时记录', render: formatTimedSource }]}
+            emptyText="本期无已确认工时核算。"
+            getRowKey={(source) => source.id}
+            rows={props.settlement.timedSources}
+          />
+        </YumiSection>
+        <YumiSection
+          description="已结算工时差异在后续结算中按原工时冻结时薪建立正负调整，不改写历史实发。"
+          title="来源关联调整"
+        >
+          <YumiDataTable
+            ariaLabel="来源关联调整记录"
+            columns={[{ key: 'summary', label: '调整记录', render: formatAdjustment }]}
+            emptyText="本期无来源关联调整。"
+            getRowKey={(adjustment) => adjustment.id}
+            rows={props.settlement.adjustments}
           />
         </YumiSection>
         <YumiSection title="扣款来源">
@@ -258,26 +336,71 @@ export function SettlementDetail(props: SettlementDetailProps) {
                   formatDeductionSource(deduction, allocationByDeductionId.get(deduction.id) ?? 0)
               }
             ]}
-            emptyText="本期无不合格扣款。"
+            emptyText="本期无不合格材料扣款。"
             getRowKey={(deduction) => deduction.id}
             rows={props.settlement.deductions}
           />
         </YumiSection>
       </div>
 
+      {isDraft && props.addWorkTimeAdjustment && adjustableReviews.length ? (
+        <YumiSection
+          description="仅当工时已进入已确认结算时才能建立差异调整；履约完成数量更正必须走独立的履约调整。"
+          title="已结算工时更正"
+        >
+          <form className="yumi-form-panel" onSubmit={(event) => void handleAdjustment(event)}>
+            <div className="yumi-form-grid yumi-form-grid--two">
+              <YumiField>
+                <YumiFieldLabel required>原已结算工时</YumiFieldLabel>
+                <YumiSelect
+                  aria-label="原已结算工时"
+                  onValueChange={setAdjustmentReviewId}
+                  options={adjustableReviews.map((review) => ({
+                    value: review.id,
+                    label: review.label
+                  }))}
+                  placeholder="请选择已结算工时"
+                  value={adjustmentReviewId}
+                />
+              </YumiField>
+              <YumiField>
+                <YumiFieldLabel required>更正核算分钟</YumiFieldLabel>
+                <YumiNumberField
+                  aria-label="更正核算分钟"
+                  min="0"
+                  onChange={(event) => setCorrectedMinutes(event.target.value)}
+                  value={correctedMinutes}
+                />
+              </YumiField>
+              <YumiField>
+                <YumiFieldLabel required>更正原因</YumiFieldLabel>
+                <YumiTextField
+                  aria-label="更正原因"
+                  onChange={(event) => setAdjustmentReason(event.target.value)}
+                  value={adjustmentReason}
+                />
+              </YumiField>
+              <YumiField>
+                <YumiFieldLabel>更正备注</YumiFieldLabel>
+                <YumiTextField
+                  aria-label="更正备注"
+                  onChange={(event) => setAdjustmentNote(event.target.value)}
+                  value={adjustmentNote}
+                />
+              </YumiField>
+            </div>
+            <div className="yumi-form-actions">
+              <YumiButton disabled={submitting !== null} type="submit" variant="secondary">
+                建立来源调整
+              </YumiButton>
+            </div>
+          </form>
+        </YumiSection>
+      ) : null}
+
       <YumiSection description="工资确认后即代表实际发放，并写入实际工资支出。" title="负责人确认">
         <form className="yumi-form-panel" onSubmit={handleSave}>
           <div className="yumi-form-grid yumi-form-grid--three">
-            <YumiField>
-              <YumiFieldLabel>考勤总分钟</YumiFieldLabel>
-              <YumiNumberField
-                aria-label="考勤总分钟"
-                disabled={!isDraft}
-                min="0"
-                onChange={(event) => update({ attendanceMinutes: event.target.value })}
-                value={draft.attendanceMinutes}
-              />
-            </YumiField>
             <YumiField>
               <YumiFieldLabel>本期实际扣款（元）</YumiFieldLabel>
               <YumiNumberField
@@ -317,15 +440,6 @@ export function SettlementDetail(props: SettlementDetailProps) {
                 disabled={!isDraft}
                 onValueChange={(paidOn) => update({ paidOn })}
                 value={draft.paidOn}
-              />
-            </YumiField>
-            <YumiField>
-              <YumiFieldLabel>考勤备注</YumiFieldLabel>
-              <YumiTextField
-                aria-label="考勤备注"
-                disabled={!isDraft}
-                onChange={(event) => update({ attendanceNote: event.target.value })}
-                value={draft.attendanceNote}
               />
             </YumiField>
           </div>

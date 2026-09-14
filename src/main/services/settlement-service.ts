@@ -1,17 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import {
   allocateDeductionsInOccurrenceOrder,
-  calculateFluffingDefectDeduction,
-  calculateMakingDefectDeduction,
+  calculateMakingMaterialDeductionCents,
+  calculatePreDeductionWageCents,
   calculateQualifiedCommissionCents,
-  calculateSettlementReferenceWages,
+  calculateTimedWageCents,
+  calculateWorkTimeAdjustmentCents,
   validateFinalPaidCents
 } from '@main/domain/settlement'
 import { DomainValidationError } from '@main/domain/errors'
-import { calculateGlueCostCents } from '@shared/money'
 import {
   SettlementRepository,
-  type SettlementTaskSource
+  type MakingSourceRow,
+  type TimedReviewRow
 } from '@main/repositories/settlement-repository'
 import type { V2Database } from '@main/database/v2-connection'
 import type {
@@ -24,9 +25,11 @@ import type {
   V2WorkerSettlement,
   V2WorkerSettlementCreateInput,
   V2WorkerSettlementDetail,
-  V2WorkerSettlementQuery,
   V2WorkerSettlementDraftUpdateInput,
-  V2WorkerSettlementTask,
+  V2WorkerSettlementMakingSource,
+  V2WorkerSettlementQuery,
+  V2WorkerSettlementTimedSource,
+  V2WorkerSettlementWorkTimeAdjustmentInput,
   V2WorkerWageHistory,
   V2WorkerWageHistoryInput
 } from '@shared/contracts/settlements'
@@ -75,15 +78,11 @@ function nullableText(value: string | null | undefined): string | null {
   return normalized ? normalized : null
 }
 
-function productStandardMinutes(source: SettlementTaskSource): number {
-  if (!source.productSnapshotJson) throw new DomainValidationError('制作任务缺少产品快照')
-  const snapshot = JSON.parse(source.productSnapshotJson) as { standardMakingMinutes?: number }
-  if (!Number.isInteger(snapshot.standardMakingMinutes) || snapshot.standardMakingMinutes < 0) {
-    throw new DomainValidationError('产品标准制作分钟无效')
-  }
-  return snapshot.standardMakingMinutes
-}
-
+/**
+ * 兼职工资结算：只聚合可追溯的新事实。
+ * 制作按合格数量计提成并按不合格数量扣冻结材料成本且不含时薪；捏毛装袋与缝边按已确认
+ * 工时计个人时薪并加完成数量提成；打包发货只按已确认工时计个人时薪。
+ */
 export class SettlementService {
   private readonly repository: SettlementRepository
 
@@ -149,10 +148,6 @@ export class SettlementService {
     const periodStartOn = requireDate(input.periodStartOn, '结算开始日期')
     const periodEndOn = requireDate(input.periodEndOn, '结算结束日期')
     if (periodEndOn < periodStartOn) throw new DomainValidationError('结算结束日期不能早于开始日期')
-    const attendanceMinutes =
-      input.attendanceMinutes === undefined || input.attendanceMinutes === null
-        ? null
-        : requireNonNegativeInteger(input.attendanceMinutes, '考勤总分钟')
     const otherAdjustmentCents = input.otherAdjustmentCents ?? 0
     if (!Number.isInteger(otherAdjustmentCents))
       throw new DomainValidationError('其他调整必须是整数分')
@@ -160,52 +155,60 @@ export class SettlementService {
     return this.repository.transaction(() => {
       this.requireWorker(workerId)
       this.ensureDefectRecords(workerId)
-      const sources = this.repository.listEligibleTaskSources(workerId, periodStartOn, periodEndOn)
-      if (sources.length === 0) {
-        if (this.repository.hasConfirmedSettlementTask(workerId, periodStartOn, periodEndOn)) {
-          throw new DomainValidationError('任务已确认结算，不能重复纳入')
+      const makingSources = this.repository.listEligibleMakingSources(
+        workerId,
+        periodStartOn,
+        periodEndOn
+      )
+      const timedReviews = this.repository.listEligibleTimedReviews(
+        workerId,
+        periodStartOn,
+        periodEndOn
+      )
+      if (makingSources.length === 0 && timedReviews.length === 0) {
+        if (
+          this.repository.hasConfirmedMakingSource(workerId, periodStartOn, periodEndOn) ||
+          this.repository.hasConfirmedTimedSource(workerId, periodStartOn, periodEndOn)
+        ) {
+          throw new DomainValidationError('该期间的制作结果或工时已确认结算，不能重复纳入')
         }
-        throw new DomainValidationError('结算周期内没有可结算的已确认任务')
+        throw new DomainValidationError('结算周期内没有可结算的已确认制作结果或工时核算')
       }
+
       const now = this.clock.now()
-      const taskEntries = sources.map((source) => this.toSettlementTask(source, workerId, now))
-      const scheduledMinutes = taskEntries.reduce((total, task) => total + task.scheduledMinutes, 0)
-      const qualifiedCommissionCents = taskEntries.reduce(
-        (total, task) => total + task.qualifiedCommissionCents,
+      const makingEntries = makingSources.map((source) => this.toMakingSource(source, now))
+      const timedEntries = timedReviews.map((review) => this.toTimedSource(review, now))
+      const timedWageCents = timedEntries.reduce((total, entry) => total + entry.timedWageCents, 0)
+      const commissionCents =
+        makingEntries.reduce((total, entry) => total + entry.qualifiedCommissionCents, 0) +
+        timedEntries.reduce((total, entry) => total + entry.commissionCents, 0)
+      const materialDeductionCents = makingEntries.reduce(
+        (total, entry) => total + entry.materialDeductionCents,
         0
       )
-      const hourlyWageCents = this.requireWage(workerId, periodEndOn)
+      const preDeductionWageCents = calculatePreDeductionWageCents({
+        timedWageCents,
+        commissionCents,
+        adjustmentCents: 0,
+        otherAdjustmentCents
+      })
       const eligibleDeductions = this.repository
         .listOpenDeductions(workerId)
         .filter((deduction) => deduction.occurredOn <= periodEndOn)
-      const allocation = this.calculateAllocations(
-        eligibleDeductions,
-        scheduledMinutes,
-        attendanceMinutes,
-        hourlyWageCents,
-        qualifiedCommissionCents,
-        otherAdjustmentCents
-      )
-      const wages = calculateSettlementReferenceWages({
-        scheduledMinutes,
-        attendanceMinutes: attendanceMinutes ?? 0,
-        hourlyWageCents,
-        qualifiedCommissionCents,
-        deductionCents: allocation.appliedDeductionCents,
-        otherAdjustmentCents
-      })
+      const allocation = this.calculateAllocations(eligibleDeductions, preDeductionWageCents)
+
       const settlement: V2WorkerSettlement = {
         id: this.clock.createId(),
         workerId,
         periodStartOn,
         periodEndOn,
         status: 'draft',
-        scheduledMinutes,
-        attendanceMinutes,
-        attendanceNote: nullableText(input.attendanceNote),
-        scheduledReferenceWageCents: wages.scheduledReferenceWageCents,
-        attendanceReferenceWageCents: wages.attendanceReferenceWageCents,
-        qualifiedCommissionCents,
+        timedWageCents,
+        commissionCents,
+        materialDeductionCents,
+        adjustmentCents: 0,
+        otherAdjustmentCents,
+        candidateWageCents: Math.max(0, preDeductionWageCents - allocation.appliedDeductionCents),
         currentDeductionCents: eligibleDeductions
           .filter((deduction) => deduction.occurredOn >= periodStartOn)
           .reduce((total, deduction) => total + deduction.remainingCarryoverCents, 0),
@@ -214,7 +217,6 @@ export class SettlementService {
           .reduce((total, deduction) => total + deduction.remainingCarryoverCents, 0),
         actualDeductionCents: allocation.appliedDeductionCents,
         continuingCarryoverCents: allocation.carryoverDeductionCents,
-        otherAdjustmentCents,
         finalPaidAmountCents: null,
         paidOn: null,
         managerNote: null,
@@ -223,8 +225,11 @@ export class SettlementService {
         updatedAt: now
       }
       this.repository.insertSettlement(settlement)
-      taskEntries.forEach((task) =>
-        this.repository.insertSettlementTask({ ...task, settlementId: settlement.id })
+      makingEntries.forEach((source) =>
+        this.repository.insertMakingSource({ ...source, settlementId: settlement.id })
+      )
+      timedEntries.forEach((source) =>
+        this.repository.insertTimedSource({ ...source, settlementId: settlement.id })
       )
       this.repository.replaceDraftAllocations(
         settlement.id,
@@ -274,7 +279,7 @@ export class SettlementService {
       const refund = this.repository.getRefund(refundId)
       if (!refund) throw new DomainValidationError('待退款记录不存在')
       if (refund.status !== 'pending') throw new DomainValidationError('只有待退款记录可以处理')
-      if (actualRefundCents > refund.requestedRefundCents) {
+      if (actualRefundCents > refund.materialRefundCents) {
         throw new DomainValidationError('实际退款金额不能超过待退款金额')
       }
       const updated: V2WorkerRefundRecord = {
@@ -290,22 +295,64 @@ export class SettlementService {
     })
   }
 
+  /**
+   * 已结算工时差异：在后续草稿结算中关联原工时与原结算建立正负调整，
+   * 使用原工时冻结的个人时薪计算，不改变原结算的历史实发与履约完成数量。
+   */
+  addWorkTimeAdjustment(
+    settlementId: string,
+    input: V2WorkerSettlementWorkTimeAdjustmentInput
+  ): V2WorkerSettlementDetail {
+    const reviewId = requireText(input.workTimeReviewId, '工时核算标识')
+    const correctedMinutes = requireNonNegativeInteger(input.correctedMinutes, '更正核算分钟')
+    const reason = requireText(input.reason, '更正原因')
+    const note = nullableText(input.note)
+    return this.repository.transaction(() => {
+      const settlement = this.requireDraft(settlementId)
+      const review = this.repository.getReviewForAdjustment(reviewId)
+      if (!review) throw new DomainValidationError('工时核算不存在')
+      if (review.workerId !== settlement.workerId) {
+        throw new DomainValidationError('工时核算与结算单的兼职人员不一致')
+      }
+      if (review.status !== 'confirmed') {
+        throw new DomainValidationError('只有已确认工时核算可以建立差异调整')
+      }
+      const originalSettlement = this.repository.getConfirmedSettlementForReview(reviewId)
+      if (!originalSettlement) {
+        throw new DomainValidationError('该工时尚未进入已确认结算，不能建立差异调整')
+      }
+      const amountCents = calculateWorkTimeAdjustmentCents({
+        originalMinutes: review.approvedMinutes,
+        correctedMinutes,
+        hourlyWageCentsSnapshot: review.hourlyWageCentsSnapshot
+      })
+      const now = this.clock.now()
+      this.repository.insertAdjustment({
+        id: this.clock.createId(),
+        settlementId: settlement.id,
+        workTimeReviewId: reviewId,
+        originalSettlementId: originalSettlement.id,
+        processType: review.processType,
+        originalMinutes: review.approvedMinutes,
+        correctedMinutes,
+        hourlyWageCentsSnapshot: review.hourlyWageCentsSnapshot,
+        amountCents,
+        reason,
+        note,
+        status: 'draft',
+        createdAt: now
+      })
+      this.recalculateCandidate(settlement, now)
+      return this.requireDetail(settlement.id)
+    })
+  }
+
   updateDraft(id: string, input: V2WorkerSettlementDraftUpdateInput): V2WorkerSettlementDetail {
     return this.repository.transaction(() => {
       const settlement = this.requireDraft(id)
-      const attendanceMinutes =
-        input.attendanceMinutes === undefined
-          ? settlement.attendanceMinutes
-          : input.attendanceMinutes === null
-            ? null
-            : requireNonNegativeInteger(input.attendanceMinutes, '考勤总分钟')
       const otherAdjustmentCents = input.otherAdjustmentCents ?? settlement.otherAdjustmentCents
       if (!Number.isInteger(otherAdjustmentCents))
         throw new DomainValidationError('其他调整必须是整数分')
-      const attendanceNote =
-        input.attendanceNote === undefined
-          ? settlement.attendanceNote
-          : nullableText(input.attendanceNote)
       const finalPaidAmountCents =
         input.finalPaidAmountCents === undefined
           ? settlement.finalPaidAmountCents
@@ -319,37 +366,32 @@ export class SettlementService {
             : requireDate(input.paidOn, '实际付款日期')
       const managerNote =
         input.managerNote === undefined ? settlement.managerNote : nullableText(input.managerNote)
-      const hourlyWageCents = this.requireWage(settlement.workerId, settlement.periodEndOn)
+
+      const adjustmentCents = this.repository
+        .listAdjustments(settlement.id)
+        .reduce((total, adjustment) => total + adjustment.amountCents, 0)
+      const preDeductionWageCents = calculatePreDeductionWageCents({
+        timedWageCents: settlement.timedWageCents,
+        commissionCents: settlement.commissionCents,
+        adjustmentCents,
+        otherAdjustmentCents
+      })
       const eligibleDeductions = this.repository
         .listOpenDeductions(settlement.workerId)
         .filter((deduction) => deduction.occurredOn <= settlement.periodEndOn)
       const allocation = this.calculateAllocations(
         eligibleDeductions,
-        settlement.scheduledMinutes,
-        attendanceMinutes,
-        hourlyWageCents,
-        settlement.qualifiedCommissionCents,
-        otherAdjustmentCents,
+        preDeductionWageCents,
         input.actualDeductionCents
       )
-      const wages = calculateSettlementReferenceWages({
-        scheduledMinutes: settlement.scheduledMinutes,
-        attendanceMinutes: attendanceMinutes ?? 0,
-        hourlyWageCents,
-        qualifiedCommissionCents: settlement.qualifiedCommissionCents,
-        deductionCents: allocation.appliedDeductionCents,
-        otherAdjustmentCents
-      })
       const updated: V2WorkerSettlement = {
         ...settlement,
-        attendanceMinutes,
-        attendanceNote,
+        adjustmentCents,
         otherAdjustmentCents,
+        candidateWageCents: Math.max(0, preDeductionWageCents - allocation.appliedDeductionCents),
         finalPaidAmountCents,
         paidOn,
         managerNote,
-        scheduledReferenceWageCents: wages.scheduledReferenceWageCents,
-        attendanceReferenceWageCents: wages.attendanceReferenceWageCents,
         actualDeductionCents: allocation.appliedDeductionCents,
         continuingCarryoverCents: allocation.carryoverDeductionCents,
         updatedAt: this.clock.now()
@@ -399,39 +441,52 @@ export class SettlementService {
     })
   }
 
+  private recalculateCandidate(settlement: V2WorkerSettlement, now: string): void {
+    const adjustmentCents = this.repository
+      .listAdjustments(settlement.id)
+      .reduce((total, adjustment) => total + adjustment.amountCents, 0)
+    const preDeductionWageCents = calculatePreDeductionWageCents({
+      timedWageCents: settlement.timedWageCents,
+      commissionCents: settlement.commissionCents,
+      adjustmentCents,
+      otherAdjustmentCents: settlement.otherAdjustmentCents
+    })
+    const eligibleDeductions = this.repository
+      .listOpenDeductions(settlement.workerId)
+      .filter((deduction) => deduction.occurredOn <= settlement.periodEndOn)
+    const allocation = this.calculateAllocations(eligibleDeductions, preDeductionWageCents)
+    this.repository.updateSettlement({
+      ...settlement,
+      adjustmentCents,
+      candidateWageCents: Math.max(0, preDeductionWageCents - allocation.appliedDeductionCents),
+      actualDeductionCents: allocation.appliedDeductionCents,
+      continuingCarryoverCents: allocation.carryoverDeductionCents,
+      updatedAt: now
+    })
+    this.repository.replaceDraftAllocations(
+      settlement.id,
+      allocation.allocations.map((item) => ({
+        id: this.clock.createId(),
+        settlementId: settlement.id,
+        deductionRecordId: item.deductionRecordId,
+        allocatedCents: item.appliedCents,
+        status: 'draft' as const,
+        createdAt: now
+      }))
+    )
+  }
+
+  /** 制作不合格只形成材料成本扣款或待退款，不扣提成、不扣制作时薪。 */
   private ensureDefectRecords(workerId: string): void {
     this.repository.listUnrecordedDefectSources(workerId).forEach((source) => {
-      if (source.processType !== 'making' && source.processType !== 'fluffing_bagging') return
-      const hourlyWageCents =
-        source.hourlyWageCents ?? this.requireWage(workerId, source.assignedOn)
-      const pieceRateCents = source.pieceRateCents ?? 0
-      const deduction =
-        source.processType === 'making'
-          ? calculateMakingDefectDeduction({
-              unqualifiedQuantity: source.unqualifiedQuantity,
-              pieceRateCents,
-              hourlyWageCents,
-              standardMakingMinutes: productStandardMinutes(source),
-              glueDeductionCents:
-                source.gluePriceMicroYuanPerGram !== null && source.glueWeightMilligrams !== null
-                  ? calculateGlueCostCents({
-                      gluePriceMicroYuanPerGram: source.gluePriceMicroYuanPerGram,
-                      glueWeightMilligrams: source.glueWeightMilligrams,
-                      quantity: source.unqualifiedQuantity
-                    })
-                  : undefined,
-              glueDeductionCentsPerUnit: source.glueCostCents ?? 0
-            })
-          : calculateFluffingDefectDeduction({
-              unqualifiedQuantity: source.unqualifiedQuantity,
-              plannedQuantity: source.plannedQuantity ?? 0,
-              plannedMinutes: source.plannedMinutes,
-              pieceRateCents,
-              hourlyWageCents
-            })
+      const materialDeductionCents = calculateMakingMaterialDeductionCents({
+        unqualifiedQuantity: source.unqualifiedQuantity,
+        materialPriceMicroYuanPerGram: source.materialPriceMicroYuanPerGram ?? 0,
+        unitWeightMilligrams: source.unitWeightMilligrams ?? 0
+      })
       const now = this.clock.now()
-      const confirmedSettlement = this.repository.getConfirmedSettlementForTask(
-        source.processTaskId
+      const confirmedSettlement = this.repository.getConfirmedSettlementForInspection(
+        source.qualityInspectionId
       )
       if (confirmedSettlement) {
         this.repository.insertRefund({
@@ -440,14 +495,11 @@ export class SettlementService {
           originalSettlementId: confirmedSettlement.id,
           processTaskId: source.processTaskId,
           processResultId: source.processResultId,
-          qualityInspectionId: source.qualityInspectionId!,
+          qualityInspectionId: source.qualityInspectionId,
           orderId: source.orderId,
           orderItemId: source.orderItemId,
           unqualifiedQuantity: source.unqualifiedQuantity,
-          commissionDeductionCents: deduction.commissionDeductionCents,
-          wageDeductionCents: deduction.hourlyWageDeductionCents,
-          glueDeductionCents: deduction.glueDeductionCents,
-          requestedRefundCents: deduction.totalDeductionCents,
+          materialRefundCents: materialDeductionCents,
           actualRefundCents: null,
           refundedOn: null,
           managerNote: null,
@@ -467,64 +519,92 @@ export class SettlementService {
         orderId: source.orderId,
         orderItemId: source.orderItemId,
         unqualifiedQuantity: source.unqualifiedQuantity,
-        commissionDeductionCents: deduction.commissionDeductionCents,
-        wageDeductionCents: deduction.hourlyWageDeductionCents,
-        glueDeductionCents: deduction.glueDeductionCents,
-        totalDeductionCents: deduction.totalDeductionCents,
+        materialDeductionCents,
+        totalDeductionCents: materialDeductionCents,
         deductedCents: 0,
-        remainingCarryoverCents: deduction.totalDeductionCents,
+        remainingCarryoverCents: materialDeductionCents,
         status: 'pending',
-        occurredOn: source.inspectedOn!,
+        occurredOn: source.inspectedOn,
         createdAt: now,
         updatedAt: now
       })
     })
   }
 
-  private toSettlementTask(
-    source: SettlementTaskSource,
-    workerId: string,
-    now: string
-  ): V2WorkerSettlementTask {
+  private toMakingSource(source: MakingSourceRow, now: string): V2WorkerSettlementMakingSource {
     const qualifiedCommissionCents = calculateQualifiedCommissionCents([
       {
-        processType: source.processType,
+        processType: 'making',
         qualifiedQuantity: source.qualifiedQuantity,
         pieceRateCents: source.pieceRateCents ?? 0
       }
     ])
-    // 保证历史任务至少存在可用时薪；当前结算的统一参考时薪取结算结束日生效记录。
-    if (source.hourlyWageCents === null) this.requireWage(workerId, source.assignedOn)
+    const materialDeductionCents =
+      source.unqualifiedQuantity > 0
+        ? calculateMakingMaterialDeductionCents({
+            unqualifiedQuantity: source.unqualifiedQuantity,
+            materialPriceMicroYuanPerGram: source.materialPriceMicroYuanPerGram ?? 0,
+            unitWeightMilligrams: source.unitWeightMilligrams ?? 0
+          })
+        : 0
     return {
       id: this.clock.createId(),
       processTaskId: source.processTaskId,
-      scheduledMinutes: source.plannedMinutes + source.extraMinutes,
+      qualityInspectionId: source.qualityInspectionId,
+      orderId: source.orderId,
+      orderItemId: source.orderItemId,
+      occurredOn: source.assignedOn,
       qualifiedQuantity: source.qualifiedQuantity,
+      unqualifiedQuantity: source.unqualifiedQuantity,
+      pieceRateCents: source.pieceRateCents,
       qualifiedCommissionCents,
+      materialDeductionCents,
       status: 'draft',
+      createdAt: now
+    }
+  }
+
+  private toTimedSource(review: TimedReviewRow, now: string): V2WorkerSettlementTimedSource {
+    const timedWageCents = calculateTimedWageCents({
+      minutes: review.approvedMinutes,
+      hourlyWageCents: review.hourlyWageCentsSnapshot
+    })
+    const items = review.items.map((item) => ({
+      id: this.clock.createId(),
+      processTaskId: item.processTaskId,
+      orderItemId: item.orderItemId,
+      completedQuantity: item.completedQuantity,
+      pieceRateCents: item.pieceRateCents,
+      commissionCents: calculateQualifiedCommissionCents([
+        {
+          processType: review.processType,
+          qualifiedQuantity: item.completedQuantity,
+          pieceRateCents: item.pieceRateCents ?? 0
+        }
+      ])
+    }))
+    return {
+      id: this.clock.createId(),
+      workTimeReviewId: review.id,
+      processType: review.processType,
+      occurredOn: review.workedOn,
+      approvedMinutes: review.approvedMinutes,
+      hourlyWageCentsSnapshot: review.hourlyWageCentsSnapshot,
+      timedWageCents,
+      commissionCents: items.reduce((total, item) => total + item.commissionCents, 0),
+      status: 'draft',
+      items,
       createdAt: now
     }
   }
 
   private calculateAllocations(
     deductions: V2WorkerDeductionRecord[],
-    scheduledMinutes: number,
-    attendanceMinutes: number | null,
-    hourlyWageCents: number,
-    qualifiedCommissionCents: number,
-    otherAdjustmentCents: number,
+    preDeductionWageCents: number,
     requestedDeductionCents?: number
   ) {
-    const beforeDeduction = calculateSettlementReferenceWages({
-      scheduledMinutes,
-      attendanceMinutes: attendanceMinutes ?? 0,
-      hourlyWageCents,
-      qualifiedCommissionCents,
-      deductionCents: 0,
-      otherAdjustmentCents
-    }).scheduledPreDeductionWageCents
     const defaultAllocation = allocateDeductionsInOccurrenceOrder({
-      scheduledPreDeductionWageCents: beforeDeduction,
+      preDeductionWageCents,
       deductions: deductions.map((deduction) => ({
         id: deduction.id,
         occurredAt: deduction.createdAt,
@@ -536,11 +616,11 @@ export class SettlementService {
     if (requestedDeductionCents > defaultAllocation.totalRemainingDeductionCents) {
       throw new DomainValidationError('本期实际扣除金额不能超过待抵扣总额')
     }
-    if (requestedDeductionCents > beforeDeduction) {
-      throw new DomainValidationError('本期实际扣除金额不能超过排班口径扣前应发')
+    if (requestedDeductionCents > preDeductionWageCents) {
+      throw new DomainValidationError('本期实际扣除金额不能超过本期扣前应发')
     }
     return allocateDeductionsInOccurrenceOrder({
-      scheduledPreDeductionWageCents: requestedDeductionCents,
+      preDeductionWageCents: requestedDeductionCents,
       deductions: deductions.map((deduction) => ({
         id: deduction.id,
         occurredAt: deduction.createdAt,
@@ -553,12 +633,6 @@ export class SettlementService {
     const worker = this.repository.getWorker(id)
     if (!worker) throw new DomainValidationError('兼职人员不存在')
     return worker
-  }
-
-  private requireWage(workerId: string, effectiveOn: string): number {
-    const wage = this.repository.getHourlyWage(workerId, effectiveOn)
-    if (wage === null) throw new DomainValidationError('兼职人员在该日期尚未设置生效时薪')
-    return wage
   }
 
   private requireDraft(id: string): V2WorkerSettlement {
@@ -578,7 +652,9 @@ export class SettlementService {
   private toDetail(settlement: V2WorkerSettlement): V2WorkerSettlementDetail {
     return {
       ...settlement,
-      tasks: this.repository.listSettlementTasks(settlement.id),
+      makingSources: this.repository.listMakingSources(settlement.id),
+      timedSources: this.repository.listTimedSources(settlement.id),
+      adjustments: this.repository.listAdjustments(settlement.id),
       deductions: this.repository.listSettlementDeductions(settlement.id),
       deductionAllocations: this.repository.listSettlementAllocations(settlement.id)
     }

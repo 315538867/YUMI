@@ -1,132 +1,107 @@
 import { describe, expect, it } from 'vitest'
 import {
   allocateDeductionsInOccurrenceOrder,
-  calculateFluffingDefectDeduction,
-  calculateMakingDefectDeduction,
+  calculateDefaultDeductionCapCents,
+  calculateMakingMaterialDeductionCents,
+  calculatePreDeductionWageCents,
   calculateQualifiedCommissionCents,
-  calculateSettlementReferenceWages,
+  calculateTimedWageCents,
+  calculateWorkTimeAdjustmentCents,
   validateFinalPaidCents
 } from './settlement'
 
 describe('V2 兼职工资结算领域规则', () => {
-  it('两套工资参考只因工作分钟不同而产生时薪差异', () => {
-    expect(
-      calculateSettlementReferenceWages({
-        scheduledMinutes: 360,
-        attendanceMinutes: 480,
-        hourlyWageCents: 2_000,
-        qualifiedCommissionCents: 3_000,
-        deductionCents: 1_500,
-        otherAdjustmentCents: 200
-      })
-    ).toEqual({
-      scheduledHourlyWageCents: 12_000,
-      attendanceHourlyWageCents: 16_000,
-      scheduledPreDeductionWageCents: 15_200,
-      attendancePreDeductionWageCents: 19_200,
-      scheduledReferenceWageCents: 13_700,
-      attendanceReferenceWageCents: 17_700
-    })
-  })
-
-  it('制作不合格扣除提成、标准分钟时薪和胶水成本', () => {
-    expect(
-      calculateMakingDefectDeduction({
-        unqualifiedQuantity: 3,
-        pieceRateCents: 300,
-        standardMakingMinutes: 12,
-        hourlyWageCents: 2_000,
-        glueDeductionCentsPerUnit: 50
-      })
-    ).toEqual({
-      unqualifiedQuantity: 3,
-      commissionDeductionCents: 900,
-      hourlyWageDeductionCents: 1_200,
-      glueDeductionCents: 150,
-      totalDeductionCents: 2_250
-    })
-  })
-
-  it('制作不合格对带有胶水公式快照的任务按整批精确扣胶水', () => {
-    expect(
-      calculateMakingDefectDeduction({
-        unqualifiedQuantity: 100,
-        pieceRateCents: 0,
-        standardMakingMinutes: 0,
-        hourlyWageCents: 0,
-        glueDeductionCents: 850
-      })
-    ).toMatchObject({
-      glueDeductionCents: 850,
-      totalDeductionCents: 850
-    })
-  })
-
-  it('捏毛装袋不合格按计划分钟比例扣除提成和时薪', () => {
-    expect(
-      calculateFluffingDefectDeduction({
-        unqualifiedQuantity: 2,
-        plannedQuantity: 6,
-        plannedMinutes: 90,
-        pieceRateCents: 100,
-        hourlyWageCents: 2_000
-      })
-    ).toEqual({
-      unqualifiedQuantity: 2,
-      deductedMinutes: 30,
-      commissionDeductionCents: 200,
-      hourlyWageDeductionCents: 1_000,
-      glueDeductionCents: 0,
-      totalDeductionCents: 1_200
-    })
-  })
-
-  it('制作、捏毛装袋的返工或补发合格结果按新任务正常计提成，打包和发货不计提成', () => {
+  it('制作按合格数量计件、捏毛装袋与缝边按完成数量计件，打包发货不计提成', () => {
     expect(
       calculateQualifiedCommissionCents([
-        { processType: 'making', qualifiedQuantity: 2, pieceRateCents: 300 },
-        { processType: 'fluffing_bagging', qualifiedQuantity: 3, pieceRateCents: 100 },
-        { processType: 'packing', qualifiedQuantity: 5, pieceRateCents: 500 },
-        { processType: 'shipping', qualifiedQuantity: 5, pieceRateCents: 500 }
+        { processType: 'making', qualifiedQuantity: 18, pieceRateCents: 300 },
+        { processType: 'fluffing_bagging', qualifiedQuantity: 20, pieceRateCents: 85 },
+        { processType: 'edge_sewing', qualifiedQuantity: 12, pieceRateCents: 100 },
+        { processType: 'packing', qualifiedQuantity: 30, pieceRateCents: 500 }
       ])
-    ).toBe(900)
+    ).toBe(18 * 300 + 20 * 85 + 12 * 100)
   })
 
-  it('默认抵扣上限取排班口径的扣前应发，按发生顺序扣除并将不足部分顺延', () => {
-    const allocation = allocateDeductionsInOccurrenceOrder({
-      scheduledPreDeductionWageCents: 1_000,
-      deductions: [
-        { id: 'deduction-2', occurredAt: '2026-09-07T10:00:00.000Z', remainingCents: 700 },
-        { id: 'deduction-1', occurredAt: '2026-09-07T09:00:00.000Z', remainingCents: 700 }
-      ]
-    })
-
-    expect(allocation).toEqual({
-      totalRemainingDeductionCents: 1_400,
-      deductionCapCents: 1_000,
-      appliedDeductionCents: 1_000,
-      carryoverDeductionCents: 400,
-      allocations: [
-        { deductionRecordId: 'deduction-1', appliedCents: 700, carryoverCents: 0 },
-        { deductionRecordId: 'deduction-2', appliedCents: 300, carryoverCents: 400 }
-      ]
-    })
-  })
-
-  it('任何工资参考与最终实发都不允许为负数', () => {
+  it('制作不合格只按冻结材料成本扣款，不含提成扣回或制作时薪', () => {
     expect(
-      calculateSettlementReferenceWages({
-        scheduledMinutes: 30,
-        attendanceMinutes: 0,
-        hourlyWageCents: 2_000,
-        qualifiedCommissionCents: 0,
-        deductionCents: 9_999,
-        otherAdjustmentCents: -3_000
+      calculateMakingMaterialDeductionCents({
+        unqualifiedQuantity: 3,
+        materialPriceMicroYuanPerGram: 3_400,
+        unitWeightMilligrams: 25_000
       })
-    ).toMatchObject({
-      scheduledReferenceWageCents: 0,
-      attendanceReferenceWageCents: 0
+    ).toBe(26)
+    expect(() =>
+      calculateMakingMaterialDeductionCents({
+        unqualifiedQuantity: 0,
+        materialPriceMicroYuanPerGram: 3_400,
+        unitWeightMilligrams: 25_000
+      })
+    ).toThrow('不合格数量必须是正整数')
+  })
+
+  it('计时工资按整段核算分钟和冻结时薪在分边界计算', () => {
+    expect(calculateTimedWageCents({ minutes: 240, hourlyWageCents: 3_000 })).toBe(12_000)
+    expect(calculateTimedWageCents({ minutes: 30, hourlyWageCents: 1_001 })).toBe(501)
+  })
+
+  it('已结算工时差异调整使用原工时冻结时薪计算正负金额', () => {
+    expect(
+      calculateWorkTimeAdjustmentCents({
+        originalMinutes: 240,
+        correctedMinutes: 210,
+        hourlyWageCentsSnapshot: 3_000
+      })
+    ).toBe(-1_500)
+    expect(
+      calculateWorkTimeAdjustmentCents({
+        originalMinutes: 240,
+        correctedMinutes: 260,
+        hourlyWageCentsSnapshot: 1_001
+      })
+    ).toBe(334)
+    expect(() =>
+      calculateWorkTimeAdjustmentCents({
+        originalMinutes: 240,
+        correctedMinutes: 240,
+        hourlyWageCentsSnapshot: 3_000
+      })
+    ).toThrow('更正核算分钟必须与原核算分钟不同')
+  })
+
+  it('唯一候选应发为计时工资加计件提成与调整，且不为负', () => {
+    expect(
+      calculatePreDeductionWageCents({
+        timedWageCents: 12_000,
+        commissionCents: 1_700,
+        adjustmentCents: -1_500,
+        otherAdjustmentCents: 200
+      })
+    ).toBe(12_400)
+    expect(
+      calculatePreDeductionWageCents({
+        timedWageCents: 0,
+        commissionCents: 0,
+        adjustmentCents: -1_500,
+        otherAdjustmentCents: 0
+      })
+    ).toBe(0)
+  })
+
+  it('按发生顺序抵扣待抵扣扣款，未抵完部分原样顺延且不留负工资', () => {
+    const result = allocateDeductionsInOccurrenceOrder({
+      preDeductionWageCents: 1_000,
+      deductions: [
+        { id: 'later', occurredAt: '2026-09-10T00:00:00.000Z', remainingCents: 400 },
+        { id: 'earlier', occurredAt: '2026-09-08T00:00:00.000Z', remainingCents: 900 }
+      ]
     })
+    expect(result.allocations).toEqual([
+      { deductionRecordId: 'earlier', appliedCents: 900, carryoverCents: 0 },
+      { deductionRecordId: 'later', appliedCents: 100, carryoverCents: 300 }
+    ])
+    expect(result.appliedDeductionCents).toBe(1_000)
+    expect(result.carryoverDeductionCents).toBe(300)
+    expect(calculateDefaultDeductionCapCents(1_000)).toBe(1_000)
     expect(() => validateFinalPaidCents(-1)).toThrow('最终实发金额必须是非负整数分')
     expect(() => validateFinalPaidCents(0)).not.toThrow()
   })

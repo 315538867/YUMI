@@ -1,15 +1,24 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import type { V2NavigationTarget, V2Product, V2ProductInput } from '@shared/contracts/index'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import type {
+  V2NavigationTarget,
+  V2Product,
+  V2ProductExpectedProfit,
+  V2ProductInput,
+  V2StudioSettings
+} from '@shared/contracts/index'
+import { calculateProductProfit, type ProductProfitInput } from '@shared/calculations'
 import {
-  formatGluePriceYuanPerGram,
+  formatMaterialPriceYuanPerGram,
   formatMilligramsAsGrams,
   parseGramsToMilligrams
 } from '@shared/money'
 import { centsToYuan, formatCents, getErrorMessage, yuanToCents } from '../../composables/v2-utils'
+import { ProductInventoryPanel } from '../../components/product/product-inventory-panel'
 import { useProducts } from '../../composables/use-products'
 import { useStudioSettings } from '../../composables/use-studio-settings'
 import {
   YumiButton,
+  YumiCalculatedAmount,
   YumiDataTable,
   YumiDetailList,
   YumiEmptyState,
@@ -21,8 +30,9 @@ import {
   YumiListToolbar,
   YumiNumberField,
   YumiPageHeader,
+  YumiPrimaryTabs,
+  YumiSection,
   YumiSelect,
-  YumiSheet,
   YumiStatusTag,
   YumiTextArea,
   YumiTextField,
@@ -34,19 +44,22 @@ interface ProductDraft {
   code: string
   category: string
   basePrice: string
-  glueWeight: string
   unitWeight: string
-  materialLossRate: string
-  moldCount: string
-  outputPerMoldPerBatch: string
-  maxBatchesPerDay: string
   packagingCost: string
   accessoryCost: string
   replacementBagCost: string
-  edgeCost: string
+  edgeConsumableCost: string
+  fixedCost: string
   standardMakingMinutes: string
+  expectedFluffingBaggingMinutes: string
+  expectedEdgeSewingMinutes: string
+  expectedPackingMinutes: string
   makingCommission: string
   fluffingBaggingCommission: string
+  edgeSewingCommission: string
+  moldCount: string
+  outputPerMoldPerBatch: string
+  maxBatchesPerDay: string
   notes: string
 }
 
@@ -55,86 +68,185 @@ const emptyDraft = (): ProductDraft => ({
   code: '',
   category: '',
   basePrice: '0',
-  glueWeight: '0',
   unitWeight: '0',
-  materialLossRate: '0',
-  moldCount: '0',
-  outputPerMoldPerBatch: '0',
-  maxBatchesPerDay: '0',
   packagingCost: '0',
   accessoryCost: '0',
   replacementBagCost: '0',
-  edgeCost: '0',
+  edgeConsumableCost: '0',
+  fixedCost: '0',
   standardMakingMinutes: '0',
+  expectedFluffingBaggingMinutes: '0',
+  expectedEdgeSewingMinutes: '0',
+  expectedPackingMinutes: '0',
   makingCommission: '0',
   fluffingBaggingCommission: '0',
+  edgeSewingCommission: '0',
+  moldCount: '0',
+  outputPerMoldPerBatch: '0',
+  maxBatchesPerDay: '0',
   notes: ''
 })
+
 const toDraft = (product: V2Product): ProductDraft => ({
   name: product.name,
   code: product.code ?? '',
   category: product.category ?? '',
   basePrice: centsToYuan(product.basePriceCents),
-  glueWeight: formatMilligramsAsGrams(product.glueWeightMilligrams),
   unitWeight: formatMilligramsAsGrams(product.unitWeightMilligrams),
-  materialLossRate: String(product.materialLossRateBasisPoints / 100),
-  moldCount: String(product.moldCount),
-  outputPerMoldPerBatch: String(product.outputPerMoldPerBatch),
-  maxBatchesPerDay: String(product.maxBatchesPerDay),
   packagingCost: centsToYuan(product.packagingCostCents),
   accessoryCost: centsToYuan(product.accessoryCostCents),
   replacementBagCost: centsToYuan(product.replacementBagCostCents),
-  edgeCost: centsToYuan(product.internalEdgeCostCents),
+  edgeConsumableCost: centsToYuan(product.edgeConsumableCostCents),
+  fixedCost: centsToYuan(product.fixedCostCents),
   standardMakingMinutes: String(product.standardMakingMinutes),
+  expectedFluffingBaggingMinutes: String(product.expectedFluffingBaggingMinutes),
+  expectedEdgeSewingMinutes: String(product.expectedEdgeSewingMinutes),
+  expectedPackingMinutes: String(product.expectedPackingMinutes),
   makingCommission: centsToYuan(product.makingCommissionCents),
-  fluffingBaggingCommission: centsToYuan(product.fluffingBaggingCommissionCents ?? 0),
+  fluffingBaggingCommission: centsToYuan(product.fluffingBaggingCommissionCents),
+  edgeSewingCommission: centsToYuan(product.edgeSewingCommissionCents),
+  moldCount: String(product.moldCount),
+  outputPerMoldPerBatch: String(product.outputPerMoldPerBatch),
+  maxBatchesPerDay: String(product.maxBatchesPerDay),
   notes: product.notes ?? ''
 })
-const toInput = (draft: ProductDraft): V2ProductInput => ({
-  name: draft.name,
-  code: draft.code || null,
-  category: draft.category || null,
-  basePriceCents: yuanToCents(draft.basePrice),
-  glueWeightMilligrams: parseGramsToMilligrams(draft.glueWeight),
-  unitWeightMilligrams: parseGramsToMilligrams(draft.unitWeight),
-  materialLossRateBasisPoints: Math.round((Number(draft.materialLossRate) || 0) * 100),
-  moldCount: Math.round(Number(draft.moldCount) || 0),
-  outputPerMoldPerBatch: Math.round(Number(draft.outputPerMoldPerBatch) || 0),
-  maxBatchesPerDay: Math.round(Number(draft.maxBatchesPerDay) || 0),
-  packagingCostCents: yuanToCents(draft.packagingCost),
-  accessoryCostCents: yuanToCents(draft.accessoryCost),
-  replacementBagCostCents: yuanToCents(draft.replacementBagCost),
-  internalEdgeCostCents: yuanToCents(draft.edgeCost),
-  standardMakingMinutes: Math.round(Number(draft.standardMakingMinutes) || 0),
-  makingCommissionCents: yuanToCents(draft.makingCommission),
-  fluffingBaggingCommissionCents: yuanToCents(draft.fluffingBaggingCommission),
-  notes: draft.notes || null
-})
+
+/** 编辑过程允许暂存未完成的输入；预览只在输入可解析时参与计算，保存时仍由主进程校验。 */
+function previewCents(value: string): number {
+  if (!value.trim()) return 0
+  try {
+    return yuanToCents(value)
+  } catch {
+    return 0
+  }
+}
+
+function previewMilligrams(value: string): number {
+  if (!value.trim()) return 0
+  try {
+    return parseGramsToMilligrams(value)
+  } catch {
+    return 0
+  }
+}
+
+function previewMinutes(value: string): number {
+  const minutes = Number(value)
+  return Number.isFinite(minutes) ? Math.max(Math.round(minutes), 0) : 0
+}
+
+function toInput(draft: ProductDraft): V2ProductInput {
+  return {
+    name: draft.name,
+    code: draft.code || null,
+    category: draft.category || null,
+    basePriceCents: previewCents(draft.basePrice),
+    packagingCostCents: previewCents(draft.packagingCost),
+    accessoryCostCents: previewCents(draft.accessoryCost),
+    replacementBagCostCents: previewCents(draft.replacementBagCost),
+    edgeConsumableCostCents: previewCents(draft.edgeConsumableCost),
+    fixedCostCents: previewCents(draft.fixedCost),
+    unitWeightMilligrams: previewMilligrams(draft.unitWeight),
+    standardMakingMinutes: previewMinutes(draft.standardMakingMinutes),
+    expectedFluffingBaggingMinutes: previewMinutes(draft.expectedFluffingBaggingMinutes),
+    expectedEdgeSewingMinutes: previewMinutes(draft.expectedEdgeSewingMinutes),
+    expectedPackingMinutes: previewMinutes(draft.expectedPackingMinutes),
+    makingCommissionCents: previewCents(draft.makingCommission),
+    fluffingBaggingCommissionCents: previewCents(draft.fluffingBaggingCommission),
+    edgeSewingCommissionCents: previewCents(draft.edgeSewingCommission),
+    moldCount: previewMinutes(draft.moldCount),
+    outputPerMoldPerBatch: previewMinutes(draft.outputPerMoldPerBatch),
+    maxBatchesPerDay: previewMinutes(draft.maxBatchesPerDay),
+    notes: draft.notes || null
+  }
+}
+
+function toProfitInput(draft: ProductDraft, settings: V2StudioSettings | null): ProductProfitInput {
+  const input = toInput(draft)
+  return {
+    basePriceCents: input.basePriceCents,
+    unitWeightMilligrams: input.unitWeightMilligrams ?? 0,
+    materialPriceMicroYuanPerGram: settings?.materialPriceMicroYuanPerGram ?? 0,
+    packagingCostCents: input.packagingCostCents,
+    accessoryCostCents: input.accessoryCostCents,
+    replacementBagCostCents: input.replacementBagCostCents,
+    fixedCostCents: input.fixedCostCents ?? 0,
+    makingCommissionCents: input.makingCommissionCents,
+    fluffingBaggingCommissionCents: input.fluffingBaggingCommissionCents ?? 0,
+    expectedFluffingBaggingMinutes: input.expectedFluffingBaggingMinutes ?? 0,
+    expectedEdgeSewingMinutes: input.expectedEdgeSewingMinutes ?? 0,
+    expectedPackingMinutes: input.expectedPackingMinutes ?? 0,
+    fluffingBaggingExpectedHourlyWageCents: settings?.fluffingBaggingExpectedHourlyWageCents ?? 0,
+    edgeSewingExpectedHourlyWageCents: settings?.edgeSewingExpectedHourlyWageCents ?? 0,
+    packingExpectedHourlyWageCents: settings?.packingExpectedHourlyWageCents ?? 0,
+    edgeConsumableCostCents: input.edgeConsumableCostCents,
+    edgeSewingCommissionCents: input.edgeSewingCommissionCents ?? 0
+  }
+}
+
+function toProductProfitInput(
+  product: V2Product,
+  settings: V2StudioSettings | null
+): ProductProfitInput {
+  return {
+    basePriceCents: product.basePriceCents,
+    unitWeightMilligrams: product.unitWeightMilligrams,
+    materialPriceMicroYuanPerGram: settings?.materialPriceMicroYuanPerGram ?? 0,
+    packagingCostCents: product.packagingCostCents,
+    accessoryCostCents: product.accessoryCostCents,
+    replacementBagCostCents: product.replacementBagCostCents,
+    fixedCostCents: product.fixedCostCents,
+    makingCommissionCents: product.makingCommissionCents,
+    fluffingBaggingCommissionCents: product.fluffingBaggingCommissionCents,
+    expectedFluffingBaggingMinutes: product.expectedFluffingBaggingMinutes,
+    expectedEdgeSewingMinutes: product.expectedEdgeSewingMinutes,
+    expectedPackingMinutes: product.expectedPackingMinutes,
+    fluffingBaggingExpectedHourlyWageCents: settings?.fluffingBaggingExpectedHourlyWageCents ?? 0,
+    edgeSewingExpectedHourlyWageCents: settings?.edgeSewingExpectedHourlyWageCents ?? 0,
+    packingExpectedHourlyWageCents: settings?.packingExpectedHourlyWageCents ?? 0,
+    edgeConsumableCostCents: product.edgeConsumableCostCents,
+    edgeSewingCommissionCents: product.edgeSewingCommissionCents
+  }
+}
+
+function profitCalculationOf(profit: V2ProductExpectedProfit) {
+  return profit
+}
+
+type ProductsWorkspaceMode = 'list' | 'create' | 'edit' | 'detail'
+type ProductDetailTab = 'overview' | 'profit' | 'capacity' | 'inventory'
+
+const detailTabs: ReadonlyArray<{ id: ProductDetailTab; label: string }> = [
+  { id: 'overview', label: '商品概览' },
+  { id: 'profit', label: '成本与预计盈利' },
+  { id: 'capacity', label: '制作产能' },
+  { id: 'inventory', label: '商品存量' }
+]
 
 type ProductsPageProps = {
   navigationTarget?: Extract<V2NavigationTarget, { view: 'products' }> | null
 }
 
 export function ProductsPage({ navigationTarget }: ProductsPageProps) {
-  const { products, loading, loadError, createProduct, updateProduct } = useProducts()
+  const { products, loading, loadError, createProduct, updateProduct, getExpectedProfit } =
+    useProducts()
   const { settings, loading: settingsLoading, loadError: settingsError } = useStudioSettings()
+  const [mode, setMode] = useState<ProductsWorkspaceMode>('list')
+  const [selected, setSelected] = useState<V2Product | null>(null)
+  const [detailTab, setDetailTab] = useState<ProductDetailTab>('overview')
   const [draft, setDraft] = useState<ProductDraft>(emptyDraft)
-  const [editing, setEditing] = useState<V2Product | null>(null)
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [viewing, setViewing] = useState<V2Product | null>(null)
-  const [detailOpen, setDetailOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
+  const [expectedProfit, setExpectedProfit] = useState<V2ProductExpectedProfit | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+  const [profitLoading, setProfitLoading] = useState(false)
+  const [profitError, setProfitError] = useState<string | null>(null)
   useYumiNotificationMessage(loadError)
   useYumiNotificationMessage(settingsError)
   useYumiNotificationMessage(error)
-  const editorTitle = editing ? `编辑商品：${editing.name}` : '新建商品'
-  const isDirty = useMemo(
-    () => JSON.stringify(draft) !== JSON.stringify(editing ? toDraft(editing) : emptyDraft()),
-    [draft, editing]
-  )
+
   const visibleProducts = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase()
     return products.filter((product) => {
@@ -150,455 +262,593 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
       return matchesStatus && matchesQuery
     })
   }, [products, searchQuery, statusFilter])
+
+  const formProfitPreview = useMemo(
+    () => calculateProductProfit(toProfitInput(draft, settings)),
+    [draft, settings]
+  )
+  const detailProfit = useMemo(
+    () => (selected ? calculateProductProfit(toProductProfitInput(selected, settings)) : null),
+    [selected, settings]
+  )
+
   const updateDraft = (key: keyof ProductDraft, value: string) =>
-    setDraft({ ...draft, [key]: value })
-  const closeEditor = () => {
-    setEditing(null)
-    setDraft(emptyDraft())
+    setDraft((current) => ({ ...current, [key]: value }))
+
+  const backToList = useCallback(() => {
+    setMode('list')
+    setSelected(null)
+    setDetailTab('overview')
     setError(null)
-    setEditorOpen(false)
-  }
+    setDraft(emptyDraft())
+  }, [])
+
+  const openDetail = useCallback((product: V2Product) => {
+    setSelected(product)
+    setDetailTab('overview')
+    setMode('detail')
+    setError(null)
+  }, [])
+
   const openCreate = () => {
-    setEditing(null)
+    setSelected(null)
     setDraft(emptyDraft())
+    setDetailTab('overview')
     setError(null)
-    setEditorOpen(true)
+    setMode('create')
   }
-  const closeDetail = () => {
-    setViewing(null)
-    setDetailOpen(false)
-  }
-  const openDetail = (product: V2Product) => {
-    setViewing(product)
-    setDetailOpen(true)
-  }
+
   const openEdit = (product: V2Product) => {
-    setEditing(product)
+    setSelected(product)
     setDraft(toDraft(product))
     setError(null)
-    setEditorOpen(true)
+    setMode('edit')
   }
+
+  useEffect(() => {
+    const productId = navigationTarget?.productId
+    if (!productId) return
+    const product = products.find((item) => item.id === productId)
+    if (product) openDetail(product)
+  }, [navigationTarget?.productId, products, openDetail])
+
+  useEffect(() => {
+    if (mode !== 'detail' || detailTab !== 'profit' || !selected) return
+    let cancelled = false
+    setProfitLoading(true)
+    setProfitError(null)
+    getExpectedProfit(selected.id)
+      .then((result) => {
+        if (!cancelled) setExpectedProfit(result)
+      })
+      .catch((loadProfitError) => {
+        if (!cancelled) setProfitError(getErrorMessage(loadProfitError))
+      })
+      .finally(() => {
+        if (!cancelled) setProfitLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mode, detailTab, selected, getExpectedProfit])
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitting(true)
     setError(null)
     try {
-      if (editing)
-        await updateProduct({ ...toInput(draft), id: editing.id, enabled: editing.enabled })
-      else await createProduct(toInput(draft))
-      closeEditor()
+      if (mode === 'edit' && selected) {
+        const saved = await updateProduct({
+          ...toInput(draft),
+          id: selected.id,
+          enabled: selected.enabled
+        })
+        setSelected(saved)
+        setMode('detail')
+        setDetailTab('overview')
+      } else {
+        const saved = await createProduct(toInput(draft))
+        setSelected(saved)
+        setMode('detail')
+        setDetailTab('overview')
+      }
+      setDraft(emptyDraft())
     } catch (submitError) {
       setError(getErrorMessage(submitError))
     } finally {
       setSubmitting(false)
     }
   }
-  useEffect(() => {
-    const productId = navigationTarget?.productId
-    if (!productId) return
-    const product = products.find((item) => item.id === productId)
-    if (product) openDetail(product)
-  }, [navigationTarget?.productId, products])
-  const startEditingViewingProduct = () => {
-    if (!viewing) return
-    const product = viewing
-    closeDetail()
-    openEdit(product)
-  }
-  const gluePrice = settings
-    ? `${formatGluePriceYuanPerGram(settings.gluePriceMicroYuanPerGram)} 元/克`
+
+  const materialPriceLabel = settings
+    ? `${formatMaterialPriceYuanPerGram(settings.materialPriceMicroYuanPerGram)} 元/克`
     : '正在读取工作室参数…'
+
+  if (mode === 'list') {
+    return (
+      <div className="yumi-page yumi-reference-workspace">
+        <YumiPageHeader
+          actions={{
+            ariaLabel: '商品页面动作',
+            primaryAction: { label: '新建商品', onClick: openCreate }
+          }}
+          description="商品、提成与预计盈利维护在当前商品资料中；材料克单价和预计基准时薪由工作室统一维护。"
+          meta={`共 ${visibleProducts.length} 款`}
+          title="商品"
+        />
+        <YumiListSurface ariaLabel={`商品列表，共 ${visibleProducts.length} 款`}>
+          <YumiListToolbar
+            ariaLabel="商品列表工具"
+            countLabel={`共 ${visibleProducts.length} 款商品`}
+            filters={
+              <YumiSelect
+                aria-label="商品状态筛选"
+                onValueChange={(value) => setStatusFilter(value as 'all' | 'enabled' | 'disabled')}
+                options={[
+                  { label: '全部状态', value: 'all' },
+                  { label: '已启用', value: 'enabled' },
+                  { label: '已停用', value: 'disabled' }
+                ]}
+                value={statusFilter}
+              />
+            }
+            search={
+              <YumiTextField
+                aria-label="搜索商品"
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="搜索商品、编码或分类"
+                value={searchQuery}
+              />
+            }
+          />
+          {loading ? (
+            <YumiEmptyState
+              description="正在读取商品资料，请稍候。"
+              scenario="loading"
+              title="商品资料加载中"
+            />
+          ) : products.length === 0 ? (
+            <YumiEmptyState
+              description="点击右上角“新建商品”后，负责人即可在新增订单时主动选择。"
+              scenario="first-use"
+              title="还没有商品资料"
+            />
+          ) : visibleProducts.length ? (
+            <YumiDataTable
+              ariaLabel="商品列表"
+              columns={[
+                {
+                  key: 'product',
+                  label: '商品 / 分类',
+                  render: (product) => (
+                    <div className="yumi-list-cell">
+                      <strong>{product.name}</strong>
+                      <span>
+                        {product.code || '未设编码'} · {product.category || '未分类'}
+                      </span>
+                      <span>材料 {formatMilligramsAsGrams(product.unitWeightMilligrams)} 克</span>
+                    </div>
+                  )
+                },
+                {
+                  key: 'price',
+                  label: '默认售价',
+                  align: 'right',
+                  render: (product) => <strong>{formatCents(product.basePriceCents)}</strong>
+                },
+                {
+                  key: 'making',
+                  label: '预计制作',
+                  render: (product) => `${product.standardMakingMinutes} 分钟`
+                },
+                {
+                  key: 'capacity',
+                  label: '日产能',
+                  render: (product) =>
+                    product.dailyCapacity > 0 ? `${product.dailyCapacity} 件` : '未维护'
+                },
+                {
+                  key: 'status',
+                  label: '状态',
+                  render: (product) => (
+                    <YumiStatusTag tone={product.enabled ? 'success' : 'neutral'}>
+                      {product.enabled ? '启用' : '停用'}
+                    </YumiStatusTag>
+                  )
+                },
+                {
+                  key: 'updatedAt',
+                  label: '最近更新',
+                  render: (product) => product.updatedAt.slice(0, 10)
+                },
+                {
+                  align: 'right',
+                  key: 'actions',
+                  label: '操作',
+                  render: (product) => (
+                    <YumiButton
+                      aria-label={`查看商品资料：${product.name}`}
+                      onClick={() => openDetail(product)}
+                      variant="ghost"
+                    >
+                      查看详情
+                    </YumiButton>
+                  )
+                }
+              ]}
+              getRowKey={(product) => product.id}
+              rows={visibleProducts}
+            />
+          ) : (
+            <YumiEmptyState
+              description="请调整搜索内容或状态筛选后重试。"
+              title="没有符合筛选条件的商品。"
+            />
+          )}
+        </YumiListSurface>
+      </div>
+    )
+  }
+
+  if (mode === 'create' || mode === 'edit') {
+    return (
+      <div className="yumi-page yumi-reference-workspace">
+        <YumiPageHeader
+          actions={{
+            ariaLabel: '商品编辑动作',
+            primaryAction: {
+              label: mode === 'edit' ? '保存商品' : '创建商品',
+              loading: submitting,
+              onClick: () => formRef.current?.requestSubmit()
+            }
+          }}
+          description="保存后只影响后续新建订单；已建立订单会保留当时的商品与材料单价快照。"
+          navigation={{ ariaLabel: '返回商品列表', label: '返回商品列表', onClick: backToList }}
+          title={mode === 'edit' && selected ? `编辑商品：${selected.name}` : '新建商品'}
+        />
+        <div className="yumi-product-workspace">
+          <form
+            className="yumi-form-panel yumi-product-workspace__form"
+            id="product-workspace-form"
+            onSubmit={submit}
+            ref={formRef}
+          >
+            <YumiFormSection title="基础资料">
+              <div className="yumi-form-grid yumi-form-grid--two">
+                <YumiField>
+                  <YumiFieldLabel htmlFor="product-name" required>
+                    商品名称
+                  </YumiFieldLabel>
+                  <YumiTextField
+                    id="product-name"
+                    onChange={(event) => updateDraft('name', event.target.value)}
+                    required
+                    value={draft.name}
+                  />
+                </YumiField>
+                <YumiField>
+                  <YumiFieldLabel htmlFor="product-code">商品编码</YumiFieldLabel>
+                  <YumiTextField
+                    id="product-code"
+                    onChange={(event) => updateDraft('code', event.target.value)}
+                    value={draft.code}
+                  />
+                </YumiField>
+                <YumiField>
+                  <YumiFieldLabel htmlFor="product-category">分类</YumiFieldLabel>
+                  <YumiTextField
+                    id="product-category"
+                    onChange={(event) => updateDraft('category', event.target.value)}
+                    value={draft.category}
+                  />
+                </YumiField>
+                <MoneyField
+                  id="product-base-price"
+                  label="默认销售单价（元）"
+                  onChange={(value) => updateDraft('basePrice', value)}
+                  value={draft.basePrice}
+                />
+              </div>
+            </YumiFormSection>
+            <YumiFormSection
+              description={`全局材料克单价：${settingsLoading ? '正在读取…' : materialPriceLabel}。此处只维护单件材料重量，使用量与成品材料重量一致。`}
+              title="材料与单件成本"
+            >
+              <div className="yumi-form-grid yumi-form-grid--two">
+                <YumiField>
+                  <YumiFieldLabel htmlFor="product-unit-weight">单件材料重量（克）</YumiFieldLabel>
+                  <YumiNumberField
+                    allowDecimal
+                    id="product-unit-weight"
+                    onChange={(event) => updateDraft('unitWeight', event.target.value)}
+                    value={draft.unitWeight}
+                  />
+                </YumiField>
+                <MoneyField
+                  id="product-fixed-cost"
+                  label="单件固定成本（元）"
+                  onChange={(value) => updateDraft('fixedCost', value)}
+                  value={draft.fixedCost}
+                />
+                <MoneyField
+                  id="product-packaging-cost"
+                  label="包装成本（元）"
+                  onChange={(value) => updateDraft('packagingCost', value)}
+                  value={draft.packagingCost}
+                />
+                <MoneyField
+                  id="product-accessory-cost"
+                  label="配饰成本（元）"
+                  onChange={(value) => updateDraft('accessoryCost', value)}
+                  value={draft.accessoryCost}
+                />
+                <MoneyField
+                  id="product-replacement-bag-cost"
+                  label="替换袋成本（元）"
+                  onChange={(value) => updateDraft('replacementBagCost', value)}
+                  value={draft.replacementBagCost}
+                />
+                <MoneyField
+                  id="product-edge-consumable-cost"
+                  label="缝边耗材成本（元）"
+                  onChange={(value) => updateDraft('edgeConsumableCost', value)}
+                  value={draft.edgeConsumableCost}
+                />
+              </div>
+            </YumiFormSection>
+            <YumiFormSection
+              description="制作按合格数量计件；捏毛装袋与缝边按完成数量计件；打包发货不产生计件提成。"
+              title="提成"
+            >
+              <div className="yumi-form-grid yumi-form-grid--two">
+                <MoneyField
+                  id="product-making-commission"
+                  label="制作提成（元/件）"
+                  onChange={(value) => updateDraft('makingCommission', value)}
+                  value={draft.makingCommission}
+                />
+                <MoneyField
+                  id="product-fluffing-bagging-commission"
+                  label="捏毛装袋提成（元/件）"
+                  onChange={(value) => updateDraft('fluffingBaggingCommission', value)}
+                  value={draft.fluffingBaggingCommission}
+                />
+                <MoneyField
+                  id="product-edge-sewing-commission"
+                  label="缝边提成（元/件）"
+                  onChange={(value) => updateDraft('edgeSewingCommission', value)}
+                  value={draft.edgeSewingCommission}
+                />
+              </div>
+            </YumiFormSection>
+            <YumiFormSection
+              description="预计单件制作时长只服务排产和产能参考，不进入制作工资或预计计时人工。"
+              title="预计时长与产能"
+            >
+              <div className="yumi-form-grid yumi-form-grid--two">
+                <MinutesField
+                  id="product-standard-making-minutes"
+                  label="预计单件制作时长（分钟）"
+                  onChange={(value) => updateDraft('standardMakingMinutes', value)}
+                  value={draft.standardMakingMinutes}
+                />
+                <MinutesField
+                  id="product-expected-fluffing-bagging-minutes"
+                  label="预计单件捏毛装袋时长（分钟）"
+                  onChange={(value) => updateDraft('expectedFluffingBaggingMinutes', value)}
+                  value={draft.expectedFluffingBaggingMinutes}
+                />
+                <MinutesField
+                  id="product-expected-edge-sewing-minutes"
+                  label="预计单件缝边时长（分钟）"
+                  onChange={(value) => updateDraft('expectedEdgeSewingMinutes', value)}
+                  value={draft.expectedEdgeSewingMinutes}
+                />
+                <MinutesField
+                  id="product-expected-packing-minutes"
+                  label="预计单件打包发货时长（分钟）"
+                  onChange={(value) => updateDraft('expectedPackingMinutes', value)}
+                  value={draft.expectedPackingMinutes}
+                />
+                <MinutesField
+                  id="product-mold-count"
+                  label="模具数量"
+                  onChange={(value) => updateDraft('moldCount', value)}
+                  value={draft.moldCount}
+                />
+                <MinutesField
+                  id="product-output-per-mold"
+                  label="每模每批产出（件）"
+                  onChange={(value) => updateDraft('outputPerMoldPerBatch', value)}
+                  value={draft.outputPerMoldPerBatch}
+                />
+                <MinutesField
+                  id="product-max-batches"
+                  label="每日最大批次数"
+                  onChange={(value) => updateDraft('maxBatchesPerDay', value)}
+                  value={draft.maxBatchesPerDay}
+                />
+                <YumiField>
+                  <YumiFieldLabel>计算日产能</YumiFieldLabel>
+                  <YumiFormMessage tone="hint">
+                    {previewMinutes(draft.moldCount) > 0 &&
+                    previewMinutes(draft.outputPerMoldPerBatch) > 0 &&
+                    previewMinutes(draft.maxBatchesPerDay) > 0
+                      ? `${previewMinutes(draft.moldCount) * previewMinutes(draft.outputPerMoldPerBatch) * previewMinutes(draft.maxBatchesPerDay)} 件/日`
+                      : '填写完整模具参数后计算'}
+                  </YumiFormMessage>
+                </YumiField>
+              </div>
+            </YumiFormSection>
+            <YumiField>
+              <YumiFieldLabel htmlFor="product-notes">备注</YumiFieldLabel>
+              <YumiTextArea
+                id="product-notes"
+                onChange={(event) => updateDraft('notes', event.target.value)}
+                value={draft.notes}
+              />
+            </YumiField>
+          </form>
+          <aside aria-label="预计盈利预览" className="yumi-product-workspace__aside">
+            <YumiSection
+              description="任一售价、重量、成本、提成或预计时长变化都会立即重算；保存时仍以主进程校验为准。"
+              title="预计盈利预览"
+            >
+              <div className="yumi-product-profit-preview">
+                <div className="yumi-product-profit-preview__price">
+                  <span>默认售价</span>
+                  <strong>{formatCents(previewCents(draft.basePrice))}</strong>
+                </div>
+                <YumiCalculatedAmount calculation={formProfitPreview.unitCost} showBreakdown />
+                <YumiCalculatedAmount calculation={formProfitPreview.unitProfit} tone="profit" />
+                <YumiCalculatedAmount calculation={formProfitPreview.profitRate} />
+                <YumiCalculatedAmount
+                  calculation={formProfitPreview.edgeIncrementalCost}
+                  showBreakdown
+                />
+              </div>
+            </YumiSection>
+          </aside>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="yumi-page yumi-reference-workspace">
       <YumiPageHeader
         actions={{
-          ariaLabel: '商品页面动作',
-          primaryAction: { label: '新建商品', onClick: openCreate }
+          ariaLabel: '商品详情动作',
+          primaryAction: selected
+            ? { label: '编辑商品', onClick: () => openEdit(selected) }
+            : undefined
         }}
-        description="商品参数会在下单时冻结；胶水单价由工作室统一维护，商品只填写实际用量。"
-        meta={`共 ${visibleProducts.length} 款`}
-        title="商品"
+        description="商品资料在订单创建时冻结；修改商品不改写已创建订单的快照。"
+        meta={selected ? (selected.enabled ? '启用中' : '已停用') : undefined}
+        navigation={{ ariaLabel: '返回商品列表', label: '返回商品列表', onClick: backToList }}
+        title={selected ? selected.name : '商品详情'}
       />
-      <YumiListSurface ariaLabel={`商品列表，共 ${visibleProducts.length} 款`}>
-        <YumiListToolbar
-          ariaLabel="商品列表工具"
-          countLabel={`共 ${visibleProducts.length} 款商品`}
-          filters={
-            <YumiSelect
-              aria-label="商品状态筛选"
-              onValueChange={(value) => setStatusFilter(value as 'all' | 'enabled' | 'disabled')}
-              options={[
-                { label: '全部状态', value: 'all' },
-                { label: '已启用', value: 'enabled' },
-                { label: '已停用', value: 'disabled' }
-              ]}
-              value={statusFilter}
-            />
-          }
-          search={
-            <YumiTextField
-              aria-label="搜索商品"
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="搜索商品、编码或分类"
-              value={searchQuery}
-            />
-          }
-        />
-        {loading ? (
-          <YumiEmptyState
-            description="正在读取商品资料，请稍候。"
-            scenario="loading"
-            title="商品资料加载中"
+      {selected ? (
+        <>
+          <YumiPrimaryTabs
+            ariaLabel="商品详情标签"
+            items={detailTabs.map((tab) => ({ id: tab.id, label: tab.label }))}
+            onValueChange={setDetailTab}
+            value={detailTab}
           />
-        ) : products.length === 0 ? (
-          <YumiEmptyState
-            description="点击右上角“新建商品”后，负责人即可在新增订单时主动选择。"
-            scenario="first-use"
-            title="还没有商品资料"
-          />
-        ) : visibleProducts.length ? (
-          <YumiDataTable
-            ariaLabel="商品列表"
-            columns={[
-              {
-                key: 'product',
-                label: '商品 / 分类',
-                render: (product) => (
-                  <div className="yumi-list-cell">
-                    <strong>{product.name}</strong>
-                    <span>
-                      {product.code || '未设编码'} · {product.category || '未分类'}
-                    </span>
-                    <span>
-                      材料 {formatMilligramsAsGrams(product.unitWeightMilligrams)} 克 · 损耗{' '}
-                      {product.materialLossRateBasisPoints / 100}%
-                    </span>
+          {detailTab === 'overview' ? (
+            <div className="yumi-reference-workspace__sections">
+              <YumiSection title="商品概览">
+                <YumiDetailList
+                  ariaLabel="商品基础资料"
+                  items={[
+                    { label: '商品名称', value: selected.name },
+                    { label: '商品编码', value: selected.code || '未设编码' },
+                    { label: '分类', value: selected.category || '未分类' },
+                    { label: '默认售价', value: formatCents(selected.basePriceCents) },
+                    { label: '状态', value: selected.enabled ? '启用' : '停用' },
+                    {
+                      label: '单件材料重量',
+                      value: `${formatMilligramsAsGrams(selected.unitWeightMilligrams)} 克`
+                    },
+                    {
+                      label: '最近更新',
+                      value: selected.updatedAt.slice(0, 10)
+                    }
+                  ]}
+                />
+                {selected.notes ? (
+                  <YumiFormMessage tone="hint">备注：{selected.notes}</YumiFormMessage>
+                ) : null}
+              </YumiSection>
+            </div>
+          ) : null}
+          {detailTab === 'profit' ? (
+            <div className="yumi-reference-workspace__sections">
+              <YumiSection
+                description="主进程按当前商品参数、全局材料克单价和预计基准时薪计算；这里不展示历史实际盈利。"
+                title="成本与预计盈利"
+              >
+                {profitLoading ? (
+                  <YumiEmptyState
+                    description="正在读取主进程预计盈利，请稍候。"
+                    scenario="loading"
+                    title="预计盈利加载中"
+                  />
+                ) : profitError ? (
+                  <YumiFormMessage tone="error">{profitError}</YumiFormMessage>
+                ) : detailProfit ? (
+                  <div className="yumi-product-profit-preview">
+                    <div className="yumi-product-profit-preview__price">
+                      <span>默认售价</span>
+                      <strong>{formatCents(selected.basePriceCents)}</strong>
+                    </div>
+                    <YumiCalculatedAmount
+                      calculation={profitCalculationOf(expectedProfit ?? detailProfit).unitCost}
+                      showBreakdown
+                    />
+                    <YumiCalculatedAmount
+                      calculation={profitCalculationOf(expectedProfit ?? detailProfit).unitProfit}
+                      tone="profit"
+                    />
+                    <YumiCalculatedAmount
+                      calculation={profitCalculationOf(expectedProfit ?? detailProfit).profitRate}
+                    />
+                    <YumiCalculatedAmount
+                      calculation={
+                        profitCalculationOf(expectedProfit ?? detailProfit).edgeIncrementalCost
+                      }
+                      showBreakdown
+                    />
                   </div>
-                )
-              },
-              {
-                key: 'price',
-                label: '默认售价',
-                align: 'right',
-                render: (product) => <strong>{formatCents(product.basePriceCents)}</strong>
-              },
-              {
-                key: 'making',
-                label: '标准制作',
-                render: (product) => `${product.standardMakingMinutes} 分钟`
-              },
-              {
-                key: 'capacity',
-                label: '日产能',
-                render: (product) =>
-                  product.dailyCapacity > 0 ? `${product.dailyCapacity} 件` : '未维护'
-              },
-              {
-                key: 'status',
-                label: '状态',
-                render: (product) => (
-                  <YumiStatusTag tone={product.enabled ? 'success' : 'neutral'}>
-                    {product.enabled ? '启用' : '停用'}
-                  </YumiStatusTag>
-                )
-              },
-              {
-                key: 'updatedAt',
-                label: '最近更新',
-                render: (product) => product.updatedAt.slice(0, 10)
-              },
-              {
-                align: 'right',
-                key: 'actions',
-                label: '操作',
-                render: (product) => (
-                  <YumiButton
-                    aria-label={`查看商品资料：${product.name}`}
-                    onClick={() => openDetail(product)}
-                    variant="ghost"
-                  >
-                    查看详情
-                  </YumiButton>
-                )
-              }
-            ]}
-            getRowKey={(product) => product.id}
-            rows={visibleProducts}
-          />
-        ) : (
-          <YumiEmptyState
-            description="请调整搜索内容或状态筛选后重试。"
-            title="没有符合筛选条件的商品。"
-          />
-        )}
-      </YumiListSurface>
-
-      <YumiSheet
-        description="商品资料默认只读展示；需要调整参数时再主动进入编辑。"
-        footer={
-          <>
-            <YumiButton onClick={closeDetail} variant="ghost">
-              关闭
-            </YumiButton>
-            <YumiButton onClick={startEditingViewingProduct} variant="primary">
-              编辑商品
-            </YumiButton>
-          </>
-        }
-        onOpenChange={(open) => {
-          if (!open) closeDetail()
-        }}
-        open={detailOpen}
-        title={viewing ? `商品资料：${viewing.name}` : '商品资料'}
-      >
-        {viewing && (
-          <div className="yumi-sheet-form">
-            <YumiDetailList
-              ariaLabel="商品基础资料"
-              items={[
-                { label: '商品编码', value: viewing.code || '未设编码' },
-                { label: '分类', value: viewing.category || '未分类' },
-                { label: '默认售价', value: formatCents(viewing.basePriceCents) },
-                { label: '状态', value: viewing.enabled ? '启用' : '停用' },
-                {
-                  label: '单件材料重量',
-                  value: `${formatMilligramsAsGrams(viewing.unitWeightMilligrams)} 克`
-                },
-                { label: '材料损耗率', value: `${viewing.materialLossRateBasisPoints / 100}%` },
-                {
-                  label: '日产能',
-                  value: viewing.dailyCapacity > 0 ? `${viewing.dailyCapacity} 件/日` : '未维护'
-                },
-                { label: '标准制作', value: `${viewing.standardMakingMinutes} 分钟` }
-              ]}
-            />
-            <YumiFormSection title="制作与成本参数">
-              <YumiDetailList
-                ariaLabel="商品制作与成本参数"
-                items={[
-                  {
-                    label: '胶水用量',
-                    value: `${formatMilligramsAsGrams(viewing.glueWeightMilligrams)} 克`
-                  },
-                  { label: '制作提成', value: formatCents(viewing.makingCommissionCents) },
-                  {
-                    label: '捏毛装袋提成',
-                    value: formatCents(viewing.fluffingBaggingCommissionCents ?? 0)
-                  },
-                  { label: '包装成本', value: formatCents(viewing.packagingCostCents) },
-                  { label: '配饰', value: formatCents(viewing.accessoryCostCents) },
-                  { label: '替换袋', value: formatCents(viewing.replacementBagCostCents) },
-                  { label: '内部缝边成本', value: formatCents(viewing.internalEdgeCostCents) }
-                ]}
-              />
-              {viewing.notes ? (
-                <YumiFormMessage tone="hint">备注：{viewing.notes}</YumiFormMessage>
-              ) : null}
-            </YumiFormSection>
-          </div>
-        )}
-      </YumiSheet>
-
-      <YumiSheet
-        description="保存后只影响后续新建订单；已建立订单会保留当时的商品与胶水单价快照。"
-        dirty={isDirty}
-        footer={
-          <>
-            <YumiButton onClick={closeEditor} variant="ghost">
-              取消
-            </YumiButton>
-            <YumiButton
-              form="product-editor-form"
-              loading={submitting}
-              type="submit"
-              variant="primary"
-            >
-              {editing ? '保存商品' : '创建商品'}
-            </YumiButton>
-          </>
-        }
-        onOpenChange={(open) => {
-          if (!open) closeEditor()
-        }}
-        open={editorOpen}
-        title={editorTitle}
-      >
-        <form
-          className="yumi-form-panel yumi-sheet-form"
-          id="product-editor-form"
-          onSubmit={submit}
-        >
-          <YumiFormSection title="基础资料">
-            <div className="yumi-form-grid yumi-form-grid--two">
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-name" required>
-                  商品名称
-                </YumiFieldLabel>
-                <YumiTextField
-                  id="product-name"
-                  onChange={(event) => updateDraft('name', event.target.value)}
-                  required
-                  value={draft.name}
-                />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-code">商品编码</YumiFieldLabel>
-                <YumiTextField
-                  id="product-code"
-                  onChange={(event) => updateDraft('code', event.target.value)}
-                  value={draft.code}
-                />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-category">分类</YumiFieldLabel>
-                <YumiTextField
-                  id="product-category"
-                  onChange={(event) => updateDraft('category', event.target.value)}
-                  value={draft.category}
-                />
-              </YumiField>
-              <MoneyField
-                id="product-base-price"
-                label="基础售价（元）"
-                onChange={(value) => updateDraft('basePrice', value)}
-                value={draft.basePrice}
-              />
+                ) : (
+                  <YumiEmptyState description="商品不存在或已被删除。" title="无法读取预计盈利" />
+                )}
+              </YumiSection>
             </div>
-          </YumiFormSection>
-          <YumiFormSection
-            description={
-              <>
-                工作室胶水单价：{settingsLoading ? '正在读取…' : gluePrice}
-                。此处仅维护内部核算成本；客户是否缝边、缝边数量和对客单价均在订单中决定。
-              </>
-            }
-            title="制作与成本参数"
-          >
-            <div className="yumi-form-grid yumi-form-grid--two">
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-unit-weight">单件材料重量（克）</YumiFieldLabel>
-                <YumiNumberField
-                  allowDecimal
-                  id="product-unit-weight"
-                  onChange={(event) => updateDraft('unitWeight', event.target.value)}
-                  value={draft.unitWeight}
+          ) : null}
+          {detailTab === 'capacity' ? (
+            <div className="yumi-reference-workspace__sections">
+              <YumiSection title="制作产能">
+                <YumiDetailList
+                  ariaLabel="商品产能参数"
+                  items={[
+                    { label: '模具数量', value: `${selected.moldCount}` },
+                    { label: '每模每批产出', value: `${selected.outputPerMoldPerBatch} 件` },
+                    { label: '每日最大批次数', value: `${selected.maxBatchesPerDay}` },
+                    {
+                      label: '日产能',
+                      value:
+                        selected.dailyCapacity > 0 ? `${selected.dailyCapacity} 件/日` : '未维护'
+                    }
+                  ]}
                 />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-material-loss-rate">
-                  材料损耗率（%）
-                </YumiFieldLabel>
-                <YumiNumberField
-                  allowDecimal
-                  id="product-material-loss-rate"
-                  onChange={(event) => updateDraft('materialLossRate', event.target.value)}
-                  value={draft.materialLossRate}
+              </YumiSection>
+              <YumiSection title="预计单件时长">
+                <YumiDetailList
+                  ariaLabel="商品预计时长"
+                  items={[
+                    { label: '制作', value: `${selected.standardMakingMinutes} 分钟` },
+                    {
+                      label: '捏毛装袋',
+                      value: `${selected.expectedFluffingBaggingMinutes} 分钟`
+                    },
+                    { label: '缝边', value: `${selected.expectedEdgeSewingMinutes} 分钟` },
+                    { label: '打包发货', value: `${selected.expectedPackingMinutes} 分钟` }
+                  ]}
                 />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-glue-weight">胶水用量（克）</YumiFieldLabel>
-                <YumiNumberField
-                  allowDecimal
-                  id="product-glue-weight"
-                  onChange={(event) => updateDraft('glueWeight', event.target.value)}
-                  value={draft.glueWeight}
-                />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-mold-count">模具数量</YumiFieldLabel>
-                <YumiNumberField
-                  id="product-mold-count"
-                  onChange={(event) => updateDraft('moldCount', event.target.value)}
-                  value={draft.moldCount}
-                />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-output-per-mold">
-                  每模每批产出（件）
-                </YumiFieldLabel>
-                <YumiNumberField
-                  id="product-output-per-mold"
-                  onChange={(event) => updateDraft('outputPerMoldPerBatch', event.target.value)}
-                  value={draft.outputPerMoldPerBatch}
-                />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-max-batches">每日最大批次数</YumiFieldLabel>
-                <YumiNumberField
-                  id="product-max-batches"
-                  onChange={(event) => updateDraft('maxBatchesPerDay', event.target.value)}
-                  value={draft.maxBatchesPerDay}
-                />
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel>计算日产能</YumiFieldLabel>
-                <YumiFormMessage tone="hint">
-                  {Number(draft.moldCount) > 0 &&
-                  Number(draft.outputPerMoldPerBatch) > 0 &&
-                  Number(draft.maxBatchesPerDay) > 0
-                    ? `${Math.round(Number(draft.moldCount) * Number(draft.outputPerMoldPerBatch) * Number(draft.maxBatchesPerDay))} 件/日`
-                    : '填写完整模具参数后计算'}
-                </YumiFormMessage>
-              </YumiField>
-              <YumiField>
-                <YumiFieldLabel htmlFor="product-standard-making-minutes">
-                  标准制作分钟
-                </YumiFieldLabel>
-                <YumiNumberField
-                  id="product-standard-making-minutes"
-                  onChange={(event) => updateDraft('standardMakingMinutes', event.target.value)}
-                  value={draft.standardMakingMinutes}
-                />
-              </YumiField>
-              <MoneyField
-                id="product-making-commission"
-                label="制作提成（元）"
-                onChange={(value) => updateDraft('makingCommission', value)}
-                value={draft.makingCommission}
-              />
-              <MoneyField
-                id="product-fluffing-bagging-commission"
-                label="捏毛装袋提成（元）"
-                onChange={(value) => updateDraft('fluffingBaggingCommission', value)}
-                value={draft.fluffingBaggingCommission}
-              />
-              <MoneyField
-                id="product-packaging-cost"
-                label="包装成本（元）"
-                onChange={(value) => updateDraft('packagingCost', value)}
-                value={draft.packagingCost}
-              />
-              <MoneyField
-                id="product-accessory-cost"
-                label="配饰（元）"
-                onChange={(value) => updateDraft('accessoryCost', value)}
-                value={draft.accessoryCost}
-              />
-              <MoneyField
-                id="product-replacement-bag-cost"
-                label="替换袋（元）"
-                onChange={(value) => updateDraft('replacementBagCost', value)}
-                value={draft.replacementBagCost}
-              />
-              <MoneyField
-                id="product-edge-cost"
-                label="内部缝边成本（元）"
-                onChange={(value) => updateDraft('edgeCost', value)}
-                value={draft.edgeCost}
-              />
+              </YumiSection>
             </div>
-          </YumiFormSection>
-          <YumiField>
-            <YumiFieldLabel htmlFor="product-notes">备注</YumiFieldLabel>
-            <YumiTextArea
-              id="product-notes"
-              onChange={(event) => updateDraft('notes', event.target.value)}
-              value={draft.notes}
-            />
-          </YumiField>
-        </form>
-      </YumiSheet>
+          ) : null}
+          {detailTab === 'inventory' ? (
+            <div className="yumi-reference-workspace__sections">
+              <ProductInventoryPanel product={selected} />
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <YumiEmptyState description="请返回商品列表后重新选择商品。" title="商品不存在" />
+      )}
     </div>
   )
 }
@@ -623,6 +873,25 @@ function MoneyField({
         onChange={(event) => onChange(event.target.value)}
         value={value}
       />
+    </YumiField>
+  )
+}
+
+function MinutesField({
+  id,
+  label,
+  onChange,
+  value
+}: {
+  id: string
+  label: string
+  onChange(value: string): void
+  value: string
+}) {
+  return (
+    <YumiField>
+      <YumiFieldLabel htmlFor={id}>{label}</YumiFieldLabel>
+      <YumiNumberField id={id} onChange={(event) => onChange(event.target.value)} value={value} />
     </YumiField>
   )
 }

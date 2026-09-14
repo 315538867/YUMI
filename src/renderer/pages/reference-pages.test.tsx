@@ -14,6 +14,7 @@ import { YumiNotificationProvider } from '../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
   renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import type { V2Product } from '@shared/contracts/index'
+import { formulaCatalog } from '@shared/calculations/catalog'
 import { installDomInteractionPolyfills } from '../test/dom'
 import { CustomersPage } from './customers'
 import { ProductsPage } from './products'
@@ -40,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   },
   products: {
     createProduct: vi.fn(),
+    getExpectedProfit: vi.fn(),
     loadError: null as string | null,
     loading: false,
     products: [] as V2Product[],
@@ -49,12 +51,18 @@ const mocks = vi.hoisted(() => ({
     loadError: null as string | null,
     loading: false,
     settings: {
-      gluePriceMicroYuanPerGram: 3_400,
+      materialPriceMicroYuanPerGram: 3_400,
       orderReservedDays: 2,
+      fluffingBaggingExpectedHourlyWageCents: 0,
+      edgeSewingExpectedHourlyWageCents: 0,
+      packingExpectedHourlyWageCents: 0,
       updatedAt: '2026-09-08T00:00:00.000Z'
     } as {
-      gluePriceMicroYuanPerGram: number
+      materialPriceMicroYuanPerGram: number
       orderReservedDays: number
+      fluffingBaggingExpectedHourlyWageCents: number
+      edgeSewingExpectedHourlyWageCents: number
+      packingExpectedHourlyWageCents: number
       updatedAt: string | null
     } | null,
     update: vi.fn()
@@ -117,9 +125,14 @@ afterEach(() => {
   mocks.products.products = []
   mocks.products.createProduct.mockReset()
   mocks.products.updateProduct.mockReset()
+  mocks.products.getExpectedProfit.mockReset()
+  mocks.products.getExpectedProfit.mockResolvedValue(null)
   mocks.studio.settings = {
-    gluePriceMicroYuanPerGram: 3_400,
+    materialPriceMicroYuanPerGram: 3_400,
     orderReservedDays: 2,
+    fluffingBaggingExpectedHourlyWageCents: 0,
+    edgeSewingExpectedHourlyWageCents: 0,
+    packingExpectedHourlyWageCents: 0,
     updatedAt: '2026-09-08T00:00:00.000Z'
   }
   mocks.studio.update.mockReset()
@@ -150,7 +163,9 @@ describe('页面级骨架与信息层级', () => {
 
     expect(page).not.toBeNull()
     expect(
-      screen.getByText('维护全工作室统一使用的参数；商品只记录自身实际胶水用量。')
+      screen.getByText(
+        '维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。'
+      )
     ).toBeVisible()
     expect(header.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(tabs.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -186,7 +201,9 @@ describe('页面级骨架与信息层级', () => {
     const list = document.querySelector('.yumi-list-surface')
 
     expect(
-      screen.getByText('商品参数会在下单时冻结；胶水单价由工作室统一维护，商品只填写实际用量。')
+      screen.getByText(
+        '商品、提成与预计盈利维护在当前商品资料中；材料克单价和预计基准时薪由工作室统一维护。'
+      )
     ).toBeVisible()
     expect(within(toolbar).getByText('共 0 款商品')).toBeVisible()
     expect(screen.getByRole('status', { name: '首次使用' })).toBeVisible()
@@ -384,7 +401,7 @@ describe('YUMI 基础资料按需录入', () => {
     expect(screen.queryByText('木木工作室')).not.toBeInTheDocument()
   })
 
-  it('商品可维护材料损耗、两类提成与成本参数，并在列表中展示计算结果', async () => {
+  it('商品详情与编辑在全页工作区完成，并实时展示预计盈利公式', async () => {
     mocks.products.products = [
       {
         id: 'product-1',
@@ -392,18 +409,19 @@ describe('YUMI 基础资料按需录入', () => {
         code: 'MAT-001',
         category: '杯垫',
         basePriceCents: 10_800,
-        materialCostCents: 0,
         packagingCostCents: 200,
         accessoryCostCents: 100,
         replacementBagCostCents: 0,
-        internalEdgeCostCents: 0,
+        edgeConsumableCostCents: 0,
+        fixedCostCents: 120,
+        unitWeightMilligrams: 20_000,
         standardMakingMinutes: 30,
+        expectedFluffingBaggingMinutes: 10,
+        expectedEdgeSewingMinutes: 8,
+        expectedPackingMinutes: 5,
         makingCommissionCents: 2_000,
         fluffingBaggingCommissionCents: 888,
-        makingGlueCostCents: 0,
-        glueWeightMilligrams: 500,
-        unitWeightMilligrams: 20_000,
-        materialLossRateBasisPoints: 1_000,
+        edgeSewingCommissionCents: 0,
         moldCount: 20,
         outputPerMoldPerBatch: 1,
         maxBatchesPerDay: 2,
@@ -422,32 +440,40 @@ describe('YUMI 基础资料按需录入', () => {
     expect(screen.getByRole('textbox', { name: '搜索商品' })).toBeVisible()
     expect(screen.getByText('共 1 款')).toBeVisible()
     expect(screen.getByText('40 件')).toBeVisible()
-    expect(screen.getByText(/材料 20 克 · 损耗 10%/)).toBeVisible()
+
     fireEvent.click(screen.getByRole('button', { name: '查看商品资料：羊毛杯垫' }))
-    const detail = screen.getByRole('dialog', { name: '商品资料：羊毛杯垫' })
-    expect(within(detail).queryByLabelText('单件材料重量（克）')).not.toBeInTheDocument()
-    expect(within(detail).getByText('制作提成')).toBeVisible()
-    expect(within(detail).getByText('捏毛装袋提成')).toBeVisible()
-    expect(within(detail).getByText('包装成本')).toBeVisible()
-    expect(within(detail).getByText('内部缝边成本')).toBeVisible()
-    expect(within(detail).queryByText(/运费/)).not.toBeInTheDocument()
-    fireEvent.click(within(detail).getByRole('button', { name: '编辑商品' }))
-    const editor = screen.getByRole('dialog', { name: '编辑商品：羊毛杯垫' })
-    expect(editor).toBeVisible()
-    expect(within(editor).getByLabelText('制作提成（元）')).toHaveValue('20.00')
-    expect(within(editor).getByLabelText('捏毛装袋提成（元）')).toHaveValue('8.88')
-    expect(within(editor).getByLabelText('包装成本（元）')).toHaveValue('2.00')
-    expect(within(editor).getByLabelText('内部缝边成本（元）')).toHaveValue('0.00')
-    fireEvent.change(within(editor).getByLabelText('捏毛装袋提成（元）'), {
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '羊毛杯垫' })).toBeVisible()
+    const tabs = screen.getByRole('navigation', { name: '商品详情标签' })
+    expect(within(tabs).getByRole('button', { name: '商品概览' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+
+    fireEvent.click(within(tabs).getByRole('button', { name: '成本与预计盈利' }))
+    await waitFor(() => expect(mocks.products.getExpectedProfit).toHaveBeenCalledWith('product-1'))
+    expect(await screen.findByText('预计单件利润')).toBeVisible()
+    expect(screen.getByText('默认售价 − 预计单件成本')).toBeVisible()
+    expect(screen.getByText('预计单件利润 ÷ 默认售价')).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑商品' }))
+    expect(screen.getByRole('heading', { level: 1, name: '编辑商品：羊毛杯垫' })).toBeVisible()
+    expect(screen.getByLabelText('制作提成（元/件）')).toHaveValue('20.00')
+    expect(screen.getByLabelText('捏毛装袋提成（元/件）')).toHaveValue('8.88')
+    expect(screen.getByLabelText('单件固定成本（元）')).toHaveValue('1.20')
+    expect(screen.getByLabelText('预计单件缝边时长（分钟）')).toHaveValue('8')
+    expect(screen.queryByLabelText('材料损耗率（%）')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('胶水用量（克）')).not.toBeInTheDocument()
+    const preview = screen.getByRole('complementary', { name: '预计盈利预览' })
+    expect(within(preview).getByText('预计单件利润')).toBeVisible()
+    expect(within(preview).getByText('默认售价 − 预计单件成本')).toBeVisible()
+
+    fireEvent.change(screen.getByLabelText('捏毛装袋提成（元/件）'), {
       target: { value: '12.34' }
     })
-    fireEvent.change(within(editor).getByLabelText('包装成本（元）'), {
-      target: { value: '5.67' }
-    })
-    fireEvent.change(within(editor).getByLabelText('内部缝边成本（元）'), {
-      target: { value: '0.5' }
-    })
-    fireEvent.click(within(editor).getByRole('button', { name: '保存商品' }))
+    fireEvent.change(screen.getByLabelText('包装成本（元）'), { target: { value: '5.67' } })
+    fireEvent.change(screen.getByLabelText('缝边耗材成本（元）'), { target: { value: '0.5' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存商品' }))
     await waitFor(() =>
       expect(mocks.products.updateProduct).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -455,17 +481,19 @@ describe('YUMI 基础资料按需录入', () => {
           makingCommissionCents: 2_000,
           fluffingBaggingCommissionCents: 1_234,
           packagingCostCents: 567,
-          internalEdgeCostCents: 50
+          edgeConsumableCostCents: 50
         })
       )
     )
 
+    fireEvent.click(screen.getByRole('button', { name: '返回商品列表' }))
     fireEvent.click(screen.getByRole('button', { name: '新建商品' }))
-    const dialog = screen.getByRole('dialog', { name: '新建商品' })
-    expect(within(dialog).getByLabelText('单件材料重量（克）')).toHaveValue('0')
-    expect(within(dialog).getByLabelText('材料损耗率（%）')).toHaveValue('0')
-    expect(within(dialog).getByLabelText('模具数量')).toHaveValue('0')
-    expect(within(dialog).getByText('填写完整模具参数后计算')).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: '新建商品' })).toBeVisible()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('单件材料重量（克）')).toHaveValue('0')
+    expect(screen.getByLabelText('模具数量')).toHaveValue('0')
+    expect(screen.getByText('填写完整模具参数后计算')).toBeVisible()
+    expect(screen.getAllByText('默认售价 − 预计单件成本').length).toBeGreaterThan(0)
   })
 
   it('被财务流水引用的资料删除失败时保留当前资料，并明确反馈负责人', async () => {
@@ -615,14 +643,21 @@ describe('YUMI 人员时薪与动态设置', () => {
     fireEvent.click(screen.getByRole('button', { name: '编辑工作室参数' }))
     const studioDialog = screen.getByRole('dialog', { name: '编辑工作室参数' })
     expect(within(studioDialog).getByDisplayValue('0.0034')).toBeVisible()
-    fireEvent.change(within(studioDialog).getByRole('textbox', { name: /元 \/ 克/ }), {
+    fireEvent.change(within(studioDialog).getByRole('textbox', { name: '材料克单价（元 / 克）' }), {
       target: { value: '0.0034' }
     })
+    fireEvent.change(
+      within(studioDialog).getByRole('textbox', { name: '缝边预计基准时薪（元 / 小时）' }),
+      { target: { value: '36' } }
+    )
     fireEvent.click(within(studioDialog).getByRole('button', { name: '保存工作室参数' }))
     await waitFor(() =>
       expect(mocks.studio.update).toHaveBeenCalledWith({
-        gluePriceMicroYuanPerGram: 3_400,
-        orderReservedDays: 2
+        materialPriceMicroYuanPerGram: 3_400,
+        orderReservedDays: 2,
+        fluffingBaggingExpectedHourlyWageCents: 0,
+        edgeSewingExpectedHourlyWageCents: 3_600,
+        packingExpectedHourlyWageCents: 0
       })
     )
     expect(await screen.findByRole('status')).toHaveTextContent('已保存工作室参数')
@@ -718,9 +753,12 @@ describe('设置计算公式', () => {
     fireEvent.click(await screen.findByRole('button', { name: '计算公式' }))
     expect(screen.getAllByRole('heading', { name: '计算公式' })).not.toHaveLength(0)
     const formulaTable = screen.getByRole('table', { name: '系统计算公式' })
-    expect(within(formulaTable).getAllByRole('row')).toHaveLength(31)
+    expect(within(formulaTable).getAllByRole('row')).toHaveLength(formulaCatalog.length + 1)
+    for (const entry of formulaCatalog) {
+      expect(within(formulaTable).getByText(entry.name)).toBeVisible()
+      expect(within(formulaTable).getByText(entry.expression)).toBeVisible()
+    }
     expect(screen.getAllByText('订单金额').length).toBeGreaterThan(0)
-    expect(screen.getByText('商品直接成本')).toBeVisible()
     expect(screen.getAllByText('兼职结算').length).toBeGreaterThan(0)
     expect(screen.getByText('不纳入订单盈利')).toBeVisible()
   })

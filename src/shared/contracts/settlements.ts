@@ -1,5 +1,5 @@
 import type { BusinessDate, Cents, IsoDateTime } from './common'
-import type { V2ProcessType } from './fulfillment'
+import type { V2WorkTimeReviewProcessType } from './work-time-reviews'
 
 export type V2WorkerSettlementStatus = 'draft' | 'confirmed' | 'adjusted'
 export type V2WorkerDeductionStatus = 'pending' | 'partially_deducted' | 'settled'
@@ -42,18 +42,70 @@ export interface V2WorkerSettlementQuery {
   periodEndOn?: BusinessDate
 }
 
-export interface V2WorkerSettlementTask {
+/** 制作结果来源：按合格数量计提成、按不合格数量扣冻结材料成本，不含时薪。 */
+export interface V2WorkerSettlementMakingSource {
   id: string
   processTaskId: string
-  /** 来自工序任务的冻结工序，用于说明本条提成的结算口径。 */
-  processType: V2ProcessType
-  /** 工序任务创建时冻结的计件提成；包装成本不在此字段结算。 */
-  pieceRateCents: Cents | null
-  scheduledMinutes: number
+  qualityInspectionId: string
+  orderId: string | null
+  orderItemId: string | null
+  /** 工作安排日期，用于工资期间归属。 */
+  occurredOn: BusinessDate
   qualifiedQuantity: number
+  unqualifiedQuantity: number
+  pieceRateCents: Cents | null
   qualifiedCommissionCents: Cents
+  materialDeductionCents: Cents
   status: 'draft' | 'confirmed' | 'cancelled'
   createdAt: IsoDateTime
+}
+
+export interface V2WorkerSettlementTimedItem {
+  id: string
+  processTaskId: string
+  orderItemId: string | null
+  completedQuantity: number
+  pieceRateCents: Cents | null
+  commissionCents: Cents
+}
+
+/** 计时来源：来自一条已确认工时核算，按核算分钟冻结时薪并携带多商品完成明细。 */
+export interface V2WorkerSettlementTimedSource {
+  id: string
+  workTimeReviewId: string
+  processType: V2WorkTimeReviewProcessType
+  /** 工时核算的工作日期，用于工资期间归属。 */
+  occurredOn: BusinessDate
+  approvedMinutes: number
+  hourlyWageCentsSnapshot: Cents
+  timedWageCents: Cents
+  commissionCents: Cents
+  status: 'draft' | 'confirmed' | 'cancelled'
+  items: V2WorkerSettlementTimedItem[]
+  createdAt: IsoDateTime
+}
+
+/** 已结算工时差异：在后续草稿结算中关联原工时与原结算建立正负调整。 */
+export interface V2WorkerSettlementWorkTimeAdjustment {
+  id: string
+  workTimeReviewId: string
+  originalSettlementId: string
+  processType: V2WorkTimeReviewProcessType
+  originalMinutes: number
+  correctedMinutes: number
+  hourlyWageCentsSnapshot: Cents
+  amountCents: Cents
+  reason: string
+  note: string | null
+  status: 'draft' | 'confirmed' | 'cancelled'
+  createdAt: IsoDateTime
+}
+
+export interface V2WorkerSettlementWorkTimeAdjustmentInput {
+  workTimeReviewId: string
+  correctedMinutes: number
+  reason: string
+  note?: string | null
 }
 
 export interface V2WorkerDeductionRecord {
@@ -61,17 +113,13 @@ export interface V2WorkerDeductionRecord {
   workerId: string
   workAssignmentId: string | null
   processTaskId: string
-  /** 原工序任务的冻结工序与计件提成，用于还原扣款来源。 */
-  processType: V2ProcessType
-  pieceRateCents: Cents | null
   processResultId: string | null
   qualityInspectionId: string | null
   orderId: string | null
   orderItemId: string | null
   unqualifiedQuantity: number
-  commissionDeductionCents: Cents
-  wageDeductionCents: Cents
-  glueDeductionCents: Cents
+  /** 制作不合格材料成本扣款，使用冻结材料克单价与单件材料重量。 */
+  materialDeductionCents: Cents
   totalDeductionCents: Cents
   deductedCents: Cents
   remainingCarryoverCents: Cents
@@ -91,10 +139,8 @@ export interface V2WorkerRefundRecord {
   orderId: string | null
   orderItemId: string | null
   unqualifiedQuantity: number
-  commissionDeductionCents: Cents
-  wageDeductionCents: Cents
-  glueDeductionCents: Cents
-  requestedRefundCents: Cents
+  /** 按冻结材料成本计算的待退款金额；不包含提成扣回或制作时薪。 */
+  materialRefundCents: Cents
   actualRefundCents: Cents | null
   refundedOn: BusinessDate | null
   managerNote: string | null
@@ -128,17 +174,21 @@ export interface V2WorkerSettlement {
   periodStartOn: BusinessDate
   periodEndOn: BusinessDate
   status: V2WorkerSettlementStatus
-  scheduledMinutes: number
-  attendanceMinutes: number | null
-  attendanceNote: string | null
-  scheduledReferenceWageCents: Cents
-  attendanceReferenceWageCents: Cents
-  qualifiedCommissionCents: Cents
+  /** 计时工资合计：已确认核算分钟 × 冻结个人时薪。 */
+  timedWageCents: Cents
+  /** 计件提成合计：制作合格数量 + 捏毛装袋/缝边完成数量 × 冻结提成。 */
+  commissionCents: Cents
+  /** 本期新纳入的制作不合格材料扣款。 */
+  materialDeductionCents: Cents
+  /** 来源关联工资调整合计，可为负。 */
+  adjustmentCents: Cents
+  otherAdjustmentCents: Cents
+  /** 唯一计算候选应发：扣款抵扣前合计减本期实际抵扣，且不为负。 */
+  candidateWageCents: Cents
   currentDeductionCents: Cents
   carriedDeductionCents: Cents
   actualDeductionCents: Cents
   continuingCarryoverCents: Cents
-  otherAdjustmentCents: Cents
   finalPaidAmountCents: Cents | null
   paidOn: BusinessDate | null
   managerNote: string | null
@@ -148,7 +198,9 @@ export interface V2WorkerSettlement {
 }
 
 export interface V2WorkerSettlementDetail extends V2WorkerSettlement {
-  tasks: V2WorkerSettlementTask[]
+  makingSources: V2WorkerSettlementMakingSource[]
+  timedSources: V2WorkerSettlementTimedSource[]
+  adjustments: V2WorkerSettlementWorkTimeAdjustment[]
   deductions: V2WorkerDeductionRecord[]
   deductionAllocations: V2WorkerSettlementDeductionAllocation[]
 }
@@ -157,14 +209,10 @@ export interface V2WorkerSettlementCreateInput {
   workerId: string
   periodStartOn: BusinessDate
   periodEndOn: BusinessDate
-  attendanceMinutes?: number | null
-  attendanceNote?: string | null
   otherAdjustmentCents?: Cents
 }
 
 export interface V2WorkerSettlementDraftUpdateInput {
-  attendanceMinutes?: number | null
-  attendanceNote?: string | null
   actualDeductionCents?: Cents
   otherAdjustmentCents?: Cents
   finalPaidAmountCents?: Cents | null

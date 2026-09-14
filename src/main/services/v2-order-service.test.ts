@@ -13,7 +13,15 @@ describe('V2OrderService', () => {
     databases.splice(0).forEach((database) => database.close())
   })
 
-  function createServices(orderReservedDays = 2): {
+  function createServices(
+    orderReservedDays = 2,
+    settingsOverrides: Partial<{
+      materialPriceMicroYuanPerGram: number
+      fluffingBaggingExpectedHourlyWageCents: number
+      edgeSewingExpectedHourlyWageCents: number
+      packingExpectedHourlyWageCents: number
+    }> = {}
+  ): {
     orderService: V2OrderService
     fulfillmentService: FulfillmentService
     repository: V2OrderRepository
@@ -27,15 +35,26 @@ describe('V2OrderService', () => {
     const repository = new V2OrderRepository(database)
     return {
       orderService: new V2OrderService(repository, clock, {
-        get: () => ({ gluePriceMicroYuanPerGram: 0, orderReservedDays, updatedAt: null })
+        get: () => ({
+          materialPriceMicroYuanPerGram: 0,
+          orderReservedDays,
+          fluffingBaggingExpectedHourlyWageCents: 0,
+          edgeSewingExpectedHourlyWageCents: 0,
+          packingExpectedHourlyWageCents: 0,
+          updatedAt: null,
+          ...settingsOverrides
+        })
       }),
       fulfillmentService: new FulfillmentService(new V2FulfillmentRepository(database), clock),
       repository
     }
   }
 
-  function createService(orderReservedDays = 2): V2OrderService {
-    return createServices(orderReservedDays).orderService
+  function createService(
+    orderReservedDays = 2,
+    settingsOverrides: Parameters<typeof createServices>[1] = {}
+  ): V2OrderService {
+    return createServices(orderReservedDays, settingsOverrides).orderService
   }
 
   function createProduct(service: V2OrderService, name: string) {
@@ -44,14 +63,12 @@ describe('V2OrderService', () => {
       code: `${name}-CODE`,
       category: '捏捏',
       basePriceCents: 5_000,
-      materialCostCents: 1_200,
       packagingCostCents: 200,
       accessoryCostCents: 100,
       replacementBagCostCents: 50,
-      internalEdgeCostCents: 80,
+      edgeConsumableCostCents: 80,
       standardMakingMinutes: 20,
-      makingCommissionCents: 500,
-      makingGlueCostCents: 30
+      makingCommissionCents: 500
     })
   }
 
@@ -87,7 +104,7 @@ describe('V2OrderService', () => {
       packagingCostCents: 100,
       accessoryCostCents: 0,
       replacementBagCostCents: 0,
-      internalEdgeCostCents: 0,
+      edgeConsumableCostCents: 0,
       standardMakingMinutes: 12,
       makingCommissionCents: 300,
       fluffingBaggingCommissionCents: 85
@@ -117,6 +134,66 @@ describe('V2OrderService', () => {
     expect(secondOrder.items[0].productSnapshot).toMatchObject({
       fluffingBaggingCommissionCents: 120
     })
+  })
+
+  it('读取商品权威预计盈利，并使用全局预计基准时薪而不是排班或实际工资', () => {
+    const { orderService } = createServices(2, {
+      materialPriceMicroYuanPerGram: 3_400,
+      fluffingBaggingExpectedHourlyWageCents: 3_000,
+      edgeSewingExpectedHourlyWageCents: 3_000,
+      packingExpectedHourlyWageCents: 3_000
+    })
+    const product = orderService.createProduct({
+      name: '预计盈利商品',
+      basePriceCents: 3_500,
+      packagingCostCents: 20,
+      accessoryCostCents: 5,
+      replacementBagCostCents: 8,
+      edgeConsumableCostCents: 30,
+      fixedCostCents: 120,
+      unitWeightMilligrams: 25_000,
+      standardMakingMinutes: 20,
+      makingCommissionCents: 80,
+      fluffingBaggingCommissionCents: 50,
+      edgeSewingCommissionCents: 40,
+      expectedFluffingBaggingMinutes: 20,
+      expectedEdgeSewingMinutes: 10,
+      expectedPackingMinutes: 18
+    })
+
+    const profit = orderService.getProductExpectedProfit(product.id)
+    expect(profit?.materialCost.amountCents).toBe(9)
+    expect(profit?.fluffingBaggingLaborCost.amountCents).toBe(1_000)
+    expect(profit?.packingLaborCost.amountCents).toBe(900)
+    expect(profit?.unitCost.amountCents).toBe(2_192)
+    expect(profit?.unitProfit.amountCents).toBe(1_308)
+    expect(profit?.profitRate.display).toBe('37.37%')
+    expect(profit?.edgeIncrementalCost.amountCents).toBe(570)
+    expect(orderService.getProductExpectedProfit('missing-product')).toBeNull()
+  })
+
+  it('忽略 renderer 附带的派生金额，保存边界只按原始字段重新计算', () => {
+    const service = createService()
+    const product = createProduct(service, '篡改金额')
+    const order = service.createOrder({
+      customer: { name: '小雨' },
+      items: [
+        {
+          productId: product.id,
+          quantity: 2,
+          unitPriceCents: 5_000,
+          itemAmountCents: 999_999,
+          lineAmountCents: 999_999
+        }
+      ],
+      orderAmountCents: 999_999,
+      currentAmountCents: 999_999
+    } as never)
+
+    expect(order.items[0].itemAmountCents).toBe(10_000)
+    expect(order.items[0].lineAmountCents).toBe(10_000)
+    expect(order.amount.orderAmountCents).toBe(10_000)
+    expect(order.amount.currentAmountCents).toBe(10_000)
   })
 
   it('在同一事务内记录内容变更和可选金额调整，并保留变更前后快照', () => {
@@ -227,14 +304,14 @@ describe('V2OrderService', () => {
       ]
     })
 
-    fulfillmentService.recordOpeningWip({
+    fulfillmentService.adjustStageQuantity({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
       quantity: 5,
       occurredOn: '2026-09-07',
       note: '系统启用前已打包'
     })
-    fulfillmentService.recordOpeningWip({
+    fulfillmentService.adjustStageQuantity({
       orderItemId: order.items[1].id,
       targetStage: 'ready_to_ship',
       quantity: 4,
@@ -290,7 +367,7 @@ describe('V2OrderService', () => {
       ]
     })
     order.items.forEach((item) =>
-      fulfillmentService.recordOpeningWip({
+      fulfillmentService.adjustStageQuantity({
         orderItemId: item.id,
         targetStage: 'ready_to_ship',
         quantity: item.quantity,
@@ -356,7 +433,7 @@ describe('V2OrderService', () => {
       })
     ).toThrow('待发货可用数量')
 
-    fulfillmentService.recordOpeningWip({
+    fulfillmentService.adjustStageQuantity({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
       quantity: 10,
@@ -396,7 +473,7 @@ describe('V2OrderService', () => {
       customer: { name: '小周' },
       items: [{ productId: product.id, quantity: 10, unitPriceCents: 2_000 }]
     })
-    fulfillmentService.recordOpeningWip({
+    fulfillmentService.adjustStageQuantity({
       orderItemId: order.items[0].id,
       targetStage: 'ready_to_ship',
       quantity: 10,
@@ -441,21 +518,24 @@ describe('V2OrderService', () => {
     expect(service.listAuditLogs(order.id).map((log) => log.action)).toContain('shipment.voided')
   })
 
-  it('保存商品材料损耗与模具参数，并冻结到订单商品快照', () => {
-    const service = createService()
+  it('保存商品材料、成本与预计时长，并冻结到订单商品快照', () => {
+    const service = createService(2, { materialPriceMicroYuanPerGram: 3_400 })
     const product = service.createProduct({
       name: '材料快照商品',
       basePriceCents: 5_000,
-      materialCostCents: 0,
       packagingCostCents: 200,
       accessoryCostCents: 100,
       replacementBagCostCents: 50,
-      internalEdgeCostCents: 80,
+      edgeConsumableCostCents: 80,
+      fixedCostCents: 120,
       standardMakingMinutes: 20,
       makingCommissionCents: 500,
-      makingGlueCostCents: 30,
+      fluffingBaggingCommissionCents: 60,
+      edgeSewingCommissionCents: 40,
+      expectedFluffingBaggingMinutes: 10,
+      expectedEdgeSewingMinutes: 8,
+      expectedPackingMinutes: 5,
       unitWeightMilligrams: 20_000,
-      materialLossRateBasisPoints: 1_000,
       moldCount: 20,
       outputPerMoldPerBatch: 1,
       maxBatchesPerDay: 2
@@ -463,7 +543,11 @@ describe('V2OrderService', () => {
 
     expect(product).toMatchObject({
       unitWeightMilligrams: 20_000,
-      materialLossRateBasisPoints: 1_000,
+      fixedCostCents: 120,
+      expectedFluffingBaggingMinutes: 10,
+      expectedEdgeSewingMinutes: 8,
+      expectedPackingMinutes: 5,
+      edgeSewingCommissionCents: 40,
       moldCount: 20,
       outputPerMoldPerBatch: 1,
       maxBatchesPerDay: 2,
@@ -476,17 +560,20 @@ describe('V2OrderService', () => {
     })
     expect(order.items[0]?.productSnapshot).toMatchObject({
       unitWeightMilligrams: 20_000,
-      materialLossRateBasisPoints: 1_000,
-      moldCount: 20,
-      outputPerMoldPerBatch: 1,
-      maxBatchesPerDay: 2,
+      materialPriceMicroYuanPerGram: 3_400,
+      fixedCostCents: 120,
+      expectedFluffingBaggingMinutes: 10,
+      expectedEdgeSewingMinutes: 8,
+      expectedPackingMinutes: 5,
+      edgeSewingCommissionCents: 40,
       dailyCapacity: 40
     })
 
     service.updateProduct({
       ...product,
       unitWeightMilligrams: 30_000,
-      materialLossRateBasisPoints: 2_000,
+      fixedCostCents: 999,
+      expectedPackingMinutes: 30,
       moldCount: 10,
       outputPerMoldPerBatch: 2,
       maxBatchesPerDay: 3
@@ -495,7 +582,8 @@ describe('V2OrderService', () => {
     const reloaded = service.getOrder(order.id)
     expect(reloaded?.items[0]?.productSnapshot).toMatchObject({
       unitWeightMilligrams: 20_000,
-      materialLossRateBasisPoints: 1_000,
+      fixedCostCents: 120,
+      expectedPackingMinutes: 5,
       moldCount: 20,
       outputPerMoldPerBatch: 1,
       maxBatchesPerDay: 2,
@@ -512,16 +600,31 @@ describe('V2OrderService', () => {
         packagingCostCents: 200,
         accessoryCostCents: 100,
         replacementBagCostCents: 50,
-        internalEdgeCostCents: 80,
+        edgeConsumableCostCents: 80,
         standardMakingMinutes: 20,
         makingCommissionCents: 500,
-        unitWeightMilligrams: 20_000,
-        materialLossRateBasisPoints: 10_001,
+        unitWeightMilligrams: -1,
         moldCount: 20,
         outputPerMoldPerBatch: 1,
         maxBatchesPerDay: 2
       })
-    ).toThrow('损耗率必须小于 100%')
+    ).toThrow('单件材料重量必须是非负整数')
+    expect(() =>
+      service.createProduct({
+        name: '非法商品',
+        basePriceCents: 5_000,
+        packagingCostCents: 200,
+        accessoryCostCents: 100,
+        replacementBagCostCents: 50,
+        edgeConsumableCostCents: 80,
+        standardMakingMinutes: 20,
+        makingCommissionCents: 500,
+        unitWeightMilligrams: 20_000,
+        moldCount: 20,
+        outputPerMoldPerBatch: 0,
+        maxBatchesPerDay: 2
+      })
+    ).toThrow('每模每批产出必须是正整数')
   })
 
   it('保存订单预留天数并派生制作截止日期，订单优惠继续按非负金额校验', () => {

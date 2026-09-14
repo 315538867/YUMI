@@ -56,16 +56,16 @@ export function formatCents(cents: number): string {
   return new Decimal(cents).div(CENTS_PER_YUAN).toFixed(2)
 }
 
-/** 将元/克胶水单价转换为微元/克，允许最多六位小数。 */
-export function parseGluePriceYuanPerGram(input: string): number {
-  return parseScaled(input, 6, MICRO_YUAN_PER_YUAN, '胶水单价')
+/** 将元/克材料单价转换为微元/克，允许最多六位小数。 */
+export function parseMaterialPriceYuanPerGram(input: string): number {
+  return parseScaled(input, 6, MICRO_YUAN_PER_YUAN, '材料单价')
 }
 
-export function formatGluePriceYuanPerGram(value: number): string {
+export function formatMaterialPriceYuanPerGram(value: number): string {
   return formatScaled(value, MICRO_YUAN_PER_YUAN, 6)
 }
 
-/** 将以克录入的单件胶水用量转换为毫克，允许最多三位小数。 */
+/** 将以克录入的材料重量转换为毫克，允许最多三位小数。 */
 export function parseGramsToMilligrams(input: string): number {
   return parseScaled(input, 3, MILLIGRAMS_PER_GRAM, '克重')
 }
@@ -75,30 +75,30 @@ export function formatMilligramsAsGrams(value: number): string {
 }
 
 /**
- * 按“总克重 × 冻结单价”在最终金额边界一次四舍五入到分。
+ * 按“总重量 × 冻结材料单价”在最终金额边界一次四舍五入到分。
  * 1 分 = 10,000,000（微元/克 × 毫克）的乘积单位。
  */
-export function calculateGlueCostCents(input: {
-  gluePriceMicroYuanPerGram: number
-  glueWeightMilligrams: number
+export function calculateMaterialCents(input: {
+  materialPriceMicroYuanPerGram: number
+  weightMilligrams: number
   quantity: number
 }): number {
-  const { gluePriceMicroYuanPerGram, glueWeightMilligrams, quantity } = input
+  const { materialPriceMicroYuanPerGram, weightMilligrams, quantity } = input
   for (const [label, value] of [
-    ['胶水单价', gluePriceMicroYuanPerGram],
-    ['胶水克重', glueWeightMilligrams],
+    ['材料单价', materialPriceMicroYuanPerGram],
+    ['材料重量', weightMilligrams],
     ['数量', quantity]
   ] as const) {
     if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label}必须是非负安全整数`)
   }
 
-  const cents = new Decimal(gluePriceMicroYuanPerGram)
-    .times(glueWeightMilligrams)
+  const cents = new Decimal(materialPriceMicroYuanPerGram)
+    .times(weightMilligrams)
     .times(quantity)
     .div(10_000_000)
     .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
 
-  if (!cents.isInteger() || cents.gt(Number.MAX_SAFE_INTEGER)) throw new Error('胶水金额超出范围')
+  if (!cents.isInteger() || cents.gt(Number.MAX_SAFE_INTEGER)) throw new Error('材料金额超出范围')
   return cents.toNumber()
 }
 
@@ -139,4 +139,53 @@ export function calculateCentsForMinutes(input: {
     numerator: input.minutes,
     denominator: 60
   })
+}
+
+/**
+ * 计算分子与分母之比对应的万分比整数，仅在最终万分比边界按 HALF_UP 舍入。
+ * 用于利润率等允许负数的比例展示，分母为 0 时由调用方处理为不可计算。
+ */
+export function calculateRatioBasisPoints(input: {
+  numerator: number
+  denominator: number
+}): number {
+  const { numerator, denominator } = input
+  if (!Number.isSafeInteger(numerator)) throw new Error('分子必须是安全整数')
+  if (!Number.isSafeInteger(denominator) || denominator <= 0) {
+    throw new Error('分母必须大于 0')
+  }
+
+  const result = new Decimal(numerator)
+    .times(10_000)
+    .div(denominator)
+    .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
+  if (!result.isInteger() || result.abs().gt(Number.MAX_SAFE_INTEGER))
+    throw new Error('比例超出范围')
+  return result.toNumber()
+}
+
+/**
+ * 允许正负分子的比例金额，用于来源关联工资调整；仍在最终分级别按 HALF_UP 舍入。
+ */
+export function calculateSignedProportionalCents(input: {
+  baseCents: number
+  numerator: number
+  denominator: number
+}): number {
+  const { baseCents, numerator, denominator } = input
+  for (const [label, value] of [
+    ['基准金额', baseCents],
+    ['分子', numerator]
+  ] as const) {
+    if (!Number.isSafeInteger(value)) throw new Error(`${label}必须是安全整数`)
+  }
+  if (!Number.isSafeInteger(denominator) || denominator <= 0) throw new Error('分母必须大于 0')
+
+  const result = new Decimal(baseCents)
+    .times(numerator)
+    .div(denominator)
+    .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
+  if (!result.isInteger() || result.abs().gt(Number.MAX_SAFE_INTEGER))
+    throw new Error('金额超出范围')
+  return result.toNumber()
 }

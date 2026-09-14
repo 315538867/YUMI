@@ -63,6 +63,11 @@ export { YumiSnapshotNotice } from './snapshot-notice/yumi-snapshot-notice'
 export { YumiTaskRateSummary } from './task-rate-summary/yumi-task-rate-summary'
 export { YumiDocumentPreview } from './document-preview/yumi-document-preview'
 export { YumiStatusTag, type YumiStatusTone } from './status-tag/yumi-status-tag'
+export {
+  YumiCalculatedAmount,
+  type YumiCalculatedAmountProps,
+  type YumiCalculatedAmountTone
+} from './calculated-amount'
 
 export {
   YumiNotification,

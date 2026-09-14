@@ -1,9 +1,6 @@
-export class DomainValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'DomainValidationError'
-  }
-}
+export { DomainValidationError } from '@shared/errors'
+
+import { DomainValidationError } from '@shared/errors'
 
 export function requirePositive(value: number, name: string, allowZero = false): void {
   if (!Number.isFinite(value) || (allowZero ? value < 0 : value <= 0)) {
