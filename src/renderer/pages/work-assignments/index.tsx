@@ -83,6 +83,7 @@ export function WorkAssignmentsPage(props: {
 }) {
   const {
     assignments,
+    workers,
     resultByTaskId,
     loading,
     loadError,
@@ -114,6 +115,9 @@ export function WorkAssignmentsPage(props: {
   )
   const orderItemOptions =
     props.order?.items.map((item) => ({ value: item.id, label: item.productSnapshot.name })) ?? []
+  const workerOptions = workers
+    .filter((worker) => worker.enabled)
+    .map((worker) => ({ value: worker.id, label: worker.name }))
   const visibleAssignments = props.focusedTaskId
     ? assignments.filter((assignment) =>
         assignment.tasks.some((task) => task.id === props.focusedTaskId)
@@ -157,6 +161,10 @@ export function WorkAssignmentsPage(props: {
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault()
     setError(null)
+    if (!workerId) {
+      setError('请选择兼职人员')
+      return
+    }
     setSubmitting('assignment')
     try {
       await createWorkAssignment({
@@ -501,11 +509,12 @@ export function WorkAssignmentsPage(props: {
           </YumiFormMessage>
           <div className="yumi-form-grid yumi-form-grid--three">
             <YumiField>
-              <YumiFieldLabel required>兼职人员标识</YumiFieldLabel>
-              <YumiTextField
-                onChange={(event) => setWorkerId(event.target.value)}
-                placeholder="阶段 C 建立人员主数据前填写标识"
-                required
+              <YumiFieldLabel required>兼职人员</YumiFieldLabel>
+              <YumiSelect
+                aria-label="兼职人员"
+                onValueChange={setWorkerId}
+                options={workerOptions}
+                placeholder="选择人员"
                 value={workerId}
               />
             </YumiField>

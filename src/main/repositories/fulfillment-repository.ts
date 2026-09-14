@@ -181,6 +181,11 @@ export class V2FulfillmentRepository {
     }
   }
 
+  workerExists(workerId: string): boolean {
+    const row = this.database.prepare('SELECT 1 AS found FROM workers WHERE id = ?').get(workerId)
+    return row !== undefined
+  }
+
   insertWorkAssignment(input: Omit<V2WorkAssignment, 'tasks'>): void {
     this.database
       .prepare(

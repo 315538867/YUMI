@@ -96,6 +96,7 @@ export class FulfillmentService {
 
   createWorkAssignment(input: V2WorkAssignmentCreateInput): V2WorkAssignment {
     const workerId = requireText(input.workerId, '兼职人员标识')
+    if (!this.repository.workerExists(workerId)) throw new DomainValidationError('兼职人员不存在')
     const assignedOn = requireBusinessDate(input.assignedOn, '安排日期')
     if (!processTypes.includes(input.processType)) throw new DomainValidationError('工序类型不合法')
     if (!Array.isArray(input.tasks) || input.tasks.length === 0)

@@ -4,12 +4,14 @@ import type {
   V2ProcessResultInput,
   V2QualityInspectionInput,
   V2WorkAssignment,
-  V2WorkAssignmentCreateInput
+  V2WorkAssignmentCreateInput,
+  V2Worker
 } from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
 export function useWorkAssignments() {
   const [assignments, setAssignments] = useState<V2WorkAssignment[]>([])
+  const [workers, setWorkers] = useState<V2Worker[]>([])
   const [resultByTaskId, setResultByTaskId] = useState<Record<string, V2ProcessResult>>({})
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -18,8 +20,12 @@ export function useWorkAssignments() {
     setLoading(true)
     setLoadError(null)
     try {
-      const nextAssignments = await window.yumiV2.fulfillment.listWorkAssignments()
+      const [nextAssignments, nextWorkers] = await Promise.all([
+        window.yumiV2.fulfillment.listWorkAssignments(),
+        window.yumiV2.workers.list()
+      ])
       setAssignments(nextAssignments)
+      setWorkers(nextWorkers)
       const pendingTasks = nextAssignments.flatMap((assignment) =>
         assignment.tasks.filter((task) => task.status === 'pending_inspection')
       )
@@ -72,6 +78,7 @@ export function useWorkAssignments() {
 
   return {
     assignments,
+    workers,
     resultByTaskId,
     loading,
     loadError,

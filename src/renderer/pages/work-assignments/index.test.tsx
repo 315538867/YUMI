@@ -1,7 +1,14 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render as renderBase, screen, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render as renderBase,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../../components/ui'
 import { installDomInteractionPolyfills } from '../../test/dom'
@@ -58,7 +65,33 @@ vi.mock('../../composables/use-work-assignments', () => ({
     loadError: null,
     loading: false,
     resultByTaskId: {},
-    submitProcessResult: mocks.submitProcessResult
+    submitProcessResult: mocks.submitProcessResult,
+    workers: [
+      {
+        createdAt: '2026-09-01T00:00:00.000Z',
+        enabled: true,
+        id: 'worker-wang',
+        name: '小王',
+        note: null,
+        updatedAt: '2026-09-01T00:00:00.000Z'
+      },
+      {
+        createdAt: '2026-09-01T00:00:00.000Z',
+        enabled: true,
+        id: 'worker-li',
+        name: '小李',
+        note: null,
+        updatedAt: '2026-09-01T00:00:00.000Z'
+      },
+      {
+        createdAt: '2026-09-01T00:00:00.000Z',
+        enabled: false,
+        id: 'worker-old',
+        name: '已停用人员',
+        note: null,
+        updatedAt: '2026-09-01T00:00:00.000Z'
+      }
+    ]
   })
 }))
 
@@ -102,5 +135,56 @@ describe('工作安排记录骨架', () => {
       within(assignmentDetail).getByRole('note', { name: '制作任务冻结计件提成' })
     ).toHaveTextContent('后续商品改价不影响本任务结算')
     expect(within(assignmentDetail).getByRole('textbox', { name: '完成数量' })).toBeVisible()
+  })
+
+  it('新增工作安排按启用人员提供下拉并提交所选人员标识', async () => {
+    mocks.createWorkAssignment.mockResolvedValue(undefined)
+    render(
+      <WorkAssignmentsPage
+        onChanged={vi.fn()}
+        order={
+          {
+            items: [{ id: 'item-1', productSnapshot: { name: '草莓捏捏' } }]
+          } as never
+        }
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '打开新建工作安排' }))
+    const trigger = screen.getByRole('combobox', { name: '兼职人员' })
+    expect(trigger).toBeVisible()
+
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    expect(screen.queryByRole('option', { name: '已停用人员' })).not.toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('option', { name: '小王' }), { key: 'Enter' })
+
+    fireEvent.click(screen.getByRole('button', { name: '保存工作安排' }))
+    await waitFor(() =>
+      expect(mocks.createWorkAssignment).toHaveBeenCalledWith(
+        expect.objectContaining({ workerId: 'worker-wang' })
+      )
+    )
+  })
+
+  it('未选择兼职人员时提交提示先选人员并保留草稿', async () => {
+    render(
+      <WorkAssignmentsPage
+        onChanged={vi.fn()}
+        order={
+          {
+            items: [{ id: 'item-1', productSnapshot: { name: '草莓捏捏' } }]
+          } as never
+        }
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '打开新建工作安排' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存工作安排' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert', { hidden: true })).toHaveTextContent('请选择兼职人员')
+    )
+    expect(mocks.createWorkAssignment).not.toHaveBeenCalled()
   })
 })

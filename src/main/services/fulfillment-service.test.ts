@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import type { V2Worker } from '@shared/contracts/index'
 import { createV2Database, type V2Database } from '@main/database/v2-connection'
 import { V2FulfillmentRepository } from '@main/repositories/fulfillment-repository'
 import { V2OrderRepository } from '@main/repositories/v2-order-repository'
 import { FulfillmentService } from './fulfillment-service'
+import { SettlementService } from './settlement-service'
 import { V2OrderService } from './v2-order-service'
 
 const databases: V2Database[] = []
@@ -15,13 +17,21 @@ function createFixture(): {
   database: V2Database
   orderService: V2OrderService
   service: FulfillmentService
+  createWorker(name: string): V2Worker
 } {
   const database = createV2Database(':memory:')
   databases.push(database)
+  const settlementService = new SettlementService(database)
   return {
     database,
     orderService: new V2OrderService(new V2OrderRepository(database)),
-    service: new FulfillmentService(new V2FulfillmentRepository(database))
+    service: new FulfillmentService(new V2FulfillmentRepository(database)),
+    createWorker: (name) =>
+      settlementService.createWorker({
+        name,
+        hourlyWageCents: 2_000,
+        effectiveOn: '2026-09-01'
+      })
   }
 }
 
@@ -49,11 +59,12 @@ function createOrder(orderService: V2OrderService) {
 
 describe('FulfillmentService', () => {
   it('捏毛装袋任务默认冻结订单商品快照中的计件提成', () => {
-    const { orderService, service } = createFixture()
+    const { createWorker, orderService, service } = createFixture()
+    const worker = createWorker('小王')
     const order = createOrder(orderService)
 
     const assignment = service.createWorkAssignment({
-      workerId: 'worker-1',
+      workerId: worker.id,
       assignedOn: '2026-09-07',
       processType: 'fluffing_bagging',
       tasks: [
@@ -73,7 +84,8 @@ describe('FulfillmentService', () => {
   })
 
   it('读取升级前缺少捏毛装袋提成的订单快照时，默认按 0 冻结', () => {
-    const { database, orderService, service } = createFixture()
+    const { createWorker, database, orderService, service } = createFixture()
+    const worker = createWorker('小王')
     const order = createOrder(orderService)
     const orderItemId = order.items[0].id
     const legacySnapshot = { ...order.items[0].productSnapshot }
@@ -84,7 +96,7 @@ describe('FulfillmentService', () => {
       .run(JSON.stringify(legacySnapshot), orderItemId)
 
     const assignment = service.createWorkAssignment({
-      workerId: 'worker-1',
+      workerId: worker.id,
       assignedOn: '2026-09-07',
       processType: 'fluffing_bagging',
       tasks: [
@@ -104,12 +116,14 @@ describe('FulfillmentService', () => {
   })
 
   it('在同一事务内安排任务、提交完成、确认质检并以事件推进阶段数量', () => {
-    const { orderService, service } = createFixture()
+    const { createWorker, orderService, service } = createFixture()
+    const worker = createWorker('小王')
+    const reworkWorker = createWorker('小李')
     const order = createOrder(orderService)
     const orderItemId = order.items[0].id
 
     const assignment = service.createWorkAssignment({
-      workerId: 'worker-1',
+      workerId: worker.id,
       assignedOn: '2026-09-08',
       processType: 'making',
       tasks: [
@@ -153,7 +167,7 @@ describe('FulfillmentService', () => {
     ).toThrow('已质检')
 
     const rework = service.createWorkAssignment({
-      workerId: 'worker-2',
+      workerId: reworkWorker.id,
       assignedOn: '2026-09-10',
       processType: 'making',
       tasks: [{ orderItemId, sourceType: 'rework', plannedQuantity: 3 }]
@@ -188,12 +202,16 @@ describe('FulfillmentService', () => {
   })
 
   it('按固定工序处理捏毛不合格返工，并将打包完成数量推进到待发货', () => {
-    const { orderService, service } = createFixture()
+    const { createWorker, orderService, service } = createFixture()
+    const makingWorker = createWorker('制作人员')
+    const fluffingWorker = createWorker('捏毛人员')
+    const reworkWorker = createWorker('返工人员')
+    const packingWorker = createWorker('打包人员')
     const order = createOrder(orderService)
     const orderItemId = order.items[0].id
 
     const making = service.createWorkAssignment({
-      workerId: 'worker-making',
+      workerId: makingWorker.id,
       assignedOn: '2026-09-07',
       processType: 'making',
       tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 10 }]
@@ -209,7 +227,7 @@ describe('FulfillmentService', () => {
     })
 
     const fluffing = service.createWorkAssignment({
-      workerId: 'worker-fluffing',
+      workerId: fluffingWorker.id,
       assignedOn: '2026-09-08',
       processType: 'fluffing_bagging',
       tasks: [
@@ -232,7 +250,7 @@ describe('FulfillmentService', () => {
     })
 
     const rework = service.createWorkAssignment({
-      workerId: 'worker-rework',
+      workerId: reworkWorker.id,
       assignedOn: '2026-09-09',
       processType: 'fluffing_bagging',
       tasks: [{ orderItemId, sourceType: 'rework', plannedQuantity: 3, plannedMinutes: 30 }]
@@ -248,7 +266,7 @@ describe('FulfillmentService', () => {
     })
 
     const packing = service.createWorkAssignment({
-      workerId: 'worker-packing',
+      workerId: packingWorker.id,
       assignedOn: '2026-09-10',
       processType: 'packing',
       tasks: [
@@ -275,10 +293,13 @@ describe('FulfillmentService', () => {
   })
 
   it('负责人调整仅转派待处理任务，保留原任务与冻结费率', () => {
-    const { orderService, service } = createFixture()
+    const { createWorker, orderService, service } = createFixture()
+    const originalWorker = createWorker('原负责人')
+    const replacementWorker = createWorker('新负责人')
+    const thirdWorker = createWorker('第三位负责人')
     const order = createOrder(orderService)
     const original = service.createWorkAssignment({
-      workerId: 'worker-old',
+      workerId: originalWorker.id,
       assignedOn: '2026-09-08',
       processType: 'fluffing_bagging',
       note: '原始派工备注',
@@ -294,7 +315,7 @@ describe('FulfillmentService', () => {
     })
 
     const replacement = service.reassignProcessTask(original.tasks[0].id, {
-      workerId: 'worker-new',
+      workerId: replacementWorker.id,
       effectiveOn: '2026-09-10',
       reason: '原负责人临时请假'
     })
@@ -304,7 +325,7 @@ describe('FulfillmentService', () => {
       tasks: [{ id: original.tasks[0].id, status: 'cancelled', note: '原始任务备注' }]
     })
     expect(replacement).toMatchObject({
-      workerId: 'worker-new',
+      workerId: replacementWorker.id,
       assignedOn: '2026-09-10',
       processType: 'fluffing_bagging',
       status: 'scheduled',
@@ -325,7 +346,7 @@ describe('FulfillmentService', () => {
     })
     expect(() =>
       service.reassignProcessTask(original.tasks[0].id, {
-        workerId: 'worker-third',
+        workerId: thirdWorker.id,
         effectiveOn: '2026-09-11',
         reason: '重复调整'
       })
@@ -333,7 +354,8 @@ describe('FulfillmentService', () => {
   })
 
   it('支持期初在制品、售后补发和负责人带原因的数量调整，并拒绝来源数量不足', () => {
-    const { database, orderService, service } = createFixture()
+    const { createWorker, database, orderService, service } = createFixture()
+    const worker = createWorker('补发人员')
     const order = createOrder(orderService)
     const orderItemId = order.items[0].id
 
@@ -365,7 +387,7 @@ describe('FulfillmentService', () => {
     ).toThrow('来源阶段可用数量不足')
 
     const replacement = service.createWorkAssignment({
-      workerId: 'worker-3',
+      workerId: worker.id,
       assignedOn: '2026-09-09',
       processType: 'making',
       tasks: [{ orderItemId, sourceType: 'after_sales_replacement', plannedQuantity: 1 }]
@@ -401,5 +423,25 @@ describe('FulfillmentService', () => {
         note: '缺少目标和来源'
       })
     ).toThrow('至少指定来源阶段或目标阶段')
+  })
+
+  it('拒绝为不存在的兼职人员创建工作安排', () => {
+    const { orderService, service } = createFixture()
+    const order = createOrder(orderService)
+
+    expect(() =>
+      service.createWorkAssignment({
+        workerId: 'missing-worker',
+        assignedOn: '2026-09-07',
+        processType: 'making',
+        tasks: [
+          {
+            orderItemId: order.items[0].id,
+            sourceType: 'normal_production',
+            plannedQuantity: 1
+          }
+        ]
+      })
+    ).toThrow('兼职人员不存在')
   })
 })
