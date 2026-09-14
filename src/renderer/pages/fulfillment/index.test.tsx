@@ -69,6 +69,10 @@ const mocks = vi.hoisted(() => {
     createWorkAssignment: vi.fn().mockResolvedValue(undefined),
     reassignProcessTask: vi.fn().mockResolvedValue(undefined),
     showSelectedOrder: false,
+    workers: [
+      { id: 'worker-wang', name: '小王', enabled: true },
+      { id: 'worker-li', name: '小李', enabled: true }
+    ] as Array<{ id: string; name: string; enabled: boolean }>,
     queueItems: [
       {
         orderId: 'order-1',
@@ -134,10 +138,7 @@ vi.mock('../../composables/use-fulfillment', async (importOriginal) => {
     ...actual,
     useFulfillment: () => ({
       queueItems: mocks.queueItems,
-      workers: [
-        { id: 'worker-wang', name: '小王', enabled: true },
-        { id: 'worker-li', name: '小李', enabled: true }
-      ],
+      workers: mocks.workers,
       selectedOrder: mocks.showSelectedOrder
         ? {
             id: 'order-1',
@@ -430,7 +431,7 @@ describe('履约排班双视角交互', () => {
     )
   })
 
-  it('人员周历按人员和日期展示任务，并能从任务卡进入精确处理上下文', () => {
+  it('人员周历按天分列、按人成框展示任务，并能从任务框进入精确处理上下文', () => {
     mocks.queueItems[0].stageSchedules.making.tasks[0].assignedOn = startOfWeekFrom(today())
     render(<FulfillmentPage />)
 
@@ -439,11 +440,91 @@ describe('履约排班双视角交互', () => {
     expect(weekCalendar).toHaveClass('yumi-section', 'yumi-worker-week')
     expect(within(weekCalendar).getByRole('group', { name: '人员周历日期导航' })).toBeVisible()
     expect(screen.getByRole('heading', { name: '人员周历' })).toBeVisible()
-    expect(screen.getByText('小王')).toBeVisible()
-    expect(screen.getByRole('button', { name: /草莓捏捏.*制作.*12.*待完成/ })).toBeVisible()
+    expect(within(weekCalendar).queryByText('人员')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /草莓捏捏.*制作.*12.*待完成/ }))
+    const personBox = screen.getByText('小王').closest('.yumi-worker-week__person')
+    expect(personBox).not.toBeNull()
+    expect(within(personBox as HTMLElement).getByText('1 条')).toBeVisible()
+    const taskButton = within(personBox as HTMLElement).getByRole('button', {
+      name: /草莓捏捏.*制作.*12.*待完成/
+    })
+    expect(taskButton).toBeVisible()
+
+    fireEvent.click(taskButton)
     expect(mocks.selectOrder).toHaveBeenCalledWith('order-1')
+  })
+
+  it('同一人员的多项任务聚合到同一个人员框，不同人员颜色不同且跨天稳定', () => {
+    const originalQueueItems = mocks.queueItems
+    const weekStart = startOfWeekFrom(today())
+    const makingTask = (
+      taskId: string,
+      workerId: string,
+      workerName: string,
+      assignedOn: string,
+      plannedQuantity: number,
+      status: 'pending' | 'pending_inspection'
+    ) => ({
+      assignmentId: `assignment-${taskId}`,
+      taskId,
+      workerId,
+      workerName,
+      assignedOn,
+      processType: 'making',
+      stage: 'making',
+      plannedQuantity,
+      status
+    })
+    mocks.queueItems = [
+      {
+        ...originalQueueItems[0],
+        stageSchedules: {
+          ...originalQueueItems[0].stageSchedules,
+          making: {
+            wipQuantity: 24,
+            reservedQuantity: 24,
+            unassignedQuantity: 0,
+            overassignedQuantity: 0,
+            tasks: [
+              makingTask('task-a', 'worker-wang', '小王', weekStart, 5, 'pending'),
+              makingTask('task-b', 'worker-wang', '小王', weekStart, 7, 'pending_inspection'),
+              makingTask('task-c', 'worker-li', '小李', addDays(weekStart, 2), 9, 'pending'),
+              makingTask('task-d', 'worker-wang', '小王', addDays(weekStart, 4), 3, 'pending')
+            ]
+          }
+        }
+      }
+    ]
+    try {
+      render(<FulfillmentPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: '人员周历' }))
+
+      const wangBoxes = screen
+        .getAllByText('小王')
+        .map((node) => node.closest('.yumi-worker-week__person') as HTMLElement)
+      expect(wangBoxes).toHaveLength(2)
+      const firstDayBox = wangBoxes[0]
+      const laterDayBox = wangBoxes[1]
+      expect(within(firstDayBox).getByText('2 条')).toBeVisible()
+      expect(
+        within(firstDayBox).getByRole('button', { name: /草莓捏捏.*制作.*5.*待完成/ })
+      ).toBeVisible()
+      expect(
+        within(firstDayBox).getByRole('button', { name: /草莓捏捏.*制作.*7.*待质检/ })
+      ).toBeVisible()
+      expect(within(laterDayBox).getByText('1 条')).toBeVisible()
+
+      const liBox = screen.getByText('小李').closest('.yumi-worker-week__person') as HTMLElement
+      expect(liBox).not.toBeNull()
+
+      expect(firstDayBox.dataset.tone).toBe(laterDayBox.dataset.tone)
+      expect(firstDayBox.dataset.tone).not.toBe(liBox.dataset.tone)
+      expect(screen.getAllByText('小王')).toHaveLength(2)
+      expect(screen.getAllByText('小李')).toHaveLength(1)
+    } finally {
+      mocks.queueItems = originalQueueItems
+    }
   })
 
   it('负责人调整转派当前待处理任务，并保留历史安排的说明边界', async () => {
@@ -526,7 +607,9 @@ describe('履约排班双视角交互', () => {
       expect(within(inspections).getByText('草莓捏捏')).toBeVisible()
       expect(within(inspections).getByRole('button', { name: '确认制作结果' })).toBeVisible()
       expect(screen.getByRole('heading', { name: '计时工序待核算' })).toBeVisible()
-      expect(screen.getByRole('button', { name: '查找待核算安排' })).toBeVisible()
+      expect(screen.getByRole('heading', { name: '1 选择员工与日期' })).toBeVisible()
+      expect(screen.getByText('选择员工与日期后自动列出当天待核算安排。')).toBeVisible()
+      expect(screen.queryByRole('button', { name: '查找待核算安排' })).not.toBeInTheDocument()
       expect(screen.getByRole('heading', { name: '已登记工时核算' })).toBeVisible()
       expect(screen.queryByRole('button', { name: '补录期初在制品' })).not.toBeInTheDocument()
     } finally {
@@ -534,7 +617,30 @@ describe('履约排班双视角交互', () => {
     }
   })
 
-  it('人员周历支持自然周切换，并为人员日期空白格预填派工抽屉', () => {
+  it('没有启用兼职人员时，人员周历给出创建人员的指引而不是空表头', () => {
+    const originalWorkers = mocks.workers
+    const originalQueueItems = mocks.queueItems
+    mocks.workers = []
+    mocks.queueItems = []
+    try {
+      render(<FulfillmentPage />)
+      fireEvent.click(screen.getByRole('button', { name: '人员周历' }))
+
+      expect(screen.getByRole('heading', { name: '人员周历' })).toBeVisible()
+      expect(screen.getByRole('status', { name: '首次使用' })).toBeVisible()
+      expect(screen.getByText('还没有可排班的兼职人员')).toBeVisible()
+      expect(
+        screen.getByText(
+          '先到「工资」页的「人员与时薪」新增兼职人员并设置生效时薪；这里会按日期分列展示每位人员的待处理任务，并提供每天列底部的「＋ 派工」入口。'
+        )
+      ).toBeVisible()
+    } finally {
+      mocks.workers = originalWorkers
+      mocks.queueItems = originalQueueItems
+    }
+  })
+
+  it('人员周历支持自然周切换，并从日期列底部入口预填派工日期', () => {
     render(<FulfillmentPage />)
 
     const currentWeekStart = startOfWeekFrom(today())
@@ -554,9 +660,9 @@ describe('履约排班双视角交互', () => {
     ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '本周' }))
 
-    fireEvent.click(screen.getByRole('button', { name: `为小王${todayLabel}派工` }))
+    fireEvent.click(screen.getByRole('button', { name: `为${todayLabel}派工` }))
     expect(screen.getByRole('dialog', { name: '派工：制作' })).toBeVisible()
-    expect(screen.getByRole('combobox', { name: '派工人员' })).toHaveTextContent('小王')
+    expect(screen.getByRole('combobox', { name: '派工人员' })).toHaveTextContent('选择人员')
     expect(screen.getByRole('button', { name: '派工日期' })).toHaveTextContent(
       `${todayDate.getFullYear()}/${todayDate.getMonth() + 1}/${todayDate.getDate()}`
     )

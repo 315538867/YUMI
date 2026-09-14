@@ -68,7 +68,45 @@
   --yumi-info-soft: var(--yumi-palette-info-soft);
   --yumi-info-border: var(--yumi-palette-info-border);
 
-  /* 4. 排版、间距、圆角、阴影与布局令牌及组件别名：排版、密度和组件尺寸的跨组件统一来源。 */
+  /* 4. 人员识别色板：人员周历按加入顺序稳定分配给人员的 12 档低饱和识别色（主色、浅底、描边成组）。 */
+  --yumi-worker-tone-1-color: #0f7a8f;
+  --yumi-worker-tone-1-soft: #e8f5f8;
+  --yumi-worker-tone-1-border: #cfe5eb;
+  --yumi-worker-tone-2-color: #a8621f;
+  --yumi-worker-tone-2-soft: #f8efe4;
+  --yumi-worker-tone-2-border: #ecd9c2;
+  --yumi-worker-tone-3-color: #6d5bd0;
+  --yumi-worker-tone-3-soft: #efecfb;
+  --yumi-worker-tone-3-border: #dcd4f2;
+  --yumi-worker-tone-4-color: #3f7d5a;
+  --yumi-worker-tone-4-soft: #e9f4ee;
+  --yumi-worker-tone-4-border: #cfe5d8;
+  --yumi-worker-tone-5-color: #b05a72;
+  --yumi-worker-tone-5-soft: #faeef2;
+  --yumi-worker-tone-5-border: #eed5dd;
+  --yumi-worker-tone-6-color: #4a6fa5;
+  --yumi-worker-tone-6-soft: #eaf0f8;
+  --yumi-worker-tone-6-border: #d3dded;
+  --yumi-worker-tone-7-color: #96803d;
+  --yumi-worker-tone-7-soft: #f5f1e3;
+  --yumi-worker-tone-7-border: #e6dcbd;
+  --yumi-worker-tone-8-color: #9d5aa8;
+  --yumi-worker-tone-8-soft: #f6ecf8;
+  --yumi-worker-tone-8-border: #e5cfea;
+  --yumi-worker-tone-9-color: #6d7d33;
+  --yumi-worker-tone-9-soft: #f0f3e5;
+  --yumi-worker-tone-9-border: #dde4c4;
+  --yumi-worker-tone-10-color: #ab5252;
+  --yumi-worker-tone-10-soft: #f9ecec;
+  --yumi-worker-tone-10-border: #eed3d3;
+  --yumi-worker-tone-11-color: #2f7d6d;
+  --yumi-worker-tone-11-soft: #e6f4f0;
+  --yumi-worker-tone-11-border: #c9e3da;
+  --yumi-worker-tone-12-color: #8a6a3f;
+  --yumi-worker-tone-12-soft: #f6f1e7;
+  --yumi-worker-tone-12-border: #e5d8c0;
+
+  /* 5. 排版、间距、圆角、阴影与布局令牌及组件别名：排版、密度和组件尺寸的跨组件统一来源。 */
   --yumi-font-sans: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --yumi-font-numeric: 'SFMono-Regular', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
   --yumi-font-size-xs: 12px;

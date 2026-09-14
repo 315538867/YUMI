@@ -742,30 +742,30 @@
 }
 .yumi-worker-week__scroller {
   overflow-x: auto;
-  border: 1px solid var(--yumi-border);
-  border-radius: var(--yumi-radius-md);
 }
 .yumi-worker-week__grid {
   display: grid;
-  min-width: 1210px;
+  gap: var(--yumi-space-2);
+  padding-bottom: 2px;
 }
-.yumi-worker-week__corner,
-.yumi-worker-week__date,
-.yumi-worker-week__worker {
-  padding: 10px var(--yumi-space-3);
+.yumi-worker-week__column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 200px;
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-md);
+  padding: 8px;
   background: var(--yumi-surface-muted);
-  color: var(--yumi-muted);
-  font-size: 12px;
-  line-height: 18px;
-}
-.yumi-worker-week__corner,
-.yumi-worker-week__date {
-  border-bottom: 1px solid var(--yumi-border);
 }
 .yumi-worker-week__date {
   display: grid;
   gap: 2px;
-  border-left: 1px solid var(--yumi-border);
+  padding: 2px 0 8px;
+  border-bottom: 1px dashed var(--yumi-border);
+  color: var(--yumi-ink);
+  font-size: 12px;
+  line-height: 18px;
   text-align: center;
 }
 .yumi-worker-week__date small {
@@ -773,57 +773,174 @@
   font-size: 11px;
   font-weight: 500;
 }
-.yumi-worker-week__row {
-  display: contents;
-}
-.yumi-worker-week__worker {
-  display: flex;
-  align-items: flex-start;
-  border-bottom: 1px solid var(--yumi-border);
-  color: var(--yumi-ink);
-}
-.yumi-worker-week__cell {
+/* 人员分组框：整框浅色底 + 首行圆点，颜色按 data-tone 稳定分配，同一人整周同色。 */
+.yumi-worker-week__person {
+  --worker-tone-color: var(--yumi-worker-tone-1-color);
+  --worker-tone-soft: var(--yumi-worker-tone-1-soft);
+  --worker-tone-border: var(--yumi-worker-tone-1-border);
   display: grid;
-  align-content: start;
+  gap: 4px;
+  border: 1px solid var(--worker-tone-border);
+  border-radius: var(--yumi-radius-md);
+  padding: 7px;
+  background: var(--worker-tone-soft);
+}
+.yumi-worker-week__person[data-tone='1'] {
+  --worker-tone-color: var(--yumi-worker-tone-1-color);
+  --worker-tone-soft: var(--yumi-worker-tone-1-soft);
+  --worker-tone-border: var(--yumi-worker-tone-1-border);
+}
+.yumi-worker-week__person[data-tone='2'] {
+  --worker-tone-color: var(--yumi-worker-tone-2-color);
+  --worker-tone-soft: var(--yumi-worker-tone-2-soft);
+  --worker-tone-border: var(--yumi-worker-tone-2-border);
+}
+.yumi-worker-week__person[data-tone='3'] {
+  --worker-tone-color: var(--yumi-worker-tone-3-color);
+  --worker-tone-soft: var(--yumi-worker-tone-3-soft);
+  --worker-tone-border: var(--yumi-worker-tone-3-border);
+}
+.yumi-worker-week__person[data-tone='4'] {
+  --worker-tone-color: var(--yumi-worker-tone-4-color);
+  --worker-tone-soft: var(--yumi-worker-tone-4-soft);
+  --worker-tone-border: var(--yumi-worker-tone-4-border);
+}
+.yumi-worker-week__person[data-tone='5'] {
+  --worker-tone-color: var(--yumi-worker-tone-5-color);
+  --worker-tone-soft: var(--yumi-worker-tone-5-soft);
+  --worker-tone-border: var(--yumi-worker-tone-5-border);
+}
+.yumi-worker-week__person[data-tone='6'] {
+  --worker-tone-color: var(--yumi-worker-tone-6-color);
+  --worker-tone-soft: var(--yumi-worker-tone-6-soft);
+  --worker-tone-border: var(--yumi-worker-tone-6-border);
+}
+.yumi-worker-week__person[data-tone='7'] {
+  --worker-tone-color: var(--yumi-worker-tone-7-color);
+  --worker-tone-soft: var(--yumi-worker-tone-7-soft);
+  --worker-tone-border: var(--yumi-worker-tone-7-border);
+}
+.yumi-worker-week__person[data-tone='8'] {
+  --worker-tone-color: var(--yumi-worker-tone-8-color);
+  --worker-tone-soft: var(--yumi-worker-tone-8-soft);
+  --worker-tone-border: var(--yumi-worker-tone-8-border);
+}
+.yumi-worker-week__person[data-tone='9'] {
+  --worker-tone-color: var(--yumi-worker-tone-9-color);
+  --worker-tone-soft: var(--yumi-worker-tone-9-soft);
+  --worker-tone-border: var(--yumi-worker-tone-9-border);
+}
+.yumi-worker-week__person[data-tone='10'] {
+  --worker-tone-color: var(--yumi-worker-tone-10-color);
+  --worker-tone-soft: var(--yumi-worker-tone-10-soft);
+  --worker-tone-border: var(--yumi-worker-tone-10-border);
+}
+.yumi-worker-week__person[data-tone='11'] {
+  --worker-tone-color: var(--yumi-worker-tone-11-color);
+  --worker-tone-soft: var(--yumi-worker-tone-11-soft);
+  --worker-tone-border: var(--yumi-worker-tone-11-border);
+}
+.yumi-worker-week__person[data-tone='12'] {
+  --worker-tone-color: var(--yumi-worker-tone-12-color);
+  --worker-tone-soft: var(--yumi-worker-tone-12-soft);
+  --worker-tone-border: var(--yumi-worker-tone-12-border);
+}
+.yumi-worker-week__person-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 6px;
-  min-height: 108px;
-  border-bottom: 1px solid var(--yumi-border);
-  border-left: 1px solid var(--yumi-border);
-  padding: 8px;
-  background: var(--yumi-surface);
+  padding: 0 1px;
 }
-.yumi-worker-week__row:last-child .yumi-worker-week__worker,
-.yumi-worker-week__row:last-child .yumi-worker-week__cell {
-  border-bottom: 0;
-}
-.yumi-worker-week__task {
-  width: 100%;
-  min-height: 0;
-  justify-content: flex-start;
-  border: 1px solid var(--yumi-info-border);
-  border-radius: var(--yumi-radius-sm);
-  padding: 6px 8px;
-  background: var(--yumi-info-soft);
-  color: var(--yumi-info);
+.yumi-worker-week__person-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--yumi-ink);
   font-size: 12px;
   line-height: 18px;
+}
+.yumi-worker-week__person-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--worker-tone-color);
+}
+.yumi-worker-week__person-count {
+  color: var(--yumi-muted);
+  font-size: 11px;
+}
+.yumi-worker-week__task {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 0;
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-sm);
+  padding: 5px 7px;
+  background: var(--yumi-surface);
+  color: var(--yumi-ink);
+  font-size: 12px;
+  line-height: 16px;
   text-align: left;
   white-space: normal;
 }
 .yumi-worker-week__task:hover:not(:disabled) {
-  border-color: var(--yumi-info-border);
-  background: var(--yumi-brand-subtle);
+  border-color: var(--worker-tone-color);
+  background: var(--yumi-surface);
+}
+.yumi-worker-week__task-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.yumi-worker-week__task-product {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yumi-worker-week__task-meta {
+  color: var(--yumi-muted);
+  font-size: 11px;
+  line-height: 16px;
 }
 .yumi-worker-week__add {
-  width: max-content;
-  min-height: 26px;
-  justify-self: start;
-  padding: 2px 0;
+  width: 100%;
+  min-height: 28px;
+  justify-content: center;
+  margin-top: auto;
+  border: 1px dashed var(--yumi-info-border);
+  border-radius: var(--yumi-radius-sm);
+  padding: 5px 0;
+  background: var(--yumi-surface);
   color: var(--yumi-brand-hover);
   font-size: 12px;
 }
 .yumi-worker-week__add:hover:not(:disabled) {
-  text-decoration: underline;
+  background: var(--yumi-brand-subtle);
+}
+.yumi-worker-week__empty {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: 1px dashed var(--yumi-border);
+  border-radius: var(--yumi-radius-md);
+  padding: 0;
+  background: var(--yumi-surface);
+  color: var(--yumi-subtle);
+  font-size: 12px;
+}
+.yumi-worker-week__empty:hover:not(:disabled) {
+  border-color: var(--yumi-info-border);
+  background: var(--yumi-brand-subtle);
+  color: var(--yumi-brand-hover);
 }
 @media (max-width: 820px) {
   .yumi-fulfillment-dispatch-surface .yumi-data-table th:nth-child(4),

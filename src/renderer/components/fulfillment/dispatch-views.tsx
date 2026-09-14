@@ -11,6 +11,7 @@ import {
 import {
   YumiButton,
   YumiDataTable,
+  YumiEmptyState,
   YumiListSurface,
   YumiListToolbar,
   YumiDatePicker,
@@ -232,6 +233,8 @@ function addDays(date: string, count: number): string {
   return dateParts(next)
 }
 
+const workerToneCount = 12
+
 export function WorkerWeekSchedule(props: {
   items: FulfillmentQueueItem[]
   workers: V2Worker[]
@@ -248,20 +251,32 @@ export function WorkerWeekSchedule(props: {
     () => new Map(props.items.map((item) => [item.orderItemId, item])),
     [props.items]
   )
-  const workerRows = useMemo(() => {
-    const knownWorkers = props.workers.filter((worker) => worker.enabled)
-    const knownIds = new Set(knownWorkers.map((worker) => worker.id))
-    const missingWorkers = tasks
-      .filter((task) => !knownIds.has(task.workerId))
-      .reduce<V2Worker[]>(
-        (rows, task) =>
-          rows.some((worker) => worker.id === task.workerId)
-            ? rows
-            : [...rows, { id: task.workerId, name: task.workerName, enabled: false } as V2Worker],
-        []
-      )
-    return [...knownWorkers, ...missingWorkers]
+  const orderedWorkers = useMemo(() => {
+    const sorted = [...props.workers].sort((left, right) =>
+      (left.createdAt ?? '').localeCompare(right.createdAt ?? '')
+    )
+    const knownIds = new Set(sorted.map((worker) => worker.id))
+    const extras = tasks.reduce<V2Worker[]>(
+      (rows, task) =>
+        knownIds.has(task.workerId) || rows.some((worker) => worker.id === task.workerId)
+          ? rows
+          : [...rows, { id: task.workerId, name: task.workerName, enabled: false } as V2Worker],
+      []
+    )
+    return [...sorted, ...extras]
   }, [props.workers, tasks])
+  const toneByWorker = useMemo(() => {
+    const tones = new Map<string, number>()
+    orderedWorkers.forEach((worker, index) => tones.set(worker.id, (index % workerToneCount) + 1))
+    return tones
+  }, [orderedWorkers])
+  const workersWithTasks = useMemo(
+    () => new Set(tasks.map((task) => task.workerId)),
+    [tasks]
+  )
+  const hasSchedulableWorkers = orderedWorkers.some(
+    (worker) => worker.enabled || workersWithTasks.has(worker.id)
+  )
 
   return (
     <YumiSection
@@ -289,60 +304,94 @@ export function WorkerWeekSchedule(props: {
       description={`${weekStart} 至 ${dates[6]} · 仅显示待完成与待质检任务`}
       title="人员周历"
     >
-      <div className="yumi-worker-week__scroller">
-        <div
-          className="yumi-worker-week__grid"
-          style={{ gridTemplateColumns: '160px repeat(7, minmax(150px, 1fr))' }}
-        >
-          <strong className="yumi-worker-week__corner">人员</strong>
-          {dates.map((date, index) => (
-            <strong className="yumi-worker-week__date" key={date}>
-              {['周一', '周二', '周三', '周四', '周五', '周六', '周日'][index]}
-              <small>{date.slice(5)}</small>
-            </strong>
-          ))}
-          {workerRows.map((worker) => (
-            <div className="yumi-worker-week__row" key={worker.id}>
-              <strong className="yumi-worker-week__worker">{worker.name}</strong>
-              {dates.map((date) => {
-                const cellTasks = tasks.filter(
-                  (task) => task.workerId === worker.id && task.assignedOn === date
-                )
-                return (
-                  <div className="yumi-worker-week__cell" key={date}>
-                    {cellTasks.map((task) => {
-                      const item = itemById.get(task.orderItemId)
-                      if (!item) return null
-                      return (
-                        <YumiButton
-                          aria-label={`${task.productName} ${dispatchStageLabels[task.stage]} ${task.plannedQuantity} ${taskStatusLabel(task.status)}`}
-                          className="yumi-worker-week__task"
-                          key={task.taskId}
-                          onClick={() => props.onOpenTask(item, task)}
-                          variant="ghost"
-                        >
-                          {task.productName} · {dispatchStageLabels[task.stage]} ·{' '}
-                          {task.plannedQuantity} · {taskStatusLabel(task.status)}
-                        </YumiButton>
-                      )
-                    })}
-                    <YumiButton
-                      aria-label={`为${worker.name}${date}派工`}
-                      className="yumi-worker-week__add"
-                      onClick={() =>
-                        props.onOpenAssignment({ workerId: worker.id, assignedOn: date })
-                      }
-                      variant="ghost"
+      {!hasSchedulableWorkers ? (
+        <YumiEmptyState
+          description="先到「工资」页的「人员与时薪」新增兼职人员并设置生效时薪；这里会按日期分列展示每位人员的待处理任务，并提供每天列底部的「＋ 派工」入口。"
+          scenario="first-use"
+          title="还没有可排班的兼职人员"
+        />
+      ) : (
+        <div className="yumi-worker-week__scroller">
+          <div
+            className="yumi-worker-week__grid"
+            style={{ gridTemplateColumns: 'repeat(7, minmax(150px, 1fr))' }}
+          >
+            {dates.map((date, index) => {
+              const dayTasks = tasks.filter((task) => task.assignedOn === date)
+              const groups = orderedWorkers
+                .map((worker) => ({
+                  worker,
+                  tasks: dayTasks.filter((task) => task.workerId === worker.id)
+                }))
+                .filter((group) => group.tasks.length > 0)
+              return (
+                <div className="yumi-worker-week__column" key={date}>
+                  <strong className="yumi-worker-week__date">
+                    {['周一', '周二', '周三', '周四', '周五', '周六', '周日'][index]}
+                    <small>{date.slice(5)}</small>
+                  </strong>
+                  {groups.map((group) => (
+                    <div
+                      className="yumi-worker-week__person"
+                      data-tone={toneByWorker.get(group.worker.id) ?? 1}
+                      key={group.worker.id}
                     >
-                      + 派工
-                    </YumiButton>
-                  </div>
-                )
-              })}
-            </div>
-          ))}
+                      <div className="yumi-worker-week__person-head">
+                        <strong className="yumi-worker-week__person-name">
+                          <span aria-hidden="true" className="yumi-worker-week__person-dot" />
+                          {group.worker.name}
+                        </strong>
+                        <span className="yumi-worker-week__person-count">
+                          {group.tasks.length} 条
+                        </span>
+                      </div>
+                      {group.tasks.map((task) => {
+                        const item = itemById.get(task.orderItemId)
+                        if (!item) return null
+                        return (
+                          <YumiButton
+                            aria-label={`${task.productName} ${dispatchStageLabels[task.stage]} ${task.plannedQuantity} ${taskStatusLabel(task.status)}`}
+                            className="yumi-worker-week__task"
+                            key={task.taskId}
+                            onClick={() => props.onOpenTask(item, task)}
+                            variant="ghost"
+                          >
+                            <span className="yumi-worker-week__task-head">
+                              <span className="yumi-worker-week__task-product">
+                                {task.productName}
+                              </span>
+                              <YumiStatusTag
+                                tone={task.status === 'pending_inspection' ? 'warning' : 'info'}
+                              >
+                                {taskStatusLabel(task.status)}
+                              </YumiStatusTag>
+                            </span>
+                            <span className="yumi-worker-week__task-meta">
+                              {dispatchStageLabels[task.stage]} · {task.plannedQuantity} 件
+                            </span>
+                          </YumiButton>
+                        )
+                      })}
+                    </div>
+                  ))}
+                  <YumiButton
+                    aria-label={`为${date}派工`}
+                    className={
+                      groups.length === 0
+                        ? 'yumi-worker-week__empty'
+                        : 'yumi-worker-week__add'
+                    }
+                    onClick={() => props.onOpenAssignment({ assignedOn: date })}
+                    variant="ghost"
+                  >
+                    ＋ 派工
+                  </YumiButton>
+                </div>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </YumiSection>
   )
 }
