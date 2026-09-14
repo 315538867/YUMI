@@ -346,6 +346,10 @@ describe('履约排班双视角交互', () => {
     const queue = screen.getByRole('region', { name: '订单排班队列' })
 
     expect(header).not.toBeNull()
+    expect(within(metrics).getByText('待制作')).toBeVisible()
+    expect(within(metrics).getByText('待捏毛装袋')).toBeVisible()
+    expect(within(metrics).getByText('待缝边')).toBeVisible()
+    expect(within(metrics).getByText('待打包发货')).toBeVisible()
     expect(within(header!).getByRole('group', { name: '排班页面动作' })).toBeVisible()
     expect(
       header!.compareDocumentPosition(viewSwitch) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -576,7 +580,7 @@ describe('履约排班双视角交互', () => {
     expect(screen.getByRole('region', { name: '排班阶段总量' })).toBeVisible()
     expect(screen.getByText('订单总量')).toBeVisible()
     expect(screen.getByText('已发货')).toBeVisible()
-    expect(screen.getByText('缝边')).toBeVisible()
+    expect(screen.getByText('待缝边')).toBeVisible()
   })
 
   it('待核算视图区分制作结果确认与计时工序工时核算', async () => {

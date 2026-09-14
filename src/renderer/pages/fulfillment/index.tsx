@@ -415,10 +415,10 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
         ariaLabel="排班阶段总量"
         items={[
           { label: '订单总量', value: `${scheduleTotals.confirmed} 件` },
-          { label: '制作', value: `${scheduleTotals.making} 件` },
-          { label: '捏毛装袋', value: `${scheduleTotals.fluffingBagging} 件` },
-          { label: '缝边', value: `${scheduleTotals.edgeSewing} 件` },
-          { label: '打包发货', value: `${scheduleTotals.packing} 件` },
+          { label: '待制作', value: `${scheduleTotals.making} 件` },
+          { label: '待捏毛装袋', value: `${scheduleTotals.fluffingBagging} 件` },
+          { label: '待缝边', value: `${scheduleTotals.edgeSewing} 件` },
+          { label: '待打包发货', value: `${scheduleTotals.packing} 件` },
           { label: '待发货', tone: 'brand', value: `${scheduleTotals.readyToShip} 件` },
           { label: '已发货', value: `${scheduleTotals.shipped} 件` }
         ]}
