@@ -569,7 +569,7 @@ describe('履约排班双视角交互', () => {
     await waitFor(() =>
       expect(mocks.reassignProcessTask).toHaveBeenCalledWith('task-making', {
         workerId: 'worker-li',
-        effectiveOn: new Date().toISOString().slice(0, 10),
+        effectiveOn: dateParts(new Date()),
         reason: '原负责人临时请假'
       })
     )

@@ -2172,15 +2172,15 @@ function OrderDetail(props: {
               ariaLabel="订单排班概览"
               items={[
                 {
-                  label: '制作',
+                  label: '待制作',
                   value: `${fulfillmentItems.reduce((sum, item) => sum + item.stages.making, 0)} 件`
                 },
                 {
-                  label: '捏毛装袋',
+                  label: '待捏毛装袋',
                   value: `${fulfillmentItems.reduce((sum, item) => sum + item.stages.fluffingBagging, 0)} 件`
                 },
                 {
-                  label: '打包',
+                  label: '待打包',
                   value: `${fulfillmentItems.reduce((sum, item) => sum + item.stages.packing, 0)} 件`
                 },
                 {
