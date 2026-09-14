@@ -16,7 +16,6 @@ import {
 } from '../../components/fulfillment/dispatch-views'
 import {
   YumiButton,
-  YumiDataTable,
   YumiDatePicker,
   YumiEmptyState,
   YumiField,
@@ -26,7 +25,6 @@ import {
   YumiPageHeader,
   YumiPrimaryTabs,
   YumiRecordSummary,
-  YumiSection,
   YumiSelect,
   YumiTextArea,
   useYumiNotificationMessage
@@ -457,48 +455,14 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
               workers={workers}
             />
           ) : (
-            <>
-              <YumiSection
-                description="制作完成数量与合格、不合格由负责人确认；其他三道计时工序在下方按整段时长核算。"
-                title="制作结果待确认"
-              >
-                {makingInspections.length ? (
-                  <YumiDataTable
-                    ariaLabel="制作结果待确认"
-                    columns={[
-                      { key: 'workerName', label: '人员', render: (row) => row.workerName },
-                      { key: 'assignedOn', label: '工作日期', render: (row) => row.assignedOn },
-                      { key: 'productName', label: '商品', render: (row) => row.productName },
-                      {
-                        key: 'plannedQuantity',
-                        label: '计划数量',
-                        align: 'right',
-                        render: (row) => `${row.plannedQuantity} 件`
-                      },
-                      {
-                        align: 'right',
-                        key: 'actions',
-                        label: '操作',
-                        render: (row) => (
-                          <YumiButton onClick={() => openTask(row.item, row.task)} variant="ghost">
-                            确认制作结果
-                          </YumiButton>
-                        )
-                      }
-                    ]}
-                    getRowKey={(row) => row.task.taskId}
-                    rows={makingInspections}
-                  />
-                ) : (
-                  <YumiEmptyState
-                    description="制作完成申报后，负责人可以在这里进入结果与质量确认。"
-                    scenario="first-use"
-                    title="暂无待确认制作结果"
-                  />
-                )}
-              </YumiSection>
-              <WorkTimeReviewPanel workers={workers} />
-            </>
+            <WorkTimeReviewPanel
+              makingEntries={makingInspections}
+              onChanged={() => {
+                void reload()
+              }}
+              onOpenMakingTask={openTask}
+              workers={workers}
+            />
           )}
         </>
       )}

@@ -1,14 +1,18 @@
-import { useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import type {
   V2WorkTimeReview,
   V2WorkTimeReviewProcessType,
   V2Worker
 } from '@shared/contracts/index'
 import { calculateWorkTimeComparison } from '@shared/calculations'
-import { formatCents, getErrorMessage, today } from '../../composables/v2-utils'
+import type {
+  FulfillmentQueueItem,
+  FulfillmentScheduledTask
+} from '../../composables/use-fulfillment'
+import { formatCents, getErrorMessage } from '../../composables/v2-utils'
 import {
   useWorkTimeReviews,
-  type WorkTimeReviewCandidate
+  type WorkTimeReviewGroup
 } from '../../composables/use-work-time-reviews'
 import {
   YumiButton,
@@ -21,10 +25,8 @@ import {
   YumiFormMessage,
   YumiNumberField,
   YumiSection,
-  YumiSelect,
   YumiStatusTag,
   YumiTextArea,
-  YumiTextField,
   useYumiNotificationMessage
 } from '../ui'
 
@@ -43,32 +45,116 @@ const statusMeta: Record<
   voided: { label: '已作废', tone: 'danger' }
 }
 
+export interface MakingReviewEntry {
+  item: FulfillmentQueueItem
+  task: FulfillmentScheduledTask
+  workerName: string
+  assignedOn: string
+  productName: string
+  plannedQuantity: number
+}
+
+type PendingRow =
+  | {
+      kind: 'making'
+      key: string
+      assignedOn: string
+      workerName: string
+      entry: MakingReviewEntry
+    }
+  | {
+      kind: 'timed'
+      key: string
+      assignedOn: string
+      workerName: string
+      group: WorkTimeReviewGroup
+    }
+
+function groupSummary(group: WorkTimeReviewGroup): string {
+  const products = group.candidates
+    .flatMap((candidate) => candidate.tasks)
+    .map((task) =>
+      task.plannedQuantity === null
+        ? task.productName
+        : `${task.productName} ${task.plannedQuantity} 件`
+    )
+    .join(' + ')
+  return `${group.candidates.length} 个安排 · ${products}`
+}
+
 /**
- * 负责人次日核算计时工序工时：选择员工与日期，录入整段核算时长与多商品完成明细，
- * 并展示预计总分钟、时间差与预计效率供人工核对。
+ * 待核算工作区：制作结果待确认与计时工序待核算统一列表，用类型标签区分制品（制作）与非制品（计时工序）。
+ * 制作事项进入完成数量与质量确认流程；计时事项按员工、日期、工序归组，在弹窗内登记整段时长与多商品完成数量。
  */
-export function WorkTimeReviewPanel({ workers }: { workers: V2Worker[] }) {
-  const { reviews, loading, loadError, createDraft, confirm, voidReview, loadCandidates } =
+export function WorkTimeReviewPanel(props: {
+  workers: V2Worker[]
+  makingEntries: MakingReviewEntry[]
+  onOpenMakingTask(item: FulfillmentQueueItem, task: FulfillmentScheduledTask): void
+  onChanged(): void
+}) {
+  const { reviews, loading, loadError, createDraft, confirm, voidReview, loadPendingGroups } =
     useWorkTimeReviews()
-  const [workerId, setWorkerId] = useState('')
-  const [workedOn, setWorkedOn] = useState(today())
-  const [candidates, setCandidates] = useState<WorkTimeReviewCandidate[]>([])
-  const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<string[]>([])
+  const [groups, setGroups] = useState<WorkTimeReviewGroup[]>([])
+  const [groupsLoading, setGroupsLoading] = useState(true)
+  const [listError, setListError] = useState<string | null>(null)
+  const [reviewingGroup, setReviewingGroup] = useState<WorkTimeReviewGroup | null>(null)
   const [approvedMinutes, setApprovedMinutes] = useState('0')
   const [quantities, setQuantities] = useState<Record<string, string>>({})
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [searched, setSearched] = useState(false)
   const [voidTarget, setVoidTarget] = useState<V2WorkTimeReview | null>(null)
   const [voidReason, setVoidReason] = useState('')
   useYumiNotificationMessage(loadError)
 
-  const selectedCandidates = candidates.filter((candidate) =>
-    selectedAssignmentIds.includes(candidate.assignmentId)
+  const loadGroups = useCallback(async () => {
+    setGroupsLoading(true)
+    try {
+      setGroups(await loadPendingGroups())
+      setListError(null)
+    } catch (groupsError) {
+      setListError(getErrorMessage(groupsError))
+    } finally {
+      setGroupsLoading(false)
+    }
+  }, [loadPendingGroups])
+
+  useEffect(() => {
+    void loadGroups()
+  }, [loadGroups])
+
+  const workerNameOf = useCallback(
+    (workerId: string) =>
+      props.workers.find((worker) => worker.id === workerId)?.name ?? '已删除人员',
+    [props.workers]
   )
-  const processType = selectedCandidates[0]?.processType ?? null
-  const selectedTasks = selectedCandidates.flatMap((candidate) => candidate.tasks)
+
+  const rows = useMemo<PendingRow[]>(() => {
+    const makingRows: PendingRow[] = props.makingEntries.map((entry) => ({
+      kind: 'making',
+      key: `making-${entry.task.taskId}`,
+      assignedOn: entry.assignedOn,
+      workerName: entry.workerName,
+      entry
+    }))
+    const timedRows: PendingRow[] = groups.map((group) => ({
+      kind: 'timed',
+      key: group.key,
+      assignedOn: group.assignedOn,
+      workerName: workerNameOf(group.workerId),
+      group
+    }))
+    return [...makingRows, ...timedRows].sort(
+      (left, right) =>
+        right.assignedOn.localeCompare(left.assignedOn) ||
+        left.workerName.localeCompare(right.workerName) ||
+        left.kind.localeCompare(right.kind)
+    )
+  }, [groups, props.makingEntries, workerNameOf])
+
+  const selectedTasks = reviewingGroup
+    ? reviewingGroup.candidates.flatMap((candidate) => candidate.tasks)
+    : []
   const completedItems = selectedTasks.map((task) => ({
     label: task.productName,
     completedQuantity: Number(quantities[task.taskId] || '0') || 0,
@@ -79,57 +165,25 @@ export function WorkTimeReviewPanel({ workers }: { workers: V2Worker[] }) {
     items: completedItems
   })
 
-  const workerOptions = workers
-    .filter((worker) => worker.enabled)
-    .map((worker) => ({ value: worker.id, label: worker.name }))
-
-  const search = async () => {
-    setBusy(true)
-    setError(null)
-    setSelectedAssignmentIds([])
+  const openReviewDialog = (group: WorkTimeReviewGroup) => {
+    setReviewingGroup(group)
+    setApprovedMinutes('0')
     setQuantities({})
-    try {
-      const next = await loadCandidates(workerId, workedOn)
-      setCandidates(next)
-      setSearched(true)
-    } catch (searchError) {
-      setError(getErrorMessage(searchError))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const toggleAssignment = (candidate: WorkTimeReviewCandidate) => {
+    setNotes('')
     setError(null)
-    setSelectedAssignmentIds((current) => {
-      if (current.includes(candidate.assignmentId)) {
-        return current.filter((id) => id !== candidate.assignmentId)
-      }
-      const currentProcess = candidates.find((entry) =>
-        current.includes(entry.assignmentId)
-      )?.processType
-      if (currentProcess && currentProcess !== candidate.processType) {
-        setError('一条工时核算只能包含同一道工序的工作安排。')
-        return current
-      }
-      return [...current, candidate.assignmentId]
-    })
   }
 
-  const submit = async (confirmAfterSave: boolean) => {
-    if (!processType || !selectedAssignmentIds.length || !selectedTasks.length) {
-      setError('请先选择员工、日期并勾选待核算的工作安排。')
-      return
-    }
+  const submitReview = async (confirmAfterSave: boolean) => {
+    if (!reviewingGroup) return
     setBusy(true)
     setError(null)
     try {
       const draft = await createDraft({
-        workerId,
-        workedOn,
-        processType,
+        workerId: reviewingGroup.workerId,
+        workedOn: reviewingGroup.assignedOn,
+        processType: reviewingGroup.processType,
         approvedMinutes: Number(approvedMinutes) || 0,
-        assignmentIds: selectedAssignmentIds,
+        assignmentIds: reviewingGroup.candidates.map((candidate) => candidate.assignmentId),
         items: selectedTasks.map((task) => ({
           processTaskId: task.taskId,
           completedQuantity: Number(quantities[task.taskId] || '0') || 0
@@ -137,13 +191,9 @@ export function WorkTimeReviewPanel({ workers }: { workers: V2Worker[] }) {
         reviewNote: notes || null
       })
       if (confirmAfterSave) await confirm(draft.id)
-      setCandidates((current) =>
-        current.filter((candidate) => !selectedAssignmentIds.includes(candidate.assignmentId))
-      )
-      setSelectedAssignmentIds([])
-      setQuantities({})
-      setApprovedMinutes('0')
-      setNotes('')
+      setReviewingGroup(null)
+      await loadGroups()
+      props.onChanged()
     } catch (submitError) {
       setError(getErrorMessage(submitError))
     } finally {
@@ -160,6 +210,8 @@ export function WorkTimeReviewPanel({ workers }: { workers: V2Worker[] }) {
       await voidReview(voidTarget.id, { reason: voidReason })
       setVoidTarget(null)
       setVoidReason('')
+      await loadGroups()
+      props.onChanged()
     } catch (voidError) {
       setError(getErrorMessage(voidError))
     } finally {
@@ -170,133 +222,65 @@ export function WorkTimeReviewPanel({ workers }: { workers: V2Worker[] }) {
   return (
     <>
       <YumiSection
-        description="排班只安排人员、日期、工序与数量；最终工作时长与完成数量在第二天由负责人核算。"
-        title="计时工序待核算"
+        description={`制作（制品）与计时工序（非制品）待核算事项统一列出；共 ${rows.length} 项待处理。`}
+        title="待核算"
       >
-        <div className="yumi-form-grid yumi-form-grid--two">
-          <YumiField>
-            <YumiFieldLabel htmlFor="review-worker" required>
-              兼职人员
-            </YumiFieldLabel>
-            <YumiSelect
-              aria-label="兼职人员"
-              onValueChange={setWorkerId}
-              options={workerOptions}
-              placeholder="请选择兼职人员"
-              value={workerId}
-            />
-          </YumiField>
-          <YumiField>
-            <YumiFieldLabel htmlFor="review-worked-on">工作日期</YumiFieldLabel>
-            <YumiTextField
-              id="review-worked-on"
-              onChange={(event) => setWorkedOn(event.target.value)}
-              value={workedOn}
-            />
-          </YumiField>
-        </div>
-        <YumiButton loading={busy} onClick={() => void search()} variant="secondary">
-          查找待核算安排
-        </YumiButton>
-
-        {searched && !candidates.length ? (
+        {listError ? <YumiFormMessage tone="error">{listError}</YumiFormMessage> : null}
+        {groupsLoading && !rows.length ? (
+          <YumiFormMessage tone="hint">正在读取待核算事项…</YumiFormMessage>
+        ) : rows.length ? (
+          <YumiDataTable
+            ariaLabel="待核算事项"
+            columns={[
+              {
+                key: 'type',
+                label: '类型',
+                render: (row) =>
+                  row.kind === 'making' ? (
+                    <YumiStatusTag tone="brand">制作</YumiStatusTag>
+                  ) : (
+                    <YumiStatusTag tone="neutral">
+                      {processLabels[row.group.processType]}
+                    </YumiStatusTag>
+                  )
+              },
+              { key: 'workerName', label: '人员', render: (row) => row.workerName },
+              { key: 'assignedOn', label: '工作日期', render: (row) => row.assignedOn },
+              {
+                key: 'content',
+                label: '待核算内容',
+                render: (row) =>
+                  row.kind === 'making'
+                    ? `${row.entry.productName} · 计划 ${row.entry.plannedQuantity} 件`
+                    : groupSummary(row.group)
+              },
+              {
+                align: 'right',
+                key: 'actions',
+                label: '操作',
+                render: (row) =>
+                  row.kind === 'making' ? (
+                    <YumiButton
+                      onClick={() => props.onOpenMakingTask(row.entry.item, row.entry.task)}
+                      variant="secondary"
+                    >
+                      确认结果
+                    </YumiButton>
+                  ) : (
+                    <YumiButton onClick={() => openReviewDialog(row.group)} variant="secondary">
+                      登记核算
+                    </YumiButton>
+                  )
+              }
+            ]}
+            getRowKey={(row) => row.key}
+            rows={rows}
+          />
+        ) : (
           <YumiFormMessage tone="hint">
-            该员工当天没有可核算的计时工序安排；已核算或已作废的安排不会重复出现。
+            暂无待核算事项；制作完成申报或计时工序安排完成后会在这里等待核算。
           </YumiFormMessage>
-        ) : null}
-
-        {candidates.length ? (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submit(false)
-            }}
-          >
-            <ul aria-label="待核算工作安排" className="yumi-work-time-review__candidates">
-              {candidates.map((candidate) => (
-                <li key={candidate.assignmentId}>
-                  <label>
-                    <input
-                      checked={selectedAssignmentIds.includes(candidate.assignmentId)}
-                      onChange={() => toggleAssignment(candidate)}
-                      type="checkbox"
-                    />
-                    {processLabels[candidate.processType]} · {candidate.tasks.length} 个商品
-                  </label>
-                </li>
-              ))}
-            </ul>
-            <div className="yumi-form-grid yumi-form-grid--two">
-              <YumiField hint="录入整段核算时长；同一时段的提成按各商品完成数量计算。">
-                <YumiFieldLabel htmlFor="review-approved-minutes" required>
-                  负责人核算时长（分钟）
-                </YumiFieldLabel>
-                <YumiNumberField
-                  id="review-approved-minutes"
-                  onChange={(event) => setApprovedMinutes(event.target.value)}
-                  required
-                  value={approvedMinutes}
-                />
-              </YumiField>
-              {selectedTasks.map((task) => (
-                <YumiField key={task.taskId}>
-                  <YumiFieldLabel htmlFor={`review-quantity-${task.taskId}`}>
-                    {task.productName} 完成数量（件）
-                  </YumiFieldLabel>
-                  <YumiNumberField
-                    id={`review-quantity-${task.taskId}`}
-                    onChange={(event) =>
-                      setQuantities((current) => ({
-                        ...current,
-                        [task.taskId]: event.target.value
-                      }))
-                    }
-                    value={quantities[task.taskId] ?? ''}
-                  />
-                </YumiField>
-              ))}
-            </div>
-            <YumiField>
-              <YumiFieldLabel htmlFor="review-note">核算备注</YumiFieldLabel>
-              <YumiTextArea
-                id="review-note"
-                onChange={(event) => setNotes(event.target.value)}
-                value={notes}
-              />
-            </YumiField>
-            {selectedTasks.length ? (
-              <div className="yumi-work-time-review__comparison">
-                <YumiDetailList
-                  ariaLabel="工时核对"
-                  items={[
-                    {
-                      label: '预计总分钟',
-                      value: `${comparison.expectedMinutes.minutes} 分钟`
-                    },
-                    { label: '时间差', value: `${comparison.differenceMinutes} 分钟` }
-                  ]}
-                />
-                <p className="yumi-work-time-review__formula">
-                  {comparison.expectedMinutes.expression}：
-                  {comparison.expectedMinutes.substitutedExpression}
-                </p>
-                <YumiCalculatedAmount calculation={comparison.efficiency} />
-                {comparison.attentionMessage ? (
-                  <YumiFormMessage tone="hint">{comparison.attentionMessage}</YumiFormMessage>
-                ) : null}
-              </div>
-            ) : null}
-            {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
-            <div className="yumi-form-actions">
-              <YumiButton loading={busy} type="submit" variant="secondary">
-                保存草稿
-              </YumiButton>
-              <YumiButton loading={busy} onClick={() => void submit(true)} variant="primary">
-                保存并确认
-              </YumiButton>
-            </div>
-          </form>
-        ) : null}
+        )}
       </YumiSection>
 
       <YumiSection
@@ -379,6 +363,116 @@ export function WorkTimeReviewPanel({ workers }: { workers: V2Worker[] }) {
           <YumiFormMessage tone="hint">还没有工时核算记录。</YumiFormMessage>
         )}
       </YumiSection>
+
+      <YumiDialog
+        description="整段时长与各商品完成数量会在确认后写入工资来源；核对提示仅供人工参考。"
+        footer={
+          <>
+            <YumiButton
+              disabled={busy}
+              onClick={() => setReviewingGroup(null)}
+              variant="ghost"
+            >
+              取消
+            </YumiButton>
+            <YumiButton
+              loading={busy}
+              onClick={() => void submitReview(false)}
+              variant="secondary"
+            >
+              保存草稿
+            </YumiButton>
+            <YumiButton
+              form="work-time-review-form"
+              loading={busy}
+              type="submit"
+              variant="primary"
+            >
+              保存并确认
+            </YumiButton>
+          </>
+        }
+        onOpenChange={(open) => {
+          if (!open) setReviewingGroup(null)
+        }}
+        open={reviewingGroup !== null}
+        title="登记工时核算"
+      >
+        {reviewingGroup ? (
+          <form
+            id="work-time-review-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submitReview(true)
+            }}
+          >
+            <p className="yumi-work-time-review__dialog-meta">
+              {`${workerNameOf(reviewingGroup.workerId)} · ${reviewingGroup.assignedOn} · ${
+                processLabels[reviewingGroup.processType]
+              } · 含 ${reviewingGroup.candidates.length} 个安排`}
+            </p>
+            <div className="yumi-form-grid yumi-form-grid--two">
+              <YumiField hint="录入整段核算时长；同一时段的提成按各商品完成数量计算。">
+                <YumiFieldLabel htmlFor="review-approved-minutes" required>
+                  负责人核算时长（分钟）
+                </YumiFieldLabel>
+                <YumiNumberField
+                  id="review-approved-minutes"
+                  onChange={(event) => setApprovedMinutes(event.target.value)}
+                  required
+                  value={approvedMinutes}
+                />
+              </YumiField>
+              {selectedTasks.map((task) => (
+                <YumiField key={task.taskId}>
+                  <YumiFieldLabel htmlFor={`review-quantity-${task.taskId}`}>
+                    {task.productName} 完成数量（件）
+                  </YumiFieldLabel>
+                  <YumiNumberField
+                    id={`review-quantity-${task.taskId}`}
+                    onChange={(event) =>
+                      setQuantities((current) => ({
+                        ...current,
+                        [task.taskId]: event.target.value
+                      }))
+                    }
+                    value={quantities[task.taskId] ?? ''}
+                  />
+                </YumiField>
+              ))}
+            </div>
+            <div className="yumi-work-time-review__comparison">
+              <YumiDetailList
+                ariaLabel="工时核对"
+                items={[
+                  {
+                    label: '预计总分钟',
+                    value: `${comparison.expectedMinutes.minutes} 分钟`
+                  },
+                  { label: '时间差', value: `${comparison.differenceMinutes} 分钟` }
+                ]}
+              />
+              <p className="yumi-work-time-review__formula">
+                {comparison.expectedMinutes.expression}：
+                {comparison.expectedMinutes.substitutedExpression}
+              </p>
+              <YumiCalculatedAmount calculation={comparison.efficiency} />
+              {comparison.attentionMessage ? (
+                <YumiFormMessage tone="hint">{comparison.attentionMessage}</YumiFormMessage>
+              ) : null}
+            </div>
+            <YumiField>
+              <YumiFieldLabel htmlFor="review-note">核算备注</YumiFieldLabel>
+              <YumiTextArea
+                id="review-note"
+                onChange={(event) => setNotes(event.target.value)}
+                value={notes}
+              />
+            </YumiField>
+            {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
+          </form>
+        ) : null}
+      </YumiDialog>
 
       <YumiDialog
         description="仅当完成结果未被下游工序消耗且工时未进入已确认结算时才可作废。"

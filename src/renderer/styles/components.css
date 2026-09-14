@@ -1644,19 +1644,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 工时核算：待核算安排勾选与预计时长核对并排展示。 */
-.yumi-work-time-review__candidates {
-  display: grid;
-  gap: var(--yumi-space-2);
-  margin: 0 0 var(--yumi-space-4);
-  padding: 0;
-  list-style: none;
-}
-.yumi-work-time-review__candidates label {
-  display: flex;
-  align-items: center;
-  gap: var(--yumi-space-2);
-  color: var(--yumi-ink);
+/* 工时核算：登记弹窗内的组摘要与预计时长核对展示。 */
+.yumi-work-time-review__dialog-meta {
+  margin: 0 0 var(--yumi-space-3);
+  color: var(--yumi-muted);
   font-size: 13px;
   line-height: 20px;
 }

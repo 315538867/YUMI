@@ -68,6 +68,7 @@ const mocks = vi.hoisted(() => {
     selectOrder: vi.fn().mockResolvedValue(undefined),
     createWorkAssignment: vi.fn().mockResolvedValue(undefined),
     reassignProcessTask: vi.fn().mockResolvedValue(undefined),
+    listWorkAssignments: vi.fn().mockResolvedValue([]),
     showSelectedOrder: false,
     workers: [
       { id: 'worker-wang', name: '小王', enabled: true },
@@ -163,6 +164,7 @@ vi.mock('../../composables/use-fulfillment', async (importOriginal) => {
       ],
       loading: false,
       loadError: null,
+      reload: vi.fn(),
       selectOrder: mocks.selectOrder,
       createWorkAssignment: mocks.createWorkAssignment,
       reassignProcessTask: mocks.reassignProcessTask,
@@ -180,6 +182,9 @@ Object.assign(window, {
       updateDraft: vi.fn(),
       confirm: vi.fn(),
       void: vi.fn()
+    },
+    fulfillment: {
+      listWorkAssignments: mocks.listWorkAssignments
     }
   }
 })
@@ -583,7 +588,7 @@ describe('履约排班双视角交互', () => {
     expect(screen.getByText('待缝边')).toBeVisible()
   })
 
-  it('待核算视图区分制作结果确认与计时工序工时核算', async () => {
+  it('待核算视图统一列出制作结果与计时工序待核算事项', async () => {
     const originalQueueItems = mocks.queueItems
     mocks.queueItems = [
       {
@@ -607,15 +612,20 @@ describe('履约排班双视角交互', () => {
 
       fireEvent.click(screen.getByRole('button', { name: '待核算' }))
 
-      const inspections = await screen.findByRole('table', { name: '制作结果待确认' })
-      expect(within(inspections).getByText('草莓捏捏')).toBeVisible()
-      expect(within(inspections).getByRole('button', { name: '确认制作结果' })).toBeVisible()
-      expect(screen.getByRole('heading', { name: '计时工序待核算' })).toBeVisible()
-      expect(screen.getByRole('heading', { name: '1 选择员工与日期' })).toBeVisible()
-      expect(screen.getByText('选择员工与日期后自动列出当天待核算安排。')).toBeVisible()
+      const pending = await screen.findByRole('table', { name: '待核算事项' })
+      expect(within(pending).getByText('制作')).toBeVisible()
+      expect(within(pending).getByText('草莓捏捏 · 计划 12 件')).toBeVisible()
+      expect(within(pending).getByText('小王')).toBeVisible()
+      expect(within(pending).getByRole('button', { name: '确认结果' })).toBeVisible()
+
+      // 旧的两段式布局与分步查找入口已移除
+      expect(screen.queryByRole('heading', { name: '计时工序待核算' })).not.toBeInTheDocument()
+      expect(screen.queryByText('1 选择员工与日期')).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: '查找待核算安排' })).not.toBeInTheDocument()
       expect(screen.getByRole('heading', { name: '已登记工时核算' })).toBeVisible()
-      expect(screen.queryByRole('button', { name: '补录期初在制品' })).not.toBeInTheDocument()
+
+      fireEvent.click(within(pending).getByRole('button', { name: '确认结果' }))
+      expect(mocks.selectOrder).toHaveBeenCalledWith('order-1')
     } finally {
       mocks.queueItems = originalQueueItems
     }
