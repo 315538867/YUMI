@@ -4,13 +4,13 @@ date: 2026-09-14
 last_modified: 2026-09-14
 modifier: Codex
 solution_version: v1.1
-status: 已确认，OpenSpec 提案已生成
+status: 已实施完成并归档（openspec/changes/archive/2026-09-14-redesign-product-process-payroll-and-costing）
 scope: 商品资料、预计盈利、商品阶段存量、订单履约工序、负责人次日工时核算、兼职工资、统一计算公式与金额公式组件
 platform: Electron 单电脑离线桌面应用
-implementation_status: 未实施
+implementation_status: 已实施（2026-09-14，四阶段全部完成并通过全量验收）
 openspec_change_id: redesign-product-process-payroll-and-costing
 openspec_change_name: YUMI 商品、工序、工资与公式中心重构
-openspec_status: 计划工件完整，严格验证通过，未授权实施
+openspec_status: 实施完成，全量测试、类型检查、lint、格式检查、构建与严格验证全部通过；已于 2026-09-14 归档并完成主规格同步（30 个主规格严格校验通过）
 open_questions: 无阻塞项；采用一个 OpenSpec 提案，提案内部按 A、B、C、D 四个阶段组织；不设计历史业务数据迁移
 ---
 
@@ -1173,13 +1173,12 @@ Change ID：redesign-product-process-payroll-and-costing
 组织方式：同一提案内按 A、B、C、D 四个阶段实施
 数据策略：不迁移或兼容旧业务数据
 计划状态：proposal、specs、design、tasks 完整，严格验证通过
-实施状态：未实施
+实施状态：已按 A、B、C、D 四阶段顺序实施完成（2026-09-14）
 ```
 
-生成提案只代表计划授权，不代表业务代码实施授权。下一步必须由用户再次明确授权实施，之后才能执行：
+实施过程与结果：
 
-```bash
-openspec instructions apply --change redesign-product-process-payroll-and-costing
-```
-
-实施时严格按照同一份 `tasks.md` 的阶段顺序推进；归档仍需单独授权。
+- 严格按同一份 `tasks.md` 的阶段顺序推进，`tasks.md` 中 31 项任务全部勾选并记录证据。
+- 全量验收：`pnpm test`（106 文件 443 测试）、`pnpm run typecheck`、`pnpm run lint`、`pnpm run format:check`、`pnpm run build`、`git diff --check` 与 `openspec validate redesign-product-process-payroll-and-costing --strict` 全部通过。
+- 部署与回滚说明见 `docs/2026-09-14-v2-target-model-deployment-and-rollback.md`（备份保留与不迁移旧数据边界）。
+- 归档：经用户授权后于 2026-09-14 执行，变更迁移至 `openspec/changes/archive/2026-09-14-redesign-product-process-payroll-and-costing/`，10 个增量规格已同步到主规格并通过严格校验。
