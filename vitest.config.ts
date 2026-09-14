@@ -12,6 +12,7 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     passWithNoTests: false,
-    reporters: ['default']
+    reporters: ['default'],
+    setupFiles: ['src/renderer/test/setup.ts']
   }
 })
