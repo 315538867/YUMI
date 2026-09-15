@@ -41,10 +41,10 @@ type YumiPageButtonAction = {
 export type YumiPagePrimaryAction = YumiPageButtonAction
 
 /**
- * 页面唯一可见的辅助操作；默认是标准次级按钮，返回上级等导航操作可显式使用 ghost。
+ * 页面可见的辅助操作；默认是标准次级按钮，返回上级等导航操作可显式使用 ghost。
  * 其他低频操作应移动到 menu，避免业务页面自由堆叠按钮。
  */
-export type YumiPageSecondaryAction = YumiPageButtonAction & {
+export type YumiPageVisibleAction = YumiPageButtonAction & {
   variant?: 'secondary' | 'ghost'
 }
 
@@ -53,12 +53,10 @@ export type YumiPageActionsProps = {
   ariaLabel: string
   /** 与当前页面状态相关的只读信息，例如状态标签；不承载可提交操作。 */
   context?: ReactNode
-  /** 唯一可见的高频辅助操作，例如刷新、导出或返回；由共享层生成按钮。 */
-  secondaryAction?: YumiPageSecondaryAction
+  /** 可见的辅助操作（刷新、导出、返回等），按顺序由共享层生成次级按钮；低频操作应收纳到 menu。 */
+  visibleActions?: YumiPageVisibleAction[]
   /** 低频同级页面操作，统一收纳到“更多操作”。 */
   menu?: YumiPageActionMenu
-  /** 详情页的高频上下文操作可以完整显示；仍不能替代唯一主操作。 */
-  visibleActions?: YumiPageSecondaryAction[]
   /** 页面唯一主操作，例如新建或编辑；统一渲染为 primary 按钮。 */
   primaryAction?: YumiPagePrimaryAction
 }
@@ -72,24 +70,11 @@ export function YumiPageActions({
   context,
   menu,
   primaryAction,
-  secondaryAction,
   visibleActions = []
 }: YumiPageActionsProps) {
   return (
     <div aria-label={ariaLabel} className="yumi-page-actions" role="group">
       {context ? <div className="yumi-page-actions__context">{context}</div> : null}
-      {secondaryAction ? (
-        <div className="yumi-page-actions__secondary">
-          <YumiButton
-            disabled={secondaryAction.disabled}
-            loading={secondaryAction.loading}
-            onClick={secondaryAction.onClick}
-            variant={secondaryAction.variant ?? 'secondary'}
-          >
-            {secondaryAction.label}
-          </YumiButton>
-        </div>
-      ) : null}
       {visibleActions.map((action, index) => (
         <div className="yumi-page-actions__secondary" key={`${String(action.label)}-${index}`}>
           <YumiButton

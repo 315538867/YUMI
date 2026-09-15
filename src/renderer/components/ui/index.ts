@@ -35,7 +35,7 @@ export {
   YumiRecordSummary,
   YumiSection,
   type YumiPagePrimaryAction,
-  type YumiPageSecondaryAction
+  type YumiPageVisibleAction
 } from './page-header/yumi-page-header'
 export {
   YumiPrimaryTabs,

@@ -29,7 +29,6 @@ export function YumiDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="yumi-dialog__overlay" />
         <Dialog.Content
-          aria-describedby={description ? undefined : undefined}
           className={
             size === 'wide'
               ? 'yumi-dialog__content yumi-dialog__content--wide'

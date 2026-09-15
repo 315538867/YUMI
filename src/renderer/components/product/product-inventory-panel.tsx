@@ -19,10 +19,11 @@ import {
   YumiFieldLabel,
   YumiFormMessage,
   YumiNumberField,
+  YumiDatePicker,
+  YumiRecordActionBar,
   YumiSection,
   YumiSelect,
   YumiTextArea,
-  YumiTextField,
   useYumiNotificationMessage
 } from '../ui'
 
@@ -171,17 +172,14 @@ export function ProductInventoryPanel({ product }: { product: V2Product }) {
     <>
       <YumiSection
         actions={
-          <div className="yumi-record-action-bar">
-            <YumiButton onClick={() => setOpeningOpen(true)} variant="secondary">
-              录入历史存量
-            </YumiButton>
-            <YumiButton onClick={() => setAdjustOpen(true)} variant="secondary">
-              负责人调整
-            </YumiButton>
-            <YumiButton onClick={() => void openAllocate()} variant="primary">
-              投入订单
-            </YumiButton>
-          </div>
+          <YumiRecordActionBar
+            actions={[
+              { label: '录入历史存量', onClick: () => setOpeningOpen(true), variant: 'secondary' },
+              { label: '负责人调整', onClick: () => setAdjustOpen(true), variant: 'secondary' },
+              { label: '投入订单', onClick: () => void openAllocate(), variant: 'primary' }
+            ]}
+            ariaLabel="商品存量操作"
+          />
         }
         description="商品存量按物理加工阶段记录；余额来自流水汇总，任一阶段都不能为负。"
         title="商品存量"
@@ -287,12 +285,8 @@ export function ProductInventoryPanel({ product }: { product: V2Product }) {
             />
           </YumiField>
           <YumiField>
-            <YumiFieldLabel htmlFor="inventory-opening-date">发生日期</YumiFieldLabel>
-            <YumiTextField
-              id="inventory-opening-date"
-              onChange={(event) => setOpeningDate(event.target.value)}
-              value={openingDate}
-            />
+            <YumiFieldLabel>发生日期</YumiFieldLabel>
+            <YumiDatePicker onValueChange={setOpeningDate} value={openingDate} />
           </YumiField>
           <YumiField>
             <YumiFieldLabel htmlFor="inventory-opening-note">备注</YumiFieldLabel>
@@ -349,12 +343,8 @@ export function ProductInventoryPanel({ product }: { product: V2Product }) {
             />
           </YumiField>
           <YumiField>
-            <YumiFieldLabel htmlFor="inventory-adjust-date">发生日期</YumiFieldLabel>
-            <YumiTextField
-              id="inventory-adjust-date"
-              onChange={(event) => setAdjustDate(event.target.value)}
-              value={adjustDate}
-            />
+            <YumiFieldLabel>发生日期</YumiFieldLabel>
+            <YumiDatePicker onValueChange={setAdjustDate} value={adjustDate} />
           </YumiField>
           <YumiField>
             <YumiFieldLabel htmlFor="inventory-adjust-note" required>
@@ -430,12 +420,8 @@ export function ProductInventoryPanel({ product }: { product: V2Product }) {
               />
             </YumiField>
             <YumiField>
-              <YumiFieldLabel htmlFor="inventory-allocate-date">发生日期</YumiFieldLabel>
-              <YumiTextField
-                id="inventory-allocate-date"
-                onChange={(event) => setAllocateDate(event.target.value)}
-                value={allocateDate}
-              />
+              <YumiFieldLabel>发生日期</YumiFieldLabel>
+              <YumiDatePicker onValueChange={setAllocateDate} value={allocateDate} />
             </YumiField>
           </form>
         ) : (

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { X } from 'lucide-react'
 import { YumiIconButton } from '../button/yumi-button'
 import { YumiNotificationContext, getYumiNotificationTimeout } from './yumi-notification-context'
 
@@ -50,7 +51,7 @@ export function YumiNotification({
     >
       <span>{message}</span>
       <YumiIconButton label="关闭通知" onClick={close} variant="ghost">
-        ×
+        <X aria-hidden="true" size={17} />
       </YumiIconButton>
     </div>
   )

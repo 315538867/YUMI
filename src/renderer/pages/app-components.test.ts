@@ -29,6 +29,15 @@ const reportsPageSource = source('src/renderer/pages/reports/index.tsx')
 const settingsPageSource = source('src/renderer/pages/settings/index.tsx')
 const numericTextFieldSource = source('src/renderer/pages/numeric-text-field.tsx')
 const afterSalesPanelSource = source('src/renderer/components/after-sales/after-sales-panel.tsx')
+const workTimeReviewPanelSource = source(
+  'src/renderer/components/fulfillment/work-time-review-panel.tsx'
+)
+const workTimeReviewFormsSource = source(
+  'src/renderer/components/fulfillment/work-time-review-forms.tsx'
+)
+const productInventoryPanelSource = source(
+  'src/renderer/components/product/product-inventory-panel.tsx'
+)
 const fieldSource = source('src/renderer/components/ui/field/yumi-field.tsx')
 const financeComposableSource = source('src/renderer/composables/use-finance.ts')
 const backupsComposableSource = source('src/renderer/composables/use-backups.ts')
@@ -127,6 +136,9 @@ describe('YUMI 表单反馈组件规范', () => {
       productPageSource,
       fulfillmentDispatchViewsSource,
       settlementDetailSource,
+      workTimeReviewPanelSource,
+      workTimeReviewFormsSource,
+      productInventoryPanelSource,
       financePageSource,
       orderPageSource,
       settingsPageSource
@@ -148,6 +160,16 @@ describe('YUMI 表单反馈组件规范', () => {
     expect(fieldSource).not.toContain('yumi-field__error')
     expect(fieldSource).not.toContain('yumi-field__hint')
     expect(componentStylesSource).toContain('.yumi-field__label-hint')
+  })
+})
+
+describe('YUMI 记录操作规范', () => {
+  it('记录与区块操作条统一复用 YumiRecordActionBar，业务组件不手拼容器类', () => {
+    for (const pageSource of [workTimeReviewPanelSource, productInventoryPanelSource]) {
+      expect(pageSource).toContain('YumiRecordActionBar')
+      expect(pageSource).not.toContain('className="yumi-record-action-bar"')
+    }
+    expect(componentStylesSource).toContain('.yumi-record-action-bar')
   })
 })
 
@@ -200,11 +222,11 @@ describe('YUMI 全局经营页面骨架', () => {
   })
 
   it('页头可见次操作同样只传递结构化配置，由共享层固定为标准次级或返回样式', () => {
-    const pagesWithSecondaryAction = [orderPageSource, fulfillmentPageSource, workbenchPageSource]
+    const pagesWithVisibleActions = [orderPageSource, fulfillmentPageSource, workbenchPageSource]
 
-    for (const pageSource of pagesWithSecondaryAction) {
-      expect(pageSource).toMatch(/secondaryAction:\s*\{/)
-      expect(pageSource).not.toMatch(/secondaryAction:\s*(?:\(|<)/)
+    for (const pageSource of pagesWithVisibleActions) {
+      expect(pageSource).toMatch(/visibleActions:\s*\[/)
+      expect(pageSource).not.toMatch(/visibleActions:\s*(?:\(|<)/)
     }
   })
 })
@@ -413,14 +435,19 @@ describe('YUMI 业务页原生控件边界', () => {
       productPageSource,
       orderPageSource,
       fulfillmentPageSource,
+      fulfillmentDispatchViewsSource,
       workAssignmentsPageSource,
       workersPageSource,
       settlementsPageSource,
+      settlementDetailSource,
       financePageSource,
       reportsPageSource,
       workbenchPageSource,
       settingsPageSource,
-      afterSalesPanelSource
+      afterSalesPanelSource,
+      workTimeReviewPanelSource,
+      workTimeReviewFormsSource,
+      productInventoryPanelSource
     ]
 
     for (const pageSource of businessViewSources) {

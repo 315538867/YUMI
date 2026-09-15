@@ -133,7 +133,7 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
       <YumiPageHeader
         actions={{
           ariaLabel: '排班页面动作',
-          secondaryAction: { label: '导出排班', onClick: () => undefined }
+          visibleActions: [{ label: '导出排班', onClick: () => undefined }]
         }}
         description="人员周历是唯一的新建排班入口；待核算页签统一登记制作与计时的实际产出。"
         title="排班"

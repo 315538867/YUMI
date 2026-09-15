@@ -30,6 +30,8 @@ import {
   YumiField,
   YumiFieldLabel,
   YumiFormMessage,
+  YumiRecordActionBar,
+  type YumiRecordAction,
   YumiSection,
   YumiStatusTag,
   YumiTextArea,
@@ -338,34 +340,34 @@ export function WorkTimeReviewPanel({
                   const readOnly =
                     row.kind === 'timed' &&
                     (row.review.status === 'draft' || !row.review.workAssignmentId)
+                  const actions: YumiRecordAction[] = [
+                    { label: '查看', onClick: () => setDetailRow(row), variant: 'ghost' }
+                  ]
+                  if (!readOnly) {
+                    actions.push(
+                      {
+                        disabled: lock.locked,
+                        label: '更正',
+                        onClick: () => openCorrection(row),
+                        title: lock.message ?? undefined,
+                        variant: 'secondary'
+                      },
+                      {
+                        disabled: lock.locked,
+                        label: '作废',
+                        onClick: () => setVoidRow(row),
+                        title: lock.message ?? undefined,
+                        variant: 'ghost'
+                      }
+                    )
+                  }
                   return (
-                    <div className="yumi-record-action-bar">
-                      <YumiButton onClick={() => setDetailRow(row)} variant="ghost">
-                        查看
-                      </YumiButton>
+                    <>
+                      <YumiRecordActionBar ariaLabel="核算记录操作" actions={actions} />
                       {readOnly ? (
                         <span className="yumi-work-time-review__muted">只读历史</span>
-                      ) : (
-                        <>
-                          <YumiButton
-                            disabled={lock.locked}
-                            onClick={() => openCorrection(row)}
-                            title={lock.message ?? undefined}
-                            variant="secondary"
-                          >
-                            更正
-                          </YumiButton>
-                          <YumiButton
-                            disabled={lock.locked}
-                            onClick={() => setVoidRow(row)}
-                            title={lock.message ?? undefined}
-                            variant="ghost"
-                          >
-                            作废
-                          </YumiButton>
-                        </>
-                      )}
-                    </div>
+                      ) : null}
+                    </>
                   )
                 }
               }

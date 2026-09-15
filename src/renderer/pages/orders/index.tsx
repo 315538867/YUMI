@@ -1184,6 +1184,11 @@ export function OrdersPage({
               visibleActions: [
                 {
                   disabled: exporting,
+                  label: '导出订单表',
+                  onClick: () => void exportOrderFile('order-table')
+                },
+                {
+                  disabled: exporting,
                   label: '发货汇总',
                   onClick: () => void exportOrderFile('shipping-list')
                 }
@@ -1194,11 +1199,6 @@ export function OrdersPage({
                   setDetailView('overview')
                   setContentEditorOpen(true)
                 }
-              },
-              secondaryAction: {
-                disabled: exporting,
-                label: '导出订单表',
-                onClick: () => void exportOrderFile('order-table')
               }
             }}
             navigation={{

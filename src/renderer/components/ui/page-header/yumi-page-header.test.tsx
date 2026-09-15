@@ -73,8 +73,8 @@ describe('YumiPageActions', () => {
           items: [{ id: 'archive', label: '归档订单', onSelect: onArchive }]
         }}
         primaryAction={{ label: '编辑订单', onClick: onEdit }}
-        secondaryAction={{ label: '导出订单表', onClick: onExport }}
         visibleActions={[
+          { label: '导出订单表', onClick: onExport },
           { label: '返回订单列表', onClick: vi.fn(), variant: 'ghost' },
           { label: '导出发货汇总', onClick: vi.fn() }
         ]}

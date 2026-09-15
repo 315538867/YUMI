@@ -128,10 +128,12 @@ export function WorkbenchPage({
         title="工作台"
         actions={{
           ariaLabel: '工作台页面动作',
-          secondaryAction: {
-            label: '刷新',
-            onClick: () => void reload()
-          }
+          visibleActions: [
+            {
+              label: '刷新',
+              onClick: () => void reload()
+            }
+          ]
         }}
       />
       {loading ? (

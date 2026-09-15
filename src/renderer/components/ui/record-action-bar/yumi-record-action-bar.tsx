@@ -6,6 +6,8 @@ export type YumiRecordAction = {
   label: ReactNode
   loading?: boolean
   onClick: MouseEventHandler<HTMLButtonElement>
+  /** 禁用原因等悬停提示，透传给按钮。 */
+  title?: string
   variant?: YumiButtonVariant
 }
 
@@ -31,6 +33,7 @@ export function YumiRecordActionBar({ actions, ariaLabel, className }: YumiRecor
           key={`${String(action.label)}-${index}`}
           loading={action.loading}
           onClick={action.onClick}
+          title={action.title}
           variant={action.variant ?? 'ghost'}
         >
           {action.label}

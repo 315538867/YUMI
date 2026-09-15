@@ -468,34 +468,34 @@ export function TimedReviewDialog({
       >
         <YumiFieldLabel required>实际开始与结束时间</YumiFieldLabel>
         <div className="yumi-work-time-review__time-grid">
-          <label className="yumi-work-time-review__time-field">
+          <div className="yumi-work-time-review__time-field">
             <span>开始日期</span>
             <YumiDatePicker
               aria-label="核算开始日期"
               onValueChange={changeStartDate}
               value={startDate}
             />
-          </label>
-          <label className="yumi-work-time-review__time-field">
+          </div>
+          <div className="yumi-work-time-review__time-field">
             <span>开始时间</span>
             <YumiTimeField
               aria-label="核算开始时间"
               onValueChange={setStartTime}
               value={startTime}
             />
-          </label>
-          <label className="yumi-work-time-review__time-field">
+          </div>
+          <div className="yumi-work-time-review__time-field">
             <span>结束日期</span>
             <YumiDatePicker
               aria-label="核算结束日期"
               onValueChange={changeEndDate}
               value={endDate}
             />
-          </label>
-          <label className="yumi-work-time-review__time-field">
+          </div>
+          <div className="yumi-work-time-review__time-field">
             <span>结束时间</span>
             <YumiTimeField aria-label="核算结束时间" onValueChange={setEndTime} value={endTime} />
-          </label>
+          </div>
         </div>
       </YumiField>
       <YumiDetailList
