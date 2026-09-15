@@ -48,25 +48,28 @@ const yumiV2: V2YumiApi = {
   },
   fulfillment: {
     createWorkAssignment: (input) => ipcRenderer.invoke('v2:fulfillment:assignments:create', input),
+    setWorkAssignmentStatus: (assignmentId, input) =>
+      ipcRenderer.invoke('v2:fulfillment:assignments:status', assignmentId, input),
     reassignProcessTask: (taskId, input) =>
       ipcRenderer.invoke('v2:fulfillment:tasks:reassign', taskId, input),
     getWorkAssignment: (id) => ipcRenderer.invoke('v2:fulfillment:assignments:get', id),
     listWorkAssignments: (query) => ipcRenderer.invoke('v2:fulfillment:assignments:list', query),
     getProcessResultForTask: (taskId) =>
       ipcRenderer.invoke('v2:fulfillment:tasks:result:get', taskId),
-    submitProcessResult: (taskId, input) =>
-      ipcRenderer.invoke('v2:fulfillment:results:submit', taskId, input),
-    confirmQualityInspection: (resultId, input) =>
-      ipcRenderer.invoke('v2:fulfillment:inspections:confirm', resultId, input),
+    reviewMaking: (input) => ipcRenderer.invoke('v2:fulfillment:making-reviews:create', input),
+    correctMakingReview: (input) =>
+      ipcRenderer.invoke('v2:fulfillment:making-reviews:correct', input),
+    voidMakingReview: (input) => ipcRenderer.invoke('v2:fulfillment:making-reviews:void', input),
     adjustStageQuantity: (input) => ipcRenderer.invoke('v2:fulfillment:adjustments:create', input),
     getOrderItem: (orderItemId) => ipcRenderer.invoke('v2:fulfillment:order-item:get', orderItemId)
   },
   workTimeReviews: {
     list: (query) => ipcRenderer.invoke('v2:work-time-reviews:list', query),
     get: (id) => ipcRenderer.invoke('v2:work-time-reviews:get', id),
-    createDraft: (input) => ipcRenderer.invoke('v2:work-time-reviews:drafts:create', input),
-    updateDraft: (input) => ipcRenderer.invoke('v2:work-time-reviews:drafts:update', input),
-    confirm: (id) => ipcRenderer.invoke('v2:work-time-reviews:confirm', id),
+    listCandidates: (assignmentId, query) =>
+      ipcRenderer.invoke('v2:work-time-reviews:candidates:list', assignmentId, query),
+    review: (input) => ipcRenderer.invoke('v2:work-time-reviews:create', input),
+    correct: (input) => ipcRenderer.invoke('v2:work-time-reviews:correct', input),
     void: (id, input) => ipcRenderer.invoke('v2:work-time-reviews:void', id, input)
   },
   productInventory: {

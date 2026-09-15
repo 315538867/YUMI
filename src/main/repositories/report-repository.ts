@@ -82,6 +82,7 @@ interface EventRow {
   target_stage: V2FulfillmentEvent['targetStage']
   source_record_type: string | null
   source_record_id: string | null
+  source_event_key: string | null
   occurred_on: string
   note: string | null
   created_at: string
@@ -97,6 +98,7 @@ function mapEvent(row: EventRow): V2FulfillmentEvent {
     targetStage: row.target_stage,
     sourceRecordType: row.source_record_type,
     sourceRecordId: row.source_record_id,
+    sourceEventKey: row.source_event_key,
     occurredOn: row.occurred_on,
     note: row.note,
     createdAt: row.created_at

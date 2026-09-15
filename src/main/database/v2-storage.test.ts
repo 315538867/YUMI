@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { createV2Database } from './v2-connection'
-import { runV2Migrations } from './v2-migrations'
+import { runV2Migrations, runV2MigrationsUpTo } from './v2-migrations'
 import {
   V2_ATTACHMENT_DIRECTORY_NAME,
   V2_BACKUP_DIRECTORY_NAME,
@@ -41,7 +41,7 @@ describe('V2 独立数据空间', () => {
     ).toBeTruthy()
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 15 })
+    ).toEqual({ version: 16 })
     const productColumns = (
       database.prepare('PRAGMA table_info(products)').all() as Array<{ name: string }>
     ).map((column) => column.name)
@@ -123,7 +123,7 @@ describe('V2 独立数据空间', () => {
 
     const reopened = createV2Database(storage.databasePath)
     expect(reopened.prepare('SELECT COUNT(*) AS count FROM v2_schema_migrations').get()).toEqual({
-      count: 15
+      count: 16
     })
     expect(reopened.prepare('SELECT name FROM customers WHERE id = ?').get('customer-1')).toEqual({
       name: '重复启动客户'
@@ -333,7 +333,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 15 })
+    ).toEqual({ version: 16 })
     expect(
       database
         .prepare(
@@ -523,7 +523,7 @@ describe('V2 独立数据空间', () => {
     )
     expect(
       database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
-    ).toEqual({ version: 15 })
+    ).toEqual({ version: 16 })
 
     database
       .prepare(
@@ -802,5 +802,343 @@ describe('V2 独立数据空间', () => {
     ).toEqual({ financial_entry_id: 'legacy-wage-entry-1' })
     expect(upgraded.prepare('PRAGMA foreign_key_check').all()).toEqual([])
     upgraded.close()
+  })
+})
+
+describe('V2 计时排班解耦与单次核算迁移', () => {
+  it('全新库建立排班模式与重复计时班次唯一约束', () => {
+    const database = createV2Database(':memory:')
+    expect(
+      database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
+    ).toEqual({ version: 16 })
+    const workAssignmentColumns = (
+      database.prepare('PRAGMA table_info(work_assignments)').all() as Array<{ name: string }>
+    ).map((column) => column.name)
+    expect(workAssignmentColumns).toEqual(
+      expect.arrayContaining(['schedule_mode', 'status', 'assigned_on'])
+    )
+
+    const insertTimed = database.prepare(
+      `
+      INSERT INTO work_assignments (
+        id, worker_id, assigned_on, process_type, status, schedule_mode, created_at, updated_at
+      ) VALUES (?, 'worker-timed', '2026-09-10', ?, 'scheduled', 'timed_shift', '2026-09-10T00:00:00.000Z', '2026-09-10T00:00:00.000Z')
+    `
+    )
+    insertTimed.run('timed-repeated-1', 'edge_sewing')
+    expect(() => insertTimed.run('timed-repeated-2', 'edge_sewing')).toThrow('UNIQUE')
+    insertTimed.run('timed-other-process', 'packing')
+
+    database
+      .prepare("UPDATE work_assignments SET status = 'cancelled' WHERE id = 'timed-repeated-1'")
+      .run()
+    insertTimed.run('timed-repeated-2', 'edge_sewing')
+    database
+      .prepare("UPDATE work_assignments SET status = 'absent' WHERE id = 'timed-repeated-2'")
+      .run()
+    insertTimed.run('timed-repeated-3', 'edge_sewing')
+
+    const insertMaking = database.prepare(
+      `
+      INSERT INTO work_assignments (
+        id, worker_id, assigned_on, process_type, status, schedule_mode, created_at, updated_at
+      ) VALUES (?, 'worker-timed', '2026-09-10', 'making', 'scheduled', 'making_task', '2026-09-10T00:00:00.000Z', '2026-09-10T00:00:00.000Z')
+    `
+    )
+    insertMaking.run('making-1')
+    insertMaking.run('making-2')
+    database.close()
+  })
+
+  it('v15 升级保留历史事实、释放草稿并允许零产出制作结果', () => {
+    const database = new Database(':memory:')
+    database.pragma('foreign_keys = ON')
+    runV2MigrationsUpTo(database, 15)
+    expect(
+      database.prepare('SELECT MAX(version) AS version FROM v2_schema_migrations').get()
+    ).toEqual({ version: 15 })
+
+    database
+      .prepare(
+        `
+      INSERT INTO workers (id, name, enabled, created_at, updated_at)
+      VALUES ('worker-legacy', '历史兼职', 1, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO orders (id, code, customer_snapshot_json, created_at, updated_at)
+      VALUES ('order-legacy', 'ORDER-LEGACY', '{"name":"客户"}', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO order_items (
+        id, order_id, product_snapshot_json, quantity, unit_price_cents, created_at, updated_at
+      ) VALUES ('item-legacy', 'order-legacy', '{"name":"历史商品"}', 10, 6_000, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO work_assignments (id, worker_id, assigned_on, process_type, status, created_at, updated_at)
+      VALUES ('assignment-legacy-making', 'worker-legacy', '2026-09-08', 'making', 'completed', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO process_tasks (
+        id, work_assignment_id, order_item_id, process_type, source_type, planned_quantity,
+        planned_minutes, extra_minutes, status, piece_rate_cents, created_at, updated_at
+      ) VALUES ('task-legacy-making', 'assignment-legacy-making', 'item-legacy', 'making', 'normal_production', 10, 120, 0, 'confirmed', 300, '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO process_results (id, process_task_id, completed_quantity, submitted_on, note, created_at)
+      VALUES ('result-legacy', 'task-legacy-making', 10, '2026-09-08', '历史结果', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO quality_inspections (
+        id, process_result_id, process_task_id, qualified_quantity, unqualified_quantity,
+        inspected_on, requires_rework, created_at
+      ) VALUES ('inspection-legacy', 'result-legacy', 'task-legacy-making', 9, 1, '2026-09-09', 0, '2026-09-09T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO fulfillment_events (
+        id, order_item_id, event_type, quantity, source_stage, target_stage,
+        source_record_type, source_record_id, occurred_on, created_at
+      ) VALUES ('event-legacy', 'item-legacy', 'making_qualified', 9, 'making', 'fluffing_bagging',
+        'quality_inspection', 'inspection-legacy', '2026-09-09', '2026-09-09T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO work_assignments (id, worker_id, assigned_on, process_type, status, created_at, updated_at)
+      VALUES ('assignment-legacy-timed', 'worker-legacy', '2026-09-10', 'packing', 'scheduled', '2026-09-10T00:00:00.000Z', '2026-09-10T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO process_tasks (
+        id, work_assignment_id, order_item_id, process_type, source_type, planned_quantity,
+        planned_minutes, extra_minutes, status, piece_rate_cents, created_at, updated_at
+      ) VALUES ('task-legacy-packing', 'assignment-legacy-timed', 'item-legacy', 'packing', 'normal_production', 5, 30, 0, 'pending', NULL, '2026-09-10T00:00:00.000Z', '2026-09-10T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO work_time_reviews (
+        id, worker_id, worked_on, process_type, approved_minutes, hourly_wage_cents_snapshot,
+        source_type, raw_started_at, raw_ended_at, status, review_note, created_at, updated_at
+      ) VALUES ('review-legacy-draft', 'worker-legacy', '2026-09-09', 'packing', 240, NULL,
+        'manual_review', NULL, NULL, 'draft', '未确认草稿', '2026-09-09T00:00:00.000Z', '2026-09-09T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO work_time_review_assignments (review_id, work_assignment_id, created_at)
+      VALUES ('review-legacy-draft', 'assignment-legacy-timed', '2026-09-09T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO work_time_reviews (
+        id, worker_id, worked_on, process_type, approved_minutes, hourly_wage_cents_snapshot,
+        source_type, status, review_note, created_at, updated_at
+      ) VALUES ('review-legacy-confirmed', 'worker-legacy', '2026-09-08', 'packing', 180, 2_000,
+        'manual_review', 'confirmed', '历史已确认', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO work_time_review_items (
+        id, review_id, process_task_id, order_item_id, completed_quantity, created_at
+      ) VALUES ('review-item-legacy', 'review-legacy-confirmed', 'task-legacy-packing', NULL, 5, '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO financial_entries (id, source_type, direction, business_type, amount_cents, occurred_on, created_at)
+      VALUES ('wage-entry-legacy', 'worker_settlement', 'expense', 'wage_payment', 6_000, '2026-09-08', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO worker_settlements (
+        id, worker_id, period_start_on, period_end_on, status, financial_entry_id, created_at, updated_at
+      ) VALUES ('settlement-legacy', 'worker-legacy', '2026-09-08', '2026-09-08', 'confirmed', 'wage-entry-legacy', '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO worker_settlement_timed_sources (
+        id, settlement_id, work_time_review_id, process_type, occurred_on, approved_minutes,
+        hourly_wage_cents_snapshot, timed_wage_cents, commission_cents, status, created_at
+      ) VALUES ('timed-source-legacy', 'settlement-legacy', 'review-legacy-confirmed', 'packing', '2026-09-08', 180, 2_000, 6_000, 0, 'confirmed', '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+    database
+      .prepare(
+        `
+      INSERT INTO worker_settlement_timed_items (
+        id, timed_source_id, process_task_id, order_item_id, completed_quantity, piece_rate_cents, commission_cents, created_at
+      ) VALUES ('timed-item-legacy', 'timed-source-legacy', 'task-legacy-packing', 'item-legacy', 5, 0, 0, '2026-09-08T00:00:00.000Z')
+    `
+      )
+      .run()
+
+    runV2Migrations(database)
+
+    expect(
+      database
+        .prepare(
+          "SELECT status, schedule_mode FROM work_assignments WHERE id = 'assignment-legacy-making'"
+        )
+        .get()
+    ).toEqual({ status: 'completed', schedule_mode: 'legacy_task' })
+    expect(database.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+
+    // 历史草稿转为作废但保留原记录，不生成履约或工资事实
+    expect(
+      database
+        .prepare('SELECT status, void_reason, voided_at FROM work_time_reviews WHERE id = ?')
+        .get('review-legacy-draft')
+    ).toMatchObject({ status: 'voided' })
+    expect(
+      database
+        .prepare('SELECT COUNT(*) AS count FROM fulfillment_events WHERE id = ?')
+        .get('event-legacy')
+    ).toEqual({ count: 1 })
+    expect(
+      database
+        .prepare(
+          "SELECT COUNT(*) AS count FROM worker_settlement_timed_sources WHERE work_time_review_id = 'review-legacy-draft'"
+        )
+        .get()
+    ).toEqual({ count: 0 })
+
+    // 历史已确认核算与结算金额守恒
+    expect(
+      database
+        .prepare(
+          'SELECT status, approved_minutes, hourly_wage_cents_snapshot FROM work_time_reviews WHERE id = ?'
+        )
+        .get('review-legacy-confirmed')
+    ).toEqual({ status: 'confirmed', approved_minutes: 180, hourly_wage_cents_snapshot: 2_000 })
+    expect(
+      database
+        .prepare(
+          'SELECT qualified_quantity, unqualified_quantity FROM quality_inspections WHERE id = ?'
+        )
+        .get('inspection-legacy')
+    ).toEqual({ qualified_quantity: 9, unqualified_quantity: 1 })
+    expect(
+      database
+        .prepare('SELECT completed_quantity, status FROM process_results WHERE id = ?')
+        .get('result-legacy')
+    ).toEqual({ completed_quantity: 10, status: 'confirmed' })
+
+    // 历史核算明细回填订单商品与提成快照，预计分钟无法可靠补齐留空
+    expect(
+      database
+        .prepare(
+          'SELECT order_item_id, process_task_id, piece_rate_cents_snapshot, expected_unit_minutes_snapshot FROM work_time_review_items WHERE id = ?'
+        )
+        .get('review-item-legacy')
+    ).toEqual({
+      order_item_id: 'item-legacy',
+      process_task_id: 'task-legacy-packing',
+      piece_rate_cents_snapshot: null,
+      expected_unit_minutes_snapshot: null
+    })
+
+    // 历史结算明细保留任务关联且不新造核算明细来源
+    expect(
+      database
+        .prepare(
+          'SELECT process_task_id, work_time_review_item_id FROM worker_settlement_timed_items WHERE id = ?'
+        )
+        .get('timed-item-legacy')
+    ).toEqual({ process_task_id: 'task-legacy-packing', work_time_review_item_id: null })
+
+    // 零产出制作结果允许写入，重复当前有效结果被唯一约束拒绝
+    database
+      .prepare(
+        `
+      INSERT INTO process_results (
+        id, process_task_id, completed_quantity, submitted_on, status, created_at
+      ) VALUES ('result-zero', 'task-legacy-making', 0, '2026-09-11', 'voided', '2026-09-11T00:00:00.000Z')
+    `
+      )
+      .run()
+    expect(() =>
+      database
+        .prepare(
+          `
+      INSERT INTO process_results (
+        id, process_task_id, completed_quantity, submitted_on, status, created_at
+      ) VALUES ('result-duplicate-current', 'task-legacy-making', 1, '2026-09-11', 'confirmed', '2026-09-11T00:00:00.000Z')
+    `
+        )
+        .run()
+    ).toThrow('UNIQUE')
+
+    // 履约事件幂等键：历史为空可共存，新键唯一但同一来源允许多条不同事件
+    const insertEvent = database.prepare(
+      `
+      INSERT INTO fulfillment_events (
+        id, order_item_id, event_type, quantity, source_record_type, source_record_id,
+        source_event_key, occurred_on, created_at
+      ) VALUES (?, 'item-legacy', 'fluffing_bagging_completed', 1, 'work_time_review_item',
+        'review-item-legacy', ?, '2026-09-11', '2026-09-11T00:00:00.000Z')
+    `
+    )
+    insertEvent.run('event-key-1', 'work_time_review_item:review-item-legacy:to_edge_sewing')
+    expect(() =>
+      insertEvent.run(
+        'event-key-duplicate',
+        'work_time_review_item:review-item-legacy:to_edge_sewing'
+      )
+    ).toThrow('UNIQUE')
+    insertEvent.run('event-key-2', 'work_time_review_item:review-item-legacy:to_packing')
+
+    database.close()
   })
 })

@@ -22,10 +22,12 @@ function assignment(
     workerId: 'worker-1',
     assignedOn: '2026-09-06',
     processType: 'making',
+    scheduleMode: 'making_task',
     status: 'scheduled',
     note: null,
     createdAt: iso,
     updatedAt: iso,
+    timedReview: null,
     tasks: [
       {
         id: taskId,
@@ -43,11 +45,39 @@ function assignment(
         glueCostCents: 20,
         rateSnapshot: null,
         note: null,
+        reviewSummary: null,
         createdAt: iso,
         updatedAt: iso,
         ...overrides
       }
     ]
+  }
+}
+
+function timedAssignment(input: {
+  id: string
+  assignedOn?: string
+  reviewed?: boolean
+}): V2WorkAssignment {
+  return {
+    id: input.id,
+    workerId: 'worker-1',
+    assignedOn: input.assignedOn ?? '2026-09-07',
+    processType: 'packing',
+    scheduleMode: 'timed_shift',
+    status: 'scheduled',
+    note: null,
+    createdAt: iso,
+    updatedAt: iso,
+    tasks: [],
+    timedReview: input.reviewed
+      ? {
+          reviewId: 'review-1',
+          approvedMinutes: 120,
+          reviewedOn: '2026-09-07',
+          lock: { locked: false, reason: null, message: null }
+        }
+      : null
   }
 }
 
@@ -236,31 +266,50 @@ function createService(
 }
 
 describe('WorkbenchService', () => {
-  it('从既有事实聚合待决定和可推进事项，去重并按优先级稳定排序', () => {
+  it('从既有事实聚合待核算、待决定与可推进事项，去重并按优先级稳定排序', () => {
     const snapshot = createService({
-      assignments: [assignment('task-1', { status: 'pending_inspection' }), assignment('task-2')]
+      assignments: [
+        assignment('task-1', { status: 'pending_inspection' }),
+        assignment('task-2'),
+        timedAssignment({ id: 'assignment-timed' }),
+        timedAssignment({ id: 'assignment-timed-reviewed', reviewed: true })
+      ]
     }).getSnapshot()
 
     expect(snapshot.generatedOn).toBe('2026-09-08')
     expect(snapshot.decisionItems.map((item) => item.id)).toEqual([
-      'quality-inspection:task-1',
       'after-sales:after-sales-1',
+      'making-review:task-1',
+      'making-review:task-2',
       'refund:refund-1',
+      'timed-review:assignment-timed',
       'settlement:settlement-1'
     ])
     expect(snapshot.advanceItems.map((item) => item.id)).toEqual([
       'shipment:item-1',
-      'process-task:task-2',
       'reimbursement:advance-1'
     ])
-    expect(snapshot.decisionItems[0]).toMatchObject({
+    expect(snapshot.decisionItems[1]).toMatchObject({
+      kind: 'work_time_review',
       navigationTarget: {
         view: 'fulfillment',
         orderItemId: 'item-1',
         processTaskId: 'task-1',
-        focus: 'inspection'
+        workAssignmentId: 'assignment-task-1',
+        focus: 'reviews'
       },
       quantityOrAmount: { kind: 'quantity', value: 10, unit: '件' }
+    })
+    expect(
+      snapshot.decisionItems.find((item) => item.id === 'timed-review:assignment-timed')
+    ).toMatchObject({
+      kind: 'work_time_review',
+      subject: { title: '核算打包发货工时' },
+      navigationTarget: {
+        view: 'fulfillment',
+        workAssignmentId: 'assignment-timed',
+        focus: 'reviews'
+      }
     })
     expect(snapshot.advanceItems[0]).toMatchObject({
       navigationTarget: {
@@ -271,12 +320,51 @@ describe('WorkbenchService', () => {
       },
       quantityOrAmount: { kind: 'quantity', value: 3, unit: '件' }
     })
-    expect(snapshot.decisionItems[2]).toMatchObject({
+    expect(snapshot.decisionItems[3]).toMatchObject({
       kind: 'refund',
       quantityOrAmount: { kind: 'amount', value: 750, unit: '元' },
       navigationTarget: { view: 'settlements', focus: 'refund' }
     })
     expect(snapshot.firstUseGuide).toBeNull()
+  })
+
+  it('未来排班不进入待核算，已核算与缺勤/取消班次不生成事项', () => {
+    const snapshot = createService({
+      assignments: [
+        { ...assignment('task-future', { status: 'pending' }), assignedOn: '2026-09-09' },
+        timedAssignment({ id: 'assignment-future', assignedOn: '2026-09-09' }),
+        {
+          ...assignment('task-reviewed', {
+            status: 'confirmed',
+            reviewSummary: {
+              resultId: 'result-1',
+              completedQuantity: 10,
+              qualifiedQuantity: 10,
+              unqualifiedQuantity: 0,
+              unfinishedQuantity: 0,
+              reviewedOn: '2026-09-06',
+              note: null,
+              supersedesResultId: null,
+              lock: { locked: false, reason: null, message: null },
+              createdAt: iso
+            }
+          }),
+          assignedOn: '2026-09-06'
+        },
+        { ...timedAssignment({ id: 'assignment-cancelled' }), status: 'cancelled' }
+      ]
+    }).getSnapshot()
+
+    expect(snapshot.decisionItems.map((item) => item.id)).toEqual([
+      'after-sales:after-sales-1',
+      'refund:refund-1',
+      'settlement:settlement-1'
+    ])
+    expect(snapshot.advanceItems.map((item) => item.id)).toEqual([
+      'shipment:item-1',
+      'process-task:task-future',
+      'reimbursement:advance-1'
+    ])
   })
 
   it('无待办时仅返回当前最先缺失的首用前置操作，读取不会写入领域状态', () => {

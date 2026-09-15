@@ -1674,6 +1674,20 @@
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+/* 锁定记录的不可操作原因与只读历史提示。 */
+.yumi-work-time-review__lock {
+  display: block;
+  max-width: 240px;
+  color: var(--yumi-warning);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.yumi-work-time-review__muted {
+  color: var(--yumi-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
 
 /* 商品全页工作区：左侧录入、右侧持续显示预计盈利预览；窄屏折为上下两段。 */
 .yumi-product-workspace {

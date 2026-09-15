@@ -60,20 +60,33 @@ export type {
   V2FulfillmentEventType,
   V2FulfillmentStage,
   V2FulfillmentStageBalances,
+  V2MakingReviewCorrectionInput,
+  V2MakingReviewInput,
+  V2MakingReviewSummary,
+  V2MakingReviewVoidInput,
+  V2MakingTaskInput,
+  V2MakingWorkAssignmentCreateInput,
   V2OrderItemFulfillment,
   V2ProcessResult,
   V2ProcessResultInput,
+  V2ProcessResultStatus,
   V2ProcessTask,
-  V2ProcessTaskInput,
   V2ProcessTaskSource,
   V2ProcessTaskStatus,
   V2ProcessType,
   V2QualityInspection,
   V2QualityInspectionInput,
+  V2ReviewLockReason,
+  V2ReviewLockState,
+  V2TimedProcessType,
+  V2TimedReviewSummary,
+  V2TimedWorkAssignmentCreateInput,
   V2WorkAssignment,
   V2WorkAssignmentCreateInput,
   V2WorkAssignmentQuery,
-  V2WorkAssignmentStatus
+  V2WorkAssignmentScheduleMode,
+  V2WorkAssignmentStatus,
+  V2WorkAssignmentStatusUpdateInput
 } from './fulfillment'
 
 export type {
@@ -163,6 +176,9 @@ export type {
 
 export type {
   V2WorkTimeReview,
+  V2WorkTimeReviewCandidate,
+  V2WorkTimeReviewCandidateQuery,
+  V2WorkTimeReviewCorrectionInput,
   V2WorkTimeReviewInput,
   V2WorkTimeReviewItem,
   V2WorkTimeReviewItemInput,
@@ -170,7 +186,6 @@ export type {
   V2WorkTimeReviewQuery,
   V2WorkTimeReviewSource,
   V2WorkTimeReviewStatus,
-  V2WorkTimeReviewUpdateInput,
   V2WorkTimeReviewVoidInput
 } from './work-time-reviews'
 

@@ -1,4 +1,8 @@
 import { DomainValidationError } from './errors'
+import {
+  parseMinutePrecisionDateTime,
+  type MinutePrecisionDateTime
+} from '@shared/calculations/work-time'
 
 export const workTimeReviewProcessTypes = ['fluffing_bagging', 'edge_sewing', 'packing'] as const
 export type WorkTimeReviewProcessType = (typeof workTimeReviewProcessTypes)[number]
@@ -7,15 +11,21 @@ export const workTimeReviewStatuses = ['draft', 'confirmed', 'voided'] as const
 export type WorkTimeReviewStatus = (typeof workTimeReviewStatuses)[number]
 
 export interface WorkTimeReviewItemDraft {
-  processTaskId: string
+  orderItemId: string
   completedQuantity: number
 }
 
 export interface WorkTimeReviewInputDraft {
-  processType: WorkTimeReviewProcessType
-  approvedMinutes: number
-  assignmentIds: string[]
+  processType: string
+  workAssignmentId: string
   items: WorkTimeReviewItemDraft[]
+}
+
+export interface ReviewTimeRangeDraft {
+  startedAt: string
+  endedAt: string
+  minutes: number
+  workedOn: string
 }
 
 function requirePositiveInteger(value: number, label: string): number {
@@ -25,7 +35,13 @@ function requirePositiveInteger(value: number, label: string): number {
   return value
 }
 
-/** 只有三道计时工序可以创建工时核算；制作走结果与质量确认。 */
+function requireMinutePrecision(value: string, label: string): MinutePrecisionDateTime {
+  const parsed = parseMinutePrecisionDateTime(value)
+  if (!parsed) throw new DomainValidationError(`${label}必须精确到分钟`)
+  return parsed
+}
+
+/** 只有三道计时工序可以创建工时核算；制作走一次结果与质量核算。 */
 export function requireWorkTimeProcessType(value: string): WorkTimeReviewProcessType {
   if (!workTimeReviewProcessTypes.includes(value as WorkTimeReviewProcessType)) {
     throw new DomainValidationError('工时核算只适用于捏毛装袋、缝边和打包发货工序')
@@ -33,34 +49,63 @@ export function requireWorkTimeProcessType(value: string): WorkTimeReviewProcess
   return value as WorkTimeReviewProcessType
 }
 
+/**
+ * 实际时间范围校验：分钟精度、结束严格晚于开始、开始日期等于排班日期、
+ * 当前时间不得早于结束时间；分钟由主进程按绝对时间差计算并归属开始日期。
+ */
+export function assertReviewTimeRange(input: {
+  startedAt: string
+  endedAt: string
+  assignedOn: string
+  now: string
+}): ReviewTimeRangeDraft {
+  const started = requireMinutePrecision(input.startedAt, '实际开始时间')
+  const ended = requireMinutePrecision(input.endedAt, '实际结束时间')
+  if (ended.date.getTime() <= started.date.getTime()) {
+    throw new DomainValidationError('实际结束时间必须晚于实际开始时间')
+  }
+  if (new Date(input.now).getTime() < ended.date.getTime()) {
+    throw new DomainValidationError('实际结束时间尚未到达，不能确认核算')
+  }
+  if (started.localDate !== input.assignedOn) {
+    throw new DomainValidationError('实际开始时间的日期必须与排班日期一致')
+  }
+  const minutes = (ended.date.getTime() - started.date.getTime()) / 60_000
+  requirePositiveInteger(minutes, '核算分钟')
+  return {
+    startedAt: input.startedAt,
+    endedAt: input.endedAt,
+    minutes,
+    workedOn: started.localDate
+  }
+}
+
+/** 一条计时核算只关联一项安排，明细以订单商品计且同一商品不得重复。 */
 export function assertWorkTimeReviewInput(input: WorkTimeReviewInputDraft): void {
   requireWorkTimeProcessType(input.processType)
-  requirePositiveInteger(input.approvedMinutes, '负责人核算分钟')
-  if (!input.assignmentIds.length) throw new DomainValidationError('工时核算至少需要一条工作安排')
-  if (new Set(input.assignmentIds).size !== input.assignmentIds.length) {
-    throw new DomainValidationError('同一条工作安排不能重复关联')
+  if (!input.workAssignmentId.trim()) {
+    throw new DomainValidationError('工时核算必须关联一条计时工作安排')
   }
   if (!input.items.length) throw new DomainValidationError('工时核算至少需要一条商品完成明细')
-  const taskIds = new Set<string>()
+  const orderItemIds = new Set<string>()
   for (const item of input.items) {
-    if (!item.processTaskId.trim()) throw new DomainValidationError('完成明细必须关联工序任务')
-    if (taskIds.has(item.processTaskId)) {
-      throw new DomainValidationError('同一工序任务不能重复登记完成数量')
+    if (!item.orderItemId.trim()) {
+      throw new DomainValidationError('完成明细必须关联订单商品')
     }
-    taskIds.add(item.processTaskId)
+    if (orderItemIds.has(item.orderItemId)) {
+      throw new DomainValidationError('同一订单商品不能重复登记完成数量')
+    }
+    orderItemIds.add(item.orderItemId)
     requirePositiveInteger(item.completedQuantity, '商品完成数量')
   }
 }
 
-export function assertReviewIsDraft(status: WorkTimeReviewStatus): void {
-  if (status !== 'draft') throw new DomainValidationError('只有草稿工时核算可以修改')
+/** 只有当前有效的已核算记录可以更正。 */
+export function assertReviewCanCorrect(status: WorkTimeReviewStatus): void {
+  if (status !== 'confirmed') throw new DomainValidationError('只有已核算记录可以更正')
 }
 
-export function assertReviewCanConfirm(status: WorkTimeReviewStatus): void {
-  if (status === 'confirmed') return
-  if (status === 'voided') throw new DomainValidationError('已作废工时核算不能确认')
-}
-
+/** 只有当前有效的已核算记录可以作废。 */
 export function assertReviewCanVoid(status: WorkTimeReviewStatus): void {
-  if (status !== 'confirmed') throw new DomainValidationError('只有已确认工时核算可以作废')
+  if (status !== 'confirmed') throw new DomainValidationError('只有已核算记录可以作废')
 }

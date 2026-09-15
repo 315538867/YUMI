@@ -32,7 +32,7 @@ const viewLabels: Record<WorkbenchView, string> = {
 
 /** 仅展示工作台快照中已有的履约类待办；不是生产数量、预测或自动派工。 */
 const workbenchDistributionDefinitions = [
-  { kinds: ['process_task', 'quality_inspection'] as const, label: '排班与质检' },
+  { kinds: ['process_task', 'work_time_review'] as const, label: '排班与核算' },
   { kinds: ['shipment', 'after_sales_handling'] as const, label: '订单履约' },
   { kinds: ['settlement_confirmation', 'refund'] as const, label: '工资结算' },
   { kinds: ['reimbursement'] as const, label: '财务报销' }
@@ -43,8 +43,8 @@ const workbenchDistributionDefinitions = [
 }>
 
 const fulfillmentStageDefinitions = [
-  { kind: 'process_task', label: '生产处理' },
-  { kind: 'quality_inspection', label: '待质检' },
+  { kind: 'process_task', label: '待执行' },
+  { kind: 'work_time_review', label: '待核算' },
   { kind: 'shipment', label: '待发货' }
 ] as const satisfies ReadonlyArray<{ kind: V2WorkbenchItem['kind']; label: string }>
 

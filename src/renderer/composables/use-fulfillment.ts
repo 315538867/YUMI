@@ -3,12 +3,12 @@ import type {
   V2FulfillmentAdjustmentInput,
   V2FulfillmentProgressReportRow,
   V2FulfillmentStageBalances,
-  V2Order,
-  V2OrderItemFulfillment,
   V2OrderSummary,
+  V2ProcessTask,
   V2ProcessTaskStatus,
   V2Worker,
-  V2WorkAssignment
+  V2WorkAssignment,
+  V2WorkAssignmentStatusUpdateInput
 } from '@shared/contracts/index'
 import { getErrorMessage } from './v2-utils'
 
@@ -115,6 +115,10 @@ function finalizeStageSchedules(
   })
 }
 
+/**
+ * 队列与已派/待派口径只依据制作任务：计时班次不携带任务，
+ * 历史计时任务也不再参与订单级已派、未派与超派推导。
+ */
 export function buildFulfillmentQueue(
   rows: V2FulfillmentProgressReportRow[],
   orders: V2OrderSummary[],
@@ -140,7 +144,9 @@ export function buildFulfillmentQueue(
   const workerNames = new Map(workers.map((worker) => [worker.id, worker.name]))
 
   assignments.forEach((assignment) => {
+    if (assignment.status === 'cancelled' || assignment.status === 'absent') return
     assignment.tasks.forEach((task) => {
+      if (task.processType !== 'making') return
       const stage = mapProcessTypeToStage(task.processType)
       const item = task.orderItemId ? itemById.get(task.orderItemId) : null
       if (
@@ -244,6 +250,77 @@ function formatLocalBusinessDate(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+export function addBusinessDays(date: string, count: number): string {
+  const next = new Date(`${date}T00:00:00`)
+  next.setDate(next.getDate() + count)
+  return formatLocalBusinessDate(next)
+}
+
+/** 周历卡片：制作安排按任务展开，计时班次只有一张卡片且不关联商品。 */
+export interface WorkerWeekCard {
+  key: string
+  workerId: string
+  assignedOn: string
+  kind: 'making' | 'timed'
+  assignment: V2WorkAssignment
+  /** 仅制作卡片携带；计时班次为 null。 */
+  task: V2ProcessTask | null
+  /** 制作取任务当前有效核算，计时取班次当前有效核算。 */
+  reviewed: boolean
+}
+
+/**
+ * 人员周历的排班来源：按排班日期过滤工作安排。
+ * 缺勤与取消安排不再占用周历位置；制作按任务展开，计时班次单卡展示。
+ */
+export function buildWorkerWeekCards(
+  assignments: readonly V2WorkAssignment[],
+  weekStart: string
+): WorkerWeekCard[] {
+  const weekEnd = addBusinessDays(weekStart, 6)
+  const cards: WorkerWeekCard[] = []
+  assignments
+    .filter(
+      (assignment) =>
+        assignment.status !== 'cancelled' &&
+        assignment.status !== 'absent' &&
+        assignment.assignedOn >= weekStart &&
+        assignment.assignedOn <= weekEnd
+    )
+    .forEach((assignment) => {
+      if (assignment.processType === 'making') {
+        assignment.tasks.forEach((task) => {
+          if (task.processType !== 'making' || task.status === 'cancelled') return
+          cards.push({
+            key: `making-${task.id}`,
+            workerId: assignment.workerId,
+            assignedOn: assignment.assignedOn,
+            kind: 'making',
+            assignment,
+            task,
+            reviewed: task.reviewSummary !== null
+          })
+        })
+        return
+      }
+      cards.push({
+        key: `timed-${assignment.id}`,
+        workerId: assignment.workerId,
+        assignedOn: assignment.assignedOn,
+        kind: 'timed',
+        assignment,
+        task: null,
+        reviewed: assignment.timedReview !== null
+      })
+    })
+  return cards.sort(
+    (left, right) =>
+      left.assignedOn.localeCompare(right.assignedOn) ||
+      left.workerId.localeCompare(right.workerId) ||
+      left.key.localeCompare(right.key)
+  )
+}
+
 export function getWorkerWeekTasks(
   queue: FulfillmentQueueItem[],
   weekStart: string
@@ -275,77 +352,37 @@ export function getWorkerWeekTasks(
 export function useFulfillment() {
   const [orders, setOrders] = useState<V2OrderSummary[]>([])
   const [queueItems, setQueueItems] = useState<FulfillmentQueueItem[]>([])
+  const [assignments, setAssignments] = useState<V2WorkAssignment[]>([])
+  const [itemLabels, setItemLabels] = useState<ReadonlyMap<string, string>>(new Map())
   const [workers, setWorkers] = useState<V2Worker[]>([])
-  const [selectedOrder, setSelectedOrder] = useState<V2Order | null>(null)
-  const [items, setItems] = useState<V2OrderItemFulfillment[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const loadOrder = useCallback(async (orderId: string) => {
-    const order = await window.yumiV2.orders.get(orderId)
-    if (!order) {
-      setSelectedOrder(null)
-      setItems([])
-      return null
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const [nextOrders, progress, nextAssignments, nextWorkers] = await Promise.all([
+        window.yumiV2.orders.list(),
+        window.yumiV2.reports.getFulfillmentProgress(),
+        window.yumiV2.fulfillment.listWorkAssignments(),
+        window.yumiV2.workers.list()
+      ])
+      setOrders(nextOrders)
+      setWorkers(nextWorkers)
+      setAssignments(nextAssignments)
+      setItemLabels(new Map(progress.rows.map((row) => [row.orderItemId, row.productName])))
+      setQueueItems(buildFulfillmentQueue(progress.rows, nextOrders, nextAssignments, nextWorkers))
+    } catch (error) {
+      setLoadError(getErrorMessage(error))
+    } finally {
+      setLoading(false)
     }
-    const fulfillmentItems = await Promise.all(
-      order.items.map((item) => window.yumiV2.fulfillment.getOrderItem(item.id))
-    )
-    setSelectedOrder(order)
-    setItems(fulfillmentItems)
-    return order
   }, [])
-
-  const reload = useCallback(
-    async (orderId?: string) => {
-      setLoading(true)
-      setLoadError(null)
-      try {
-        const [nextOrders, progress, assignments, nextWorkers] = await Promise.all([
-          window.yumiV2.orders.list(),
-          window.yumiV2.reports.getFulfillmentProgress(),
-          window.yumiV2.fulfillment.listWorkAssignments(),
-          window.yumiV2.workers.list()
-        ])
-        setOrders(nextOrders)
-        setWorkers(nextWorkers)
-        setQueueItems(buildFulfillmentQueue(progress.rows, nextOrders, assignments, nextWorkers))
-
-        const targetId = orderId ?? selectedOrder?.id
-        if (targetId) await loadOrder(targetId)
-        else {
-          setSelectedOrder(null)
-          setItems([])
-        }
-      } catch (error) {
-        setLoadError(getErrorMessage(error))
-      } finally {
-        setLoading(false)
-      }
-    },
-    [loadOrder, selectedOrder?.id]
-  )
 
   useEffect(() => {
     void reload()
   }, [reload])
-
-  const selectOrder = useCallback(
-    async (orderId: string) => {
-      if (!orderId) {
-        setSelectedOrder(null)
-        setItems([])
-        return
-      }
-      setLoadError(null)
-      try {
-        await loadOrder(orderId)
-      } catch (error) {
-        setLoadError(getErrorMessage(error))
-      }
-    },
-    [loadOrder]
-  )
 
   const createWorkAssignment = useCallback(
     async (input: Parameters<typeof window.yumiV2.fulfillment.createWorkAssignment>[0]) => {
@@ -365,10 +402,22 @@ export function useFulfillment() {
     [reload]
   )
 
+  const setWorkAssignmentStatus = useCallback(
+    async (assignmentId: string, input: V2WorkAssignmentStatusUpdateInput) => {
+      const assignment = await window.yumiV2.fulfillment.setWorkAssignmentStatus(
+        assignmentId,
+        input
+      )
+      await reload()
+      return assignment
+    },
+    [reload]
+  )
+
   const adjustStageQuantity = useCallback(
     async (input: V2FulfillmentAdjustmentInput) => {
       const result = await window.yumiV2.fulfillment.adjustStageQuantity(input)
-      await reload(result.orderId)
+      await reload()
       return result
     },
     [reload]
@@ -377,14 +426,14 @@ export function useFulfillment() {
   return {
     orders,
     queueItems,
+    assignments,
+    itemLabels,
     workers,
-    selectedOrder,
-    items,
     loading,
     loadError,
     reload,
-    selectOrder,
     createWorkAssignment,
+    setWorkAssignmentStatus,
     reassignProcessTask,
     adjustStageQuantity
   }

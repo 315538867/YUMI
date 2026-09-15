@@ -572,106 +572,6 @@
   }
 }
 
-/* 排班双视角：订单队列使用共享工具条和固定列记录表；人员周历保留横向排班视图。 */
-.yumi-fulfillment-dispatch-surface .yumi-data-table th:first-child,
-.yumi-fulfillment-dispatch-surface .yumi-data-table td:first-child {
-  min-width: 144px;
-}
-.yumi-fulfillment-dispatch-surface .yumi-data-table th:nth-child(2),
-.yumi-fulfillment-dispatch-surface .yumi-data-table td:nth-child(2) {
-  min-width: 168px;
-}
-.yumi-fulfillment-dispatch-surface .yumi-data-table th:nth-child(3),
-.yumi-fulfillment-dispatch-surface .yumi-data-table td:nth-child(3) {
-  min-width: 108px;
-}
-.yumi-fulfillment-dispatch-surface .yumi-data-table th:nth-child(4),
-.yumi-fulfillment-dispatch-surface .yumi-data-table td:nth-child(4) {
-  min-width: 360px;
-}
-.yumi-fulfillment-order-cell,
-.yumi-fulfillment-product-cell {
-  display: grid;
-  gap: 3px;
-}
-.yumi-fulfillment-order-cell strong,
-.yumi-fulfillment-product-cell strong {
-  color: var(--yumi-ink);
-  font-size: 13px;
-  line-height: 20px;
-}
-.yumi-fulfillment-order-cell span,
-.yumi-fulfillment-product-cell span {
-  color: var(--yumi-muted);
-  font-size: 12px;
-  line-height: 18px;
-}
-.yumi-fulfillment-stage-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.yumi-fulfillment-stage-stack {
-  display: grid;
-  gap: 0;
-}
-.yumi-fulfillment-stage {
-  min-width: 0;
-  padding: 6px 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-.yumi-fulfillment-stage + .yumi-fulfillment-stage {
-  border-top: 1px solid var(--yumi-border);
-}
-.yumi-fulfillment-stage__row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: var(--yumi-space-3);
-}
-.yumi-fulfillment-stage__row strong {
-  flex: 0 0 auto;
-  color: var(--yumi-ink);
-  font-size: 13px;
-  line-height: 20px;
-}
-.yumi-fulfillment-stage__assigned {
-  min-width: 0;
-  color: var(--yumi-muted);
-  font-size: 12px;
-  line-height: 18px;
-  white-space: nowrap;
-}
-.yumi-fulfillment-stage__actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--yumi-space-2);
-  margin-left: auto;
-}
-.yumi-fulfillment-stage__actions .yumi-button {
-  min-height: 28px;
-  padding: 3px 9px;
-  font-size: 12px;
-}
-.yumi-fulfillment-stage__unassigned,
-.yumi-fulfillment-stage__overassigned {
-  flex: 0 0 auto;
-  margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  white-space: nowrap;
-}
-.yumi-fulfillment-stage__unassigned {
-  color: var(--yumi-brand-hover);
-  font-weight: 650;
-}
-.yumi-fulfillment-stage__overassigned {
-  color: var(--yumi-danger);
-}
 .yumi-workflow-step {
   display: grid;
   min-width: 0;
@@ -913,6 +813,15 @@
   font-size: 11px;
   line-height: 16px;
 }
+/* 计时卡片只显示“工序 · 待核算/已核算”，用整行单行文本保持与制作卡一致的阅读层级。 */
+.yumi-worker-week__task--timed {
+  justify-content: center;
+}
+.yumi-worker-week__task--timed .yumi-worker-week__task-meta {
+  color: var(--yumi-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
 .yumi-worker-week__add {
   width: 100%;
   min-height: 28px;
@@ -946,22 +855,11 @@
   color: var(--yumi-brand-hover);
 }
 @media (max-width: 820px) {
-  .yumi-fulfillment-dispatch-surface .yumi-data-table th:nth-child(4),
-  .yumi-fulfillment-dispatch-surface .yumi-data-table td:nth-child(4) {
-    min-width: 288px;
-  }
   .yumi-worker-week {
     padding: var(--yumi-space-4);
   }
 }
 @media (max-width: 640px) {
-  .yumi-fulfillment-stage__row {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-  .yumi-fulfillment-stage__actions {
-    margin-left: 0;
-  }
   .yumi-opening-wip__candidate {
     grid-template-columns: 1fr;
     align-items: flex-start;

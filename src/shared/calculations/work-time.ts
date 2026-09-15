@@ -30,6 +30,67 @@ export const workTimeFormulaIds = {
   efficiency: 'work_time.efficiency'
 } as const
 
+/** 分钟精度本地时间串：YYYY-MM-DDTHH:mm，可选零秒与零毫秒后缀。 */
+const MINUTE_PRECISION_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/
+
+export interface MinutePrecisionDateTime {
+  /** 原始输入串，保留给原始时间审计字段。 */
+  value: string
+  /** 按本地时区解析的时间。 */
+  date: Date
+  /** 本地业务日期（YYYY-MM-DD）。 */
+  localDate: string
+}
+
+export interface ReviewTimeRangeResult {
+  minutes: number
+  /** 核算归属的业务日期，跨日时取开始日期。 */
+  workedOn: string
+  crossesDay: boolean
+}
+
+/** 解析分钟精度本地时间；秒、毫秒非零或日期不合法时返回 null。 */
+export function parseMinutePrecisionDateTime(value: string): MinutePrecisionDateTime | null {
+  const match = MINUTE_PRECISION_PATTERN.exec(value)
+  if (!match) return null
+  const [, year, month, day, hour, minute, second, millisecond] = match
+  if (second !== undefined && second !== '00') return null
+  if (millisecond !== undefined && Number(millisecond) !== 0) return null
+  const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))
+  if (Number.isNaN(date.getTime())) return null
+  if (
+    date.getFullYear() !== Number(year) ||
+    date.getMonth() !== Number(month) - 1 ||
+    date.getDate() !== Number(day) ||
+    date.getHours() !== Number(hour) ||
+    date.getMinutes() !== Number(minute)
+  ) {
+    return null
+  }
+  return { value, date, localDate: `${year}-${month}-${day}` }
+}
+
+/**
+ * 实际时间范围换算：单一连续区间，分钟由绝对时间差计算，跨日不拆单。
+ * 输入不合法或结束不晚于开始时返回 null。
+ */
+export function calculateReviewTimeRange(
+  startedAt: string,
+  endedAt: string
+): ReviewTimeRangeResult | null {
+  const started = parseMinutePrecisionDateTime(startedAt)
+  const ended = parseMinutePrecisionDateTime(endedAt)
+  if (!started || !ended) return null
+  const totalMinutes = (ended.date.getTime() - started.date.getTime()) / 60_000
+  if (!Number.isInteger(totalMinutes) || totalMinutes <= 0) return null
+  return {
+    minutes: totalMinutes,
+    workedOn: started.localDate,
+    crossesDay: ended.localDate !== started.localDate
+  }
+}
+
 function requireNonNegativeInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${label}必须是非负整数`)

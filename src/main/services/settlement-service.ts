@@ -79,11 +79,24 @@ function nullableText(value: string | null | undefined): string | null {
 }
 
 /**
+ * 核算更正/作废时同步草稿结算来源；由组合根装配，避免服务之间循环依赖。
+ */
+export interface ReviewSettlementSync {
+  syncDraftAfterReviewChange(input: {
+    workerId: string
+    makingInspectionIds?: readonly string[]
+    timedReviewIds?: readonly string[]
+    nextMakingInspectionId?: string
+    nextTimedReviewId?: string
+  }): void
+}
+
+/**
  * 兼职工资结算：只聚合可追溯的新事实。
  * 制作按合格数量计提成并按不合格数量扣冻结材料成本且不含时薪；捏毛装袋与缝边按已确认
  * 工时计个人时薪并加完成数量提成；打包发货只按已确认工时计个人时薪。
  */
-export class SettlementService {
+export class SettlementService implements ReviewSettlementSync {
   private readonly repository: SettlementRepository
 
   constructor(
@@ -347,6 +360,73 @@ export class SettlementService {
     })
   }
 
+  /**
+   * 核算更正或作废后的草稿结算同步：取消旧草稿来源、移除未抵扣的扣款来源，
+   * 更正时把新版本来源替换进原草稿，最后重算受影响草稿的金额；
+   * 已确认结算由调用方在锁定检查中拒绝，不在本方法处理范围。
+   */
+  syncDraftAfterReviewChange(input: {
+    workerId: string
+    makingInspectionIds?: readonly string[]
+    timedReviewIds?: readonly string[]
+    nextMakingInspectionId?: string
+    nextTimedReviewId?: string
+  }): void {
+    this.repository.transaction(() => {
+      const affected = new Set<string>()
+      for (const id of this.repository.cancelDraftMakingSources(input.makingInspectionIds ?? [])) {
+        affected.add(id)
+      }
+      for (const id of this.repository.cancelDraftTimedSources(input.timedReviewIds ?? [])) {
+        affected.add(id)
+      }
+      for (const id of this.repository.removeUnallocatedDeductions(
+        input.makingInspectionIds ?? []
+      )) {
+        affected.add(id)
+      }
+
+      const now = this.clock.now()
+      if (input.nextMakingInspectionId && affected.size) {
+        const source = this.repository.getMakingSourceByInspection(input.nextMakingInspectionId)
+        if (source && (source.qualifiedQuantity > 0 || source.unqualifiedQuantity > 0)) {
+          for (const settlementId of affected) {
+            const settlement = this.repository.getSettlement(settlementId)
+            if (!settlement || settlement.status !== 'draft') continue
+            this.repository.insertMakingSource({
+              ...this.toMakingSource(source, now),
+              settlementId
+            })
+          }
+          // 更正后的不合格数量需要重新形成材料扣款来源。
+          this.ensureDefectRecords(input.workerId)
+        }
+      }
+      if (input.nextTimedReviewId && affected.size) {
+        const review = this.repository.getTimedReviewSource(input.nextTimedReviewId)
+        if (review) {
+          for (const settlementId of affected) {
+            const settlement = this.repository.getSettlement(settlementId)
+            if (!settlement || settlement.status !== 'draft') continue
+            this.repository.insertTimedSource({
+              ...this.toTimedSource(review, now),
+              settlementId
+            })
+          }
+        }
+      }
+
+      for (const settlementId of affected) {
+        const settlement = this.repository.getSettlement(settlementId)
+        if (!settlement || settlement.status !== 'draft') continue
+        const totals = this.repository.sumDraftSourceAmounts(settlementId)
+        const updated: V2WorkerSettlement = { ...settlement, ...totals, updatedAt: now }
+        this.repository.updateSettlement(updated)
+        this.recalculateCandidate(updated, now)
+      }
+    })
+  }
+
   updateDraft(id: string, input: V2WorkerSettlementDraftUpdateInput): V2WorkerSettlementDetail {
     return this.repository.transaction(() => {
       const settlement = this.requireDraft(id)
@@ -571,6 +651,7 @@ export class SettlementService {
     })
     const items = review.items.map((item) => ({
       id: this.clock.createId(),
+      workTimeReviewItemId: item.id,
       processTaskId: item.processTaskId,
       orderItemId: item.orderItemId,
       completedQuantity: item.completedQuantity,

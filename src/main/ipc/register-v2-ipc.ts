@@ -125,6 +125,9 @@ export function registerV2Ipc(
   ipc.handle('v2:fulfillment:assignments:create', (_event, input) =>
     fulfillment.createWorkAssignment(input as never)
   )
+  ipc.handle('v2:fulfillment:assignments:status', (_event, assignmentId, input) =>
+    fulfillment.setWorkAssignmentStatus(assignmentId as string, input as never)
+  )
   ipc.handle('v2:fulfillment:tasks:reassign', (_event, taskId, input) =>
     fulfillment.reassignProcessTask(taskId as string, input as never)
   )
@@ -137,11 +140,14 @@ export function registerV2Ipc(
   ipc.handle('v2:fulfillment:tasks:result:get', (_event, taskId) =>
     fulfillment.getProcessResultForTask(taskId as string)
   )
-  ipc.handle('v2:fulfillment:results:submit', (_event, taskId, input) =>
-    fulfillment.submitProcessResult(taskId as string, input as never)
+  ipc.handle('v2:fulfillment:making-reviews:create', (_event, input) =>
+    fulfillment.reviewMaking(input as never)
   )
-  ipc.handle('v2:fulfillment:inspections:confirm', (_event, resultId, input) =>
-    fulfillment.confirmQualityInspection(resultId as string, input as never)
+  ipc.handle('v2:fulfillment:making-reviews:correct', (_event, input) =>
+    fulfillment.correctMakingReview(input as never)
+  )
+  ipc.handle('v2:fulfillment:making-reviews:void', (_event, input) =>
+    fulfillment.voidMakingReview(input as never)
   )
   ipc.handle('v2:fulfillment:adjustments:create', (_event, input) =>
     fulfillment.adjustStageQuantity(input as never)
@@ -170,13 +176,15 @@ export function registerV2Ipc(
     workTimeReviews.listReviews(query as never)
   )
   ipc.handle('v2:work-time-reviews:get', (_event, id) => workTimeReviews.getReview(id as string))
-  ipc.handle('v2:work-time-reviews:drafts:create', (_event, input) =>
-    workTimeReviews.createDraft(input as never)
+  ipc.handle('v2:work-time-reviews:candidates:list', (_event, assignmentId, query) =>
+    workTimeReviews.listCandidates(assignmentId as string, query as never)
   )
-  ipc.handle('v2:work-time-reviews:drafts:update', (_event, input) =>
-    workTimeReviews.updateDraft(input as never)
+  ipc.handle('v2:work-time-reviews:create', (_event, input) =>
+    workTimeReviews.review(input as never)
   )
-  ipc.handle('v2:work-time-reviews:confirm', (_event, id) => workTimeReviews.confirm(id as string))
+  ipc.handle('v2:work-time-reviews:correct', (_event, input) =>
+    workTimeReviews.correct(input as never)
+  )
   ipc.handle('v2:work-time-reviews:void', (_event, id, input) =>
     workTimeReviews.void(id as string, input as never)
   )

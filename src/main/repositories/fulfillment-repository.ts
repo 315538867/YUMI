@@ -1,13 +1,17 @@
 import type { V2Database } from '@main/database/v2-connection'
+import { makingReviewLockState, timedReviewLockState } from './review-lock'
 import type { V2AuditLog } from './v2-order-repository'
 import type {
   V2FulfillmentEvent,
+  V2MakingReviewSummary,
   V2ProcessResult,
   V2ProcessTask,
   V2ProcessTaskStatus,
   V2QualityInspection,
+  V2TimedReviewSummary,
   V2WorkAssignment,
   V2WorkAssignmentQuery,
+  V2WorkAssignmentScheduleMode,
   V2WorkAssignmentStatus
 } from '@shared/contracts/fulfillment'
 import type { V2ProductOrderSnapshot } from '@shared/contracts/products'
@@ -18,6 +22,7 @@ interface WorkAssignmentRow {
   assigned_on: string
   process_type: V2WorkAssignment['processType']
   status: V2WorkAssignmentStatus
+  schedule_mode: V2WorkAssignmentScheduleMode
   note: string | null
   created_at: string
   updated_at: string
@@ -44,12 +49,31 @@ interface ProcessTaskRow {
   updated_at: string
 }
 
+/** 任务行与当前有效核算的左连接结果。 */
+interface ProcessTaskReviewRow extends ProcessTaskRow {
+  review_result_id: string | null
+  review_completed_quantity: number | null
+  review_supersedes_result_id: string | null
+  review_result_note: string | null
+  review_result_created_at: string | null
+  review_inspection_id: string | null
+  review_qualified_quantity: number | null
+  review_unqualified_quantity: number | null
+  review_inspected_on: string | null
+  review_inspection_note: string | null
+  review_inspection_created_at: string | null
+}
+
 interface ProcessResultRow {
   id: string
   process_task_id: string
   completed_quantity: number
   actual_minutes: number | null
   submitted_on: string
+  status: V2ProcessResult['status']
+  supersedes_result_id: string | null
+  void_reason: string | null
+  voided_at: string | null
   note: string | null
   created_at: string
 }
@@ -76,6 +100,7 @@ interface FulfillmentEventRow {
   target_stage: V2FulfillmentEvent['targetStage']
   source_record_type: string | null
   source_record_id: string | null
+  source_event_key: string | null
   occurred_on: string
   note: string | null
   created_at: string
@@ -94,7 +119,61 @@ function parseJson<T>(value: string | null): T | null {
   return value ? (JSON.parse(value) as T) : null
 }
 
-function mapTask(row: ProcessTaskRow): V2ProcessTask {
+const taskReviewSelect = `
+  SELECT tasks.*,
+         results.id AS review_result_id,
+         results.completed_quantity AS review_completed_quantity,
+         results.supersedes_result_id AS review_supersedes_result_id,
+         results.note AS review_result_note,
+         results.created_at AS review_result_created_at,
+         inspections.id AS review_inspection_id,
+         inspections.qualified_quantity AS review_qualified_quantity,
+         inspections.unqualified_quantity AS review_unqualified_quantity,
+         inspections.inspected_on AS review_inspected_on,
+         inspections.note AS review_inspection_note,
+         inspections.created_at AS review_inspection_created_at
+  FROM process_tasks AS tasks
+  LEFT JOIN process_results AS results
+    ON results.process_task_id = tasks.id AND results.status = 'confirmed'
+  LEFT JOIN quality_inspections AS inspections
+    ON inspections.process_result_id = results.id`
+
+function mapTaskReviewSummary(
+  database: V2Database,
+  row: ProcessTaskReviewRow
+): V2MakingReviewSummary | null {
+  if (
+    !row.review_result_id ||
+    !row.review_inspection_id ||
+    row.review_completed_quantity === null ||
+    row.review_qualified_quantity === null ||
+    row.review_unqualified_quantity === null ||
+    !row.review_inspected_on ||
+    !row.review_result_created_at ||
+    !row.review_inspection_created_at
+  ) {
+    return null
+  }
+  const plannedQuantity = row.planned_quantity ?? 0
+  return {
+    resultId: row.review_result_id,
+    completedQuantity: row.review_completed_quantity,
+    qualifiedQuantity: row.review_qualified_quantity,
+    unqualifiedQuantity: row.review_unqualified_quantity,
+    unfinishedQuantity: Math.max(plannedQuantity - row.review_completed_quantity, 0),
+    reviewedOn: row.review_inspected_on,
+    note: row.review_inspection_note ?? row.review_result_note,
+    supersedesResultId: row.review_supersedes_result_id,
+    lock: makingReviewLockState(database, {
+      resultId: row.review_result_id,
+      inspectionId: row.review_inspection_id
+    }),
+    createdAt: row.review_inspection_created_at
+  }
+}
+
+function mapTask(database: V2Database, row: ProcessTaskReviewRow): V2ProcessTask {
+  const reviewSummary = mapTaskReviewSummary(database, row)
   return {
     id: row.id,
     workAssignmentId: row.work_assignment_id,
@@ -113,6 +192,7 @@ function mapTask(row: ProcessTaskRow): V2ProcessTask {
     glueWeightMilligrams: row.glue_weight_milligrams,
     rateSnapshot: parseJson<Record<string, unknown>>(row.rate_snapshot_json),
     note: row.note,
+    reviewSummary,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -125,6 +205,10 @@ function mapResult(row: ProcessResultRow): V2ProcessResult {
     completedQuantity: row.completed_quantity,
     actualMinutes: row.actual_minutes,
     submittedOn: row.submitted_on,
+    status: row.status,
+    supersedesResultId: row.supersedes_result_id,
+    voidReason: row.void_reason,
+    voidedAt: row.voided_at,
     note: row.note,
     createdAt: row.created_at
   }
@@ -155,6 +239,7 @@ function mapEvent(row: FulfillmentEventRow): V2FulfillmentEvent {
     targetStage: row.target_stage,
     sourceRecordType: row.source_record_type,
     sourceRecordId: row.source_record_id,
+    sourceEventKey: row.source_event_key,
     occurredOn: row.occurred_on,
     note: row.note,
     createdAt: row.created_at
@@ -163,6 +248,10 @@ function mapEvent(row: FulfillmentEventRow): V2FulfillmentEvent {
 
 export class V2FulfillmentRepository {
   constructor(private readonly database: V2Database) {}
+
+  get connection(): V2Database {
+    return this.database
+  }
 
   transaction<T>(operation: () => T): T {
     return this.database.transaction(operation)()
@@ -199,11 +288,12 @@ export class V2FulfillmentRepository {
     return row !== undefined
   }
 
-  insertWorkAssignment(input: Omit<V2WorkAssignment, 'tasks'>): void {
+  insertWorkAssignment(input: Omit<V2WorkAssignment, 'tasks' | 'timedReview'>): void {
     this.database
       .prepare(
-        `INSERT INTO work_assignments (id, worker_id, assigned_on, process_type, status, note, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO work_assignments (
+          id, worker_id, assigned_on, process_type, status, schedule_mode, note, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         input.id,
@@ -211,10 +301,37 @@ export class V2FulfillmentRepository {
         input.assignedOn,
         input.processType,
         input.status,
+        input.scheduleMode,
         input.note,
         input.createdAt,
         input.updatedAt
       )
+  }
+
+  updateWorkAssignmentStatus(id: string, status: V2WorkAssignmentStatus, now: string): void {
+    this.database
+      .prepare('UPDATE work_assignments SET status = ?, updated_at = ? WHERE id = ?')
+      .run(status, now, id)
+  }
+
+  /** 同一人员、日期、工序的未取消计时班次最多一条。 */
+  findActiveTimedShift(workerId: string, assignedOn: string, processType: string): string | null {
+    const row = this.database
+      .prepare(
+        `SELECT id FROM work_assignments
+         WHERE worker_id = ? AND assigned_on = ? AND process_type = ?
+           AND schedule_mode = 'timed_shift' AND status NOT IN ('cancelled', 'absent')
+         LIMIT 1`
+      )
+      .get(workerId, assignedOn, processType) as { id: string } | undefined
+    return row ? row.id : null
+  }
+
+  getAssignmentWorkerId(assignmentId: string): string | null {
+    const row = this.database
+      .prepare('SELECT worker_id FROM work_assignments WHERE id = ?')
+      .get(assignmentId) as { worker_id: string } | undefined
+    return row ? row.worker_id : null
   }
 
   getWorkAssignment(id: string): V2WorkAssignment | null {
@@ -226,9 +343,11 @@ export class V2FulfillmentRepository {
       workerId: row.worker_id,
       assignedOn: row.assigned_on,
       processType: row.process_type,
+      scheduleMode: row.schedule_mode,
       status: row.status,
       note: row.note,
       tasks: this.listTasksByAssignment(row.id),
+      timedReview: this.getTimedReviewSummary(row.id),
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }
@@ -254,6 +373,37 @@ export class V2FulfillmentRepository {
         query.orderItemId ?? null
       ) as Array<{ id: string }>
     return rows.map((row) => this.getWorkAssignment(row.id)!).filter(Boolean)
+  }
+
+  /**
+   * 计时班次当前有效核算：新记录按直接安排关联读取，
+   * 历史聚合记录继续通过关联表读取，保证旧数据仍显示已核算。
+   */
+  getTimedReviewSummary(assignmentId: string): V2TimedReviewSummary | null {
+    const row = this.database
+      .prepare(
+        `SELECT reviews.id, reviews.approved_minutes, reviews.worked_on
+         FROM work_time_reviews AS reviews
+         WHERE reviews.status = 'confirmed'
+           AND (
+             reviews.work_assignment_id = ?
+             OR EXISTS (
+               SELECT 1 FROM work_time_review_assignments AS links
+               WHERE links.review_id = reviews.id AND links.work_assignment_id = ?
+             )
+           )
+         ORDER BY reviews.created_at DESC, reviews.rowid DESC
+         LIMIT 1`
+      )
+      .get(assignmentId, assignmentId) as
+      { id: string; approved_minutes: number; worked_on: string } | undefined
+    if (!row) return null
+    return {
+      reviewId: row.id,
+      approvedMinutes: row.approved_minutes,
+      reviewedOn: row.worked_on,
+      lock: timedReviewLockState(this.database, row.id)
+    }
   }
 
   insertTask(task: V2ProcessTask): void {
@@ -288,27 +438,27 @@ export class V2FulfillmentRepository {
   }
 
   getTask(id: string): V2ProcessTask | null {
-    const row = this.database.prepare('SELECT * FROM process_tasks WHERE id = ?').get(id) as
-      ProcessTaskRow | undefined
-    return row ? mapTask(row) : null
+    const row = this.database.prepare(`${taskReviewSelect} WHERE tasks.id = ?`).get(id) as
+      ProcessTaskReviewRow | undefined
+    return row ? mapTask(this.database, row) : null
   }
 
   listTasksByOrderItem(orderItemId: string): V2ProcessTask[] {
     return (
       this.database
         .prepare(
-          'SELECT * FROM process_tasks WHERE order_item_id = ? ORDER BY created_at ASC, rowid ASC'
+          `${taskReviewSelect} WHERE tasks.order_item_id = ? ORDER BY tasks.created_at ASC, tasks.rowid ASC`
         )
-        .all(orderItemId) as ProcessTaskRow[]
-    ).map(mapTask)
+        .all(orderItemId) as ProcessTaskReviewRow[]
+    ).map((row) => mapTask(this.database, row))
   }
 
   listTasksByAssignment(workAssignmentId: string): V2ProcessTask[] {
     return (
       this.database
-        .prepare('SELECT * FROM process_tasks WHERE work_assignment_id = ? ORDER BY rowid ASC')
-        .all(workAssignmentId) as ProcessTaskRow[]
-    ).map(mapTask)
+        .prepare(`${taskReviewSelect} WHERE tasks.work_assignment_id = ? ORDER BY tasks.rowid ASC`)
+        .all(workAssignmentId) as ProcessTaskReviewRow[]
+    ).map((row) => mapTask(this.database, row))
   }
 
   updateTaskStatus(id: string, status: V2ProcessTaskStatus, now: string): void {
@@ -334,8 +484,10 @@ export class V2FulfillmentRepository {
   insertProcessResult(result: V2ProcessResult): void {
     this.database
       .prepare(
-        `INSERT INTO process_results (id, process_task_id, completed_quantity, actual_minutes, submitted_on, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO process_results (
+          id, process_task_id, completed_quantity, actual_minutes, submitted_on,
+          status, supersedes_result_id, void_reason, voided_at, note, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         result.id,
@@ -343,6 +495,10 @@ export class V2FulfillmentRepository {
         result.completedQuantity,
         result.actualMinutes,
         result.submittedOn,
+        result.status,
+        result.supersedesResultId,
+        result.voidReason,
+        result.voidedAt,
         result.note,
         result.createdAt
       )
@@ -357,10 +513,42 @@ export class V2FulfillmentRepository {
   getProcessResultForTask(processTaskId: string): V2ProcessResult | null {
     const row = this.database
       .prepare(
-        'SELECT * FROM process_results WHERE process_task_id = ? ORDER BY created_at DESC, id DESC LIMIT 1'
+        'SELECT * FROM process_results WHERE process_task_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1'
       )
       .get(processTaskId) as ProcessResultRow | undefined
     return row ? mapResult(row) : null
+  }
+
+  /** 仅用于作废不具备核算事实的历史结果（例如未质检的中间态或版本替换）。 */
+  voidProcessResult(id: string, reason: string, now: string): void {
+    this.database
+      .prepare(
+        `UPDATE process_results SET status = 'voided', void_reason = ?, voided_at = ? WHERE id = ?`
+      )
+      .run(reason, now, id)
+  }
+
+  /** 回退核算时删除该质检产生的履约事件（按质量事实来源）。 */
+  deleteFulfillmentEventsForInspection(inspectionId: string): void {
+    this.database
+      .prepare(
+        "DELETE FROM fulfillment_events WHERE source_record_type = 'quality_inspection' AND source_record_id = ?"
+      )
+      .run(inspectionId)
+  }
+
+  /** 核算被更正或作废后任务重新变为待核算，已完成的制作安排回到进行中。 */
+  resetTaskToPending(processTaskId: string, now: string): void {
+    this.database
+      .prepare("UPDATE process_tasks SET status = 'pending', updated_at = ? WHERE id = ?")
+      .run(now, processTaskId)
+    this.database
+      .prepare(
+        `UPDATE work_assignments SET status = 'scheduled', updated_at = ?
+         WHERE status = 'completed'
+           AND id = (SELECT work_assignment_id FROM process_tasks WHERE id = ?)`
+      )
+      .run(now, processTaskId)
   }
 
   getQualityInspectionByResult(processResultId: string): V2QualityInspection | null {
@@ -397,8 +585,8 @@ export class V2FulfillmentRepository {
       .prepare(
         `INSERT INTO fulfillment_events (
         id, order_item_id, event_type, quantity, source_stage, target_stage,
-        source_record_type, source_record_id, occurred_on, note, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        source_record_type, source_record_id, source_event_key, occurred_on, note, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         event.id,
@@ -409,6 +597,7 @@ export class V2FulfillmentRepository {
         event.targetStage,
         event.sourceRecordType,
         event.sourceRecordId,
+        event.sourceEventKey,
         event.occurredOn,
         event.note,
         event.createdAt

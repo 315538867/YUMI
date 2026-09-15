@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildFulfillmentQueue,
+  buildWorkerWeekCards,
   filterFulfillmentQueue,
   getFulfillmentQueueFilterCount,
   getFulfillmentQueueStageUnassignedQuantity,
@@ -271,6 +272,255 @@ describe('filterFulfillmentQueue', () => {
     expect(getFulfillmentQueueStageUnassignedQuantity(queueWithSchedules[0], 'making')).toBe(40)
     expect(getFulfillmentQueueFilterCount(queueWithSchedules, 'making')).toBe(40)
     expect(getFulfillmentQueueFilterCount(queueWithSchedules, 'all')).toBe(47)
+  })
+})
+
+describe('buildFulfillmentQueue 制作口径边界', () => {
+  it('计时班次与历史计时任务都不参与订单已派、待派与超派推导', () => {
+    const queue = buildFulfillmentQueue(
+      fulfillmentRows as never,
+      orders as never,
+      [
+        {
+          id: 'assignment-timed',
+          workerId: 'worker-wang',
+          assignedOn: '2026-09-10',
+          processType: 'fluffing_bagging',
+          scheduleMode: 'timed_shift',
+          status: 'scheduled',
+          tasks: [],
+          timedReview: null
+        },
+        {
+          id: 'assignment-legacy',
+          workerId: 'worker-wang',
+          assignedOn: '2026-09-10',
+          processType: 'packing',
+          scheduleMode: 'legacy_task',
+          status: 'scheduled',
+          tasks: [
+            {
+              id: 'task-legacy',
+              orderItemId: 'item-making',
+              processType: 'packing',
+              plannedQuantity: 40,
+              status: 'pending'
+            }
+          ],
+          timedReview: null
+        }
+      ] as never,
+      [
+        { id: 'worker-wang', name: '小王' },
+        { id: 'worker-li', name: '小李' }
+      ] as never
+    )
+
+    const making = queue.find((item) => item.orderItemId === 'item-making')!
+    expect(making.stageSchedules.making).toMatchObject({
+      wipQuantity: 100,
+      reservedQuantity: 0,
+      unassignedQuantity: 100,
+      overassignedQuantity: 0,
+      tasks: []
+    })
+    expect(making.stageSchedules.packing).toMatchObject({ reservedQuantity: 0, tasks: [] })
+  })
+
+  it('缺勤或取消的制作安排释放尚未核算的计划数量', () => {
+    const queue = buildFulfillmentQueue(
+      fulfillmentRows as never,
+      orders as never,
+      [
+        {
+          id: 'assignment-cancelled',
+          workerId: 'worker-wang',
+          assignedOn: '2026-09-10',
+          processType: 'making',
+          scheduleMode: 'making_task',
+          status: 'cancelled',
+          tasks: [
+            {
+              id: 'task-cancelled',
+              orderItemId: 'item-making',
+              processType: 'making',
+              plannedQuantity: 30,
+              status: 'cancelled'
+            }
+          ],
+          timedReview: null
+        },
+        {
+          id: 'assignment-absent',
+          workerId: 'worker-li',
+          assignedOn: '2026-09-11',
+          processType: 'making',
+          scheduleMode: 'making_task',
+          status: 'absent',
+          tasks: [
+            {
+              id: 'task-absent',
+              orderItemId: 'item-making',
+              processType: 'making',
+              plannedQuantity: 30,
+              status: 'pending'
+            }
+          ],
+          timedReview: null
+        }
+      ] as never,
+      [{ id: 'worker-wang', name: '小王' }] as never
+    )
+
+    const making = queue.find((item) => item.orderItemId === 'item-making')!
+    expect(making.stageSchedules.making).toMatchObject({
+      reservedQuantity: 0,
+      unassignedQuantity: 100,
+      overassignedQuantity: 0,
+      tasks: []
+    })
+  })
+})
+
+describe('buildWorkerWeekCards', () => {
+  it('按自然周过滤有效安排：制作按任务展开，计时班次单卡且不关联商品', () => {
+    const cards = buildWorkerWeekCards(
+      [
+        {
+          id: 'assignment-making',
+          workerId: 'worker-wang',
+          assignedOn: '2026-09-07',
+          processType: 'making',
+          scheduleMode: 'making_task',
+          status: 'scheduled',
+          tasks: [
+            {
+              id: 'task-1',
+              orderItemId: 'item-making',
+              processType: 'making',
+              plannedQuantity: 5,
+              status: 'pending',
+              reviewSummary: null
+            },
+            {
+              id: 'task-2',
+              orderItemId: 'item-making',
+              processType: 'making',
+              plannedQuantity: 7,
+              status: 'cancelled',
+              reviewSummary: null
+            }
+          ],
+          timedReview: null
+        },
+        {
+          id: 'assignment-timed',
+          workerId: 'worker-li',
+          assignedOn: '2026-09-10',
+          processType: 'edge_sewing',
+          scheduleMode: 'timed_shift',
+          status: 'scheduled',
+          tasks: [],
+          timedReview: null
+        },
+        {
+          id: 'assignment-cancelled',
+          workerId: 'worker-wang',
+          assignedOn: '2026-09-08',
+          processType: 'making',
+          scheduleMode: 'making_task',
+          status: 'cancelled',
+          tasks: [
+            {
+              id: 'task-cancelled',
+              orderItemId: 'item-making',
+              processType: 'making',
+              plannedQuantity: 3,
+              status: 'pending',
+              reviewSummary: null
+            }
+          ],
+          timedReview: null
+        },
+        {
+          id: 'assignment-next-week',
+          workerId: 'worker-wang',
+          assignedOn: '2026-09-14',
+          processType: 'making',
+          scheduleMode: 'making_task',
+          status: 'scheduled',
+          tasks: [
+            {
+              id: 'task-next-week',
+              orderItemId: 'item-making',
+              processType: 'making',
+              plannedQuantity: 4,
+              status: 'pending',
+              reviewSummary: null
+            }
+          ],
+          timedReview: null
+        }
+      ] as never,
+      '2026-09-07'
+    )
+
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toMatchObject({
+      key: 'making-task-1',
+      kind: 'making',
+      workerId: 'worker-wang',
+      assignedOn: '2026-09-07',
+      reviewed: false
+    })
+    expect(cards[0]!.task?.plannedQuantity).toBe(5)
+    expect(cards[1]).toMatchObject({
+      key: 'timed-assignment-timed',
+      kind: 'timed',
+      workerId: 'worker-li',
+      assignedOn: '2026-09-10',
+      reviewed: false,
+      task: null
+    })
+  })
+
+  it('制作任务的核算状态来自任务摘要，计时班次取班次核算摘要', () => {
+    const cards = buildWorkerWeekCards(
+      [
+        {
+          id: 'assignment-making',
+          workerId: 'worker-wang',
+          assignedOn: '2026-09-07',
+          processType: 'making',
+          scheduleMode: 'making_task',
+          status: 'scheduled',
+          tasks: [
+            {
+              id: 'task-1',
+              orderItemId: 'item-making',
+              processType: 'making',
+              plannedQuantity: 5,
+              status: 'pending_inspection',
+              reviewSummary: { resultId: 'result-1' }
+            }
+          ],
+          timedReview: null
+        },
+        {
+          id: 'assignment-timed',
+          workerId: 'worker-li',
+          assignedOn: '2026-09-08',
+          processType: 'packing',
+          scheduleMode: 'timed_shift',
+          status: 'scheduled',
+          tasks: [],
+          timedReview: { reviewId: 'review-1', approvedMinutes: 510, reviewedOn: '2026-09-08' }
+        }
+      ] as never,
+      '2026-09-07'
+    )
+
+    expect(cards.map((card) => card.reviewed)).toEqual([true, true])
   })
 })
 

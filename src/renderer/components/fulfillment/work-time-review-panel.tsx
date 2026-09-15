@@ -1,517 +1,615 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import type {
-  V2WorkTimeReview,
-  V2WorkTimeReviewProcessType,
-  V2Worker
-} from '@shared/contracts/index'
-import { calculateWorkTimeComparison } from '@shared/calculations'
-import type {
-  FulfillmentQueueItem,
-  FulfillmentScheduledTask
-} from '../../composables/use-fulfillment'
-import { formatCents, getErrorMessage } from '../../composables/v2-utils'
+import { useMemo, useState } from 'react'
+import type { V2Worker, V2WorkTimeReview } from '@shared/contracts/index'
+import { getErrorMessage } from '../../composables/v2-utils'
 import {
+  buildPendingRows,
+  buildRecordRows,
+  buildWorkerNames,
+  currentBusinessDate,
+  recordLockOf,
   useWorkTimeReviews,
-  type WorkTimeReviewGroup
+  type PendingMakingRow,
+  type PendingTimedRow,
+  type WorkTimeReviewItemLabel,
+  type WorkTimeReviewRecordRow
 } from '../../composables/use-work-time-reviews'
 import {
+  MakingReviewDialog,
+  TimedReviewDialog,
+  type MakingReviewDialogTarget,
+  type MakingReviewValues,
+  type TimedReviewDialogTarget,
+  type TimedReviewValues
+} from './work-time-review-forms'
+import { workTimeProcessLabels } from './work-time-review-helpers'
+import {
   YumiButton,
-  YumiCalculatedAmount,
   YumiDataTable,
   YumiDetailList,
   YumiDialog,
   YumiField,
   YumiFieldLabel,
   YumiFormMessage,
-  YumiNumberField,
   YumiSection,
   YumiStatusTag,
   YumiTextArea,
   useYumiNotificationMessage
 } from '../ui'
 
-const processLabels: Record<V2WorkTimeReviewProcessType, string> = {
-  fluffing_bagging: '捏毛装袋',
-  edge_sewing: '缝边',
-  packing: '打包发货'
+function timedRecordTotal(row: Extract<WorkTimeReviewRecordRow, { kind: 'timed' }>): number {
+  return row.review.items.reduce((total, item) => total + item.completedQuantity, 0)
 }
 
-const statusMeta: Record<
-  V2WorkTimeReview['status'],
-  { label: string; tone: 'neutral' | 'success' | 'danger' }
-> = {
-  draft: { label: '草稿', tone: 'neutral' },
-  confirmed: { label: '已确认', tone: 'success' },
-  voided: { label: '已作废', tone: 'danger' }
-}
-
-export interface MakingReviewEntry {
-  item: FulfillmentQueueItem
-  task: FulfillmentScheduledTask
-  workerName: string
-  assignedOn: string
-  productName: string
-  plannedQuantity: number
-}
-
-type PendingRow =
-  | {
-      kind: 'making'
-      key: string
-      assignedOn: string
-      workerName: string
-      entry: MakingReviewEntry
-    }
-  | {
-      kind: 'timed'
-      key: string
-      assignedOn: string
-      workerName: string
-      group: WorkTimeReviewGroup
-    }
-
-function groupSummary(group: WorkTimeReviewGroup): string {
-  const products = group.candidates
-    .flatMap((candidate) => candidate.tasks)
-    .map((task) =>
-      task.plannedQuantity === null
-        ? task.productName
-        : `${task.productName} ${task.plannedQuantity} 件`
-    )
-    .join(' + ')
-  return `${group.candidates.length} 个安排 · ${products}`
+function reviewStatusMeta(review: V2WorkTimeReview): {
+  label: string
+  tone: 'success' | 'neutral'
+} {
+  if (review.status === 'draft') return { label: '历史草稿', tone: 'neutral' }
+  return { label: '已核算', tone: 'success' }
 }
 
 /**
- * 待核算工作区：制作结果待确认与计时工序待核算统一列表，用类型标签区分制品（制作）与非制品（计时工序）。
- * 制作事项进入完成数量与质量确认流程；计时事项按员工、日期、工序归组，在弹窗内登记整段时长与多商品完成数量。
+ * 单次核算工作区：待核算只提供“核算”入口，一次提交完成制作或计时核算；
+ * 已核算区域提供查看、更正与作废，锁定记录展示不可操作原因与调整指引。
  */
-export function WorkTimeReviewPanel(props: {
-  workers: V2Worker[]
-  makingEntries: MakingReviewEntry[]
-  onOpenMakingTask(item: FulfillmentQueueItem, task: FulfillmentScheduledTask): void
+export function WorkTimeReviewPanel({
+  onChanged,
+  workers
+}: {
   onChanged(): void
+  workers: V2Worker[]
 }) {
-  const { reviews, loading, loadError, createDraft, confirm, voidReview, loadPendingGroups } =
-    useWorkTimeReviews()
-  const [groups, setGroups] = useState<WorkTimeReviewGroup[]>([])
-  const [groupsLoading, setGroupsLoading] = useState(true)
-  const [listError, setListError] = useState<string | null>(null)
-  const [reviewingGroup, setReviewingGroup] = useState<WorkTimeReviewGroup | null>(null)
-  const [approvedMinutes, setApprovedMinutes] = useState('0')
-  const [quantities, setQuantities] = useState<Record<string, string>>({})
-  const [notes, setNotes] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [voidTarget, setVoidTarget] = useState<V2WorkTimeReview | null>(null)
-  const [voidReason, setVoidReason] = useState('')
+  const {
+    assignments,
+    reviews,
+    itemLabels,
+    loading,
+    loadError,
+    listCandidates,
+    reviewMaking,
+    correctMakingReview,
+    voidMakingReview,
+    reviewTimed,
+    correctTimed,
+    voidTimed
+  } = useWorkTimeReviews()
+  const [makingTarget, setMakingTarget] = useState<MakingReviewDialogTarget | null>(null)
+  const [timedTarget, setTimedTarget] = useState<TimedReviewDialogTarget | null>(null)
+  const [detailRow, setDetailRow] = useState<WorkTimeReviewRecordRow | null>(null)
+  const [voidRow, setVoidRow] = useState<WorkTimeReviewRecordRow | null>(null)
   useYumiNotificationMessage(loadError)
 
-  const loadGroups = useCallback(async () => {
-    setGroupsLoading(true)
-    try {
-      setGroups(await loadPendingGroups())
-      setListError(null)
-    } catch (groupsError) {
-      setListError(getErrorMessage(groupsError))
-    } finally {
-      setGroupsLoading(false)
-    }
-  }, [loadPendingGroups])
-
-  useEffect(() => {
-    void loadGroups()
-  }, [loadGroups])
-
-  const workerNameOf = useCallback(
-    (workerId: string) =>
-      props.workers.find((worker) => worker.id === workerId)?.name ?? '已删除人员',
-    [props.workers]
+  const workerNames = useMemo(() => buildWorkerNames(workers), [workers])
+  const pendingRows = useMemo(
+    () => buildPendingRows(assignments, workerNames, itemLabels, currentBusinessDate()),
+    [assignments, itemLabels, workerNames]
+  )
+  const recordRows = useMemo(
+    () => buildRecordRows(assignments, reviews, workerNames, itemLabels),
+    [assignments, itemLabels, reviews, workerNames]
   )
 
-  const rows = useMemo<PendingRow[]>(() => {
-    const makingRows: PendingRow[] = props.makingEntries.map((entry) => ({
-      kind: 'making',
-      key: `making-${entry.task.taskId}`,
-      assignedOn: entry.assignedOn,
-      workerName: entry.workerName,
-      entry
-    }))
-    const timedRows: PendingRow[] = groups.map((group) => ({
-      kind: 'timed',
-      key: group.key,
-      assignedOn: group.assignedOn,
-      workerName: workerNameOf(group.workerId),
-      group
-    }))
-    return [...makingRows, ...timedRows].sort(
-      (left, right) =>
-        right.assignedOn.localeCompare(left.assignedOn) ||
-        left.workerName.localeCompare(right.workerName) ||
-        left.kind.localeCompare(right.kind)
-    )
-  }, [groups, props.makingEntries, workerNameOf])
-
-  const selectedTasks = reviewingGroup
-    ? reviewingGroup.candidates.flatMap((candidate) => candidate.tasks)
-    : []
-  const completedItems = selectedTasks.map((task) => ({
-    label: task.productName,
-    completedQuantity: Number(quantities[task.taskId] || '0') || 0,
-    expectedMinutesPerUnit: task.expectedMinutesPerUnit
-  }))
-  const comparison = calculateWorkTimeComparison({
-    approvedMinutes: Number(approvedMinutes) || 0,
-    items: completedItems
-  })
-
-  const openReviewDialog = (group: WorkTimeReviewGroup) => {
-    setReviewingGroup(group)
-    setApprovedMinutes('0')
-    setQuantities({})
-    setNotes('')
-    setError(null)
+  const openMakingReview = (row: PendingMakingRow) => {
+    setMakingTarget({
+      mode: 'create',
+      taskId: row.taskId,
+      resultId: null,
+      workerName: row.workerName,
+      assignedOn: row.assignedOn,
+      productName: row.productName,
+      plannedQuantity: row.plannedQuantity,
+      reviewedOn: currentBusinessDate(),
+      note: null,
+      completedQuantity: null,
+      qualifiedQuantity: null
+    })
   }
 
-  const submitReview = async (confirmAfterSave: boolean) => {
-    if (!reviewingGroup) return
-    setBusy(true)
-    setError(null)
-    try {
-      const draft = await createDraft({
-        workerId: reviewingGroup.workerId,
-        workedOn: reviewingGroup.assignedOn,
-        processType: reviewingGroup.processType,
-        approvedMinutes: Number(approvedMinutes) || 0,
-        assignmentIds: reviewingGroup.candidates.map((candidate) => candidate.assignmentId),
-        items: selectedTasks.map((task) => ({
-          processTaskId: task.taskId,
-          completedQuantity: Number(quantities[task.taskId] || '0') || 0
-        })),
-        reviewNote: notes || null
+  const openTimedReview = (row: PendingTimedRow) => {
+    setTimedTarget({
+      mode: 'create',
+      assignmentId: row.assignmentId,
+      reviewId: null,
+      workerName: row.workerName,
+      assignedOn: row.assignedOn,
+      processType: row.processType,
+      review: null
+    })
+  }
+
+  const openCorrection = (row: WorkTimeReviewRecordRow) => {
+    if (row.kind === 'making') {
+      setMakingTarget({
+        mode: 'correct',
+        taskId: row.taskId,
+        resultId: row.summary.resultId,
+        workerName: row.workerName,
+        assignedOn: row.assignedOn,
+        productName: row.productName,
+        plannedQuantity: row.plannedQuantity,
+        reviewedOn: row.summary.reviewedOn,
+        note: row.summary.note,
+        completedQuantity: row.summary.completedQuantity,
+        qualifiedQuantity: row.summary.qualifiedQuantity
       })
-      if (confirmAfterSave) await confirm(draft.id)
-      setReviewingGroup(null)
-      await loadGroups()
-      props.onChanged()
-    } catch (submitError) {
-      setError(getErrorMessage(submitError))
-    } finally {
-      setBusy(false)
+      return
     }
+    if (!row.review.workAssignmentId) return
+    setTimedTarget({
+      mode: 'correct',
+      assignmentId: row.review.workAssignmentId,
+      reviewId: row.review.id,
+      workerName: row.workerName,
+      assignedOn: row.review.workedOn,
+      processType: row.review.processType,
+      review: row.review
+    })
   }
 
-  const submitVoid = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!voidTarget) return
-    setBusy(true)
-    setError(null)
-    try {
-      await voidReview(voidTarget.id, { reason: voidReason })
-      setVoidTarget(null)
-      setVoidReason('')
-      await loadGroups()
-      props.onChanged()
-    } catch (voidError) {
-      setError(getErrorMessage(voidError))
-    } finally {
-      setBusy(false)
+  const submitMaking = async (values: MakingReviewValues) => {
+    const target = makingTarget
+    if (!target) return
+    if (target.mode === 'correct' && target.resultId) {
+      await correctMakingReview({
+        resultId: target.resultId,
+        completedQuantity: values.completedQuantity,
+        qualifiedQuantity: values.qualifiedQuantity,
+        reviewedOn: target.reviewedOn,
+        reason: values.reason ?? '',
+        note: values.note
+      })
+    } else {
+      await reviewMaking({
+        processTaskId: target.taskId,
+        completedQuantity: values.completedQuantity,
+        qualifiedQuantity: values.qualifiedQuantity,
+        reviewedOn: target.reviewedOn,
+        note: values.note
+      })
     }
+    setMakingTarget(null)
+    onChanged()
+  }
+
+  const submitTimed = async (values: TimedReviewValues) => {
+    const target = timedTarget
+    if (!target) return
+    if (target.mode === 'correct' && target.reviewId) {
+      await correctTimed({
+        id: target.reviewId,
+        startedAt: values.startedAt,
+        endedAt: values.endedAt,
+        items: values.items,
+        reason: values.reason ?? '',
+        reviewNote: values.note
+      })
+    } else {
+      await reviewTimed({
+        workAssignmentId: target.assignmentId,
+        startedAt: values.startedAt,
+        endedAt: values.endedAt,
+        items: values.items,
+        reviewNote: values.note
+      })
+    }
+    setTimedTarget(null)
+    onChanged()
+  }
+
+  const submitVoid = async (reason: string) => {
+    const row = voidRow
+    if (!row) return
+    if (row.kind === 'making') {
+      await voidMakingReview({ resultId: row.summary.resultId, reason })
+    } else {
+      await voidTimed(row.review.id, { reason })
+    }
+    setVoidRow(null)
+    onChanged()
   }
 
   return (
     <>
       <YumiSection
-        description={`制作（制品）与计时工序（非制品）待核算事项统一列出；共 ${rows.length} 项待处理。`}
+        description={`制作任务与计时班次都在这里一次完成核算；共 ${pendingRows.length} 项待核算。`}
         title="待核算"
       >
-        {listError ? <YumiFormMessage tone="error">{listError}</YumiFormMessage> : null}
-        {groupsLoading && !rows.length ? (
+        {loadError ? <YumiFormMessage tone="error">{loadError}</YumiFormMessage> : null}
+        {loading && !pendingRows.length ? (
           <YumiFormMessage tone="hint">正在读取待核算事项…</YumiFormMessage>
-        ) : rows.length ? (
+        ) : pendingRows.length ? (
           <YumiDataTable
             ariaLabel="待核算事项"
             columns={[
               {
-                key: 'type',
-                label: '类型',
+                key: 'processType',
+                label: '工序',
                 render: (row) =>
                   row.kind === 'making' ? (
                     <YumiStatusTag tone="brand">制作</YumiStatusTag>
                   ) : (
                     <YumiStatusTag tone="neutral">
-                      {processLabels[row.group.processType]}
+                      {workTimeProcessLabels[row.processType]}
                     </YumiStatusTag>
                   )
               },
               { key: 'workerName', label: '人员', render: (row) => row.workerName },
-              { key: 'assignedOn', label: '工作日期', render: (row) => row.assignedOn },
+              { key: 'assignedOn', label: '排班日期', render: (row) => row.assignedOn },
               {
                 key: 'content',
                 label: '待核算内容',
                 render: (row) =>
                   row.kind === 'making'
-                    ? `${row.entry.productName} · 计划 ${row.entry.plannedQuantity} 件`
-                    : groupSummary(row.group)
+                    ? `${row.productName} · 计划 ${row.plannedQuantity} 件`
+                    : '实际时间范围与跨订单商品完成数量（核算时填写）'
               },
               {
                 align: 'right',
                 key: 'actions',
                 label: '操作',
-                render: (row) =>
-                  row.kind === 'making' ? (
-                    <YumiButton
-                      onClick={() => props.onOpenMakingTask(row.entry.item, row.entry.task)}
-                      variant="secondary"
-                    >
-                      确认结果
-                    </YumiButton>
-                  ) : (
-                    <YumiButton onClick={() => openReviewDialog(row.group)} variant="secondary">
-                      登记核算
-                    </YumiButton>
-                  )
+                render: (row) => (
+                  <YumiButton
+                    onClick={() =>
+                      row.kind === 'making' ? openMakingReview(row) : openTimedReview(row)
+                    }
+                    variant="secondary"
+                  >
+                    核算
+                  </YumiButton>
+                )
               }
             ]}
             getRowKey={(row) => row.key}
-            rows={rows}
+            rows={pendingRows}
           />
         ) : (
           <YumiFormMessage tone="hint">
-            暂无待核算事项；制作完成申报或计时工序安排完成后会在这里等待核算。
+            暂无待核算事项；制作排班与计时班次会在这里等待一次核算。
           </YumiFormMessage>
         )}
       </YumiSection>
 
       <YumiSection
-        description="确认后冻结工作日期生效的个人时薪并提交商品完成结果；重复确认不会重复增加工资来源。"
-        title="已登记工时核算"
+        description="列出当前有效核算记录；更正与作废需要填写原因，锁定记录只能走履约调整或后续结算调整。"
+        title="已核算记录"
       >
-        {reviews.length ? (
+        {loading && !recordRows.length ? (
+          <YumiFormMessage tone="hint">正在读取已核算记录…</YumiFormMessage>
+        ) : recordRows.length ? (
           <YumiDataTable
-            ariaLabel="工时核算记录"
+            ariaLabel="已核算记录"
             columns={[
-              { key: 'workedOn', label: '工作日期', render: (review) => review.workedOn },
               {
                 key: 'processType',
                 label: '工序',
-                render: (review) => processLabels[review.processType]
+                render: (row) =>
+                  row.kind === 'making' ? (
+                    <YumiStatusTag tone="brand">制作</YumiStatusTag>
+                  ) : (
+                    <YumiStatusTag tone="neutral">
+                      {workTimeProcessLabels[row.review.processType]}
+                    </YumiStatusTag>
+                  )
+              },
+              { key: 'workerName', label: '人员', render: (row) => row.workerName },
+              {
+                key: 'reviewedOn',
+                label: '核算日期',
+                render: (row) =>
+                  row.kind === 'making' ? row.summary.reviewedOn : row.review.workedOn
               },
               {
-                key: 'approvedMinutes',
-                label: '核算分钟',
-                align: 'right',
-                render: (review) => `${review.approvedMinutes} 分钟`
-              },
-              {
-                key: 'hourlyWage',
-                label: '冻结时薪',
-                align: 'right',
-                render: (review) =>
-                  review.hourlyWageCentsSnapshot === null
-                    ? '待确认'
-                    : `${formatCents(review.hourlyWageCentsSnapshot)} / 小时`
-              },
-              {
-                key: 'items',
-                label: '完成明细',
-                render: (review) =>
-                  `${review.items.length} 个商品 · ${review.items.reduce(
-                    (total, item) => total + item.completedQuantity,
-                    0
-                  )} 件`
+                key: 'content',
+                label: '核算内容',
+                render: (row) =>
+                  row.kind === 'making'
+                    ? `${row.productName} · 实际产出 ${row.summary.completedQuantity} 件 · 合格 ${row.summary.qualifiedQuantity} 件`
+                    : `${row.review.items.length} 个商品 · 合计 ${timedRecordTotal(row)} 件 · ${row.review.approvedMinutes} 分钟`
               },
               {
                 key: 'status',
                 label: '状态',
-                render: (review) => (
-                  <YumiStatusTag tone={statusMeta[review.status].tone}>
-                    {statusMeta[review.status].label}
-                  </YumiStatusTag>
-                )
+                render: (row) =>
+                  row.kind === 'making' ? (
+                    <YumiStatusTag tone="success">已核算</YumiStatusTag>
+                  ) : (
+                    <YumiStatusTag tone={reviewStatusMeta(row.review).tone}>
+                      {reviewStatusMeta(row.review).label}
+                    </YumiStatusTag>
+                  )
+              },
+              {
+                key: 'lock',
+                label: '锁定与指引',
+                render: (row) => {
+                  const lock = recordLockOf(row)
+                  return lock.locked ? (
+                    <span className="yumi-work-time-review__lock">{lock.message}</span>
+                  ) : (
+                    '—'
+                  )
+                }
               },
               {
                 align: 'right',
                 key: 'actions',
                 label: '操作',
-                render: (review) => (
-                  <div className="yumi-record-action-bar">
-                    {review.status === 'draft' ? (
-                      <YumiButton
-                        loading={busy}
-                        onClick={() => void confirm(review.id).catch(() => undefined)}
-                        variant="primary"
-                      >
-                        确认工时
+                render: (row) => {
+                  const lock = recordLockOf(row)
+                  const readOnly =
+                    row.kind === 'timed' &&
+                    (row.review.status === 'draft' || !row.review.workAssignmentId)
+                  return (
+                    <div className="yumi-record-action-bar">
+                      <YumiButton onClick={() => setDetailRow(row)} variant="ghost">
+                        查看
                       </YumiButton>
-                    ) : null}
-                    {review.status === 'confirmed' ? (
-                      <YumiButton onClick={() => setVoidTarget(review)} variant="ghost">
-                        作废重录
-                      </YumiButton>
-                    ) : null}
-                  </div>
-                )
+                      {readOnly ? (
+                        <span className="yumi-work-time-review__muted">只读历史</span>
+                      ) : (
+                        <>
+                          <YumiButton
+                            disabled={lock.locked}
+                            onClick={() => openCorrection(row)}
+                            title={lock.message ?? undefined}
+                            variant="secondary"
+                          >
+                            更正
+                          </YumiButton>
+                          <YumiButton
+                            disabled={lock.locked}
+                            onClick={() => setVoidRow(row)}
+                            title={lock.message ?? undefined}
+                            variant="ghost"
+                          >
+                            作废
+                          </YumiButton>
+                        </>
+                      )}
+                    </div>
+                  )
+                }
               }
             ]}
-            getRowKey={(review) => review.id}
-            rows={reviews}
+            getRowKey={(row) => row.key}
+            rows={recordRows}
           />
-        ) : loading ? (
-          <YumiFormMessage tone="hint">正在读取工时核算记录…</YumiFormMessage>
         ) : (
-          <YumiFormMessage tone="hint">还没有工时核算记录。</YumiFormMessage>
+          <YumiFormMessage tone="hint">还没有已核算记录。</YumiFormMessage>
         )}
       </YumiSection>
 
-      <YumiDialog
-        description="整段时长与各商品完成数量会在确认后写入工资来源；核对提示仅供人工参考。"
-        footer={
-          <>
-            <YumiButton
-              disabled={busy}
-              onClick={() => setReviewingGroup(null)}
-              variant="ghost"
-            >
-              取消
-            </YumiButton>
-            <YumiButton
-              loading={busy}
-              onClick={() => void submitReview(false)}
-              variant="secondary"
-            >
-              保存草稿
-            </YumiButton>
-            <YumiButton
-              form="work-time-review-form"
-              loading={busy}
-              type="submit"
-              variant="primary"
-            >
-              保存并确认
-            </YumiButton>
-          </>
-        }
-        onOpenChange={(open) => {
-          if (!open) setReviewingGroup(null)
-        }}
-        open={reviewingGroup !== null}
-        title="登记工时核算"
-      >
-        {reviewingGroup ? (
-          <form
-            id="work-time-review-form"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submitReview(true)
-            }}
-          >
-            <p className="yumi-work-time-review__dialog-meta">
-              {`${workerNameOf(reviewingGroup.workerId)} · ${reviewingGroup.assignedOn} · ${
-                processLabels[reviewingGroup.processType]
-              } · 含 ${reviewingGroup.candidates.length} 个安排`}
-            </p>
-            <div className="yumi-form-grid yumi-form-grid--two">
-              <YumiField hint="录入整段核算时长；同一时段的提成按各商品完成数量计算。">
-                <YumiFieldLabel htmlFor="review-approved-minutes" required>
-                  负责人核算时长（分钟）
-                </YumiFieldLabel>
-                <YumiNumberField
-                  id="review-approved-minutes"
-                  onChange={(event) => setApprovedMinutes(event.target.value)}
-                  required
-                  value={approvedMinutes}
-                />
-              </YumiField>
-              {selectedTasks.map((task) => (
-                <YumiField key={task.taskId}>
-                  <YumiFieldLabel htmlFor={`review-quantity-${task.taskId}`}>
-                    {task.productName} 完成数量（件）
-                  </YumiFieldLabel>
-                  <YumiNumberField
-                    id={`review-quantity-${task.taskId}`}
-                    onChange={(event) =>
-                      setQuantities((current) => ({
-                        ...current,
-                        [task.taskId]: event.target.value
-                      }))
-                    }
-                    value={quantities[task.taskId] ?? ''}
-                  />
-                </YumiField>
-              ))}
-            </div>
-            <div className="yumi-work-time-review__comparison">
-              <YumiDetailList
-                ariaLabel="工时核对"
-                items={[
-                  {
-                    label: '预计总分钟',
-                    value: `${comparison.expectedMinutes.minutes} 分钟`
-                  },
-                  { label: '时间差', value: `${comparison.differenceMinutes} 分钟` }
-                ]}
-              />
-              <p className="yumi-work-time-review__formula">
-                {comparison.expectedMinutes.expression}：
-                {comparison.expectedMinutes.substitutedExpression}
-              </p>
-              <YumiCalculatedAmount calculation={comparison.efficiency} />
-              {comparison.attentionMessage ? (
-                <YumiFormMessage tone="hint">{comparison.attentionMessage}</YumiFormMessage>
-              ) : null}
-            </div>
-            <YumiField>
-              <YumiFieldLabel htmlFor="review-note">核算备注</YumiFieldLabel>
-              <YumiTextArea
-                id="review-note"
-                onChange={(event) => setNotes(event.target.value)}
-                value={notes}
-              />
-            </YumiField>
-            {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
-          </form>
-        ) : null}
-      </YumiDialog>
+      {makingTarget ? (
+        <MakingReviewDialog
+          onClose={() => setMakingTarget(null)}
+          onSubmit={submitMaking}
+          target={makingTarget}
+        />
+      ) : null}
 
+      {timedTarget ? (
+        <TimedReviewDialog
+          itemLabels={itemLabels}
+          listCandidates={listCandidates}
+          onClose={() => setTimedTarget(null)}
+          onSubmit={submitTimed}
+          target={timedTarget}
+        />
+      ) : null}
+
+      {detailRow ? (
+        <ReviewDetailDialog
+          itemLabels={itemLabels}
+          onClose={() => setDetailRow(null)}
+          row={detailRow}
+        />
+      ) : null}
+
+      {voidRow ? (
+        <VoidReviewDialog onClose={() => setVoidRow(null)} onSubmit={submitVoid} row={voidRow} />
+      ) : null}
+    </>
+  )
+}
+
+function ReviewDetailDialog({
+  itemLabels,
+  onClose,
+  row
+}: {
+  itemLabels: ReadonlyMap<string, WorkTimeReviewItemLabel>
+  onClose(): void
+  row: WorkTimeReviewRecordRow
+}) {
+  const lock = recordLockOf(row)
+  const lockItems = lock.locked ? [{ label: '锁定原因与调整指引', value: lock.message }] : []
+  if (row.kind === 'making') {
+    return (
       <YumiDialog
-        description="仅当完成结果未被下游工序消耗且工时未进入已确认结算时才可作废。"
         footer={
-          <>
-            <YumiButton onClick={() => setVoidTarget(null)} variant="ghost">
-              取消
-            </YumiButton>
-            <YumiButton
-              form="work-time-review-void-form"
-              loading={busy}
-              type="submit"
-              variant="primary"
-            >
-              确认作废
-            </YumiButton>
-          </>
+          <YumiButton onClick={onClose} variant="secondary">
+            关闭
+          </YumiButton>
         }
         onOpenChange={(open) => {
-          if (!open) setVoidTarget(null)
+          if (!open) onClose()
         }}
-        open={voidTarget !== null}
-        title="作废工时核算？"
+        open
+        title="制作核算详情"
       >
-        <form id="work-time-review-void-form" onSubmit={submitVoid}>
-          <YumiField>
-            <YumiFieldLabel htmlFor="review-void-reason" required>
-              作废原因
-            </YumiFieldLabel>
-            <YumiTextArea
-              id="review-void-reason"
-              onChange={(event) => setVoidReason(event.target.value)}
-              required
-              value={voidReason}
-            />
-          </YumiField>
-          {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
-        </form>
+        <YumiDetailList
+          ariaLabel="制作核算详情"
+          items={[
+            { label: '人员', value: row.workerName },
+            { label: '排班日期', value: row.assignedOn },
+            { label: '订单商品', value: row.productName },
+            { label: '本次计划', value: `${row.plannedQuantity} 件` },
+            { label: '实际产出', value: `${row.summary.completedQuantity} 件` },
+            { label: '合格数量', value: `${row.summary.qualifiedQuantity} 件` },
+            { label: '不合格数量', value: `${row.summary.unqualifiedQuantity} 件` },
+            { label: '未完成数量', value: `${row.summary.unfinishedQuantity} 件` },
+            { label: '核算日期', value: row.summary.reviewedOn },
+            { label: '备注', value: row.summary.note ?? '—' },
+            {
+              label: '版本',
+              value: row.summary.supersedesResultId ? '更正后的新版本' : '原始版本'
+            },
+            ...lockItems
+          ]}
+        />
       </YumiDialog>
-    </>
+    )
+  }
+  return (
+    <YumiDialog
+      footer={
+        <YumiButton onClick={onClose} variant="secondary">
+          关闭
+        </YumiButton>
+      }
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      open
+      title="计时核算详情"
+    >
+      <YumiDetailList
+        ariaLabel="计时核算详情"
+        items={[
+          { label: '人员', value: row.workerName },
+          { label: '工序', value: workTimeProcessLabels[row.review.processType] },
+          { label: '归属日期', value: row.review.workedOn },
+          {
+            label: '实际时间范围',
+            value:
+              row.review.rawStartedAt && row.review.rawEndedAt
+                ? `${row.review.rawStartedAt} 至 ${row.review.rawEndedAt}`
+                : '历史记录未保存时间范围'
+          },
+          { label: '核算分钟', value: `${row.review.approvedMinutes} 分钟` },
+          {
+            label: '冻结时薪',
+            value:
+              row.review.hourlyWageCentsSnapshot === null
+                ? '—'
+                : `¥${(row.review.hourlyWageCentsSnapshot / 100).toFixed(2)} / 小时`
+          },
+          { label: '备注', value: row.review.reviewNote ?? '—' },
+          { label: '版本', value: row.review.supersedesReviewId ? '更正后的新版本' : '原始版本' },
+          ...lockItems
+        ]}
+      />
+      <YumiDataTable
+        ariaLabel="核算商品明细"
+        columns={[
+          {
+            key: 'productName',
+            label: '商品',
+            render: (item) =>
+              (item.orderItemId && itemLabels.get(item.orderItemId)?.productName) || '订单商品'
+          },
+          {
+            key: 'orderCode',
+            label: '订单号',
+            render: (item) =>
+              (item.orderItemId && itemLabels.get(item.orderItemId)?.orderCode) || '—'
+          },
+          {
+            key: 'completedQuantity',
+            label: '完成数量',
+            align: 'right',
+            render: (item) => `${item.completedQuantity} 件`
+          },
+          {
+            key: 'pieceRate',
+            label: '提成快照',
+            align: 'right',
+            render: (item) =>
+              item.pieceRateCentsSnapshot === null
+                ? '—'
+                : `¥${(item.pieceRateCentsSnapshot / 100).toFixed(2)} / 件`
+          },
+          {
+            key: 'expectedUnitMinutes',
+            label: '预计单件分钟',
+            align: 'right',
+            render: (item) =>
+              item.expectedUnitMinutesSnapshot === null
+                ? '—'
+                : `${item.expectedUnitMinutesSnapshot} 分钟`
+          }
+        ]}
+        getRowKey={(item) => item.id}
+        rows={row.review.items}
+      />
+    </YumiDialog>
+  )
+}
+
+function VoidReviewDialog({
+  onClose,
+  onSubmit,
+  row
+}: {
+  onClose(): void
+  onSubmit(reason: string): Promise<void>
+  row: WorkTimeReviewRecordRow
+}) {
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const lock = recordLockOf(row)
+
+  const submit = async () => {
+    if (busy) return
+    if (!reason.trim()) {
+      setError('请填写作废原因')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await onSubmit(reason.trim())
+    } catch (submitError) {
+      setError(getErrorMessage(submitError))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <YumiDialog
+      description={
+        lock.locked
+          ? lock.message
+          : '作废会回退未锁定的履约与工资来源，保留审计记录，并让对应排班重新回到待核算。'
+      }
+      footer={
+        <>
+          <YumiButton disabled={busy} onClick={onClose} variant="ghost">
+            取消
+          </YumiButton>
+          <YumiButton loading={busy} onClick={() => void submit()} variant="danger">
+            确认作废
+          </YumiButton>
+        </>
+      }
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      open
+      title="作废核算记录？"
+    >
+      <YumiField>
+        <YumiFieldLabel htmlFor="work-time-review-void-reason" required>
+          作废原因
+        </YumiFieldLabel>
+        <YumiTextArea
+          id="work-time-review-void-reason"
+          onChange={(event) => setReason(event.target.value)}
+          value={reason}
+        />
+      </YumiField>
+      {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
+    </YumiDialog>
   )
 }

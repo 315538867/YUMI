@@ -820,6 +820,216 @@ const v2ProductCodeAndCategoryCleanup: V2Migration = {
   }
 }
 
+/**
+ * 计时排班解耦与单次核算：排班模式、计时班次唯一约束、核算版本链、
+ * 制作结果零产出与版本替代、履约事件幂等键、核算明细订单商品主关联与结算来源快照。
+ */
+const v2TimedShiftAndOneShotReview: V2Migration = {
+  version: 16,
+  name: 'v2_timed_shift_and_one_shot_review',
+  requiresForeignKeysDisabled: true,
+  run(database) {
+    // 更旧的库可能缺少这些表（例如仅标记过迁移版本但未真正建表），
+    // 交给目标结构守卫统一拒绝；本迁移不做任何猜测性建表。
+    // 1) 工作安排：增加排班模式与缺勤状态；既有记录保留为 legacy_task 只读兼容。
+    if (hasTable(database, 'work_assignments')) {
+      database.exec(`
+        CREATE TABLE work_assignments_next (
+          id TEXT PRIMARY KEY,
+          worker_id TEXT NOT NULL,
+          assigned_on TEXT NOT NULL,
+          process_type TEXT NOT NULL CHECK(process_type IN ('making', 'fluffing_bagging', 'edge_sewing', 'packing')),
+          status TEXT NOT NULL CHECK(status IN ('draft', 'scheduled', 'cancelled', 'completed', 'absent')),
+          schedule_mode TEXT NOT NULL DEFAULT 'legacy_task' CHECK(schedule_mode IN ('making_task', 'timed_shift', 'legacy_task')),
+          note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        INSERT INTO work_assignments_next (
+          id, worker_id, assigned_on, process_type, status, schedule_mode, note, created_at, updated_at
+        )
+        SELECT id, worker_id, assigned_on, process_type, status, 'legacy_task', note, created_at, updated_at
+        FROM work_assignments;
+
+        DROP TABLE work_assignments;
+        ALTER TABLE work_assignments_next RENAME TO work_assignments;
+
+        CREATE INDEX IF NOT EXISTS idx_work_assignments_worker_day
+          ON work_assignments(worker_id, assigned_on, process_type);
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_work_assignments_timed_shift
+          ON work_assignments(worker_id, assigned_on, process_type)
+          WHERE schedule_mode = 'timed_shift' AND status NOT IN ('cancelled', 'absent');
+      `)
+    }
+
+    // 2) 工时核算：直接安排关联与更正/作废审计链；既有草稿标记为作废历史，不生成履约或工资事实。
+    if (hasTable(database, 'work_time_reviews')) {
+      addColumnIfMissing(
+        database,
+        'work_time_reviews',
+        'work_assignment_id',
+        'work_assignment_id TEXT REFERENCES work_assignments(id) ON DELETE RESTRICT'
+      )
+      addColumnIfMissing(
+        database,
+        'work_time_reviews',
+        'supersedes_review_id',
+        'supersedes_review_id TEXT REFERENCES work_time_reviews(id)'
+      )
+      addColumnIfMissing(database, 'work_time_reviews', 'void_reason', 'void_reason TEXT')
+      addColumnIfMissing(database, 'work_time_reviews', 'voided_at', 'voided_at TEXT')
+      database.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_work_time_reviews_assignment_current
+          ON work_time_reviews(work_assignment_id)
+          WHERE work_assignment_id IS NOT NULL AND status = 'confirmed';
+
+        UPDATE work_time_reviews
+        SET status = 'voided',
+            void_reason = COALESCE(void_reason, '迁移：历史草稿不再作为业务状态，已释放对应排班'),
+            voided_at = COALESCE(voided_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        WHERE status = 'draft';
+      `)
+    }
+
+    // 3) 制作结果：允许零产出，增加版本替代与作废审计；既有结果成为有效历史版本。
+    if (hasTable(database, 'process_results')) {
+      database.exec(`
+        CREATE TABLE process_results_next (
+          id TEXT PRIMARY KEY,
+          process_task_id TEXT NOT NULL REFERENCES process_tasks(id) ON DELETE CASCADE,
+          completed_quantity INTEGER NOT NULL CHECK(completed_quantity >= 0),
+          actual_minutes INTEGER CHECK(actual_minutes IS NULL OR actual_minutes >= 0),
+          submitted_on TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'confirmed' CHECK(status IN ('confirmed', 'voided')),
+          supersedes_result_id TEXT REFERENCES process_results_next(id),
+          void_reason TEXT,
+          voided_at TEXT,
+          note TEXT,
+          created_at TEXT NOT NULL
+        );
+
+        INSERT INTO process_results_next (
+          id, process_task_id, completed_quantity, actual_minutes, submitted_on,
+          status, supersedes_result_id, void_reason, voided_at, note, created_at
+        )
+        SELECT id, process_task_id, completed_quantity, actual_minutes, submitted_on,
+          'confirmed', NULL, NULL, NULL, note, created_at
+        FROM process_results;
+
+        DROP TABLE process_results;
+        ALTER TABLE process_results_next RENAME TO process_results;
+
+        CREATE INDEX IF NOT EXISTS idx_process_results_task
+          ON process_results(process_task_id, submitted_on);
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_process_results_task_current
+          ON process_results(process_task_id)
+          WHERE status = 'confirmed';
+      `)
+    }
+
+    // 4) 履约事件：可空事件级幂等键；历史事件保持为空且不重写。
+    if (hasTable(database, 'fulfillment_events')) {
+      addColumnIfMissing(
+        database,
+        'fulfillment_events',
+        'source_event_key',
+        'source_event_key TEXT'
+      )
+      database.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_fulfillment_events_source_key
+          ON fulfillment_events(source_record_type, source_record_id, source_event_key)
+          WHERE source_event_key IS NOT NULL;
+      `)
+    }
+
+    // 5) 核算明细：订单商品成为新记录主关联并冻结提成与预计分钟快照；
+    //    历史任务关联保留，历史行可能同一订单商品出现多次（多任务聚合），
+    //    因此新记录唯一性使用仅覆盖新行的部分索引。
+    if (hasTable(database, 'work_time_review_items') && hasTable(database, 'process_tasks')) {
+      database.exec(`
+        CREATE TABLE work_time_review_items_next (
+          id TEXT PRIMARY KEY,
+          review_id TEXT NOT NULL REFERENCES work_time_reviews(id) ON DELETE CASCADE,
+          order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
+          process_task_id TEXT REFERENCES process_tasks(id) ON DELETE RESTRICT,
+          completed_quantity INTEGER NOT NULL CHECK(completed_quantity > 0),
+          piece_rate_cents_snapshot INTEGER CHECK(piece_rate_cents_snapshot IS NULL OR piece_rate_cents_snapshot >= 0),
+          expected_unit_minutes_snapshot INTEGER CHECK(expected_unit_minutes_snapshot IS NULL OR expected_unit_minutes_snapshot >= 0),
+          created_at TEXT NOT NULL,
+          UNIQUE(review_id, process_task_id)
+        );
+
+        INSERT INTO work_time_review_items_next (
+          id, review_id, order_item_id, process_task_id, completed_quantity,
+          piece_rate_cents_snapshot, expected_unit_minutes_snapshot, created_at
+        )
+        SELECT
+          items.id,
+          items.review_id,
+          COALESCE(items.order_item_id, tasks.order_item_id),
+          items.process_task_id,
+          items.completed_quantity,
+          tasks.piece_rate_cents,
+          NULL,
+          items.created_at
+        FROM work_time_review_items AS items
+        LEFT JOIN process_tasks AS tasks ON tasks.id = items.process_task_id;
+
+        DROP TABLE work_time_review_items;
+        ALTER TABLE work_time_review_items_next RENAME TO work_time_review_items;
+
+        CREATE INDEX IF NOT EXISTS idx_work_time_review_items_review
+          ON work_time_review_items(review_id);
+        CREATE INDEX IF NOT EXISTS idx_work_time_review_items_task
+          ON work_time_review_items(process_task_id);
+        CREATE INDEX IF NOT EXISTS idx_work_time_review_items_order_item
+          ON work_time_review_items(order_item_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_work_time_review_items_review_order_item
+          ON work_time_review_items(review_id, order_item_id)
+          WHERE order_item_id IS NOT NULL AND process_task_id IS NULL;
+      `)
+    }
+
+    // 6) 结算计时明细：加入核算明细来源，历史任务关联与新订单商品关联并存。
+    if (hasTable(database, 'worker_settlement_timed_items')) {
+      database.exec(`
+        CREATE TABLE worker_settlement_timed_items_next (
+          id TEXT PRIMARY KEY,
+          timed_source_id TEXT NOT NULL REFERENCES worker_settlement_timed_sources(id) ON DELETE CASCADE,
+          work_time_review_item_id TEXT REFERENCES work_time_review_items(id) ON DELETE RESTRICT,
+          process_task_id TEXT REFERENCES process_tasks(id) ON DELETE RESTRICT,
+          order_item_id TEXT REFERENCES order_items(id) ON DELETE RESTRICT,
+          completed_quantity INTEGER NOT NULL CHECK(completed_quantity > 0),
+          piece_rate_cents INTEGER CHECK(piece_rate_cents IS NULL OR piece_rate_cents >= 0),
+          commission_cents INTEGER NOT NULL DEFAULT 0 CHECK(commission_cents >= 0),
+          created_at TEXT NOT NULL
+        );
+
+        INSERT INTO worker_settlement_timed_items_next (
+          id, timed_source_id, work_time_review_item_id, process_task_id, order_item_id,
+          completed_quantity, piece_rate_cents, commission_cents, created_at
+        )
+        SELECT id, timed_source_id, NULL, process_task_id, order_item_id,
+          completed_quantity, piece_rate_cents, commission_cents, created_at
+        FROM worker_settlement_timed_items;
+
+        DROP TABLE worker_settlement_timed_items;
+        ALTER TABLE worker_settlement_timed_items_next RENAME TO worker_settlement_timed_items;
+
+        CREATE INDEX IF NOT EXISTS idx_worker_settlement_timed_items_source
+          ON worker_settlement_timed_items(timed_source_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_worker_settlement_timed_items_task
+          ON worker_settlement_timed_items(timed_source_id, process_task_id)
+          WHERE process_task_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_worker_settlement_timed_items_review_item
+          ON worker_settlement_timed_items(timed_source_id, work_time_review_item_id)
+          WHERE work_time_review_item_id IS NOT NULL;
+      `)
+    }
+  }
+}
+
 const migrations: readonly V2Migration[] = [
   v2MasterData,
   v2OrderFoundation,
@@ -835,7 +1045,8 @@ const migrations: readonly V2Migration[] = [
   v2ShipmentVoidLifecycle,
   v2ProductStageInventory,
   v2WorkTimeReviews,
-  v2ProductCodeAndCategoryCleanup
+  v2ProductCodeAndCategoryCleanup,
+  v2TimedShiftAndOneShotReview
 ]
 
 /**
@@ -850,7 +1061,16 @@ const requiredTargetColumns: ReadonlyArray<readonly [string, string]> = [
   ['products', 'expected_packing_minutes'],
   ['products', 'edge_sewing_commission_cents'],
   ['product_stage_inventory_events', 'stage'],
-  ['work_time_reviews', 'approved_minutes']
+  ['work_time_reviews', 'approved_minutes'],
+  ['work_assignments', 'schedule_mode'],
+  ['work_time_reviews', 'work_assignment_id'],
+  ['work_time_reviews', 'supersedes_review_id'],
+  ['process_results', 'status'],
+  ['process_results', 'supersedes_result_id'],
+  ['fulfillment_events', 'source_event_key'],
+  ['work_time_review_items', 'piece_rate_cents_snapshot'],
+  ['work_time_review_items', 'expected_unit_minutes_snapshot'],
+  ['worker_settlement_timed_items', 'work_time_review_item_id']
 ]
 
 function assertTargetSchema(database: Database.Database): void {
@@ -867,6 +1087,25 @@ function assertTargetSchema(database: Database.Database): void {
  * V2 使用独立的迁移表，不会把 V1 的 schema_migrations 当成已初始化状态。
  */
 export function runV2Migrations(database: Database.Database): void {
+  applyV2Migrations(database, migrations)
+  assertTargetSchema(database)
+}
+
+/**
+ * 迁移升级测试夹具：只执行到指定版本，用于构造旧版本数据库后验证升级。
+ * 业务代码不得调用，正式启动始终使用 `runV2Migrations`。
+ */
+export function runV2MigrationsUpTo(database: Database.Database, maxVersion: number): void {
+  applyV2Migrations(
+    database,
+    migrations.filter((migration) => migration.version <= maxVersion)
+  )
+}
+
+function applyV2Migrations(
+  database: Database.Database,
+  migrationList: readonly V2Migration[]
+): void {
   const hasV2Migrations = hasTable(database, 'v2_schema_migrations')
   if (!hasV2Migrations && hasTable(database, 'schema_migrations')) {
     throw new Error('拒绝将 V2 schema 写入疑似 V1 数据库')
@@ -887,7 +1126,7 @@ export function runV2Migrations(database: Database.Database): void {
     ).map((row) => row.version)
   )
 
-  for (const migration of migrations) {
+  for (const migration of migrationList) {
     if (appliedVersions.has(migration.version)) continue
 
     const applyMigration = () => {
@@ -912,6 +1151,4 @@ export function runV2Migrations(database: Database.Database): void {
       if (foreignKeysEnabled) database.pragma('foreign_keys = ON')
     }
   }
-
-  assertTargetSchema(database)
 }

@@ -1,11 +1,19 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type {
   V2CustomerInput,
+  V2FulfillmentEvent,
+  V2MakingReviewCorrectionInput,
+  V2MakingReviewInput,
   V2OrderFundInput,
   V2ProductInput,
   V2ShipmentInput,
   V2BatchReimbursementInput,
   V2NavigationTarget,
+  V2TimedWorkAssignmentCreateInput,
+  V2WorkAssignmentCreateInput,
+  V2WorkTimeReviewCorrectionInput,
+  V2WorkTimeReviewItemInput,
+  V2WorkTimeReviewInput,
   V2WorkbenchItem
 } from './index'
 
@@ -56,6 +64,14 @@ describe('V2 共享契约', () => {
     expect(financeTarget).toMatchObject({ view: 'finance', financeView: 'reimbursements' })
   })
 
+  it('履约事件携带事件级幂等键，允许历史事件为空', () => {
+    expectTypeOf<V2FulfillmentEvent>().toMatchTypeOf<{
+      sourceRecordType: string | null
+      sourceRecordId: string | null
+      sourceEventKey: string | null
+    }>()
+  })
+
   it('订单、商品、客户、资金和发货输入只使用 V2 契约来源', () => {
     expectTypeOf<V2CustomerInput>().toMatchTypeOf<{ name: string }>()
     expectTypeOf<V2ProductInput>().toMatchTypeOf<{
@@ -77,5 +93,73 @@ describe('V2 共享契约', () => {
       id: string
       navigationTarget: V2NavigationTarget
     }>()
+  })
+})
+
+describe('V2 单次核算契约', () => {
+  it('工作安排创建输入按排班模式区分为制作与计时两类', () => {
+    const making = {
+      scheduleMode: 'making_task',
+      workerId: 'worker-1',
+      assignedOn: '2026-09-10',
+      processType: 'making',
+      tasks: [{ orderItemId: 'item-1', sourceType: 'normal_production', plannedQuantity: 20 }]
+    } satisfies V2WorkAssignmentCreateInput
+    const timed = {
+      scheduleMode: 'timed_shift',
+      workerId: 'worker-1',
+      assignedOn: '2026-09-10',
+      processType: 'edge_sewing',
+      note: '下午补排'
+    } satisfies V2WorkAssignmentCreateInput
+
+    expectTypeOf(making).toMatchTypeOf<{ scheduleMode: 'making_task'; tasks: unknown[] }>()
+    expectTypeOf<V2TimedWorkAssignmentCreateInput>().not.toHaveProperty('tasks')
+    expect(timed.processType).toBe('edge_sewing')
+    expect(timed.scheduleMode).toBe('timed_shift')
+  })
+
+  it('制作一次核算只接受实际产出与合格数量', () => {
+    const review = {
+      processTaskId: 'task-1',
+      completedQuantity: 20,
+      qualifiedQuantity: 18,
+      reviewedOn: '2026-09-11'
+    } satisfies V2MakingReviewInput
+    const correction = {
+      resultId: 'result-1',
+      completedQuantity: 21,
+      qualifiedQuantity: 20,
+      reviewedOn: '2026-09-11',
+      reason: '现场复核'
+    } satisfies V2MakingReviewCorrectionInput
+
+    expect(review.completedQuantity - review.qualifiedQuantity).toBe(2)
+    expectTypeOf<V2MakingReviewInput>().not.toHaveProperty('unqualifiedQuantity')
+    expectTypeOf<V2MakingReviewInput>().not.toHaveProperty('plannedMinutes')
+    expectTypeOf(correction).toMatchTypeOf<{ resultId: string; reason: string }>()
+  })
+
+  it('计时一次核算使用单个安排与分钟精度时间范围，明细直接关联订单商品', () => {
+    const input = {
+      workAssignmentId: 'assignment-1',
+      startedAt: '2026-09-10T09:00:00',
+      endedAt: '2026-09-10T17:30:00',
+      items: [{ orderItemId: 'item-1', completedQuantity: 12 }]
+    } satisfies V2WorkTimeReviewInput
+    const correction = {
+      id: 'review-1',
+      startedAt: '2026-09-10T09:00:00',
+      endedAt: '2026-09-10T17:00:00',
+      reason: '提前收工',
+      items: [{ orderItemId: 'item-1', completedQuantity: 12 }]
+    } satisfies V2WorkTimeReviewCorrectionInput
+
+    expect(input.items[0].completedQuantity).toBe(12)
+    expectTypeOf<V2WorkTimeReviewInput>().not.toHaveProperty('approvedMinutes')
+    expectTypeOf<V2WorkTimeReviewInput>().not.toHaveProperty('assignmentIds')
+    expectTypeOf<V2WorkTimeReviewInput>().not.toHaveProperty('workerId')
+    expectTypeOf<V2WorkTimeReviewItemInput>().not.toHaveProperty('processTaskId')
+    expectTypeOf(correction).toMatchTypeOf<{ id: string; reason: string }>()
   })
 })

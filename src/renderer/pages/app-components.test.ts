@@ -102,7 +102,6 @@ describe('YUMI 列表业务容器规范', () => {
       customerPageSource,
       productPageSource,
       orderPageSource,
-      fulfillmentDispatchViewsSource,
       workersPageSource,
       settlementsPageSource,
       financePageSource,
@@ -237,8 +236,7 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
 
   it('订单详情与排班处理以共享实体摘要承接状态和整行经营指标', () => {
     expect(orderPageSource).toContain('YumiEntitySummary')
-    expect(fulfillmentPageSource).toContain('YumiRecordSummary')
-    for (const pageSource of [orderPageSource, fulfillmentPageSource]) {
+    for (const pageSource of [orderPageSource]) {
       expect(pageSource).not.toContain('yumi-order-summary')
     }
 
@@ -303,8 +301,8 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
   })
 
   it('订单和排班操作表单复用共享资料分组，不保留页面私有表单标题样式', () => {
+    expect(orderPageSource).toContain('YumiFormSection')
     for (const pageSource of [orderPageSource, fulfillmentPageSource]) {
-      expect(pageSource).toContain('YumiFormSection')
       expect(pageSource).not.toContain('yumi-form-panel__title')
     }
 
@@ -532,19 +530,21 @@ describe('V2 订单工作区', () => {
 })
 
 describe('YUMI 排班界面', () => {
-  it('排班队列使用共享工具条和数据表，并用 YUMI 字段替换原生选择和日期控件', () => {
+  it('人员周历使用共享区块与数据表承载唯一排班入口，并用 YUMI 字段替换原生选择与日期控件', () => {
     expect(fulfillmentPageSource).not.toContain('@radix-ui/themes')
     expect(fulfillmentPageSource).not.toContain('<select')
     expect(fulfillmentPageSource).not.toContain('TextField.Root')
-    expect(fulfillmentPageSource).toContain('OrderDispatchBoard')
     expect(fulfillmentPageSource).toContain('WorkerWeekSchedule')
+    expect(fulfillmentPageSource).toContain('WorkAssignmentSheet')
+    expect(fulfillmentPageSource).not.toContain('OrderDispatchBoard')
+    expect(fulfillmentPageSource).not.toContain('订单视角')
     expect(fulfillmentDispatchViewsSource).not.toContain('YumiBusinessList')
-    expect(fulfillmentDispatchViewsSource).toContain('YumiListToolbar')
-    expect(fulfillmentDispatchViewsSource).toContain('YumiDataTable')
     expect(fulfillmentDispatchViewsSource).toContain('YumiSection')
-    expect(fulfillmentDispatchViewsSource).toContain('订单排班队列')
-    expect(fulfillmentDispatchViewsSource).toContain('排班队列列表工具')
-    expect(fulfillmentDispatchViewsSource).toContain('排班队列列表')
+    expect(fulfillmentDispatchViewsSource).toContain('YumiDataTable')
+    expect(fulfillmentDispatchViewsSource).toContain('人员周历')
+    expect(fulfillmentDispatchViewsSource).toContain('人员周历日期导航')
+    expect(fulfillmentDispatchViewsSource).toContain('＋ 派工')
+    expect(fulfillmentDispatchViewsSource).not.toContain('订单排班队列')
     expect(fulfillmentDispatchViewsSource).toContain('YumiSelect')
     expect(fulfillmentDispatchViewsSource).toContain('YumiDatePicker')
     expect(workAssignmentsPageSource).not.toContain('@radix-ui/themes')
@@ -557,51 +557,53 @@ describe('YUMI 排班界面', () => {
 })
 
 describe('V2 履约工作区', () => {
-  it('提供阶段余额、负责人调整和工作安排入口，并移除订单绑定期初在制品入口', () => {
-    expect(fulfillmentPageSource).toContain('订单视角')
+  it('排班默认人员周历并只保留待核算页签，工作安排记录不再提供新建入口', () => {
     expect(fulfillmentPageSource).toContain('人员周历')
-    expect(fulfillmentPageSource).toContain('工作安排与结果确认')
+    expect(fulfillmentPageSource).toContain('待核算')
+    expect(fulfillmentPageSource).toContain('WorkTimeReviewPanel')
+    expect(fulfillmentPageSource).not.toContain('订单视角')
     expect(fulfillmentComposableSource).toContain('buildFulfillmentQueue')
+    expect(fulfillmentComposableSource).toContain('setWorkAssignmentStatus')
     expect(fulfillmentPageSource).not.toContain('期初在制品')
     expect(fulfillmentComposableSource).not.toContain('recordOpeningWip')
-    expect(fulfillmentPageSource).toContain('负责人调整')
+    expect(fulfillmentPageSource).toContain('导出排班')
     expect(fulfillmentPageSource).toContain('待发货')
-    expect(workAssignmentsPageSource).toContain('新增工作安排')
-    expect(workAssignmentsPageSource).toContain('提交完成')
+    expect(workAssignmentsPageSource).not.toContain('新增工作安排')
+    expect(workAssignmentsPageSource).not.toContain('打开新建工作安排')
+    expect(workAssignmentsPageSource).not.toContain('submitProcessResult')
+    expect(workAssignmentsPageSource).not.toContain('confirmQualityInspection')
+    expect(workAssignmentsPageSource).not.toContain('确认工时')
   })
 
-  it('将履约首页组织为单一队列与互斥阶段筛选，发货事项直接进入订单的分批发货处理', () => {
-    expect(fulfillmentPageSource).toContain(
-      "type FulfillmentWorkspaceMode = 'queue' | 'processing'"
-    )
+  it('周历卡片按类型渲染，制作进入核算、计时只显示工序与核算状态，未来日期只打开详情', () => {
+    expect(fulfillmentPageSource).toContain("type FulfillmentOverview = 'workers' | 'reviews'")
     expect(fulfillmentPageSource).toContain('YumiPrimaryTabs')
     expect(fulfillmentPageSource).toContain('排班视角')
-    expect(fulfillmentPageSource).toContain('OrderDispatchBoard')
+    expect(fulfillmentPageSource).toContain('WorkerWeekSchedule')
     expect(fulfillmentPageSource).toContain("orderView: 'fulfillment'")
-    expect(fulfillmentPageSource).toContain(
-      'focusedTaskId={focusedProcessTaskId || navigationTarget?.processTaskId}'
-    )
-    expect(fulfillmentDispatchViewsSource).toContain('未指派')
-    expect(fulfillmentDispatchViewsSource).toContain('超派')
+    expect(fulfillmentPageSource).toContain('focusedTaskId={focusedProcessTaskId}')
+    expect(fulfillmentDispatchViewsSource).toContain('待核算')
+    expect(fulfillmentDispatchViewsSource).toContain('已核算')
+    expect(fulfillmentDispatchViewsSource).toContain('onOpenAssignmentDetail')
+    expect(fulfillmentDispatchViewsSource).toContain('timedReview')
     expect(workAssignmentsPageSource).toContain('focusedTaskId?: string')
     expect(workAssignmentsPageSource).toContain('visibleAssignments')
   })
 
-  it('工作安排页面明确暴露正常生产、返工与售后补发来源', () => {
-    expect(workAssignmentsPageSource).toContain('正常生产')
-    expect(workAssignmentsPageSource).toContain('返工')
-    expect(workAssignmentsPageSource).toContain('售后补发')
+  it('制作任务来源只在人员周历派工抽屉选择，工作安排记录保持只读', () => {
+    expect(fulfillmentDispatchViewsSource).toContain('正常生产')
+    expect(fulfillmentDispatchViewsSource).toContain('返工')
+    expect(fulfillmentDispatchViewsSource).toContain('售后补发')
     expect(fulfillmentPageSource).toContain('待发货')
+    expect(workAssignmentsPageSource).not.toContain('sourceOptions')
   })
 
-  it('工作安排遵循全局记录优先模式：在排班处理上下文中以区块动作发起新建，录入收纳至抽屉', () => {
+  it('工作安排遵循全局记录优先模式：详情在列表位置打开并返回，不再收纳新建表单', () => {
     expect(workAssignmentsPageSource).not.toContain('YumiPageHeader')
-    expect(workAssignmentsPageSource).toContain('YumiSheet')
-    expect(workAssignmentsPageSource).toContain(
-      'const [createSheetOpen, setCreateSheetOpen] = useState(false)'
-    )
+    expect(workAssignmentsPageSource).toContain('返回工作安排列表')
+    expect(workAssignmentsPageSource).not.toContain('createSheetOpen')
+    expect(workAssignmentsPageSource).not.toContain('YumiSheet')
     expect(workAssignmentsPageSource).toContain('actions={')
-    expect(workAssignmentsPageSource).toContain('打开新建工作安排')
     expect(workAssignmentsPageSource).toContain('工作安排记录')
     expect(workAssignmentsPageSource).toContain('YumiListToolbar')
     expect(workAssignmentsPageSource).toContain('YumiDataTable')
@@ -609,12 +611,15 @@ describe('V2 履约工作区', () => {
   })
 
   it('通过 composable 完成履约写入并在失败时保留页面草稿', () => {
-    expect(fulfillmentPageSource).toContain('setError')
-    expect(fulfillmentPageSource).toContain('await reassignProcessTask')
-    expect(workAssignmentsPageSource).toContain('setError')
-    expect(workAssignmentsPageSource).toContain('await createWorkAssignment')
-    expect(workAssignmentsPageSource).toContain('await submitProcessResult')
-    expect(workAssignmentsPageSource).toContain('await confirmQualityInspection')
+    expect(fulfillmentDispatchViewsSource).toContain('setError')
+    expect(fulfillmentPageSource).toContain('onSubmit={createWorkAssignment}')
+    expect(fulfillmentComposableSource).toContain(
+      'await window.yumiV2.fulfillment.createWorkAssignment'
+    )
+    expect(workAssignmentsPageSource).toContain('setStatusError')
+    expect(workAssignmentsPageSource).toContain('setReassignError')
+    expect(workAssignmentsPageSource).toContain('await setWorkAssignmentStatus')
+    expect(workAssignmentsPageSource).toContain('await reassignProcessTask')
   })
 })
 
@@ -788,7 +793,7 @@ describe('运营界面操作流', () => {
     expect(orderPageSource).toContain('navigationTarget?: Extract<V2NavigationTarget')
     expect(orderPageSource).toContain("setWorkspaceMode('detail')")
     expect(fulfillmentPageSource).toContain('navigationTarget?: Extract<V2NavigationTarget')
-    expect(fulfillmentPageSource).toContain('navigationTarget?.orderId')
+    expect(fulfillmentPageSource).toContain('navigationTarget.orderId')
     expect(settlementsPageSource).toContain("focus === 'refund'")
     expect(settlementsPageSource).toContain('待退款')
     expect(settlementsPageSource).toContain('YumiSheet')

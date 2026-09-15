@@ -12,7 +12,8 @@ export type V2NavigationTarget =
       orderId?: string
       orderItemId?: string
       processTaskId?: string
-      focus?: 'queue' | 'inspection' | 'shipment'
+      workAssignmentId?: string
+      focus?: 'queue' | 'inspection' | 'shipment' | 'reviews'
     }
   | { view: 'settlements'; settlementId?: string; focus?: 'draft' | 'confirm' | 'refund' }
   | {
@@ -26,6 +27,7 @@ export type V2NavigationTarget =
 export type V2WorkbenchBucket = 'decision' | 'advance'
 export type V2WorkbenchPriority = 'urgent' | 'high' | 'normal'
 export type V2WorkbenchItemKind =
+  | 'work_time_review'
   | 'quality_inspection'
   | 'settlement_confirmation'
   | 'refund'

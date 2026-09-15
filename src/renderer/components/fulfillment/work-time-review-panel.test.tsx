@@ -9,389 +9,677 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../ui'
-const render = (ui: Parameters<typeof renderBase>[0]) =>
-  renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import { installDomInteractionPolyfills } from '../../test/dom'
+import { today } from '../../composables/v2-utils'
 import { WorkTimeReviewPanel } from './work-time-review-panel'
 
+const render = (ui: Parameters<typeof renderBase>[0]) =>
+  renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
+
 const mocks = vi.hoisted(() => ({
-  listReviews: vi.fn(),
-  createDraft: vi.fn(),
-  updateDraft: vi.fn(),
-  confirm: vi.fn(),
-  void: vi.fn(),
   listWorkAssignments: vi.fn(),
-  getOrderItem: vi.fn(),
-  ordersGet: vi.fn()
+  getFulfillmentProgress: vi.fn(),
+  reviewMaking: vi.fn(),
+  correctMakingReview: vi.fn(),
+  voidMakingReview: vi.fn(),
+  listReviews: vi.fn(),
+  listCandidates: vi.fn(),
+  review: vi.fn(),
+  correct: vi.fn(),
+  void: vi.fn()
 }))
 
-Object.assign(window, {
-  yumiV2: {
-    workTimeReviews: {
-      list: mocks.listReviews,
-      get: vi.fn(),
-      createDraft: mocks.createDraft,
-      updateDraft: mocks.updateDraft,
-      confirm: mocks.confirm,
-      void: mocks.void
-    },
-    fulfillment: {
-      listWorkAssignments: mocks.listWorkAssignments,
-      getOrderItem: mocks.getOrderItem
-    },
-    orders: { get: mocks.ordersGet }
-  }
-})
-
 installDomInteractionPolyfills()
-
-const onOpenMakingTask = vi.fn()
-const onChanged = vi.fn()
-
-afterEach(() => {
-  cleanup()
-  mocks.listReviews.mockReset()
-  mocks.createDraft.mockReset()
-  mocks.updateDraft.mockReset()
-  mocks.confirm.mockReset()
-  mocks.void.mockReset()
-  mocks.listWorkAssignments.mockReset()
-  mocks.getOrderItem.mockReset()
-  mocks.ordersGet.mockReset()
-  onOpenMakingTask.mockClear()
-  onChanged.mockClear()
-})
 
 const workers = [
   { id: 'worker-1', name: '小林', enabled: true },
   { id: 'worker-2', name: '小王', enabled: true }
 ] as never
 
-const makingItem = { orderId: 'order-1', orderItemId: 'item-making' }
-const makingTask = { taskId: 'task-making' }
+const onChanged = vi.fn()
 
-const makingEntries = [
-  {
-    item: makingItem,
-    task: makingTask,
-    workerName: '小王',
-    assignedOn: '2026-09-14',
-    productName: '草莓捏捏',
-    plannedQuantity: 12
-  }
-] as never
+function installApiMock() {
+  vi.stubGlobal('yumiV2', {
+    fulfillment: {
+      listWorkAssignments: mocks.listWorkAssignments,
+      reviewMaking: mocks.reviewMaking,
+      correctMakingReview: mocks.correctMakingReview,
+      voidMakingReview: mocks.voidMakingReview
+    },
+    workTimeReviews: {
+      list: mocks.listReviews,
+      listCandidates: mocks.listCandidates,
+      review: mocks.review,
+      correct: mocks.correct,
+      void: mocks.void
+    },
+    reports: {
+      getFulfillmentProgress: mocks.getFulfillmentProgress
+    }
+  })
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  installApiMock()
+  mocks.listWorkAssignments.mockResolvedValue([])
+  mocks.listReviews.mockResolvedValue([])
+  mocks.getFulfillmentProgress.mockResolvedValue({
+    rows: defaultReportRows,
+    totalConfirmedQuantity: 0,
+    totalShippedQuantity: 0
+  })
+  mocks.listCandidates.mockResolvedValue([])
+})
+
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 function renderPanel() {
-  return render(
-    <WorkTimeReviewPanel
-      makingEntries={makingEntries}
-      onChanged={onChanged}
-      onOpenMakingTask={onOpenMakingTask}
-      workers={workers}
-    />
-  )
+  return render(<WorkTimeReviewPanel onChanged={onChanged} workers={workers} />)
 }
 
-function mockPendingAssignments() {
-  mocks.listWorkAssignments.mockResolvedValue([
-    {
-      id: 'assignment-fluffing',
-      workerId: 'worker-1',
-      assignedOn: '2026-09-14',
-      processType: 'fluffing_bagging',
-      status: 'scheduled',
-      tasks: [
-        {
-          id: 'task-a',
-          orderItemId: 'item-a',
-          processType: 'fluffing_bagging',
-          plannedQuantity: 40,
-          status: 'pending'
-        },
-        {
-          id: 'task-b',
-          orderItemId: 'item-b',
-          processType: 'fluffing_bagging',
-          plannedQuantity: 30,
-          status: 'pending'
-        }
-      ]
-    },
-    {
-      id: 'assignment-fluffing-2',
-      workerId: 'worker-1',
-      assignedOn: '2026-09-14',
-      processType: 'fluffing_bagging',
-      status: 'scheduled',
-      tasks: [
-        {
-          id: 'task-d',
-          orderItemId: 'item-c',
-          processType: 'fluffing_bagging',
-          plannedQuantity: 50,
-          status: 'pending'
-        }
-      ]
-    },
-    {
-      id: 'assignment-edge',
-      workerId: 'worker-1',
-      assignedOn: '2026-09-14',
-      processType: 'edge_sewing',
-      status: 'scheduled',
-      tasks: [
-        {
-          id: 'task-edge',
-          orderItemId: 'item-a',
-          processType: 'edge_sewing',
-          plannedQuantity: 10,
-          status: 'pending'
-        }
-      ]
-    },
-    {
-      id: 'assignment-packing',
-      workerId: 'worker-2',
-      assignedOn: '2026-09-13',
-      processType: 'packing',
-      status: 'scheduled',
-      tasks: [
-        {
-          id: 'task-pack',
-          orderItemId: 'item-c',
-          processType: 'packing',
-          plannedQuantity: 80,
-          status: 'pending'
-        }
-      ]
+function dateString(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+/** 已结束的核算范围：优先昨天，1 号时退回今天的最早一分钟。 */
+function pastReviewRange() {
+  const now = new Date()
+  if (now.getDate() > 1) {
+    const previous = dateString(addDays(now, -1))
+    return { assignedOn: previous, start: `${previous}T09:00`, end: `${previous}T17:30` }
+  }
+  const current = dateString(now)
+  return { assignedOn: current, start: `${current}T00:00`, end: `${current}T00:01` }
+}
+
+function makingAssignment(task?: Record<string, unknown>) {
+  return {
+    id: 'assignment-making',
+    workerId: 'worker-2',
+    assignedOn: today(),
+    processType: 'making',
+    scheduleMode: 'making_task',
+    status: 'scheduled',
+    note: null,
+    tasks: [
+      {
+        id: 'task-making',
+        workAssignmentId: 'assignment-making',
+        orderItemId: 'item-making',
+        processType: 'making',
+        sourceType: 'normal_production',
+        plannedQuantity: 30,
+        plannedMinutes: 0,
+        extraMinutes: 0,
+        scheduledMinutes: 0,
+        status: 'pending',
+        hourlyWageCents: null,
+        pieceRateCents: 300,
+        glueCostCents: null,
+        materialPriceMicroYuanPerGram: null,
+        glueWeightMilligrams: null,
+        rateSnapshot: null,
+        note: null,
+        reviewSummary: null,
+        createdAt: `${today()}T00:00:00.000Z`,
+        updatedAt: `${today()}T00:00:00.000Z`,
+        ...task
+      }
+    ],
+    timedReview: null,
+    createdAt: `${today()}T00:00:00.000Z`,
+    updatedAt: `${today()}T00:00:00.000Z`
+  }
+}
+
+function makingRecordAssignment() {
+  return makingAssignment({
+    status: 'confirmed',
+    reviewSummary: {
+      resultId: 'result-1',
+      completedQuantity: 24,
+      qualifiedQuantity: 22,
+      unqualifiedQuantity: 2,
+      unfinishedQuantity: 6,
+      reviewedOn: today(),
+      note: '首件确认',
+      supersedesResultId: null,
+      lock: { locked: false, reason: null, message: null },
+      createdAt: `${today()}T00:00:00.000Z`
     }
-  ])
-  mocks.getOrderItem.mockImplementation(async (orderItemId: string) => ({
-    orderId: 'order-1',
-    orderItemId
-  }))
-  mocks.ordersGet.mockResolvedValue({
-    id: 'order-1',
+  })
+}
+
+function timedAssignment(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'assignment-fluffing',
+    workerId: 'worker-1',
+    assignedOn: today(),
+    processType: 'fluffing_bagging',
+    scheduleMode: 'timed_shift',
+    status: 'scheduled',
+    note: null,
+    tasks: [],
+    timedReview: null,
+    createdAt: `${today()}T00:00:00.000Z`,
+    updatedAt: `${today()}T00:00:00.000Z`,
+    ...overrides
+  }
+}
+
+function timedReview(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'review-1',
+    workerId: 'worker-1',
+    workedOn: today(),
+    processType: 'fluffing_bagging',
+    approvedMinutes: 510,
+    hourlyWageCentsSnapshot: 3_000,
+    sourceType: 'manual_review',
+    externalRecordId: null,
+    rawStartedAt: `${today()}T09:00`,
+    rawEndedAt: `${today()}T17:30`,
+    status: 'confirmed',
+    workAssignmentId: 'assignment-fluffing',
+    assignmentIds: ['assignment-fluffing'],
+    supersedesReviewId: null,
+    voidReason: null,
+    voidedAt: null,
+    reviewNote: null,
+    lock: { locked: false, reason: null, message: null },
     items: [
       {
-        id: 'item-a',
-        productSnapshot: {
-          name: '商品 A',
-          expectedFluffingBaggingMinutes: 3,
-          expectedEdgeSewingMinutes: 5,
-          expectedPackingMinutes: 2
-        }
-      },
-      {
-        id: 'item-b',
-        productSnapshot: {
-          name: '商品 B',
-          expectedFluffingBaggingMinutes: 2,
-          expectedEdgeSewingMinutes: 0,
-          expectedPackingMinutes: 2
-        }
-      },
-      {
-        id: 'item-c',
-        productSnapshot: {
-          name: '商品 C',
-          expectedFluffingBaggingMinutes: 0,
-          expectedEdgeSewingMinutes: 0,
-          expectedPackingMinutes: 2
-        }
+        id: 'review-item-1',
+        orderItemId: 'item-a',
+        processTaskId: null,
+        completedQuantity: 20,
+        pieceRateCentsSnapshot: 85,
+        expectedUnitMinutesSnapshot: 3
       }
-    ]
-  })
+    ],
+    createdAt: `${today()}T00:00:00.000Z`,
+    updatedAt: `${today()}T00:00:00.000Z`,
+    ...overrides
+  }
 }
 
-describe('WorkTimeReviewPanel', () => {
-  it('待核算列表统一展示制作与计时工序事项，按类型区分并提供各自入口', async () => {
-    mocks.listReviews.mockResolvedValue([])
-    mockPendingAssignments()
-    renderPanel()
+const candidates = [
+  {
+    orderItemId: 'item-a',
+    orderId: 'order-1',
+    orderCode: 'YD-001',
+    customerName: '小满',
+    productName: '抹茶捏捏',
+    deliveryDate: '2026-09-20',
+    orderCreatedAt: '2026-09-01T00:00:00.000Z',
+    processableQuantity: 40,
+    expectedUnitMinutes: 3,
+    pieceRateCents: 85
+  },
+  {
+    orderItemId: 'item-b',
+    orderId: 'order-1',
+    orderCode: 'YD-002',
+    customerName: '小满',
+    productName: '奶油捏捏',
+    deliveryDate: null,
+    orderCreatedAt: '2026-09-02T00:00:00.000Z',
+    processableQuantity: 30,
+    expectedUnitMinutes: 2,
+    pieceRateCents: 50
+  }
+]
 
-    const table = await screen.findByRole('table', { name: '待核算事项' })
-    expect(within(table).getByText('制作')).toBeVisible()
-    expect(within(table).getByText('草莓捏捏 · 计划 12 件')).toBeVisible()
-    expect(within(table).getByText('捏毛装袋')).toBeVisible()
-    expect(
-      within(table).getByText('2 个安排 · 商品 A 40 件 + 商品 B 30 件 + 商品 C 50 件')
-    ).toBeVisible()
-    expect(within(table).getByText('缝边')).toBeVisible()
-    expect(within(table).getByText('1 个安排 · 商品 A 10 件')).toBeVisible()
-    expect(within(table).getByText('打包发货')).toBeVisible()
-    expect(within(table).getByText('1 个安排 · 商品 C 80 件')).toBeVisible()
-    expect(screen.getByText(/共 4 项待处理/)).toBeVisible()
-
-    expect(within(table).getByRole('button', { name: '确认结果' })).toBeVisible()
-    expect(within(table).getAllByRole('button', { name: '登记核算' })).toHaveLength(3)
-    expect(screen.getByRole('heading', { name: '已登记工时核算' })).toBeVisible()
-
-    // 旧的分步查找界面已移除
-    expect(screen.queryByText('1 选择员工与日期')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '查找待核算安排' })).not.toBeInTheDocument()
-
-    fireEvent.click(within(table).getByRole('button', { name: '确认结果' }))
-    expect(onOpenMakingTask).toHaveBeenCalledTimes(1)
-    expect(onOpenMakingTask).toHaveBeenCalledWith(makingItem, makingTask)
-  })
-
-  it('登记核算弹窗展示该组安排与工时核对，保存并确认提交整组安排', async () => {
-    mocks.listReviews.mockResolvedValue([])
-    mockPendingAssignments()
-    const created = {
-      id: 'review-1',
-      workerId: 'worker-1',
-      workedOn: '2026-09-14',
-      processType: 'fluffing_bagging',
-      status: 'draft'
+/** 商品展示名称来自履约进度行；待核算与已核算记录都按 orderItemId 回填。 */
+const defaultReportRows = [
+  {
+    orderId: 'order-1',
+    orderCode: 'YD-000',
+    orderItemId: 'item-making',
+    productName: '草莓捏捏',
+    confirmedQuantity: 30,
+    stages: {
+      making: 30,
+      fluffingBagging: 0,
+      edgeSewing: 0,
+      packing: 0,
+      readyToShip: 0,
+      shipped: 0,
+      edgeSewingRouted: 0
     }
-    mocks.createDraft.mockResolvedValue(created)
-    mocks.confirm.mockResolvedValue({ ...created, status: 'confirmed' })
+  },
+  ...candidates.map((candidate) => ({
+    orderId: candidate.orderId,
+    orderCode: candidate.orderCode,
+    orderItemId: candidate.orderItemId,
+    productName: candidate.productName,
+    confirmedQuantity: 100,
+    stages: {
+      making: 0,
+      fluffingBagging: candidate.processableQuantity,
+      edgeSewing: 0,
+      packing: 0,
+      readyToShip: 0,
+      shipped: 0,
+      edgeSewingRouted: 0
+    }
+  }))
+]
 
+function pendingTable() {
+  return screen.findByRole('table', { name: '待核算事项' })
+}
+
+function recordTable() {
+  return screen.findByRole('table', { name: '已核算记录' })
+}
+
+function rowOf(table: HTMLElement, text: string | RegExp): HTMLElement {
+  return within(table).getByText(text).closest('tr') as HTMLElement
+}
+
+/** 通过日历浮层选择单一的连续时间范围。 */
+function pickRange(range: { start: string; end: string }, times: { start: string; end: string }) {
+  fireEvent.click(screen.getByRole('button', { name: '核算时间范围' }))
+  const clickDay = (value: string) => {
+    const [year, month, day] = value.slice(0, 10).split('-').map(Number)
+    const matches = screen.getAllByRole('button', {
+      name: new RegExp(`${year}年${month}月${day}日`)
+    })
+    fireEvent.click(matches[0]!)
+  }
+  clickDay(range.start)
+  // 单击一天即选中当天区间；再次点击同一天会清除选择。
+  if (range.end.slice(0, 10) !== range.start.slice(0, 10)) clickDay(range.end)
+  fireEvent.change(screen.getByRole('textbox', { name: '开始时间，格式为 HH:MM' }), {
+    target: { value: times.start }
+  })
+  fireEvent.change(screen.getByRole('textbox', { name: '结束时间，格式为 HH:MM' }), {
+    target: { value: times.end }
+  })
+  fireEvent.click(screen.getByRole('button', { name: '应用范围' }))
+}
+
+function rangeMinutes(start: string, end: string): number {
+  return (new Date(end).getTime() - new Date(start).getTime()) / 60_000
+}
+
+describe('WorkTimeReviewPanel 单次核算', () => {
+  it('待核算只有“核算”入口，制作行显示订单商品与计划数量，计时行不显示商品名称', async () => {
+    mocks.listWorkAssignments.mockResolvedValue([makingAssignment(), timedAssignment()])
     renderPanel()
-    const table = await screen.findByRole('table', { name: '待核算事项' })
-    const fluffingRow = within(table)
-      .getByText('2 个安排 · 商品 A 40 件 + 商品 B 30 件 + 商品 C 50 件')
-      .closest('tr') as HTMLElement
-    fireEvent.click(within(fluffingRow).getByRole('button', { name: '登记核算' }))
 
-    const dialog = await screen.findByRole('dialog', { name: '登记工时核算' })
-    expect(within(dialog).getByText('小林 · 2026-09-14 · 捏毛装袋 · 含 2 个安排')).toBeVisible()
+    const table = await pendingTable()
+    const makingRow = rowOf(table, '草莓捏捏 · 计划 30 件')
+    const timedRow = rowOf(table, '捏毛装袋')
+    expect(within(makingRow).getByRole('button', { name: '核算' })).toBeVisible()
+    expect(within(timedRow).getByRole('button', { name: '核算' })).toBeVisible()
+    expect(within(table).getAllByRole('button')).toHaveLength(2)
+    expect(within(table).getByText('实际时间范围与跨订单商品完成数量（核算时填写）')).toBeVisible()
 
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '负责人核算时长（分钟）' }), {
-      target: { value: '240' }
+    // 计时行在核算前不得显示商品名称，也没有制作待质检或二次确认入口
+    expect(within(timedRow).queryByText('奶油捏捏')).not.toBeInTheDocument()
+    for (const forbidden of ['保存草稿', '保存并确认', '确认工时', '待质检', '确认结果']) {
+      expect(screen.queryByText(forbidden)).not.toBeInTheDocument()
+    }
+  })
+
+  it('制作行一次核算提交实际产出与合格数量，并只读展示系统计算的不合格与未完成', async () => {
+    mocks.listWorkAssignments.mockResolvedValue([makingAssignment()])
+    renderPanel()
+
+    const table = await pendingTable()
+    fireEvent.click(
+      within(rowOf(table, '草莓捏捏 · 计划 30 件')).getByRole('button', { name: '核算' })
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: '制作核算' })
+    expect(
+      within(dialog).getByText(
+        new RegExp(`小王 · ${today()} · 草莓捏捏 · 本次计划 30 件 · 核算日期 ${today()}`)
+      )
+    ).toBeVisible()
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '实际产出数量' }), {
+      target: { value: '24' }
     })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '商品 A 完成数量（件）' }), {
-      target: { value: '40' }
-    })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '商品 B 完成数量（件）' }), {
-      target: { value: '30' }
-    })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '商品 C 完成数量（件）' }), {
-      target: { value: '50' }
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '合格数量' }), {
+      target: { value: '22' }
     })
 
-    // 40 × 3 + 30 × 2 + 50 × 0 = 180 分钟；核算 240 分钟 → 时间差 60，预计效率 75%
-    const comparison = within(dialog).getByRole('region', { name: '工时核对' })
-    expect(within(comparison).getByText('预计总分钟')).toBeVisible()
-    expect(within(comparison).getByText('180 分钟')).toBeVisible()
-    expect(within(comparison).getByText('60 分钟')).toBeVisible()
-    expect(within(dialog).getByText('实际用时高于预计，请核对')).toBeVisible()
-    expect(within(dialog).getByRole('group', { name: /预计效率/ })).toHaveTextContent('75.00%')
+    const computed = within(dialog).getByRole('region', { name: '系统计算的数量' })
+    expect(within(computed).getByText('2 件')).toBeVisible()
+    expect(within(computed).getByText('6 件')).toBeVisible()
 
-    fireEvent.click(within(dialog).getByRole('button', { name: '保存并确认' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认核算' }))
     await waitFor(() =>
-      expect(mocks.createDraft).toHaveBeenCalledWith({
-        workerId: 'worker-1',
-        workedOn: '2026-09-14',
-        processType: 'fluffing_bagging',
-        approvedMinutes: 240,
-        assignmentIds: ['assignment-fluffing', 'assignment-fluffing-2'],
+      expect(mocks.reviewMaking).toHaveBeenCalledWith({
+        processTaskId: 'task-making',
+        completedQuantity: 24,
+        qualifiedQuantity: 22,
+        reviewedOn: today(),
+        note: null
+      })
+    )
+    await waitFor(() => expect(onChanged).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog', { name: '制作核算' })).not.toBeInTheDocument()
+  })
+
+  it('制作核算允许零产出，零产出不阻塞提交', async () => {
+    mocks.listWorkAssignments.mockResolvedValue([makingAssignment()])
+    renderPanel()
+
+    const table = await pendingTable()
+    fireEvent.click(
+      within(rowOf(table, '草莓捏捏 · 计划 30 件')).getByRole('button', { name: '核算' })
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: '制作核算' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '实际产出数量' }), {
+      target: { value: '0' }
+    })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '合格数量' }), {
+      target: { value: '0' }
+    })
+    const computed = within(dialog).getByRole('region', { name: '系统计算的数量' })
+    expect(within(computed).getByText('0 件')).toBeVisible()
+    expect(within(computed).getByText('30 件')).toBeVisible()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认核算' }))
+    await waitFor(() =>
+      expect(mocks.reviewMaking).toHaveBeenCalledWith(
+        expect.objectContaining({ completedQuantity: 0, qualifiedQuantity: 0 })
+      )
+    )
+  })
+
+  it('实际产出超过本次计划或合格数量大于实际产出时阻止提交并提示', async () => {
+    mocks.listWorkAssignments.mockResolvedValue([makingAssignment()])
+    renderPanel()
+
+    const table = await pendingTable()
+    fireEvent.click(
+      within(rowOf(table, '草莓捏捏 · 计划 30 件')).getByRole('button', { name: '核算' })
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: '制作核算' })
+    const submit = within(dialog).getByRole('button', { name: '确认核算' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '实际产出数量' }), {
+      target: { value: '31' }
+    })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '合格数量' }), {
+      target: { value: '31' }
+    })
+    expect(
+      within(dialog).getByText('实际产出不能超过本次计划 30 件，请先调整制作计划')
+    ).toBeVisible()
+    expect(submit).toBeDisabled()
+    fireEvent.click(submit)
+    expect(mocks.reviewMaking).not.toHaveBeenCalled()
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '实际产出数量' }), {
+      target: { value: '24' }
+    })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '合格数量' }), {
+      target: { value: '25' }
+    })
+    expect(within(dialog).getByText('合格数量不能大于实际产出数量')).toBeVisible()
+    expect(submit).toBeDisabled()
+    expect(mocks.reviewMaking).not.toHaveBeenCalled()
+  })
+
+  it('计时核算选择时间范围与候选商品：默认填满可处理量、允许改小，并按服务端顺序展示', async () => {
+    const range = pastReviewRange()
+    mocks.listWorkAssignments.mockResolvedValue([timedAssignment({ assignedOn: range.assignedOn })])
+    mocks.listCandidates.mockResolvedValue(candidates)
+    renderPanel()
+
+    const table = await pendingTable()
+    fireEvent.click(within(rowOf(table, '捏毛装袋')).getByRole('button', { name: '核算' }))
+
+    const dialog = await screen.findByRole('dialog', { name: '计时核算' })
+    await within(dialog).findByRole('table', { name: '可核算订单商品' })
+    expect(mocks.listCandidates).toHaveBeenCalledWith('assignment-fluffing', { search: null })
+
+    const goods = within(dialog).getByRole('table', { name: '可核算订单商品' })
+    const goodsRows = within(goods).getAllByRole('row').slice(1)
+    expect(within(goodsRows[0]!).getByText('小满')).toBeVisible()
+    expect(within(goodsRows[0]!).getByText('YD-001')).toBeVisible()
+    expect(within(goodsRows[0]!).getByText('抹茶捏捏')).toBeVisible()
+    expect(within(goodsRows[0]!).getByText('40 件')).toBeVisible()
+    expect(within(goodsRows[1]!).getByText('奶油捏捏')).toBeVisible()
+
+    // 搜索候选
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '搜索可核算的订单商品' }), {
+      target: { value: '奶油' }
+    })
+    await waitFor(() =>
+      expect(mocks.listCandidates).toHaveBeenCalledWith('assignment-fluffing', { search: '奶油' })
+    )
+
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: '选择 YD-001 抹茶捏捏' }))
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: '选择 YD-002 奶油捏捏' }))
+    expect(within(dialog).getByRole('textbox', { name: 'YD-001 抹茶捏捏 完成数量' })).toHaveValue(
+      '40'
+    )
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'YD-001 抹茶捏捏 完成数量' }), {
+      target: { value: '20' }
+    })
+
+    pickRange(range, { start: '09:00', end: '17:30' })
+    const minutes = rangeMinutes(range.start, range.end)
+    const minutesPanel = within(dialog).getByRole('region', { name: '系统计算的核算分钟' })
+    expect(within(minutesPanel).getByText(`${minutes} 分钟`)).toBeVisible()
+    expect(within(minutesPanel).getByText(range.assignedOn)).toBeVisible()
+
+    // 20 × 3 + 30 × 2 = 120 分钟；时间差 = 核算分钟 − 120，预计效率 = 120 ÷ 核算分钟
+    const comparison = within(dialog).getByRole('region', { name: '效率核对' })
+    expect(within(comparison).getByText('120 分钟')).toBeVisible()
+    expect(within(comparison).getByText(`${minutes - 120} 分钟`)).toBeVisible()
+    expect(within(dialog).getByRole('group', { name: /预计效率/ })).toHaveTextContent(
+      `${((120 / minutes) * 100).toFixed(2)}%`
+    )
+    expect(within(dialog).getByText(/只读参考：不影响提交、工资与履约数量。/)).toBeVisible()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认核算' }))
+    await waitFor(() =>
+      expect(mocks.review).toHaveBeenCalledWith({
+        workAssignmentId: 'assignment-fluffing',
+        startedAt: `${range.assignedOn}T09:00`,
+        endedAt: `${range.assignedOn}T17:30`,
         items: [
-          { processTaskId: 'task-a', completedQuantity: 40 },
-          { processTaskId: 'task-b', completedQuantity: 30 },
-          { processTaskId: 'task-d', completedQuantity: 50 }
+          { orderItemId: 'item-a', completedQuantity: 20 },
+          { orderItemId: 'item-b', completedQuantity: 30 }
         ],
         reviewNote: null
       })
     )
-    await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith('review-1'))
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: '登记工时核算' })).not.toBeInTheDocument()
-    )
-    await waitFor(() => expect(onChanged).toHaveBeenCalled())
   })
 
-  it('登记核算支持先保存草稿，不调用确认', async () => {
-    mocks.listReviews.mockResolvedValue([])
-    mockPendingAssignments()
-    mocks.createDraft.mockResolvedValue({
-      id: 'review-2',
-      workerId: 'worker-1',
-      workedOn: '2026-09-14',
-      processType: 'edge_sewing',
-      status: 'draft'
-    })
-
+  it('结束时间尚未到达时禁止确认并提示必须在实际结束时间之后进行', async () => {
+    const now = new Date()
+    const current = dateString(now)
+    const tomorrow = dateString(addDays(now, 1))
+    mocks.listWorkAssignments.mockResolvedValue([timedAssignment({ assignedOn: current })])
+    mocks.listCandidates.mockResolvedValue([candidates[0]])
     renderPanel()
-    const table = await screen.findByRole('table', { name: '待核算事项' })
-    const edgeRow = within(table).getByText('1 个安排 · 商品 A 10 件').closest('tr') as HTMLElement
-    fireEvent.click(within(edgeRow).getByRole('button', { name: '登记核算' }))
 
-    const dialog = await screen.findByRole('dialog', { name: '登记工时核算' })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '负责人核算时长（分钟）' }), {
-      target: { value: '30' }
-    })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '商品 A 完成数量（件）' }), {
-      target: { value: '10' }
-    })
-    fireEvent.click(within(dialog).getByRole('button', { name: '保存草稿' }))
+    const table = await pendingTable()
+    fireEvent.click(within(rowOf(table, '捏毛装袋')).getByRole('button', { name: '核算' }))
 
+    const dialog = await screen.findByRole('dialog', { name: '计时核算' })
+    await within(dialog).findByRole('table', { name: '可核算订单商品' })
+    pickRange({ start: current, end: tomorrow }, { start: '23:58', end: '00:30' })
+    expect(within(dialog).getAllByText('核算必须在实际结束时间之后进行').length).toBeGreaterThan(0)
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: '选择 YD-001 抹茶捏捏' }))
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认核算' }))
+    expect(mocks.review).not.toHaveBeenCalled()
+    expect(within(dialog).getAllByText('核算必须在实际结束时间之后进行').length).toBeGreaterThan(0)
+
+    // 跨日核算按开始日期归属，开始日期固定为排班日期
+    const minutesPanel = within(dialog).getByRole('region', { name: '系统计算的核算分钟' })
+    expect(within(minutesPanel).getByText(`${current}（跨日核算按开始日期归属）`)).toBeVisible()
+  })
+
+  it('更正核算需要填写原因，锁定记录禁用更正与作废并展示调整指引', async () => {
+    mocks.listWorkAssignments.mockResolvedValue([makingRecordAssignment()])
+    renderPanel()
+
+    const table = await recordTable()
+    const row = rowOf(table, '草莓捏捏 · 实际产出 24 件 · 合格 22 件')
+    fireEvent.click(within(row).getByRole('button', { name: '更正' }))
+
+    const dialog = await screen.findByRole('dialog', { name: '更正制作核算' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '实际产出数量' }), {
+      target: { value: '25' }
+    })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '合格数量' }), {
+      target: { value: '23' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: '提交更正' }))
+    expect(await within(dialog).findByText('请填写更正原因')).toBeVisible()
+    expect(mocks.correctMakingReview).not.toHaveBeenCalled()
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '更正原因' }), {
+      target: { value: '数量录入错误' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: '提交更正' }))
     await waitFor(() =>
-      expect(mocks.createDraft).toHaveBeenCalledWith({
-        workerId: 'worker-1',
-        workedOn: '2026-09-14',
-        processType: 'edge_sewing',
-        approvedMinutes: 30,
-        assignmentIds: ['assignment-edge'],
-        items: [{ processTaskId: 'task-edge', completedQuantity: 10 }],
-        reviewNote: null
+      expect(mocks.correctMakingReview).toHaveBeenCalledWith({
+        resultId: 'result-1',
+        completedQuantity: 25,
+        qualifiedQuantity: 23,
+        reviewedOn: today(),
+        reason: '数量录入错误',
+        note: '首件确认'
       })
     )
-    expect(mocks.confirm).not.toHaveBeenCalled()
   })
 
-  it('已存在未作废核算的计时安排不再出现在待核算列表，已确认记录可作废重录', async () => {
-    mocks.listReviews.mockResolvedValue([
-      {
-        id: 'review-1',
-        workerId: 'worker-1',
-        workedOn: '2026-09-14',
-        processType: 'fluffing_bagging',
-        approvedMinutes: 180,
-        hourlyWageCentsSnapshot: 3_000,
-        sourceType: 'manual_review',
+  it('锁定记录禁用更正与作废并展示不可操作原因与调整指引', async () => {
+    const lockedMessage = '产出已被下游工序或发货消耗，请使用履约调整处理差异'
+    mocks.listWorkAssignments.mockResolvedValue([
+      makingAssignment({
         status: 'confirmed',
-        assignmentIds: ['assignment-fluffing', 'assignment-fluffing-2'],
-        items: [
-          {
-            id: 'item-1',
-            processTaskId: 'task-a',
-            orderItemId: 'item-a',
-            completedQuantity: 40
-          }
-        ],
-        reviewNote: null,
-        externalRecordId: null,
-        rawStartedAt: null,
-        rawEndedAt: null,
-        createdAt: '2026-09-15T00:00:00.000Z',
-        updatedAt: '2026-09-15T00:00:00.000Z'
-      }
+        reviewSummary: {
+          resultId: 'result-locked',
+          completedQuantity: 20,
+          qualifiedQuantity: 18,
+          unqualifiedQuantity: 2,
+          unfinishedQuantity: 0,
+          reviewedOn: today(),
+          note: null,
+          supersedesResultId: null,
+          lock: { locked: true, reason: 'downstream_consumed', message: lockedMessage },
+          createdAt: `${today()}T00:00:00.000Z`
+        }
+      })
     ])
-    mockPendingAssignments()
-
     renderPanel()
-    const table = await screen.findByRole('table', { name: '待核算事项' })
-    expect(within(table).queryByText('捏毛装袋')).not.toBeInTheDocument()
-    expect(within(table).getByText('缝边')).toBeVisible()
-    expect(within(table).getByText('打包发货')).toBeVisible()
 
-    // 已确认记录可作废重录
-    const records = screen.getByRole('table', { name: '工时核算记录' })
-    expect(within(records).getByText('已确认')).toBeVisible()
-    expect(within(records).getByText('¥30.00 / 小时')).toBeVisible()
-    fireEvent.click(within(records).getByRole('button', { name: '作废重录' }))
-    const dialog = await screen.findByRole('dialog', { name: '作废工时核算？' })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '作废原因' }), {
-      target: { value: '时长录错' }
-    })
-    mocks.void.mockResolvedValue({ id: 'review-1', status: 'voided' })
+    const table = await recordTable()
+    expect(within(table).getByText(lockedMessage)).toBeVisible()
+    const row = rowOf(table, '草莓捏捏 · 实际产出 20 件 · 合格 18 件')
+    expect(within(row).getByRole('button', { name: '更正' })).toBeDisabled()
+    expect(within(row).getByRole('button', { name: '作废' })).toBeDisabled()
+    expect(within(row).getByRole('button', { name: '查看' })).toBeEnabled()
+  })
+
+  it('作废要求填写原因，填写后调用计时作废接口并要求刷新待核算', async () => {
+    mocks.listWorkAssignments.mockResolvedValue([
+      timedAssignment({
+        timedReview: {
+          reviewId: 'review-1',
+          approvedMinutes: 510,
+          reviewedOn: today(),
+          lock: { locked: false, reason: null, message: null }
+        }
+      })
+    ])
+    mocks.listReviews.mockResolvedValue([timedReview()])
+    renderPanel()
+
+    const table = await recordTable()
+    const row = rowOf(table, '1 个商品 · 合计 20 件 · 510 分钟')
+    fireEvent.click(within(row).getByRole('button', { name: '作废' }))
+
+    const dialog = await screen.findByRole('dialog', { name: '作废核算记录？' })
     fireEvent.click(within(dialog).getByRole('button', { name: '确认作废' }))
-    await waitFor(() => expect(mocks.void).toHaveBeenCalledWith('review-1', { reason: '时长录错' }))
+    expect(await within(dialog).findByText('请填写作废原因')).toBeVisible()
+    expect(mocks.void).not.toHaveBeenCalled()
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '作废原因' }), {
+      target: { value: '时间段录错' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认作废' }))
+    await waitFor(() =>
+      expect(mocks.void).toHaveBeenCalledWith('review-1', { reason: '时间段录错' })
+    )
     await waitFor(() => expect(onChanged).toHaveBeenCalled())
+  })
+
+  it('历史草稿记录只读展示，不出现更正或作废操作', async () => {
+    mocks.listWorkAssignments.mockResolvedValue([])
+    mocks.listReviews.mockResolvedValue([
+      timedReview({
+        status: 'draft',
+        workAssignmentId: null,
+        assignmentIds: ['assignment-legacy'],
+        rawStartedAt: null,
+        rawEndedAt: null
+      })
+    ])
+    renderPanel()
+
+    const table = await recordTable()
+    const row = rowOf(table, '1 个商品 · 合计 20 件 · 510 分钟')
+    expect(within(row).getByText('历史草稿')).toBeVisible()
+    expect(within(row).getByText('只读历史')).toBeVisible()
+    expect(within(row).queryByRole('button', { name: '更正' })).not.toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: '作废' })).not.toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: '查看' })).toBeVisible()
+  })
+
+  it('查看详情展示核算明细、时间范围与版本信息', async () => {
+    mocks.listWorkAssignments.mockResolvedValue([
+      timedAssignment({
+        timedReview: {
+          reviewId: 'review-1',
+          approvedMinutes: 510,
+          reviewedOn: today(),
+          lock: { locked: false, reason: null, message: null }
+        }
+      })
+    ])
+    mocks.listReviews.mockResolvedValue([timedReview()])
+    renderPanel()
+
+    const table = await recordTable()
+    fireEvent.click(
+      within(rowOf(table, '1 个商品 · 合计 20 件 · 510 分钟')).getByRole('button', { name: '查看' })
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: '计时核算详情' })
+    const details = within(dialog).getByRole('region', { name: '计时核算详情' })
+    expect(within(details).getByText(`${today()}T09:00 至 ${today()}T17:30`)).toBeVisible()
+    expect(within(details).getByText('510 分钟')).toBeVisible()
+    expect(within(details).getByText('¥30.00 / 小时')).toBeVisible()
+    const items = within(dialog).getByRole('table', { name: '核算商品明细' })
+    expect(within(items).getByText('抹茶捏捏')).toBeVisible()
+    expect(within(items).getByText('20 件')).toBeVisible()
   })
 })

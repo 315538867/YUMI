@@ -2,6 +2,7 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { calculateTimedWageCents } from '@main/domain/settlement'
 import { V2ApplicationRuntime } from './v2-runtime'
 
 const runtimes: V2ApplicationRuntime[] = []
@@ -25,6 +26,10 @@ describe('V2 大订单端到端验收', () => {
     const afterSales = runtime.afterSalesService
     const reports = runtime.reportService
 
+    runtime.studioSettingsService.update({
+      materialPriceMicroYuanPerGram: 3_400,
+      orderReservedDays: 2
+    })
     const maker = settlements.createWorker({
       name: '制作兼职',
       hourlyWageCents: 2_000,
@@ -43,6 +48,7 @@ describe('V2 大订单端到端验收', () => {
       accessoryCostCents: 50,
       replacementBagCostCents: 50,
       edgeConsumableCostCents: 80,
+      unitWeightMilligrams: 25_000,
       standardMakingMinutes: 12,
       makingCommissionCents: 300
     })
@@ -53,6 +59,7 @@ describe('V2 大订单端到端验收', () => {
       accessoryCostCents: 0,
       replacementBagCostCents: 50,
       edgeConsumableCostCents: 0,
+      unitWeightMilligrams: 0,
       standardMakingMinutes: 10,
       makingCommissionCents: 250
     })
@@ -74,121 +81,101 @@ describe('V2 大订单端到端验收', () => {
       paymentMethod: '微信'
     })
 
+    // 制作一次核算：实际产出 3 件、合格 2 件，1 件不合格只留在待制作并形成材料扣款。
     const firstMaking = fulfillment.createWorkAssignment({
+      scheduleMode: 'making_task',
       workerId: maker.id,
       assignedOn: '2026-09-02',
       processType: 'making',
       tasks: [{ orderItemId: bearItem.id, sourceType: 'normal_production', plannedQuantity: 3 }]
     })
-    const firstMakingResult = fulfillment.submitProcessResult(firstMaking.tasks[0].id, {
+    const firstMakingResult = fulfillment.reviewMaking({
+      processTaskId: firstMaking.tasks[0]!.id,
       completedQuantity: 3,
-      submittedOn: '2026-09-02'
+      qualifiedQuantity: 2,
+      reviewedOn: '2026-09-02'
     })
-    fulfillment.confirmQualityInspection(firstMakingResult.id, {
+    expect(firstMakingResult).toMatchObject({
+      status: 'confirmed',
+      completedQuantity: 3
+    })
+    expect(fulfillment.getWorkAssignment(firstMaking.id)!.tasks[0]!.reviewSummary).toMatchObject({
       qualifiedQuantity: 2,
       unqualifiedQuantity: 1,
-      inspectedOn: '2026-09-03',
-      requiresRework: true,
-      reasonNote: '表面瑕疵'
+      unfinishedQuantity: 0
     })
+    // 返工：不合格的 1 件重新排制作任务并一次核算合格。
     const rework = fulfillment.createWorkAssignment({
+      scheduleMode: 'making_task',
       workerId: maker.id,
       assignedOn: '2026-09-03',
       processType: 'making',
       tasks: [{ orderItemId: bearItem.id, sourceType: 'rework', plannedQuantity: 1 }]
     })
-    const reworkResult = fulfillment.submitProcessResult(rework.tasks[0].id, {
+    fulfillment.reviewMaking({
+      processTaskId: rework.tasks[0]!.id,
       completedQuantity: 1,
-      submittedOn: '2026-09-03'
-    })
-    fulfillment.confirmQualityInspection(reworkResult.id, {
       qualifiedQuantity: 1,
-      unqualifiedQuantity: 0,
-      inspectedOn: '2026-09-04'
+      reviewedOn: '2026-09-03'
     })
     const fruitMaking = fulfillment.createWorkAssignment({
+      scheduleMode: 'making_task',
       workerId: maker.id,
       assignedOn: '2026-09-03',
       processType: 'making',
       tasks: [{ orderItemId: fruitItem.id, sourceType: 'normal_production', plannedQuantity: 2 }]
     })
-    const fruitMakingResult = fulfillment.submitProcessResult(fruitMaking.tasks[0].id, {
+    fulfillment.reviewMaking({
+      processTaskId: fruitMaking.tasks[0]!.id,
       completedQuantity: 2,
-      submittedOn: '2026-09-03'
-    })
-    fulfillment.confirmQualityInspection(fruitMakingResult.id, {
       qualifiedQuantity: 2,
-      unqualifiedQuantity: 0,
-      inspectedOn: '2026-09-04'
+      reviewedOn: '2026-09-03'
+    })
+    expect(fulfillment.getOrderItemFulfillment(bearItem.id).stages).toMatchObject({
+      making: 0,
+      fluffingBagging: 3
+    })
+    expect(fulfillment.getOrderItemFulfillment(fruitItem.id).stages).toMatchObject({
+      making: 0,
+      fluffingBagging: 2
     })
 
+    // 捏毛装袋：一条 75 分钟的计时班次核算登记两个商品。
     const fluffing = fulfillment.createWorkAssignment({
+      scheduleMode: 'timed_shift',
       workerId: fluffWorker.id,
       assignedOn: '2026-09-04',
-      processType: 'fluffing_bagging',
-      tasks: [
-        {
-          orderItemId: bearItem.id,
-          sourceType: 'normal_production',
-          plannedQuantity: 3,
-          plannedMinutes: 45,
-          pieceRateCents: 60
-        },
-        {
-          orderItemId: fruitItem.id,
-          sourceType: 'normal_production',
-          plannedQuantity: 2,
-          plannedMinutes: 30,
-          pieceRateCents: 60
-        }
+      processType: 'fluffing_bagging'
+    })
+    const fluffingReview = workTimeReviews.review({
+      workAssignmentId: fluffing.id,
+      startedAt: '2026-09-04T09:00',
+      endedAt: '2026-09-04T10:15',
+      items: [
+        { orderItemId: bearItem.id, completedQuantity: 3 },
+        { orderItemId: fruitItem.id, completedQuantity: 2 }
       ]
     })
-    // 捏毛装袋完成数量在次日由负责人核算：一条 75 分钟的工时记录登记两个商品。
-    const fluffingReview = workTimeReviews.createDraft({
-      workerId: fluffWorker.id,
-      workedOn: '2026-09-04',
-      processType: 'fluffing_bagging',
-      approvedMinutes: 75,
-      assignmentIds: [fluffing.id],
-      items: fluffing.tasks.map((task) => ({
-        processTaskId: task.id,
-        completedQuantity: task.orderItemId === bearItem.id ? 3 : 2
-      }))
-    })
-    workTimeReviews.confirm(fluffingReview.id)
+    expect(fluffingReview).toMatchObject({ approvedMinutes: 75, workedOn: '2026-09-04' })
 
+    // 打包发货：一次核算 50 分钟登记两个商品，打包只按核算时长计个人时薪。
     const packing = fulfillment.createWorkAssignment({
+      scheduleMode: 'timed_shift',
       workerId: fluffWorker.id,
       assignedOn: '2026-09-05',
-      processType: 'packing',
-      tasks: [
-        {
-          orderItemId: bearItem.id,
-          sourceType: 'normal_production',
-          plannedQuantity: 3,
-          plannedMinutes: 30
-        },
-        {
-          orderItemId: fruitItem.id,
-          sourceType: 'normal_production',
-          plannedQuantity: 2,
-          plannedMinutes: 20
-        }
+      processType: 'packing'
+    })
+    const packingReview = workTimeReviews.review({
+      workAssignmentId: packing.id,
+      startedAt: '2026-09-05T09:00',
+      endedAt: '2026-09-05T09:50',
+      items: [
+        { orderItemId: bearItem.id, completedQuantity: 3 },
+        { orderItemId: fruitItem.id, completedQuantity: 2 }
       ]
     })
-    // 打包发货只按核算时长计个人时薪，不产生计件提成。
-    const packingReview = workTimeReviews.createDraft({
-      workerId: fluffWorker.id,
-      workedOn: '2026-09-05',
-      processType: 'packing',
-      approvedMinutes: 50,
-      assignmentIds: [packing.id],
-      items: packing.tasks.map((task) => ({
-        processTaskId: task.id,
-        completedQuantity: task.orderItemId === bearItem.id ? 3 : 2
-      }))
-    })
-    workTimeReviews.confirm(packingReview.id)
+    expect(packingReview.approvedMinutes).toBe(50)
+    expect(packingReview.items.every((item) => item.pieceRateCentsSnapshot === 0)).toBe(true)
 
     const firstShipment = orders.createShipment(order.id, {
       shippedOn: '2026-09-06',
@@ -245,22 +232,43 @@ describe('V2 大订单端到端验收', () => {
       note: '整笔报销'
     })
 
+    // 制作工资：合格 2 + 返工 1 件按冻结提成，1 件不合格扣冻结材料成本 9 分。
     const makingSettlement = settlements.createDraft({
       workerId: maker.id,
       periodStartOn: '2026-09-02',
       periodEndOn: '2026-09-04'
     })
+    expect(makingSettlement).toMatchObject({
+      timedWageCents: 0,
+      commissionCents: 2 * 300 + 1 * 300 + 2 * 250,
+      materialDeductionCents: 9,
+      candidateWageCents: 1_400 - 9
+    })
+    expect(makingSettlement.makingSources).toHaveLength(3)
     const finalizedMakingSettlement = settlements.updateDraft(makingSettlement.id, {
       finalPaidAmountCents: 2_000,
       paidOn: '2026-09-09',
       managerNote: '按负责人最终决定发放'
     })
     settlements.confirm(finalizedMakingSettlement.id)
+
+    // 捏毛与打包工资：按核算分钟计个人时薪，商品提成为零。
     const fluffSettlement = settlements.createDraft({
       workerId: fluffWorker.id,
       periodStartOn: '2026-09-04',
       periodEndOn: '2026-09-05'
     })
+    expect(fluffSettlement).toMatchObject({
+      timedWageCents:
+        calculateTimedWageCents({ minutes: 75, hourlyWageCents: 2_000 }) +
+        calculateTimedWageCents({ minutes: 50, hourlyWageCents: 2_000 }),
+      commissionCents: 0,
+      materialDeductionCents: 0
+    })
+    expect(fluffSettlement.timedSources.map((source) => source.processType)).toEqual([
+      'fluffing_bagging',
+      'packing'
+    ])
     const finalizedFluffSettlement = settlements.updateDraft(fluffSettlement.id, {
       finalPaidAmountCents: 1_800,
       paidOn: '2026-09-09',

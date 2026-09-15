@@ -170,10 +170,14 @@ export class V2ApplicationRuntime {
       database,
       this.storage.attachmentDirectory
     )
-    const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database))
-    const productInventoryService = new ProductInventoryService(database)
-    const workTimeReviewService = new WorkTimeReviewService(database)
     const settlementService = new SettlementService(database)
+    const fulfillmentService = new FulfillmentService(
+      new V2FulfillmentRepository(database),
+      undefined,
+      settlementService
+    )
+    const productInventoryService = new ProductInventoryService(database)
+    const workTimeReviewService = new WorkTimeReviewService(database, undefined, settlementService)
     const financeService = new FinanceService(database)
     const afterSalesService = new AfterSalesService(database)
     return {

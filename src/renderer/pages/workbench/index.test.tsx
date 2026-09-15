@@ -19,17 +19,18 @@ const mocks = vi.hoisted(() => ({
       firstUseGuide: null,
       decisionItems: [
         {
-          id: 'quality-inspection:task-1',
-          kind: 'quality_inspection' as const,
+          id: 'making-review:task-1',
+          kind: 'work_time_review' as const,
           bucket: 'decision' as const,
-          priority: 'urgent' as const,
-          subject: { title: '确认质检结果', description: '制作 · 排班 2026-09-08' },
+          priority: 'high' as const,
+          subject: { title: '核算制作产出', description: '制作 · 排班 2026-09-08' },
           quantityOrAmount: { kind: 'quantity' as const, value: 8, unit: '件' },
-          dueHint: '完成后待质检 · 2026-09-08',
+          dueHint: '排班日期 2026-09-08',
           navigationTarget: {
             view: 'fulfillment' as const,
             processTaskId: 'task-1',
-            focus: 'inspection' as const
+            workAssignmentId: 'assignment-1',
+            focus: 'reviews' as const
           }
         }
       ],
@@ -75,7 +76,7 @@ describe('负责人工作台页面', () => {
     expect(screen.getByRole('region', { name: '当前事项结构' })).toBeVisible()
     expect(screen.getByRole('region', { name: '现在优先处理' })).toBeVisible()
     expect(screen.getByRole('region', { name: '事项分布' })).toBeVisible()
-    expect(screen.getByText('确认质检结果')).toBeVisible()
+    expect(screen.getByText('核算制作产出')).toBeVisible()
     expect(screen.getByText('登记发货')).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: /可以推进/ }))
@@ -84,13 +85,22 @@ describe('负责人工作台页面', () => {
     expect(screen.getByRole('table', { name: '工作台事项列表' })).toBeVisible()
     expect(screen.getByText('共 1 项待处理事项')).toBeVisible()
     expect(screen.getByText('登记发货')).toBeVisible()
-    expect(screen.queryByText('确认质检结果')).not.toBeInTheDocument()
+    expect(screen.queryByText('核算制作产出')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '处理事项：登记发货' }))
     expect(onNavigate).toHaveBeenCalledWith({
       view: 'fulfillment',
       orderItemId: 'item-1',
       focus: 'shipment'
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /需要我决定/ }))
+    fireEvent.click(screen.getByRole('button', { name: '处理事项：核算制作产出' }))
+    expect(onNavigate).toHaveBeenCalledWith({
+      view: 'fulfillment',
+      processTaskId: 'task-1',
+      workAssignmentId: 'assignment-1',
+      focus: 'reviews'
     })
   })
 

@@ -46,7 +46,7 @@ export interface TimedReviewRow {
   hourlyWageCentsSnapshot: number
   items: Array<{
     id: string
-    processTaskId: string
+    processTaskId: string | null
     orderItemId: string | null
     completedQuantity: number
     pieceRateCents: number | null
@@ -165,7 +165,14 @@ function mapTimedSource(row: Record<string, unknown>): V2WorkerSettlementTimedSo
 function mapTimedItem(row: Record<string, unknown>): V2WorkerSettlementTimedItem {
   return {
     id: String(row.id),
-    processTaskId: String(row.process_task_id),
+    workTimeReviewItemId:
+      row.work_time_review_item_id === null || row.work_time_review_item_id === undefined
+        ? null
+        : String(row.work_time_review_item_id),
+    processTaskId:
+      row.process_task_id === null || row.process_task_id === undefined
+        ? null
+        : String(row.process_task_id),
     orderItemId: row.order_item_id as string | null,
     completedQuantity: Number(row.completed_quantity),
     pieceRateCents: row.piece_rate_cents === null ? null : Number(row.piece_rate_cents),
@@ -332,6 +339,8 @@ export class SettlementRepository {
          AND work_assignments.assigned_on BETWEEN ? AND ?
          AND process_tasks.process_type = 'making'
          AND process_tasks.status = 'confirmed'
+         AND process_results.status = 'confirmed'
+         AND (quality_inspections.qualified_quantity > 0 OR quality_inspections.unqualified_quantity > 0)
          AND NOT EXISTS (
            SELECT 1 FROM worker_settlement_making_sources sources
            WHERE sources.quality_inspection_id = quality_inspections.id AND sources.status <> 'cancelled'
@@ -377,16 +386,16 @@ export class SettlementRepository {
       this.database
         .prepare(
           `SELECT items.id, items.process_task_id, items.order_item_id, items.completed_quantity,
-             process_tasks.piece_rate_cents
+             COALESCE(items.piece_rate_cents_snapshot, process_tasks.piece_rate_cents) AS piece_rate_cents
            FROM work_time_review_items items
-           JOIN process_tasks ON process_tasks.id = items.process_task_id
+           LEFT JOIN process_tasks ON process_tasks.id = items.process_task_id
            WHERE items.review_id = ?
            ORDER BY items.rowid ASC`
         )
         .all(reviewId) as Array<Record<string, unknown>>
     ).map((row) => ({
       id: String(row.id),
-      processTaskId: String(row.process_task_id),
+      processTaskId: row.process_task_id === null ? null : String(row.process_task_id),
       orderItemId: row.order_item_id as string | null,
       completedQuantity: Number(row.completed_quantity),
       pieceRateCents: row.piece_rate_cents === null ? null : Number(row.piece_rate_cents)
@@ -501,6 +510,7 @@ export class SettlementRepository {
        WHERE work_assignments.worker_id = ?
          AND process_tasks.process_type = 'making'
          AND quality_inspections.unqualified_quantity > 0
+         AND process_results.status = 'confirmed'
          AND worker_deduction_records.id IS NULL
          AND worker_refund_records.id IS NULL
        ORDER BY quality_inspections.inspected_on ASC, quality_inspections.created_at ASC, quality_inspections.id ASC`
@@ -794,13 +804,15 @@ export class SettlementRepository {
       )
     const insertItem = this.database.prepare(
       `INSERT INTO worker_settlement_timed_items (
-        id, timed_source_id, process_task_id, order_item_id, completed_quantity, piece_rate_cents, commission_cents, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        id, timed_source_id, work_time_review_item_id, process_task_id, order_item_id,
+        completed_quantity, piece_rate_cents, commission_cents, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     for (const item of source.items) {
       insertItem.run(
         item.id,
         source.id,
+        item.workTimeReviewItemId,
         item.processTaskId,
         item.orderItemId,
         item.completedQuantity,
@@ -971,6 +983,160 @@ export class SettlementRepository {
           now
         )
     })
+  }
+
+  /** 单个制作质检对应的结算来源事实，用于核算更正后的草稿替换。 */
+  getMakingSourceByInspection(qualityInspectionId: string): MakingSourceRow | null {
+    const row = this.database
+      .prepare(
+        `SELECT
+        process_tasks.id AS process_task_id, work_assignments.id AS work_assignment_id, work_assignments.assigned_on,
+        process_tasks.piece_rate_cents,
+        process_tasks.glue_price_micro_yuan_per_gram, process_tasks.glue_weight_milligrams,
+        order_items.order_id, process_tasks.order_item_id,
+        process_results.id AS process_result_id,
+        quality_inspections.qualified_quantity, quality_inspections.unqualified_quantity,
+        quality_inspections.id AS quality_inspection_id, quality_inspections.inspected_on
+       FROM quality_inspections
+       JOIN process_tasks ON process_tasks.id = quality_inspections.process_task_id
+       JOIN work_assignments ON work_assignments.id = process_tasks.work_assignment_id
+       JOIN process_results ON process_results.id = quality_inspections.process_result_id
+       LEFT JOIN order_items ON order_items.id = process_tasks.order_item_id
+       WHERE quality_inspections.id = ?`
+      )
+      .get(qualityInspectionId) as Record<string, unknown> | undefined
+    return row ? mapMakingSourceRow(row) : null
+  }
+
+  /** 单个工时核算对应的结算来源事实，用于核算更正后的草稿替换。 */
+  getTimedReviewSource(reviewId: string): TimedReviewRow | null {
+    const row = this.database
+      .prepare('SELECT * FROM work_time_reviews WHERE id = ?')
+      .get(reviewId) as Record<string, unknown> | undefined
+    if (!row) return null
+    return {
+      id: String(row.id),
+      processType: row.process_type as TimedReviewRow['processType'],
+      workedOn: String(row.worked_on),
+      approvedMinutes: Number(row.approved_minutes),
+      hourlyWageCentsSnapshot: Number(row.hourly_wage_cents_snapshot),
+      items: this.listReviewItems(String(row.id))
+    }
+  }
+
+  /** 核算更正/作废：取消草稿结算中的制作来源并返回受影响的草稿结算标识。 */
+  cancelDraftMakingSources(qualityInspectionIds: readonly string[]): string[] {
+    return this.cancelDraftSources(
+      'worker_settlement_making_sources',
+      'quality_inspection_id',
+      qualityInspectionIds
+    )
+  }
+
+  /** 核算更正/作废：取消草稿结算中的计时来源并返回受影响的草稿结算标识。 */
+  cancelDraftTimedSources(reviewIds: readonly string[]): string[] {
+    return this.cancelDraftSources(
+      'worker_settlement_timed_sources',
+      'work_time_review_id',
+      reviewIds
+    )
+  }
+
+  private cancelDraftSources(
+    table: 'worker_settlement_making_sources' | 'worker_settlement_timed_sources',
+    column: 'quality_inspection_id' | 'work_time_review_id',
+    sourceIds: readonly string[]
+  ): string[] {
+    if (!sourceIds.length) return []
+    const placeholders = sourceIds.map(() => '?').join(', ')
+    const draftSettlementIds = (
+      this.database
+        .prepare(
+          `SELECT DISTINCT sources.settlement_id AS settlement_id
+           FROM ${table} sources
+           JOIN worker_settlements settlements ON settlements.id = sources.settlement_id
+           WHERE sources.${column} IN (${placeholders})
+             AND sources.status = 'draft' AND settlements.status = 'draft'`
+        )
+        .all(...sourceIds) as Array<{ settlement_id: string }>
+    ).map((row) => row.settlement_id)
+    this.database
+      .prepare(
+        `UPDATE ${table} SET status = 'cancelled'
+         WHERE ${column} IN (${placeholders}) AND status = 'draft'`
+      )
+      .run(...sourceIds)
+    return draftSettlementIds
+  }
+
+  /**
+   * 移除尚未抵扣的材料扣款及其草稿分配，用于核算更正/作废；
+   * 已发生抵扣（deducted_cents > 0）的记录由锁定检查在调用前拒绝。
+   */
+  removeUnallocatedDeductions(qualityInspectionIds: readonly string[]): string[] {
+    if (!qualityInspectionIds.length) return []
+    const placeholders = qualityInspectionIds.map(() => '?').join(', ')
+    const deductionIds = (
+      this.database
+        .prepare(
+          `SELECT id FROM worker_deduction_records
+           WHERE quality_inspection_id IN (${placeholders}) AND deducted_cents = 0`
+        )
+        .all(...qualityInspectionIds) as Array<{ id: string }>
+    ).map((row) => row.id)
+    if (!deductionIds.length) return []
+    const deductionPlaceholders = deductionIds.map(() => '?').join(', ')
+    const affected = (
+      this.database
+        .prepare(
+          `SELECT DISTINCT settlement_id FROM worker_settlement_deduction_allocations
+           WHERE deduction_record_id IN (${deductionPlaceholders})`
+        )
+        .all(...deductionIds) as Array<{ settlement_id: string }>
+    ).map((row) => row.settlement_id)
+    this.database
+      .prepare(
+        `DELETE FROM worker_settlement_deduction_allocations WHERE deduction_record_id IN (${deductionPlaceholders})`
+      )
+      .run(...deductionIds)
+    this.database
+      .prepare(
+        `DELETE FROM worker_deduction_balances WHERE deduction_record_id IN (${deductionPlaceholders})`
+      )
+      .run(...deductionIds)
+    this.database
+      .prepare(`DELETE FROM worker_deduction_records WHERE id IN (${deductionPlaceholders})`)
+      .run(...deductionIds)
+    return affected
+  }
+
+  /** 草稿结算金额汇总：仅统计未取消的来源。 */
+  sumDraftSourceAmounts(settlementId: string): {
+    timedWageCents: number
+    commissionCents: number
+    materialDeductionCents: number
+  } {
+    const making = this.database
+      .prepare(
+        `SELECT COALESCE(SUM(qualified_commission_cents), 0) AS commission,
+                COALESCE(SUM(material_deduction_cents), 0) AS material
+         FROM worker_settlement_making_sources
+         WHERE settlement_id = ? AND status <> 'cancelled'`
+      )
+      .get(settlementId) as { commission: number; material: number }
+    const timed = this.database
+      .prepare(
+        `SELECT COALESCE(SUM(timed_wage_cents), 0) AS wage,
+                COALESCE(SUM(commission_cents), 0) AS commission
+         FROM worker_settlement_timed_sources
+         WHERE settlement_id = ? AND status <> 'cancelled'`
+      )
+      .get(settlementId) as { wage: number; commission: number }
+    return {
+      timedWageCents: timed.wage,
+      commissionCents: making.commission + timed.commission,
+      materialDeductionCents: making.material
+    }
   }
 
   createWorkerRecord(input: {

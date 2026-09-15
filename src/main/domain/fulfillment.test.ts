@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyFulfillmentEvent,
+  calculateMakingReviewQuantities,
   calculateTaskPlannedMinutes,
   createEdgeSewingCompletedEvent,
   createFluffingBaggingCompletedEvents,
   createFulfillmentState,
+  createFulfillmentEventKey,
   createInventoryAllocationEvent,
   createMakingQualifiedEvent,
   createPackingCompletedEvent,
@@ -234,5 +236,135 @@ describe('完成、质检与四阶段数量流转', () => {
     expect(toPacking).toMatchObject({ making: 30, packing: 20, edgeSewingRouted: 0 })
     expect(() => createInventoryAllocationEvent('making', 20)).toThrow('不能直接投入')
     expect(() => createInventoryAllocationEvent('shipped', 20)).toThrow('不能直接投入')
+  })
+})
+
+describe('制作一次核算数量守恒', () => {
+  it('不合格与未完成数量由系统计算', () => {
+    expect(
+      calculateMakingReviewQuantities({
+        plannedQuantity: 25,
+        completedQuantity: 20,
+        qualifiedQuantity: 18
+      })
+    ).toEqual({
+      completedQuantity: 20,
+      qualifiedQuantity: 18,
+      unqualifiedQuantity: 2,
+      unfinishedQuantity: 5
+    })
+  })
+
+  it('允许零产出与零合格，未完成回填排产缺口', () => {
+    expect(
+      calculateMakingReviewQuantities({
+        plannedQuantity: 10,
+        completedQuantity: 0,
+        qualifiedQuantity: 0
+      })
+    ).toEqual({
+      completedQuantity: 0,
+      qualifiedQuantity: 0,
+      unqualifiedQuantity: 0,
+      unfinishedQuantity: 10
+    })
+    const zeroQualified = calculateMakingReviewQuantities({
+      plannedQuantity: 10,
+      completedQuantity: 4,
+      qualifiedQuantity: 0
+    })
+    expect(zeroQualified.unqualifiedQuantity).toBe(4)
+    expect(zeroQualified.unfinishedQuantity).toBe(6)
+  })
+
+  it('合格不超过实际产出，实际产出不超过本次计划', () => {
+    expect(() =>
+      calculateMakingReviewQuantities({
+        plannedQuantity: 10,
+        completedQuantity: 4,
+        qualifiedQuantity: 5
+      })
+    ).toThrow('合格数量不能超过实际产出')
+    expect(() =>
+      calculateMakingReviewQuantities({
+        plannedQuantity: 10,
+        completedQuantity: 11,
+        qualifiedQuantity: 1
+      })
+    ).toThrow('实际产出不能超过本次制作计划')
+    expect(() =>
+      calculateMakingReviewQuantities({
+        plannedQuantity: 10,
+        completedQuantity: -1,
+        qualifiedQuantity: 0
+      })
+    ).toThrow('实际产出必须是非负整数')
+    expect(() =>
+      calculateMakingReviewQuantities({
+        plannedQuantity: 10,
+        completedQuantity: 1.5,
+        qualifiedQuantity: 1
+      })
+    ).toThrow('实际产出必须是非负整数')
+    expect(() =>
+      calculateMakingReviewQuantities({
+        plannedQuantity: 0,
+        completedQuantity: 0,
+        qualifiedQuantity: 0
+      })
+    ).toThrow('计划数量')
+  })
+
+  it('零合格不产生履约事件，零数量不产生工资或扣款依据', () => {
+    expect(() => createMakingQualifiedEvent(0)).toThrow('合格数量必须是正整数')
+    const zero = calculateMakingReviewQuantities({
+      plannedQuantity: 10,
+      completedQuantity: 0,
+      qualifiedQuantity: 0
+    })
+    expect(zero.qualifiedQuantity * 300).toBe(0)
+    expect(zero.unqualifiedQuantity).toBe(0)
+  })
+})
+
+describe('履约事件级幂等键', () => {
+  it('同一明细分流两条事件使用不同键且重试稳定', () => {
+    const drafts = createFluffingBaggingCompletedEvents({
+      completedQuantity: 10,
+      edgeQuantity: 4,
+      edgeSewingRouted: 0
+    })
+    expect(drafts).toHaveLength(2)
+    const keysOf = (items: typeof drafts) =>
+      items.map((draft) =>
+        createFulfillmentEventKey({
+          sourceRecordType: 'work_time_review_item',
+          sourceRecordId: 'review-item-1',
+          eventType: draft.eventType,
+          targetStage: draft.targetStage ?? null
+        })
+      )
+    const keys = keysOf(drafts)
+    expect(new Set(keys).size).toBe(2)
+    expect(keysOf(drafts)).toEqual(keys)
+    expect(keys[0]).toContain('review-item-1')
+    expect(keys[0]).toContain('to_edge_sewing')
+    expect(keys[1]).toContain('to_packing')
+  })
+
+  it('不同来源记录之间键不会碰撞', () => {
+    const first = createFulfillmentEventKey({
+      sourceRecordType: 'work_time_review_item',
+      sourceRecordId: 'review-item-1',
+      eventType: 'edge_sewing_completed',
+      targetStage: 'packing'
+    })
+    const second = createFulfillmentEventKey({
+      sourceRecordType: 'work_time_review_item',
+      sourceRecordId: 'review-item-2',
+      eventType: 'edge_sewing_completed',
+      targetStage: 'packing'
+    })
+    expect(first).not.toBe(second)
   })
 })

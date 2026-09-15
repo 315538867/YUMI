@@ -35,9 +35,11 @@ import type { V2StudioSettings, V2StudioSettingsUpdateInput } from './settings'
 import type { V2WorkbenchSnapshot } from './workbench'
 import type {
   V2WorkTimeReview,
+  V2WorkTimeReviewCandidate,
+  V2WorkTimeReviewCandidateQuery,
+  V2WorkTimeReviewCorrectionInput,
   V2WorkTimeReviewInput,
   V2WorkTimeReviewQuery,
-  V2WorkTimeReviewUpdateInput,
   V2WorkTimeReviewVoidInput
 } from './work-time-reviews'
 import type {
@@ -75,14 +77,16 @@ import type {
 } from './after-sales'
 import type {
   V2FulfillmentAdjustmentInput,
+  V2MakingReviewCorrectionInput,
+  V2MakingReviewInput,
+  V2MakingReviewVoidInput,
   V2OrderItemFulfillment,
   V2ProcessResult,
-  V2ProcessResultInput,
-  V2QualityInspection,
-  V2QualityInspectionInput,
+  V2ProcessTaskReassignmentInput,
   V2WorkAssignment,
   V2WorkAssignmentCreateInput,
-  V2WorkAssignmentQuery
+  V2WorkAssignmentQuery,
+  V2WorkAssignmentStatusUpdateInput
 } from './fulfillment'
 import type {
   V2Worker,
@@ -103,10 +107,14 @@ import type {
   V2CapacityRiskReportInput,
   V2ConfirmedSettlementReport,
   V2CustomerOrderInsights,
+  V2DeliveryRiskReport,
+  V2DeliveryRiskReportInput,
   V2FulfillmentProgressReport,
   V2MonthlyOperationReport,
   V2OrderBusinessDetail,
   V2OrderBusinessReport,
+  V2OrderDocumentsExportInput,
+  V2OrderTableExportInput,
   V2ReportExportInput,
   V2ReportExportResult,
   V2ShippingListExportInput,
@@ -165,6 +173,11 @@ export interface V2YumiApi {
   }
   fulfillment: {
     createWorkAssignment(input: V2WorkAssignmentCreateInput): Promise<V2WorkAssignment>
+    /** 缺勤或取消排班；已有有效核算的排班会被拒绝。 */
+    setWorkAssignmentStatus(
+      assignmentId: string,
+      input: V2WorkAssignmentStatusUpdateInput
+    ): Promise<V2WorkAssignment>
     reassignProcessTask(
       taskId: string,
       input: V2ProcessTaskReassignmentInput
@@ -172,20 +185,24 @@ export interface V2YumiApi {
     getWorkAssignment(id: string): Promise<V2WorkAssignment | null>
     listWorkAssignments(query?: V2WorkAssignmentQuery): Promise<V2WorkAssignment[]>
     getProcessResultForTask(taskId: string): Promise<V2ProcessResult | null>
-    submitProcessResult(taskId: string, input: V2ProcessResultInput): Promise<V2ProcessResult>
-    confirmQualityInspection(
-      resultId: string,
-      input: V2QualityInspectionInput
-    ): Promise<V2QualityInspection>
+    /** 制作一次核算：实际产出与合格数量，系统计算不合格与未完成。 */
+    reviewMaking(input: V2MakingReviewInput): Promise<V2ProcessResult>
+    correctMakingReview(input: V2MakingReviewCorrectionInput): Promise<V2ProcessResult>
+    voidMakingReview(input: V2MakingReviewVoidInput): Promise<V2ProcessResult>
     adjustStageQuantity(input: V2FulfillmentAdjustmentInput): Promise<V2OrderItemFulfillment>
     getOrderItem(orderItemId: string): Promise<V2OrderItemFulfillment>
   }
   workTimeReviews: {
     list(query?: V2WorkTimeReviewQuery): Promise<V2WorkTimeReview[]>
     get(id: string): Promise<V2WorkTimeReview | null>
-    createDraft(input: V2WorkTimeReviewInput): Promise<V2WorkTimeReview>
-    updateDraft(input: V2WorkTimeReviewUpdateInput): Promise<V2WorkTimeReview>
-    confirm(id: string): Promise<V2WorkTimeReview>
+    /** 计时核算候选：从当前工序可处理的订单商品直接检索。 */
+    listCandidates(
+      assignmentId: string,
+      query?: V2WorkTimeReviewCandidateQuery
+    ): Promise<V2WorkTimeReviewCandidate[]>
+    /** 计时一次核算：单个安排、单一时间范围与跨订单商品明细。 */
+    review(input: V2WorkTimeReviewInput): Promise<V2WorkTimeReview>
+    correct(input: V2WorkTimeReviewCorrectionInput): Promise<V2WorkTimeReview>
     void(id: string, input: V2WorkTimeReviewVoidInput): Promise<V2WorkTimeReview>
   }
   productInventory: {

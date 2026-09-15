@@ -59,6 +59,26 @@ export interface FulfillmentEventDraft {
   targetStage?: FulfillmentStage | null
 }
 
+/**
+ * 事件级幂等键：同一来源记录允许生成多条不同事件（例如捏毛装袋分流），
+ * 键对相同命令稳定复现，配合唯一索引阻止重试重复写入。
+ */
+export function createFulfillmentEventKey(input: {
+  sourceRecordType: string
+  sourceRecordId: string
+  eventType: FulfillmentEventType
+  targetStage: FulfillmentStage | null
+}): string {
+  if (!input.sourceRecordType.trim()) throw new DomainValidationError('事件来源类型不能为空')
+  if (!input.sourceRecordId.trim()) throw new DomainValidationError('事件来源记录不能为空')
+  return [
+    input.sourceRecordType,
+    input.sourceRecordId,
+    input.eventType,
+    input.targetStage ? `to_${input.targetStage}` : 'none'
+  ].join(':')
+}
+
 export interface FulfillmentState {
   making: number
   fluffingBagging: number
@@ -131,6 +151,39 @@ export function calculateTaskPlannedMinutes(input: TaskMinutesInput): number {
 export function validateProcessResult(input: ProcessResultInput): void {
   requirePositiveInteger(input.completedQuantity, '完成数量')
   requireOptionalNonNegativeInteger(input.actualMinutes, '实际分钟')
+}
+
+export interface MakingReviewQuantities {
+  completedQuantity: number
+  qualifiedQuantity: number
+  unqualifiedQuantity: number
+  unfinishedQuantity: number
+}
+
+/**
+ * 制作一次核算数量守恒：实际产出允许为零但不得超过本次计划；
+ * 不合格由实际产出减合格计算，未完成由计划减实际产出计算。
+ */
+export function calculateMakingReviewQuantities(input: {
+  plannedQuantity: number
+  completedQuantity: number
+  qualifiedQuantity: number
+}): MakingReviewQuantities {
+  const plannedQuantity = requirePositiveInteger(input.plannedQuantity, '计划数量')
+  const completedQuantity = requireNonNegativeInteger(input.completedQuantity, '实际产出')
+  const qualifiedQuantity = requireNonNegativeInteger(input.qualifiedQuantity, '合格数量')
+  if (completedQuantity > plannedQuantity) {
+    throw new DomainValidationError('实际产出不能超过本次制作计划')
+  }
+  if (qualifiedQuantity > completedQuantity) {
+    throw new DomainValidationError('合格数量不能超过实际产出')
+  }
+  return {
+    completedQuantity,
+    qualifiedQuantity,
+    unqualifiedQuantity: completedQuantity - qualifiedQuantity,
+    unfinishedQuantity: plannedQuantity - completedQuantity
+  }
 }
 
 /** 只有制作需要质量确认，且合格数量加不合格数量必须等于完成数量。 */

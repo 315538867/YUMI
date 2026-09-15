@@ -57,9 +57,9 @@ describe('registerV2Ipc', () => {
     const workTimeReviews = {
       listReviews: vi.fn(() => []),
       getReview: vi.fn(),
-      createDraft: vi.fn(),
-      updateDraft: vi.fn(),
-      confirm: vi.fn(),
+      listCandidates: vi.fn(() => []),
+      review: vi.fn(),
+      correct: vi.fn(),
       void: vi.fn()
     }
     const productInventory = {
@@ -77,6 +77,10 @@ describe('registerV2Ipc', () => {
       submitProcessResult: vi.fn(),
       confirmQualityInspection: vi.fn(),
       recordOpeningWip: vi.fn(),
+      setWorkAssignmentStatus: vi.fn(),
+      reviewMaking: vi.fn(),
+      correctMakingReview: vi.fn(),
+      voidMakingReview: vi.fn(),
       adjustStageQuantity: vi.fn(),
       getOrderItemFulfillment: vi.fn()
     }
@@ -160,6 +164,15 @@ describe('registerV2Ipc', () => {
       ipcMain
     )
 
+    expect([...handlers.keys()]).not.toEqual(
+      expect.arrayContaining([
+        'v2:fulfillment:results:submit',
+        'v2:fulfillment:inspections:confirm',
+        'v2:work-time-reviews:drafts:create',
+        'v2:work-time-reviews:drafts:update',
+        'v2:work-time-reviews:confirm'
+      ])
+    )
     expect([...handlers.keys()]).toEqual(
       expect.arrayContaining([
         'v2:workbench:get',
@@ -180,18 +193,21 @@ describe('registerV2Ipc', () => {
         'v2:order-fund-proofs:attach',
         'v2:order-fund-proofs:open',
         'v2:fulfillment:assignments:create',
+        'v2:fulfillment:assignments:status',
         'v2:fulfillment:assignments:get',
         'v2:fulfillment:assignments:list',
         'v2:fulfillment:tasks:result:get',
-        'v2:fulfillment:results:submit',
-        'v2:fulfillment:inspections:confirm',
+        'v2:fulfillment:making-reviews:create',
+        'v2:fulfillment:making-reviews:correct',
+        'v2:fulfillment:making-reviews:void',
         'v2:fulfillment:adjustments:create',
         'v2:product-inventory:summary:get',
         'v2:product-inventory:opening:record',
         'v2:product-inventory:allocations:create',
         'v2:work-time-reviews:list',
-        'v2:work-time-reviews:drafts:create',
-        'v2:work-time-reviews:confirm',
+        'v2:work-time-reviews:candidates:list',
+        'v2:work-time-reviews:create',
+        'v2:work-time-reviews:correct',
         'v2:work-time-reviews:void',
         'v2:fulfillment:order-item:get',
         'v2:workers:list',
@@ -243,22 +259,43 @@ describe('registerV2Ipc', () => {
     await handlers.get('v2:fulfillment:assignments:get')!(undefined, 'assignment-1')
     await handlers.get('v2:fulfillment:assignments:list')!(undefined, { orderItemId: 'item-1' })
     await handlers.get('v2:fulfillment:tasks:result:get')!(undefined, 'task-1')
-    await handlers.get('v2:fulfillment:results:submit')!(undefined, 'task-1', {
-      completedQuantity: 3
+    await handlers.get('v2:fulfillment:assignments:status')!(undefined, 'assignment-1', {
+      status: 'absent'
     })
-    await handlers.get('v2:fulfillment:inspections:confirm')!(undefined, 'result-1', {
-      qualifiedQuantity: 3
+    await handlers.get('v2:fulfillment:making-reviews:create')!(undefined, {
+      processTaskId: 'task-1',
+      completedQuantity: 3,
+      qualifiedQuantity: 2,
+      reviewedOn: '2026-09-14'
+    })
+    await handlers.get('v2:fulfillment:making-reviews:correct')!(undefined, {
+      resultId: 'result-1',
+      completedQuantity: 3,
+      qualifiedQuantity: 3,
+      reviewedOn: '2026-09-14',
+      reason: '复核'
+    })
+    await handlers.get('v2:fulfillment:making-reviews:void')!(undefined, {
+      resultId: 'result-1',
+      reason: '录错'
     })
     await handlers.get('v2:work-time-reviews:list')!(undefined, { workerId: 'worker-1' })
-    await handlers.get('v2:work-time-reviews:drafts:create')!(undefined, {
-      workerId: 'worker-1',
-      workedOn: '2026-09-14',
-      processType: 'fluffing_bagging',
-      approvedMinutes: 120,
-      assignmentIds: ['assignment-1'],
-      items: [{ processTaskId: 'task-1', completedQuantity: 20 }]
+    await handlers.get('v2:work-time-reviews:candidates:list')!(undefined, 'assignment-1', {
+      search: '小雨'
     })
-    await handlers.get('v2:work-time-reviews:confirm')!(undefined, 'review-1')
+    await handlers.get('v2:work-time-reviews:create')!(undefined, {
+      workAssignmentId: 'assignment-1',
+      startedAt: '2026-09-14T09:00',
+      endedAt: '2026-09-14T12:00',
+      items: [{ orderItemId: 'item-1', completedQuantity: 20 }]
+    })
+    await handlers.get('v2:work-time-reviews:correct')!(undefined, {
+      id: 'review-1',
+      startedAt: '2026-09-14T09:00',
+      endedAt: '2026-09-14T11:00',
+      items: [{ orderItemId: 'item-1', completedQuantity: 20 }],
+      reason: '提前收工'
+    })
     await handlers.get('v2:work-time-reviews:void')!(undefined, 'review-1', { reason: '录错' })
     await handlers.get('v2:product-inventory:summary:get')!(undefined, 'product-1')
     await handlers.get('v2:product-inventory:opening:record')!(undefined, {
@@ -331,20 +368,41 @@ describe('registerV2Ipc', () => {
     expect(fulfillment.getWorkAssignment).toHaveBeenCalledWith('assignment-1')
     expect(fulfillment.listWorkAssignments).toHaveBeenCalledWith({ orderItemId: 'item-1' })
     expect(fulfillment.getProcessResultForTask).toHaveBeenCalledWith('task-1')
-    expect(fulfillment.submitProcessResult).toHaveBeenCalledWith('task-1', { completedQuantity: 3 })
-    expect(fulfillment.confirmQualityInspection).toHaveBeenCalledWith('result-1', {
-      qualifiedQuantity: 3
+    expect(fulfillment.setWorkAssignmentStatus).toHaveBeenCalledWith('assignment-1', {
+      status: 'absent'
+    })
+    expect(fulfillment.reviewMaking).toHaveBeenCalledWith({
+      processTaskId: 'task-1',
+      completedQuantity: 3,
+      qualifiedQuantity: 2,
+      reviewedOn: '2026-09-14'
+    })
+    expect(fulfillment.correctMakingReview).toHaveBeenCalledWith({
+      resultId: 'result-1',
+      completedQuantity: 3,
+      qualifiedQuantity: 3,
+      reviewedOn: '2026-09-14',
+      reason: '复核'
+    })
+    expect(fulfillment.voidMakingReview).toHaveBeenCalledWith({
+      resultId: 'result-1',
+      reason: '录错'
     })
     expect(workTimeReviews.listReviews).toHaveBeenCalledWith({ workerId: 'worker-1' })
-    expect(workTimeReviews.createDraft).toHaveBeenCalledWith({
-      workerId: 'worker-1',
-      workedOn: '2026-09-14',
-      processType: 'fluffing_bagging',
-      approvedMinutes: 120,
-      assignmentIds: ['assignment-1'],
-      items: [{ processTaskId: 'task-1', completedQuantity: 20 }]
+    expect(workTimeReviews.listCandidates).toHaveBeenCalledWith('assignment-1', { search: '小雨' })
+    expect(workTimeReviews.review).toHaveBeenCalledWith({
+      workAssignmentId: 'assignment-1',
+      startedAt: '2026-09-14T09:00',
+      endedAt: '2026-09-14T12:00',
+      items: [{ orderItemId: 'item-1', completedQuantity: 20 }]
     })
-    expect(workTimeReviews.confirm).toHaveBeenCalledWith('review-1')
+    expect(workTimeReviews.correct).toHaveBeenCalledWith({
+      id: 'review-1',
+      startedAt: '2026-09-14T09:00',
+      endedAt: '2026-09-14T11:00',
+      items: [{ orderItemId: 'item-1', completedQuantity: 20 }],
+      reason: '提前收工'
+    })
     expect(workTimeReviews.void).toHaveBeenCalledWith('review-1', { reason: '录错' })
     expect(productInventory.getSummary).toHaveBeenCalledWith('product-1')
     expect(productInventory.recordOpening).toHaveBeenCalledWith({

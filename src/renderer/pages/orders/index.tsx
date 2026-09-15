@@ -2389,13 +2389,12 @@ function OrderDetail(props: {
                             view: 'fulfillment',
                             orderId: order.id,
                             orderItemId: task.orderItemId,
-                            ...(task.kind === 'assigned' ? { processTaskId: task.taskId } : {}),
                             focus: 'queue'
                           })
                         }
                         variant="ghost"
                       >
-                        派工
+                        前往排班
                       </YumiButton>
                     )
                   }

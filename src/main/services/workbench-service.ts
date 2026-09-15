@@ -109,51 +109,80 @@ export class WorkbenchService {
     decisionItems: Map<string, V2WorkbenchItem>,
     advanceItems: Map<string, V2WorkbenchItem>
   ): void {
+    const today = this.clock.today()
     for (const assignment of this.dependencies.fulfillment.listWorkAssignments()) {
-      for (const task of assignment.tasks) {
-        if (task.status === 'pending_inspection') {
-          decisionItems.set(`quality-inspection:${task.id}`, {
-            id: `quality-inspection:${task.id}`,
-            kind: 'quality_inspection',
-            bucket: 'decision',
-            priority: 'urgent',
+      if (assignment.status === 'cancelled' || assignment.status === 'absent') continue
+      if (assignment.processType === 'making') {
+        for (const task of assignment.tasks) {
+          if (task.status === 'cancelled' || task.status === 'confirmed') continue
+          if (task.reviewSummary) continue
+          // 排班日期不晚于今天且尚无有效核算：进入需要我决定的待核算事项。
+          if (assignment.assignedOn <= today) {
+            decisionItems.set(`making-review:${task.id}`, {
+              id: `making-review:${task.id}`,
+              kind: 'work_time_review',
+              bucket: 'decision',
+              priority: 'high',
+              subject: {
+                title: '核算制作产出',
+                description: `${this.processLabel(task.processType)} · 排班 ${assignment.assignedOn}`
+              },
+              quantityOrAmount:
+                task.plannedQuantity === null ? null : asQuantity(task.plannedQuantity),
+              dueHint: `排班日期 ${assignment.assignedOn}`,
+              navigationTarget: {
+                view: 'fulfillment',
+                orderItemId: task.orderItemId ?? undefined,
+                processTaskId: task.id,
+                workAssignmentId: assignment.id,
+                focus: 'reviews'
+              }
+            })
+            continue
+          }
+          advanceItems.set(`process-task:${task.id}`, {
+            id: `process-task:${task.id}`,
+            kind: 'process_task',
+            bucket: 'advance',
+            priority: 'high',
             subject: {
-              title: '确认质检结果',
-              description: `${this.processLabel(task.processType)} · 排班 ${assignment.assignedOn}`
+              title: `推进${this.processLabel(task.processType)}`,
+              description: `${task.sourceType === 'rework' ? '返工' : '已排班'} · ${assignment.assignedOn}`
             },
             quantityOrAmount:
               task.plannedQuantity === null ? null : asQuantity(task.plannedQuantity),
-            dueHint: `完成后待质检 · ${assignment.assignedOn}`,
+            dueHint: `安排日期 ${assignment.assignedOn}`,
             navigationTarget: {
               view: 'fulfillment',
               orderItemId: task.orderItemId ?? undefined,
               processTaskId: task.id,
-              focus: 'inspection'
+              workAssignmentId: assignment.id,
+              focus: 'queue'
             }
           })
-          continue
         }
-
-        if (task.status !== 'pending') continue
-        advanceItems.set(`process-task:${task.id}`, {
-          id: `process-task:${task.id}`,
-          kind: 'process_task',
-          bucket: 'advance',
-          priority: 'high',
-          subject: {
-            title: `推进${this.processLabel(task.processType)}`,
-            description: `${task.sourceType === 'rework' ? '返工' : '已排班'} · ${assignment.assignedOn}`
-          },
-          quantityOrAmount: task.plannedQuantity === null ? null : asQuantity(task.plannedQuantity),
-          dueHint: `安排日期 ${assignment.assignedOn}`,
-          navigationTarget: {
-            view: 'fulfillment',
-            orderItemId: task.orderItemId ?? undefined,
-            processTaskId: task.id,
-            focus: 'queue'
-          }
-        })
+        continue
       }
+      // 计时公共班次不依赖工序任务：排班日期不晚于今天且无有效核算即进入待核算。
+      if (assignment.timedReview) continue
+      if (assignment.assignedOn > today) continue
+      decisionItems.set(`timed-review:${assignment.id}`, {
+        id: `timed-review:${assignment.id}`,
+        kind: 'work_time_review',
+        bucket: 'decision',
+        priority: 'high',
+        subject: {
+          title: `核算${this.processLabel(assignment.processType)}工时`,
+          description: `排班 ${assignment.assignedOn} · 一次填写时间范围与商品完成数量`
+        },
+        quantityOrAmount: null,
+        dueHint: `排班日期 ${assignment.assignedOn}`,
+        navigationTarget: {
+          view: 'fulfillment',
+          workAssignmentId: assignment.id,
+          focus: 'reviews'
+        }
+      })
     }
   }
 

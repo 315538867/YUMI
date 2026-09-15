@@ -154,6 +154,7 @@ export class ProductInventoryService {
           sourceStage: draft.sourceStage ?? null,
           targetStage: draft.targetStage ?? null,
           sourceRecordType: 'product_stage_inventory_event',
+          sourceEventKey: null,
           sourceRecordId: inventoryEventId,
           occurredOn,
           note: input.note ?? null,

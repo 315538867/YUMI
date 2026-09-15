@@ -1,216 +1,75 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import type { V2Worker, V2WorkAssignmentCreateInput } from '@shared/contracts/index'
-import { today } from '../../composables/v2-utils'
+import type {
+  V2MakingTaskInput,
+  V2ProcessTask,
+  V2ProcessTaskSource,
+  V2ProcessType,
+  V2Worker,
+  V2WorkAssignment,
+  V2WorkAssignmentCreateInput
+} from '@shared/contracts/index'
+import { getErrorMessage, today } from '../../composables/v2-utils'
 import {
+  addBusinessDays,
+  buildWorkerWeekCards,
   getFulfillmentQueueStageSchedule,
-  getWorkerWeekTasks,
   type ActionableFulfillmentQueueStage,
   type FulfillmentQueueItem,
-  type FulfillmentScheduledTask
+  type WorkerWeekCard
 } from '../../composables/use-fulfillment'
 import {
   YumiButton,
   YumiDataTable,
-  YumiEmptyState,
-  YumiListSurface,
-  YumiListToolbar,
   YumiDatePicker,
+  YumiDetailList,
+  YumiDialog,
+  YumiEmptyState,
   YumiField,
   YumiFieldLabel,
   YumiFormMessage,
   YumiNumberField,
-  YumiSelect,
   YumiSection,
+  YumiSelect,
   YumiSheet,
   YumiStatusTag,
   YumiTextArea
 } from '../ui'
 
-const dispatchStageLabels: Record<ActionableFulfillmentQueueStage, string> = {
+const processLabels: Record<V2ProcessType, string> = {
   making: '制作',
   fluffing_bagging: '捏毛装袋',
   edge_sewing: '缝边',
   packing: '打包发货'
 }
 
-const stages: ActionableFulfillmentQueueStage[] = [
-  'making',
-  'fluffing_bagging',
-  'edge_sewing',
-  'packing'
-]
+const processTypes: V2ProcessType[] = ['making', 'fluffing_bagging', 'edge_sewing', 'packing']
+
+const sourceLabels: Record<V2ProcessTaskSource, string> = {
+  normal_production: '正常生产',
+  rework: '返工',
+  after_sales_replacement: '售后补发',
+  manager_arrangement: '负责人安排'
+}
+
+const sourceTypes = Object.keys(sourceLabels) as V2ProcessTaskSource[]
+
+const assignmentStatusLabels: Record<V2WorkAssignment['status'], string> = {
+  draft: '待确认',
+  scheduled: '已安排',
+  completed: '已完成',
+  cancelled: '已取消',
+  absent: '缺勤'
+}
 
 export interface DispatchPrefill {
   assignedOn?: string
-  orderItemId?: string
-  stage?: ActionableFulfillmentQueueStage
   workerId?: string
 }
 
-function taskStatusLabel(status: FulfillmentScheduledTask['status']) {
-  return status === 'pending_inspection' ? '待质检' : '待完成'
-}
-
-function stageTone(
-  stage: ActionableFulfillmentQueueStage
-): 'neutral' | 'info' | 'brand' | 'warning' {
-  if (stage === 'fluffing_bagging') return 'info'
-  if (stage === 'edge_sewing') return 'warning'
-  if (stage === 'packing') return 'brand'
-  return 'neutral'
-}
-
-export function OrderDispatchBoard(props: {
-  items: FulfillmentQueueItem[]
-  stage: 'all' | ActionableFulfillmentQueueStage
-  onOpenItem(item: FulfillmentQueueItem, stage: ActionableFulfillmentQueueStage): void
-  onOpenAssignment(prefill: DispatchPrefill): void
-  onOpenTask(item: FulfillmentQueueItem, task: FulfillmentScheduledTask): void
-}) {
-  const visibleStagesFor = (item: FulfillmentQueueItem) =>
-    props.stage === 'all'
-      ? stages.filter((stage) => {
-          const schedule = getFulfillmentQueueStageSchedule(item, stage)
-          return (
-            schedule.wipQuantity > 0 ||
-            schedule.tasks.length > 0 ||
-            schedule.overassignedQuantity > 0
-          )
-        })
-      : [props.stage]
-
-  return (
-    <YumiSection
-      ariaLabel="订单排班队列"
-      description="按订单查看待派与已派任务，进入处理区登记实际进度。"
-      title="订单排班队列"
-    >
-      <YumiListSurface className="yumi-fulfillment-dispatch-surface">
-        <YumiListToolbar
-          ariaLabel="排班队列列表工具"
-          countLabel={`共 ${props.items.length} 个待处理产品`}
-        />
-        <YumiDataTable
-          ariaLabel="排班队列列表"
-          columns={[
-            {
-              key: 'order',
-              label: '订单 / 客户',
-              render: (item) => (
-                <div className="yumi-fulfillment-order-cell">
-                  <strong>{item.orderCode}</strong>
-                  <span>{item.customerName}</span>
-                </div>
-              )
-            },
-            {
-              key: 'product',
-              label: '产品 / 确认数量',
-              render: (item) => (
-                <div className="yumi-fulfillment-product-cell">
-                  <strong>{item.productName}</strong>
-                  <span>确认 {item.confirmedQuantity} 件</span>
-                </div>
-              )
-            },
-            {
-              key: 'stage',
-              label: '排班阶段',
-              render: (item) => (
-                <div className="yumi-fulfillment-stage-tags">
-                  {visibleStagesFor(item).map((stage) => (
-                    <YumiStatusTag key={stage} tone={stageTone(stage)}>
-                      {dispatchStageLabels[stage]}
-                    </YumiStatusTag>
-                  ))}
-                </div>
-              )
-            },
-            {
-              key: 'schedule',
-              label: '任务分配',
-              render: (item) => (
-                <div className="yumi-fulfillment-stage-stack">
-                  {visibleStagesFor(item).map((stage) => {
-                    const schedule = getFulfillmentQueueStageSchedule(item, stage)
-                    const assignedQuantity = schedule.tasks.reduce(
-                      (total, task) => total + task.plannedQuantity,
-                      0
-                    )
-                    const assignedSummary =
-                      schedule.tasks.length === 1
-                        ? `已指派：${schedule.tasks[0].workerName} ${assignedQuantity} 件`
-                        : schedule.tasks.length > 1
-                          ? `已指派：${schedule.tasks.length} 人 ${assignedQuantity} 件`
-                          : '已指派：0 件'
-                    return (
-                      <section className="yumi-fulfillment-stage" key={stage}>
-                        <div className="yumi-fulfillment-stage__row">
-                          <strong>{dispatchStageLabels[stage]}</strong>
-                          <span className="yumi-fulfillment-stage__assigned">
-                            {assignedSummary}
-                          </span>
-                          <span className="yumi-fulfillment-stage__unassigned">
-                            未指派：{schedule.unassignedQuantity} 件
-                          </span>
-                          {schedule.overassignedQuantity > 0 ? (
-                            <span className="yumi-fulfillment-stage__overassigned">
-                              超派：{schedule.overassignedQuantity} 件
-                            </span>
-                          ) : null}
-                          <div className="yumi-fulfillment-stage__actions">
-                            {schedule.tasks.length > 0 ? (
-                              <YumiButton
-                                aria-label={`查看${dispatchStageLabels[stage]}任务`}
-                                onClick={() => props.onOpenTask(item, schedule.tasks[0])}
-                                variant="ghost"
-                              >
-                                查看任务
-                              </YumiButton>
-                            ) : null}
-                            {schedule.unassignedQuantity > 0 ? (
-                              <YumiButton
-                                aria-label={`派工${dispatchStageLabels[stage]}`}
-                                onClick={() =>
-                                  props.onOpenAssignment({ orderItemId: item.orderItemId, stage })
-                                }
-                                variant="secondary"
-                              >
-                                派工
-                              </YumiButton>
-                            ) : null}
-                          </div>
-                        </div>
-                      </section>
-                    )
-                  })}
-                </div>
-              )
-            },
-            {
-              key: 'action',
-              label: '操作',
-              align: 'right',
-              render: (item) => {
-                const primaryStage = visibleStagesFor(item)[0] ?? 'making'
-                return (
-                  <YumiButton
-                    aria-label={`进入处理：${item.productName}`}
-                    onClick={() => props.onOpenItem(item, primaryStage)}
-                    variant="secondary"
-                  >
-                    进入处理
-                  </YumiButton>
-                )
-              }
-            }
-          ]}
-          getRowKey={(item) => item.orderItemId}
-          rows={props.items}
-        />
-      </YumiListSurface>
-    </YumiSection>
-  )
+/** 周历卡片点击目标：待核算进入核算，已核算进入只读记录。 */
+export interface WeekScheduleReviewTarget {
+  card: WorkerWeekCard
+  workerName: string
 }
 
 function dateParts(date: Date): string {
@@ -228,55 +87,79 @@ function startOfWeek(date = today()): string {
 }
 
 function addDays(date: string, count: number): string {
-  const next = new Date(`${date}T00:00:00`)
-  next.setDate(next.getDate() + count)
-  return dateParts(next)
+  return addBusinessDays(date, count)
+}
+
+function reviewStatusLabel(reviewed: boolean): string {
+  return reviewed ? '已核算' : '待核算'
 }
 
 const workerToneCount = 12
 
+function cardLabel(card: WorkerWeekCard, itemLabels: ReadonlyMap<string, string>): string {
+  const stage = processLabels[card.assignment.processType]
+  if (card.kind === 'timed') return `${stage} ${reviewStatusLabel(card.reviewed)}`
+  const productName = itemLabels.get(card.task?.orderItemId ?? '') ?? '订单商品'
+  return `${productName} ${stage} 计划 ${card.task?.plannedQuantity ?? 0} 件 ${reviewStatusLabel(card.reviewed)}`
+}
+
+/**
+ * 人员周历：按周一至周日分列，按人员成框聚合当天安排，
+ * 制作卡展示订单商品、工序、计划数量与核算状态；计时卡只展示“工序 · 待核算/已核算”。
+ */
 export function WorkerWeekSchedule(props: {
-  items: FulfillmentQueueItem[]
+  assignments: V2WorkAssignment[]
+  itemLabels: ReadonlyMap<string, string>
   workers: V2Worker[]
   onOpenAssignment(prefill: DispatchPrefill): void
-  onOpenTask(item: FulfillmentQueueItem, task: FulfillmentScheduledTask): void
+  onOpenAssignmentDetail(assignment: V2WorkAssignment, workerName: string): void
+  onOpenReview(target: WeekScheduleReviewTarget): void
 }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek())
   const dates = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
     [weekStart]
   )
-  const tasks = useMemo(() => getWorkerWeekTasks(props.items, weekStart), [props.items, weekStart])
-  const itemById = useMemo(
-    () => new Map(props.items.map((item) => [item.orderItemId, item])),
-    [props.items]
+  const cards = useMemo(
+    () => buildWorkerWeekCards(props.assignments, weekStart),
+    [props.assignments, weekStart]
+  )
+  const workerNames = useMemo(
+    () => new Map(props.workers.map((worker) => [worker.id, worker.name])),
+    [props.workers]
   )
   const orderedWorkers = useMemo(() => {
     const sorted = [...props.workers].sort((left, right) =>
       (left.createdAt ?? '').localeCompare(right.createdAt ?? '')
     )
     const knownIds = new Set(sorted.map((worker) => worker.id))
-    const extras = tasks.reduce<V2Worker[]>(
-      (rows, task) =>
-        knownIds.has(task.workerId) || rows.some((worker) => worker.id === task.workerId)
+    const extras = cards.reduce<V2Worker[]>(
+      (rows, card) =>
+        knownIds.has(card.workerId) || rows.some((worker) => worker.id === card.workerId)
           ? rows
-          : [...rows, { id: task.workerId, name: task.workerName, enabled: false } as V2Worker],
+          : [...rows, { id: card.workerId, name: '已删除人员', enabled: false } as V2Worker],
       []
     )
     return [...sorted, ...extras]
-  }, [props.workers, tasks])
+  }, [props.workers, cards])
   const toneByWorker = useMemo(() => {
     const tones = new Map<string, number>()
     orderedWorkers.forEach((worker, index) => tones.set(worker.id, (index % workerToneCount) + 1))
     return tones
   }, [orderedWorkers])
-  const workersWithTasks = useMemo(
-    () => new Set(tasks.map((task) => task.workerId)),
-    [tasks]
-  )
+  const scheduledWorkerIds = useMemo(() => new Set(cards.map((card) => card.workerId)), [cards])
   const hasSchedulableWorkers = orderedWorkers.some(
-    (worker) => worker.enabled || workersWithTasks.has(worker.id)
+    (worker) => worker.enabled || scheduledWorkerIds.has(worker.id)
   )
+
+  const openCard = (card: WorkerWeekCard) => {
+    const workerName = workerNames.get(card.workerId) ?? '已删除人员'
+    if (card.assignment.assignedOn > today()) {
+      props.onOpenAssignmentDetail(card.assignment, workerName)
+      return
+    }
+    props.onOpenReview({ card, workerName })
+  }
 
   return (
     <YumiSection
@@ -301,12 +184,12 @@ export function WorkerWeekSchedule(props: {
       }
       ariaLabel="人员周历"
       className="yumi-worker-week"
-      description={`${weekStart} 至 ${dates[6]} · 仅显示待完成与待质检任务`}
+      description={`${weekStart} 至 ${dates[6]} · 按人员聚合当天排班；制作显示商品与数量，计时只显示工序与核算状态`}
       title="人员周历"
     >
       {!hasSchedulableWorkers ? (
         <YumiEmptyState
-          description="先到「工资」页的「人员与时薪」新增兼职人员并设置生效时薪；这里会按日期分列展示每位人员的待处理任务，并提供每天列底部的「＋ 派工」入口。"
+          description="先到「工资」页的「人员与时薪」新增兼职人员并设置生效时薪；这里会按日期分列展示每位人员的排班，并提供每天列底部的「＋ 派工」入口。"
           scenario="first-use"
           title="还没有可排班的兼职人员"
         />
@@ -317,13 +200,13 @@ export function WorkerWeekSchedule(props: {
             style={{ gridTemplateColumns: 'repeat(7, minmax(150px, 1fr))' }}
           >
             {dates.map((date, index) => {
-              const dayTasks = tasks.filter((task) => task.assignedOn === date)
+              const dayCards = cards.filter((card) => card.assignedOn === date)
               const groups = orderedWorkers
                 .map((worker) => ({
                   worker,
-                  tasks: dayTasks.filter((task) => task.workerId === worker.id)
+                  cards: dayCards.filter((card) => card.workerId === worker.id)
                 }))
-                .filter((group) => group.tasks.length > 0)
+                .filter((group) => group.cards.length > 0)
               return (
                 <div className="yumi-worker-week__column" key={date}>
                   <strong className="yumi-worker-week__date">
@@ -342,44 +225,49 @@ export function WorkerWeekSchedule(props: {
                           {group.worker.name}
                         </strong>
                         <span className="yumi-worker-week__person-count">
-                          {group.tasks.length} 条
+                          {group.cards.length} 条
                         </span>
                       </div>
-                      {group.tasks.map((task) => {
-                        const item = itemById.get(task.orderItemId)
-                        if (!item) return null
-                        return (
-                          <YumiButton
-                            aria-label={`${task.productName} ${dispatchStageLabels[task.stage]} ${task.plannedQuantity} ${taskStatusLabel(task.status)}`}
-                            className="yumi-worker-week__task"
-                            key={task.taskId}
-                            onClick={() => props.onOpenTask(item, task)}
-                            variant="ghost"
-                          >
-                            <span className="yumi-worker-week__task-head">
-                              <span className="yumi-worker-week__task-product">
-                                {task.productName}
+                      {group.cards.map((card) => (
+                        <YumiButton
+                          aria-label={cardLabel(card, props.itemLabels)}
+                          className={
+                            card.kind === 'timed'
+                              ? 'yumi-worker-week__task yumi-worker-week__task--timed'
+                              : 'yumi-worker-week__task'
+                          }
+                          key={card.key}
+                          onClick={() => openCard(card)}
+                          variant="ghost"
+                        >
+                          {card.kind === 'making' ? (
+                            <>
+                              <span className="yumi-worker-week__task-head">
+                                <span className="yumi-worker-week__task-product">
+                                  {props.itemLabels.get(card.task?.orderItemId ?? '') ?? '订单商品'}
+                                </span>
+                                <YumiStatusTag tone={card.reviewed ? 'success' : 'warning'}>
+                                  {reviewStatusLabel(card.reviewed)}
+                                </YumiStatusTag>
                               </span>
-                              <YumiStatusTag
-                                tone={task.status === 'pending_inspection' ? 'warning' : 'info'}
-                              >
-                                {taskStatusLabel(task.status)}
-                              </YumiStatusTag>
-                            </span>
+                              <span className="yumi-worker-week__task-meta">
+                                制作 · 计划 {card.task?.plannedQuantity ?? 0} 件
+                              </span>
+                            </>
+                          ) : (
                             <span className="yumi-worker-week__task-meta">
-                              {dispatchStageLabels[task.stage]} · {task.plannedQuantity} 件
+                              {processLabels[card.assignment.processType]} ·{' '}
+                              {reviewStatusLabel(card.reviewed)}
                             </span>
-                          </YumiButton>
-                        )
-                      })}
+                          )}
+                        </YumiButton>
+                      ))}
                     </div>
                   ))}
                   <YumiButton
                     aria-label={`为${date}派工`}
                     className={
-                      groups.length === 0
-                        ? 'yumi-worker-week__empty'
-                        : 'yumi-worker-week__add'
+                      groups.length === 0 ? 'yumi-worker-week__empty' : 'yumi-worker-week__add'
                     }
                     onClick={() => props.onOpenAssignment({ assignedOn: date })}
                     variant="ghost"
@@ -396,6 +284,112 @@ export function WorkerWeekSchedule(props: {
   )
 }
 
+function assignmentModeLabel(assignment: V2WorkAssignment): string {
+  if (assignment.scheduleMode === 'timed_shift') return '计时班次'
+  if (assignment.scheduleMode === 'legacy_task') return '历史安排'
+  return '制作排班'
+}
+
+function taskStatusLabel(status: V2ProcessTask['status']): string {
+  if (status === 'pending_inspection') return '待核算'
+  if (status === 'confirmed') return '已核算'
+  if (status === 'cancelled') return '已取消'
+  return '待完成'
+}
+
+/** 未来日期排班的只读详情：只展示安排字段与核算状态，不提供新建或核算表单。 */
+export function WorkAssignmentDetailDialog(props: {
+  assignment: V2WorkAssignment | null
+  itemLabels: ReadonlyMap<string, string>
+  onClose(): void
+  workerName: string
+}) {
+  const assignment = props.assignment
+  if (!assignment) return null
+  const reviewed = assignment.timedReview !== null
+  return (
+    <YumiDialog
+      footer={
+        <YumiButton onClick={props.onClose} variant="secondary">
+          关闭
+        </YumiButton>
+      }
+      onOpenChange={(open) => {
+        if (!open) props.onClose()
+      }}
+      open
+      title="工作安排详情"
+    >
+      <YumiDetailList
+        ariaLabel="工作安排详情"
+        items={[
+          { label: '兼职人员', value: props.workerName },
+          { label: '安排日期', value: assignment.assignedOn },
+          { label: '工序', value: processLabels[assignment.processType] },
+          { label: '排班模式', value: assignmentModeLabel(assignment) },
+          {
+            label: '安排状态',
+            value: assignmentStatusLabels[assignment.status] ?? assignment.status
+          },
+          {
+            label: '核算状态',
+            value:
+              assignment.processType === 'making'
+                ? assignment.tasks.some((task) => task.reviewSummary)
+                  ? '部分或全部已核算'
+                  : '待核算'
+                : reviewStatusLabel(reviewed)
+          },
+          { label: '备注', value: assignment.note ?? '—' }
+        ]}
+      />
+      {assignment.processType === 'making' && assignment.tasks.length > 0 ? (
+        <YumiDataTable
+          ariaLabel="安排中的制作任务"
+          columns={[
+            {
+              key: 'product',
+              label: '订单商品',
+              render: (task) => props.itemLabels.get(task.orderItemId ?? '') ?? '订单商品'
+            },
+            {
+              key: 'quantity',
+              label: '计划数量',
+              align: 'right',
+              render: (task) => `${task.plannedQuantity ?? 0} 件`
+            },
+            { key: 'status', label: '任务状态', render: (task) => taskStatusLabel(task.status) },
+            {
+              key: 'review',
+              label: '核算状态',
+              render: (task) => (task.reviewSummary ? '已核算' : '待核算')
+            }
+          ]}
+          getRowKey={(task) => task.id}
+          rows={assignment.tasks}
+        />
+      ) : null}
+      {assignment.processType !== 'making' && assignment.timedReview ? (
+        <YumiDetailList
+          ariaLabel="计时核算摘要"
+          items={[
+            { label: '核算日期', value: assignment.timedReview.reviewedOn },
+            { label: '核算分钟', value: `${assignment.timedReview.approvedMinutes} 分钟` },
+            {
+              label: '锁定',
+              value: assignment.timedReview.lock.message ?? '未锁定'
+            }
+          ]}
+        />
+      ) : null}
+    </YumiDialog>
+  )
+}
+
+/**
+ * 派工抽屉：按工序类型切换表单。
+ * 制作排班要求订单商品、数量、来源并执行超排校验；计时班次只登记人员、日期、工序与备注。
+ */
 export function WorkAssignmentSheet(props: {
   items: FulfillmentQueueItem[]
   open: boolean
@@ -406,8 +400,9 @@ export function WorkAssignmentSheet(props: {
 }) {
   const [workerId, setWorkerId] = useState('')
   const [assignedOn, setAssignedOn] = useState(today())
+  const [processType, setProcessType] = useState<V2ProcessType>('making')
   const [orderItemId, setOrderItemId] = useState('')
-  const [stage, setStage] = useState<ActionableFulfillmentQueueStage>('making')
+  const [sourceType, setSourceType] = useState<V2ProcessTaskSource>('normal_production')
   const [quantity, setQuantity] = useState('')
   const [extraMinutes, setExtraMinutes] = useState('0')
   const [note, setNote] = useState('')
@@ -418,8 +413,9 @@ export function WorkAssignmentSheet(props: {
     if (!props.open) return
     setWorkerId(props.prefill?.workerId ?? '')
     setAssignedOn(props.prefill?.assignedOn ?? today())
-    setOrderItemId(props.prefill?.orderItemId ?? '')
-    setStage(props.prefill?.stage ?? 'making')
+    setProcessType('making')
+    setOrderItemId('')
+    setSourceType('normal_production')
     setQuantity('')
     setExtraMinutes('0')
     setNote('')
@@ -427,7 +423,9 @@ export function WorkAssignmentSheet(props: {
   }, [props.open, props.prefill])
 
   const selectedItem = props.items.find((item) => item.orderItemId === orderItemId)
-  const schedule = selectedItem ? getFulfillmentQueueStageSchedule(selectedItem, stage) : null
+  const schedule = selectedItem
+    ? getFulfillmentQueueStageSchedule(selectedItem, processType as ActionableFulfillmentQueueStage)
+    : null
   const workerOptions = props.workers
     .filter((worker) => worker.enabled)
     .map((worker) => ({ value: worker.id, label: worker.name }))
@@ -435,53 +433,69 @@ export function WorkAssignmentSheet(props: {
     value: item.orderItemId,
     label: `${item.orderCode} · ${item.productName}`
   }))
-  const isMaking = stage === 'making'
+  const isMaking = processType === 'making'
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (!workerId || !assignedOn) {
+      setError('请选择人员与日期。')
+      return
+    }
+    if (!isMaking) {
+      setSubmitting(true)
+      setError(null)
+      try {
+        await props.onSubmit({
+          scheduleMode: 'timed_shift',
+          workerId,
+          assignedOn,
+          processType,
+          note: note || undefined
+        })
+        props.onOpenChange(false)
+      } catch (cause) {
+        setError(getErrorMessage(cause))
+      } finally {
+        setSubmitting(false)
+      }
+      return
+    }
+
     const parsedQuantity = Number(quantity)
     const parsedExtraMinutes = Number(extraMinutes || '0')
-    if (
-      !orderItemId ||
-      !selectedItem ||
-      !workerId ||
-      !assignedOn ||
-      !Number.isInteger(parsedQuantity) ||
-      parsedQuantity <= 0
-    ) {
-      setError('请完整填写人员、日期、订单商品和正整数数量。')
+    if (!orderItemId || !selectedItem || !Number.isInteger(parsedQuantity) || parsedQuantity <= 0) {
+      setError('请完整填写订单商品和正整数数量。')
       return
     }
     if (!schedule || parsedQuantity > schedule.unassignedQuantity) {
       setError(`计划数量不能超过当前待派上限 ${schedule?.unassignedQuantity ?? 0} 件。`)
       return
     }
-    if (isMaking && (!Number.isInteger(parsedExtraMinutes) || parsedExtraMinutes < 0)) {
+    if (!Number.isInteger(parsedExtraMinutes) || parsedExtraMinutes < 0) {
       setError('额外预留分钟必须是非负整数。')
       return
+    }
+    const task: V2MakingTaskInput = {
+      orderItemId,
+      sourceType,
+      plannedQuantity: parsedQuantity,
+      extraMinutes: parsedExtraMinutes,
+      note: note || undefined
     }
     setSubmitting(true)
     setError(null)
     try {
       await props.onSubmit({
+        scheduleMode: 'making_task',
         workerId,
         assignedOn,
-        processType: stage,
+        processType: 'making',
         note: note || undefined,
-        tasks: [
-          {
-            orderItemId,
-            sourceType: 'normal_production',
-            plannedQuantity: parsedQuantity,
-            plannedMinutes: null,
-            extraMinutes: isMaking ? parsedExtraMinutes : 0,
-            note: note || undefined
-          }
-        ]
+        tasks: [task]
       })
       props.onOpenChange(false)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '派工保存失败，请稍后重试。')
+      setError(getErrorMessage(cause))
     } finally {
       setSubmitting(false)
     }
@@ -489,10 +503,10 @@ export function WorkAssignmentSheet(props: {
 
   return (
     <YumiSheet
-      description="保存后会立即刷新订单视角和人员周历。"
+      description="保存后立即刷新人员周历；实际时间与完成数量统一在排班页的「待核算」页签登记。"
       onOpenChange={props.onOpenChange}
       open={props.open}
-      title={`派工：${dispatchStageLabels[stage]}`}
+      title={`派工：${processLabels[processType]}`}
     >
       <form className="yumi-form-panel yumi-sheet-form" onSubmit={handleSubmit}>
         {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
@@ -516,38 +530,53 @@ export function WorkAssignmentSheet(props: {
             />
           </YumiField>
           <YumiField>
-            <YumiFieldLabel required>订单商品</YumiFieldLabel>
-            <YumiSelect
-              aria-label="派工订单商品"
-              onValueChange={setOrderItemId}
-              options={itemOptions}
-              placeholder="选择订单商品"
-              value={orderItemId}
-            />
-          </YumiField>
-          <YumiField>
             <YumiFieldLabel required>工序</YumiFieldLabel>
             <YumiSelect
               aria-label="派工工序"
-              onValueChange={(value) => setStage(value as ActionableFulfillmentQueueStage)}
-              options={stages.map((value) => ({ value, label: dispatchStageLabels[value] }))}
-              value={stage}
+              onValueChange={(value) => setProcessType(value as V2ProcessType)}
+              options={processTypes.map((value) => ({ value, label: processLabels[value] }))}
+              value={processType}
             />
           </YumiField>
-          <YumiField>
-            <YumiFieldLabel required>数量</YumiFieldLabel>
-            <YumiNumberField
-              aria-label="派工数量"
-              max={schedule?.unassignedQuantity ?? undefined}
-              min="1"
-              onChange={(event) => setQuantity(event.target.value)}
-              required
-              value={quantity}
-            />
-            {schedule ? (
-              <YumiFormMessage>待派上限：{schedule.unassignedQuantity} 件</YumiFormMessage>
-            ) : null}
-          </YumiField>
+          {isMaking ? (
+            <YumiField>
+              <YumiFieldLabel required>订单商品</YumiFieldLabel>
+              <YumiSelect
+                aria-label="派工订单商品"
+                onValueChange={setOrderItemId}
+                options={itemOptions}
+                placeholder="选择订单商品"
+                value={orderItemId}
+              />
+            </YumiField>
+          ) : null}
+          {isMaking ? (
+            <YumiField>
+              <YumiFieldLabel required>数量</YumiFieldLabel>
+              <YumiNumberField
+                aria-label="派工数量"
+                max={schedule?.unassignedQuantity ?? undefined}
+                min="1"
+                onChange={(event) => setQuantity(event.target.value)}
+                required
+                value={quantity}
+              />
+              {schedule ? (
+                <YumiFormMessage>待派上限：{schedule.unassignedQuantity} 件</YumiFormMessage>
+              ) : null}
+            </YumiField>
+          ) : null}
+          {isMaking ? (
+            <YumiField>
+              <YumiFieldLabel required>任务来源</YumiFieldLabel>
+              <YumiSelect
+                aria-label="任务来源"
+                onValueChange={(value) => setSourceType(value as V2ProcessTaskSource)}
+                options={sourceTypes.map((value) => ({ value, label: sourceLabels[value] }))}
+                value={sourceType}
+              />
+            </YumiField>
+          ) : null}
           {isMaking ? (
             <YumiField>
               <YumiFieldLabel>额外预留分钟</YumiFieldLabel>
@@ -561,7 +590,9 @@ export function WorkAssignmentSheet(props: {
           ) : null}
         </div>
         <YumiFormMessage tone="hint">
-          最终工作时长与完成数量由负责人次日核算，排班只安排人员、日期与工序。
+          {isMaking
+            ? '计划数量不得超过当前待派上限；实际工作时长与合格数量由负责人在待核算中一次登记。'
+            : '计时班次只安排人员、日期与工序；实际时间范围与跨订单商品完成数量在待核算中登记。'}
         </YumiFormMessage>
         <YumiField>
           <YumiFieldLabel>备注</YumiFieldLabel>

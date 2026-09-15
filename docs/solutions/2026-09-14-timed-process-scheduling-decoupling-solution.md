@@ -3,13 +3,13 @@ title: YUMI 计时工序排班解耦与单次核算方案
 date: 2026-09-14
 last_modified: 2026-09-15
 modifier: Codex
-solution_version: v1.1
-status: 待实施
+solution_version: v1.2
+status: 已实施（待授权归档）
 scope: 制作排班与核算、捏毛装袋/缝边/打包发货计时排班与核算、人员周历、负责人工作台、工作安排记录、履约事件与工资结算来源
 platform: Electron 单电脑离线桌面应用
 openspec_change_id: decouple-timed-process-scheduling-and-simplify-review
 openspec_change_name: YUMI 计时工序排班解耦与单次核算
-openspec_status: 提案工件已完成并通过严格校验，尚未实施
+openspec_status: 已实施，任务清单 55/55 完成并通过严格校验，待授权归档
 open_questions: 无
 ---
 
@@ -416,7 +416,7 @@ open_questions: 无
 
 | 方案版本 | OpenSpec change id | 提案名称 | 状态 | 日期 |
 | --- | --- | --- | --- | --- |
-| v1.1 | `decouple-timed-process-scheduling-and-simplify-review` | YUMI 计时工序排班解耦与单次核算 | 待实施 | 2026-09-15 |
+| v1.2 | `decouple-timed-process-scheduling-and-simplify-review` | YUMI 计时工序排班解耦与单次核算 | 已实施（待授权归档） | 2026-09-15 |
 
 ## 15. 版本记录
 
@@ -424,3 +424,4 @@ open_questions: 无
 | --- | --- | --- | --- |
 | v1.0 | 2026-09-14 | Codex | 固化方案 C、排班入口收口、制品与非制品一次核算、更正作废及审计边界 |
 | v1.1 | 2026-09-15 | Codex | 补齐负责人工作台和主流程规格；明确制作零产出与计划上限、制作/计时版本化更正、草稿结算重算及事件级幂等 |
+| v1.2 | 2026-09-15 | Codex | 按提案实施完成：契约与领域规则、v16 迁移（排班模式/版本链/事件幂等键/商品快照）、一次核算服务与 IPC、结算快照读取与草稿重算、人员周历唯一入口与单次核算界面、工作台待核算事项；109 文件 529 测试、lint、format、build 与 OpenSpec 严格校验通过 |

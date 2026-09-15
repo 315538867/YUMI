@@ -18,7 +18,10 @@ describe('SettlementService', () => {
   function createFixture() {
     const database = createV2Database(':memory:')
     databases.push(database)
-    const clock = { createId: () => randomUUID(), now: () => '2026-09-15T08:00:00.000Z' }
+    const clock = {
+      createId: () => randomUUID(),
+      now: () => new Date(2026, 8, 15, 16, 0).toISOString()
+    }
     const orderService = new V2OrderService(new V2OrderRepository(database), clock, {
       get: () => ({
         materialPriceMicroYuanPerGram: 3_400,
@@ -29,9 +32,13 @@ describe('SettlementService', () => {
         updatedAt: null
       })
     })
-    const fulfillmentService = new FulfillmentService(new V2FulfillmentRepository(database), clock)
     const settlements = new SettlementService(database, clock)
-    const reviews = new WorkTimeReviewService(database, clock)
+    const fulfillmentService = new FulfillmentService(
+      new V2FulfillmentRepository(database),
+      clock,
+      settlements
+    )
+    const reviews = new WorkTimeReviewService(database, clock, settlements)
     const worker = settlements.createWorker({
       name: '小林',
       hourlyWageCents: 3_000,
@@ -48,7 +55,11 @@ describe('SettlementService', () => {
       unitWeightMilligrams: 25_000,
       standardMakingMinutes: 12,
       makingCommissionCents: 300,
-      fluffingBaggingCommissionCents: 85
+      fluffingBaggingCommissionCents: 85,
+      edgeSewingCommissionCents: 40,
+      expectedFluffingBaggingMinutes: 3,
+      expectedEdgeSewingMinutes: 5,
+      expectedPackingMinutes: 2
     })
     const order = orderService.createOrder({
       customer: { name: '小雨' },
@@ -66,7 +77,7 @@ describe('SettlementService', () => {
     }
   }
 
-  /** 制作完成 22 件：20 合格进入待捏毛装袋，2 件不合格只扣材料成本。 */
+  /** 制作一次核算 22 件：20 合格进入待捏毛装袋，2 件不合格只扣材料成本。 */
   function completeMakingWithDefects(
     fulfillmentService: FulfillmentService,
     workerId: string,
@@ -74,48 +85,44 @@ describe('SettlementService', () => {
     assignedOn = '2026-09-13'
   ) {
     const assignment = fulfillmentService.createWorkAssignment({
+      scheduleMode: 'making_task',
       workerId,
       assignedOn,
       processType: 'making',
       tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 22 }]
     })
-    const result = fulfillmentService.submitProcessResult(assignment.tasks[0]!.id, {
+    const result = fulfillmentService.reviewMaking({
+      processTaskId: assignment.tasks[0]!.id,
       completedQuantity: 22,
-      submittedOn: assignedOn
-    })
-    fulfillmentService.confirmQualityInspection(result.id, {
       qualifiedQuantity: 20,
-      unqualifiedQuantity: 2,
-      inspectedOn: assignedOn
+      reviewedOn: assignedOn
     })
     return { assignment, result }
   }
 
-  /** 制作完成 20 件全部合格，用于已结算后更正为不合格的待退款场景。 */
+  /** 制作一次核算 20 件全部合格，用于已结算后更正为不合格的待退款场景。 */
   function completeMakingAllQualified(
     fulfillmentService: FulfillmentService,
     workerId: string,
     orderItemId: string
   ) {
     const assignment = fulfillmentService.createWorkAssignment({
+      scheduleMode: 'making_task',
       workerId,
       assignedOn: '2026-09-13',
       processType: 'making',
       tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 20 }]
     })
-    const result = fulfillmentService.submitProcessResult(assignment.tasks[0]!.id, {
+    const result = fulfillmentService.reviewMaking({
+      processTaskId: assignment.tasks[0]!.id,
       completedQuantity: 20,
-      submittedOn: '2026-09-13'
-    })
-    fulfillmentService.confirmQualityInspection(result.id, {
       qualifiedQuantity: 20,
-      unqualifiedQuantity: 0,
-      inspectedOn: '2026-09-13'
+      reviewedOn: '2026-09-13'
     })
     return { assignment, result }
   }
 
-  /** 2026-09-14 完成 20 件捏毛装袋并由负责人次日核算 240 分钟。 */
+  /** 2026-09-14 完成 20 件捏毛装袋并一次核算 240 分钟。 */
   function completeFluffingWithReview(
     fulfillmentService: FulfillmentService,
     reviews: WorkTimeReviewService,
@@ -123,47 +130,41 @@ describe('SettlementService', () => {
     orderItemId: string
   ) {
     const assignment = fulfillmentService.createWorkAssignment({
+      scheduleMode: 'timed_shift',
       workerId,
       assignedOn: '2026-09-14',
-      processType: 'fluffing_bagging',
-      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 20 }]
+      processType: 'fluffing_bagging'
     })
-    const draft = reviews.createDraft({
-      workerId,
-      workedOn: '2026-09-14',
-      processType: 'fluffing_bagging',
-      approvedMinutes: 240,
-      assignmentIds: [assignment.id],
-      items: [{ processTaskId: assignment.tasks[0]!.id, completedQuantity: 20 }]
+    const review = reviews.review({
+      workAssignmentId: assignment.id,
+      startedAt: '2026-09-14T08:00',
+      endedAt: '2026-09-14T12:00',
+      items: [{ orderItemId, completedQuantity: 20 }]
     })
-    reviews.confirm(draft.id)
-    return { assignment, review: draft }
+    return { assignment, review, id: review.id }
   }
 
-  /** 完成 10 件打包发货并由负责人核算 60 分钟，用于后续期间的来源。 */
+  /** 完成 10 件打包发货并一次核算 60 分钟，用于后续期间的来源。 */
   function completePackingWithReview(
     fulfillmentService: FulfillmentService,
     reviews: WorkTimeReviewService,
     workerId: string,
     orderItemId: string,
-    workedOn = '2026-09-16'
+    workedOn = '2026-09-15'
   ) {
     const assignment = fulfillmentService.createWorkAssignment({
+      scheduleMode: 'timed_shift',
       workerId,
       assignedOn: workedOn,
-      processType: 'packing',
-      tasks: [{ orderItemId, sourceType: 'normal_production', plannedQuantity: 10 }]
+      processType: 'packing'
     })
-    const draft = reviews.createDraft({
-      workerId,
-      workedOn,
-      processType: 'packing',
-      approvedMinutes: 60,
-      assignmentIds: [assignment.id],
-      items: [{ processTaskId: assignment.tasks[0]!.id, completedQuantity: 10 }]
+    const review = reviews.review({
+      workAssignmentId: assignment.id,
+      startedAt: `${workedOn}T09:00`,
+      endedAt: `${workedOn}T10:00`,
+      items: [{ orderItemId, completedQuantity: 10 }]
     })
-    reviews.confirm(draft.id)
-    return { assignment, review: draft }
+    return { assignment, review, id: review.id }
   }
 
   it('制作按合格提成减材料扣款、捏毛装袋按确认工时加完成提成汇总唯一候选应发', () => {
@@ -211,7 +212,7 @@ describe('SettlementService', () => {
     ])
   })
 
-  it('工资期间按工作日期归属，草稿工时核算不进入结算', () => {
+  it('工资期间按工作日期归属，未核算班次不进入结算', () => {
     const { fulfillmentService, settlements, reviews, worker, orderItem } = createFixture()
     completeMakingWithDefects(fulfillmentService, worker.id, orderItem.id)
     const confirmedReview = completeFluffingWithReview(
@@ -220,19 +221,11 @@ describe('SettlementService', () => {
       worker.id,
       orderItem.id
     )
-    const draftAssignment = fulfillmentService.createWorkAssignment({
+    const pendingAssignment = fulfillmentService.createWorkAssignment({
+      scheduleMode: 'timed_shift',
       workerId: worker.id,
       assignedOn: '2026-09-15',
-      processType: 'packing',
-      tasks: [{ orderItemId: orderItem.id, sourceType: 'normal_production', plannedQuantity: 5 }]
-    })
-    const draftReview = reviews.createDraft({
-      workerId: worker.id,
-      workedOn: '2026-09-15',
-      processType: 'packing',
-      approvedMinutes: 60,
-      assignmentIds: [draftAssignment.id],
-      items: [{ processTaskId: draftAssignment.tasks[0]!.id, completedQuantity: 5 }]
+      processType: 'packing'
     })
 
     const makingOnly = settlements.createDraft({
@@ -259,7 +252,7 @@ describe('SettlementService', () => {
     expect(timedDeposit.timedSources.map((source) => source.workTimeReviewId)).toEqual([
       confirmedReview.review.id
     ])
-    expect(timedDeposit.timedSources[0]!.workTimeReviewId).not.toBe(draftReview.id)
+    expect(pendingAssignment.status).toBe('scheduled')
   })
 
   it('一条已确认工时最多进入一个有效结算', () => {
@@ -313,8 +306,8 @@ describe('SettlementService', () => {
     completePackingWithReview(fulfillmentService, reviews, worker.id, orderItem.id)
     settlements.createDraft({
       workerId: worker.id,
-      periodStartOn: '2026-09-16',
-      periodEndOn: '2026-09-16'
+      periodStartOn: '2026-09-15',
+      periodEndOn: '2026-09-15'
     })
 
     const pendingRefunds = settlements.listPendingRefunds(worker.id)
@@ -363,8 +356,8 @@ describe('SettlementService', () => {
     const packing = completePackingWithReview(fulfillmentService, reviews, worker.id, orderItem.id)
     const later = settlements.createDraft({
       workerId: worker.id,
-      periodStartOn: '2026-09-16',
-      periodEndOn: '2026-09-16'
+      periodStartOn: '2026-09-15',
+      periodEndOn: '2026-09-15'
     })
     expect(() =>
       settlements.addWorkTimeAdjustment(later.id, {
@@ -443,5 +436,137 @@ describe('SettlementService', () => {
     ).toEqual({ count: 1 })
     expect(() => settlements.confirm(draft.id)).toThrow('只有草稿结算单可以编辑或确认')
     expect(settlements.getSettlement(draft.id)?.makingSources[0]?.status).toBe('confirmed')
+  })
+
+  it('计时核算按分钟时薪与商品提成汇总，快照不受商品后续修改影响', () => {
+    const { orderService, fulfillmentService, settlements, reviews, worker, orderItem } =
+      createFixture()
+    const firstProductId = orderItem.productId!
+    const secondProduct = orderService.createProduct({
+      name: '迷你小熊',
+      basePriceCents: 4_000,
+      packagingCostCents: 0,
+      accessoryCostCents: 0,
+      replacementBagCostCents: 0,
+      edgeConsumableCostCents: 0,
+      unitWeightMilligrams: 0,
+      standardMakingMinutes: 8,
+      makingCommissionCents: 120,
+      fluffingBaggingCommissionCents: 50,
+      edgeSewingCommissionCents: 20,
+      expectedFluffingBaggingMinutes: 4,
+      expectedEdgeSewingMinutes: 5,
+      expectedPackingMinutes: 1
+    })
+    const order = orderService.createOrder({
+      customer: { name: '双商品客户' },
+      items: [
+        { productId: firstProductId, quantity: 10, unitPriceCents: 6_000 },
+        { productId: secondProduct.id, quantity: 5, unitPriceCents: 4_000 }
+      ]
+    })
+    const [itemA, itemB] = order.items
+    for (const [item, quantity, reviewedOn] of [
+      [itemA!, 10, '2026-09-13'],
+      [itemB!, 5, '2026-09-13']
+    ] as const) {
+      const making = fulfillmentService.createWorkAssignment({
+        scheduleMode: 'making_task',
+        workerId: worker.id,
+        assignedOn: reviewedOn,
+        processType: 'making',
+        tasks: [
+          { orderItemId: item.id, sourceType: 'normal_production', plannedQuantity: quantity }
+        ]
+      })
+      fulfillmentService.reviewMaking({
+        processTaskId: making.tasks[0]!.id,
+        completedQuantity: quantity,
+        qualifiedQuantity: quantity,
+        reviewedOn
+      })
+    }
+
+    const fluffing = fulfillmentService.createWorkAssignment({
+      scheduleMode: 'timed_shift',
+      workerId: worker.id,
+      assignedOn: '2026-09-14',
+      processType: 'fluffing_bagging'
+    })
+    reviews.review({
+      workAssignmentId: fluffing.id,
+      startedAt: '2026-09-14T08:00',
+      endedAt: '2026-09-14T10:00',
+      items: [
+        { orderItemId: itemA!.id, completedQuantity: 10 },
+        { orderItemId: itemB!.id, completedQuantity: 5 }
+      ]
+    })
+
+    // 商品参数在核算后被修改：结算必须使用核算时冻结的快照。
+    orderService.updateProduct({
+      id: secondProduct.id,
+      name: secondProduct.name,
+      basePriceCents: secondProduct.basePriceCents,
+      packagingCostCents: secondProduct.packagingCostCents,
+      accessoryCostCents: secondProduct.accessoryCostCents,
+      replacementBagCostCents: secondProduct.replacementBagCostCents,
+      edgeConsumableCostCents: secondProduct.edgeConsumableCostCents,
+      unitWeightMilligrams: secondProduct.unitWeightMilligrams,
+      standardMakingMinutes: secondProduct.standardMakingMinutes,
+      makingCommissionCents: secondProduct.makingCommissionCents,
+      fluffingBaggingCommissionCents: 999,
+      edgeSewingCommissionCents: secondProduct.edgeSewingCommissionCents,
+      expectedFluffingBaggingMinutes: 99,
+      expectedEdgeSewingMinutes: secondProduct.expectedEdgeSewingMinutes,
+      expectedPackingMinutes: secondProduct.expectedPackingMinutes
+    })
+
+    const draft = settlements.createDraft({
+      workerId: worker.id,
+      periodStartOn: '2026-09-14',
+      periodEndOn: '2026-09-14'
+    })
+    expect(draft.timedWageCents).toBe(6_000)
+    expect(draft.commissionCents).toBe(10 * 85 + 5 * 50)
+    expect(draft.timedSources[0]).toMatchObject({
+      approvedMinutes: 120,
+      hourlyWageCentsSnapshot: 3_000,
+      timedWageCents: 6_000,
+      commissionCents: 1_100
+    })
+    expect(draft.timedSources[0]!.items).toEqual([
+      expect.objectContaining({ completedQuantity: 10, pieceRateCents: 85, commissionCents: 850 }),
+      expect.objectContaining({ completedQuantity: 5, pieceRateCents: 50, commissionCents: 250 })
+    ])
+  })
+
+  it('打包发货只按核算分钟计工资，不产生商品提成', () => {
+    const { fulfillmentService, settlements, reviews, worker, orderItem } = createFixture()
+    completeMakingWithDefects(fulfillmentService, worker.id, orderItem.id)
+    const fluffing = fulfillmentService.createWorkAssignment({
+      scheduleMode: 'timed_shift',
+      workerId: worker.id,
+      assignedOn: '2026-09-14',
+      processType: 'fluffing_bagging'
+    })
+    reviews.review({
+      workAssignmentId: fluffing.id,
+      startedAt: '2026-09-14T08:00',
+      endedAt: '2026-09-14T09:00',
+      items: [{ orderItemId: orderItem.id, completedQuantity: 20 }]
+    })
+    const packing = completePackingWithReview(fulfillmentService, reviews, worker.id, orderItem.id)
+
+    const draft = settlements.createDraft({
+      workerId: worker.id,
+      periodStartOn: '2026-09-14',
+      periodEndOn: '2026-09-15'
+    })
+    const packingSource = draft.timedSources.find(
+      (source) => source.workTimeReviewId === packing.review.id
+    )!
+    expect(packingSource).toMatchObject({ timedWageCents: 3_000, commissionCents: 0 })
+    expect(packingSource.items.every((item) => item.pieceRateCents === 0)).toBe(true)
   })
 })

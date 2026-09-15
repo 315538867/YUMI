@@ -123,6 +123,7 @@ describe('V2 报表服务', () => {
       effectiveOn: '2026-09-01'
     })
     const assignment = fulfillment.createWorkAssignment({
+      scheduleMode: 'making_task',
       workerId: worker.id,
       assignedOn: '2026-09-06',
       processType: 'making',
@@ -704,6 +705,7 @@ describe('V2 产能与交期风险报表', () => {
       effectiveOn: '2026-09-09'
     })
     fulfillment.createWorkAssignment({
+      scheduleMode: 'making_task',
       workerId: worker.id,
       assignedOn: '2026-09-11',
       processType: 'making',
@@ -712,6 +714,7 @@ describe('V2 产能与交期风险报表', () => {
       ]
     })
     const cancelledAssignment = fulfillment.createWorkAssignment({
+      scheduleMode: 'making_task',
       workerId: worker.id,
       assignedOn: '2026-09-11',
       processType: 'making',

@@ -62,7 +62,10 @@ export interface V2WorkerSettlementMakingSource {
 
 export interface V2WorkerSettlementTimedItem {
   id: string
-  processTaskId: string
+  /** 新核算明细来源；历史任务型来源为空。 */
+  workTimeReviewItemId: string | null
+  /** 仅历史任务型来源；新订单商品型来源为空。 */
+  processTaskId: string | null
   orderItemId: string | null
   completedQuantity: number
   pieceRateCents: Cents | null

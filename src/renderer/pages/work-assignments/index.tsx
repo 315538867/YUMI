@@ -1,40 +1,30 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type {
-  V2Order,
-  V2ProcessTaskInput,
+  V2ProcessTask,
   V2ProcessType,
-  V2WorkAssignmentStatus
+  V2WorkAssignment,
+  V2WorkTimeReview
 } from '@shared/contracts/index'
 import { getErrorMessage, today } from '../../composables/v2-utils'
 import { useWorkAssignments } from '../../composables/use-work-assignments'
 import {
-  YumiDataTable,
-  YumiListSurface,
-  YumiListToolbar,
   YumiButton,
+  YumiDataTable,
   YumiDatePicker,
+  YumiDetailList,
+  YumiDialog,
   YumiEmptyState,
   YumiField,
   YumiFieldLabel,
   YumiFormMessage,
-  YumiNumberField,
+  YumiListSurface,
+  YumiListToolbar,
   YumiSection,
   YumiSelect,
-  YumiSheet,
   YumiStatusTag,
-  YumiTaskRateSummary,
-  YumiTextField,
+  YumiTextArea,
   useYumiNotificationMessage
 } from '../../components/ui'
-
-interface TaskDraft {
-  orderItemId: string
-  sourceType: V2ProcessTaskInput['sourceType']
-  plannedQuantity: string
-  plannedMinutes: string
-  extraMinutes: string
-  note: string
-}
 
 const processLabels: Record<V2ProcessType, string> = {
   making: '制作',
@@ -42,240 +32,513 @@ const processLabels: Record<V2ProcessType, string> = {
   edge_sewing: '缝边',
   packing: '打包发货'
 }
-const sourceOptions: Array<{ value: TaskDraft['sourceType']; label: string }> = [
-  { value: 'normal_production', label: '正常生产' },
-  { value: 'rework', label: '返工' },
-  { value: 'after_sales_replacement', label: '售后补发' },
-  { value: 'manager_arrangement', label: '负责人安排' }
-]
 
-function createTaskDraft(order?: V2Order): TaskDraft {
-  return {
-    orderItemId: order?.items[0]?.id ?? '',
-    sourceType: 'normal_production',
-    plannedQuantity: '1',
-    plannedMinutes: '0',
-    extraMinutes: '0',
-    note: ''
-  }
-}
+const processOptions = Object.entries(processLabels).map(([value, label]) => ({ value, label }))
 
-function taskStatus(taskStatus: string) {
-  if (taskStatus === 'pending_inspection') return { label: '待质量确认', tone: 'warning' as const }
-  if (taskStatus === 'confirmed' || taskStatus === 'completed') {
-    return { label: '已完成', tone: 'success' as const }
-  }
-  if (taskStatus === 'cancelled') return { label: '已取消', tone: 'danger' as const }
-  return { label: '待完成', tone: 'neutral' as const }
-}
-
-function assignmentStatus(status: V2WorkAssignmentStatus) {
+function assignmentStatus(status: V2WorkAssignment['status']) {
   if (status === 'completed') return { label: '已完成', tone: 'success' as const }
   if (status === 'cancelled') return { label: '已取消', tone: 'danger' as const }
+  if (status === 'absent') return { label: '缺勤', tone: 'warning' as const }
   if (status === 'draft') return { label: '草稿', tone: 'neutral' as const }
   return { label: '已安排', tone: 'brand' as const }
 }
 
+function scheduleModeLabel(assignment: V2WorkAssignment): string {
+  if (assignment.scheduleMode === 'timed_shift') return '计时班次'
+  if (assignment.scheduleMode === 'legacy_task') return '历史安排'
+  return '制作排班'
+}
+
+function taskStatusMeta(status: V2ProcessTask['status']) {
+  if (status === 'pending_inspection') return { label: '待核算', tone: 'warning' as const }
+  if (status === 'confirmed') return { label: '已核算', tone: 'success' as const }
+  if (status === 'cancelled') return { label: '已取消', tone: 'danger' as const }
+  return { label: '待完成', tone: 'neutral' as const }
+}
+
+function reviewOf(
+  assignment: V2WorkAssignment,
+  reviews: V2WorkTimeReview[]
+): V2WorkTimeReview | null {
+  if (!assignment.timedReview) return null
+  return (
+    reviews.find(
+      (review) =>
+        review.id === assignment.timedReview?.reviewId && review.workAssignmentId === assignment.id
+    ) ??
+    reviews.find(
+      (review) =>
+        review.workAssignmentId === assignment.id || review.assignmentIds.includes(assignment.id)
+    ) ??
+    null
+  )
+}
+
+/**
+ * 工作安排记录：只保留查询筛选、列表、详情与适用状态操作。
+ * 新增安排只能在排班人员周历日期格完成；实际产出与计时数据统一在待核算登记，
+ * 这里只读展示制作任务的当前有效核算摘要与计时班次的核算明细。
+ */
 export function WorkAssignmentsPage(props: {
-  order: V2Order | null
   focusedTaskId?: string
-  onChanged(): void
+  onChanged?(): void
+  onNavigateToReviews?(): void
 }) {
   const {
     assignments,
     workers,
-    resultByTaskId,
+    reviews,
+    itemLabels,
     loading,
     loadError,
-    createWorkAssignment,
-    submitProcessResult,
-    confirmQualityInspection
+    setWorkAssignmentStatus,
+    reassignProcessTask
   } = useWorkAssignments()
-  const [workerId, setWorkerId] = useState('')
-  const [assignedOn, setAssignedOn] = useState(today())
-  const [processType, setProcessType] = useState<V2ProcessType>('making')
-  const [note, setNote] = useState('')
-  const [tasks, setTasks] = useState<TaskDraft[]>([createTaskDraft(props.order)])
-  const [resultDrafts, setResultDrafts] = useState<
-    Record<string, { quantity: string; minutes: string; note: string }>
-  >({})
-  const [inspectionDrafts, setInspectionDrafts] = useState<
-    Record<string, { qualified: string; unqualified: string; note: string }>
-  >({})
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState<string | null>(null)
-  const [createSheetOpen, setCreateSheetOpen] = useState(false)
+  const [workerFilter, setWorkerFilter] = useState('')
+  const [processFilter, setProcessFilter] = useState('')
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null)
+  const [statusTarget, setStatusTarget] = useState<{
+    assignment: V2WorkAssignment
+    status: 'absent' | 'cancelled'
+  } | null>(null)
+  const [statusReason, setStatusReason] = useState('')
+  const [statusError, setStatusError] = useState<string | null>(null)
+  const [statusSubmitting, setStatusSubmitting] = useState(false)
+  const [reassignTarget, setReassignTarget] = useState<{
+    assignment: V2WorkAssignment
+    task: V2ProcessTask
+  } | null>(null)
+  const [reassignWorkerId, setReassignWorkerId] = useState('')
+  const [reassignEffectiveOn, setReassignEffectiveOn] = useState(today())
+  const [reassignReason, setReassignReason] = useState('')
+  const [reassignError, setReassignError] = useState<string | null>(null)
+  const [reassignSubmitting, setReassignSubmitting] = useState(false)
   useYumiNotificationMessage(loadError)
-  useYumiNotificationMessage(error)
 
-  const itemNames = useMemo(
-    () => new Map(props.order?.items.map((item) => [item.id, item.productSnapshot.name]) ?? []),
-    [props.order]
-  )
   const workerNames = useMemo(
     () => new Map(workers.map((worker) => [worker.id, worker.name])),
     [workers]
   )
   const workerLabel = (workerId: string) => workerNames.get(workerId) ?? '未知人员'
-  const orderItemOptions =
-    props.order?.items.map((item) => ({ value: item.id, label: item.productSnapshot.name })) ?? []
-  const workerOptions = workers
-    .filter((worker) => worker.enabled)
-    .map((worker) => ({ value: worker.id, label: worker.name }))
-  const visibleAssignments = props.focusedTaskId
-    ? assignments.filter((assignment) =>
-        assignment.tasks.some((task) => task.id === props.focusedTaskId)
-      )
-    : assignments
+  const itemLabel = (orderItemId: string | null) =>
+    (orderItemId ? itemLabels.get(orderItemId)?.productName : null) ?? '订单商品'
+
+  const visibleAssignments = useMemo(
+    () =>
+      assignments
+        .filter((assignment) =>
+          props.focusedTaskId
+            ? assignment.tasks.some((task) => task.id === props.focusedTaskId)
+            : true
+        )
+        .filter((assignment) => !workerFilter || assignment.workerId === workerFilter)
+        .filter((assignment) => !processFilter || assignment.processType === processFilter),
+    [assignments, processFilter, props.focusedTaskId, workerFilter]
+  )
   const selectedAssignment =
     visibleAssignments.find((assignment) => assignment.id === selectedAssignmentId) ?? null
-  const detailDraftDirty = Boolean(
-    selectedAssignment?.tasks.some((task) => {
-      const resultDraft = resultDrafts[task.id]
-      const inspectionDraft = inspectionDrafts[task.id]
-      return Boolean(
-        resultDraft?.quantity ||
-        resultDraft?.minutes ||
-        resultDraft?.note ||
-        inspectionDraft?.qualified ||
-        inspectionDraft?.unqualified ||
-        inspectionDraft?.note
-      )
-    })
-  )
-  const updateTask = (index: number, patch: Partial<TaskDraft>) =>
-    setTasks((current) =>
-      current.map((task, taskIndex) => (taskIndex === index ? { ...task, ...patch } : task))
-    )
-  const createDraftDirty =
-    workerId !== '' ||
-    note !== '' ||
-    processType !== 'making' ||
-    assignedOn !== today() ||
-    tasks.length !== 1 ||
-    JSON.stringify(tasks[0]) !== JSON.stringify(createTaskDraft(props.order))
-  const resetCreateDraft = () => {
-    setWorkerId('')
-    setAssignedOn(today())
-    setProcessType('making')
-    setNote('')
-    setTasks([createTaskDraft(props.order)])
+  const selectedReview = selectedAssignment ? reviewOf(selectedAssignment, reviews) : null
+
+  const closeDetail = () => {
+    setStatusTarget(null)
+    setReassignTarget(null)
+    setSelectedAssignmentId(null)
   }
 
-  const handleCreate = async (event: FormEvent) => {
+  const submitStatus = async (event: FormEvent) => {
     event.preventDefault()
-    setError(null)
-    if (!workerId) {
-      setError('请选择兼职人员')
+    const target = statusTarget
+    if (!target) return
+    setStatusSubmitting(true)
+    setStatusError(null)
+    try {
+      await setWorkAssignmentStatus(target.assignment.id, {
+        status: target.status,
+        reason: statusReason || undefined
+      })
+      setStatusTarget(null)
+      setStatusReason('')
+      props.onChanged?.()
+    } catch (cause) {
+      setStatusError(getErrorMessage(cause))
+    } finally {
+      setStatusSubmitting(false)
+    }
+  }
+
+  const submitReassign = async (event: FormEvent) => {
+    event.preventDefault()
+    const target = reassignTarget
+    if (!target) return
+    if (!reassignWorkerId) {
+      setReassignError('请选择新的负责人')
       return
     }
-    setSubmitting('assignment')
+    if (!reassignReason.trim()) {
+      setReassignError('请填写调整原因')
+      return
+    }
+    setReassignSubmitting(true)
+    setReassignError(null)
     try {
-      await createWorkAssignment({
-        workerId,
-        assignedOn,
-        processType,
-        note,
-        tasks: tasks.map((task) => ({
-          orderItemId: task.orderItemId || null,
-          sourceType: task.sourceType,
-          plannedQuantity: task.plannedQuantity === '' ? null : Number(task.plannedQuantity),
-          plannedMinutes: processType === 'making' ? null : Number(task.plannedMinutes),
-          extraMinutes: processType === 'making' ? Number(task.extraMinutes) : 0,
-          note: task.note
-        }))
+      await reassignProcessTask(target.task.id, {
+        workerId: reassignWorkerId,
+        effectiveOn: reassignEffectiveOn,
+        reason: reassignReason.trim()
       })
-      resetCreateDraft()
-      setCreateSheetOpen(false)
-      props.onChanged()
+      setReassignTarget(null)
+      setReassignWorkerId('')
+      setReassignReason('')
+      props.onChanged?.()
     } catch (cause) {
-      setError(getErrorMessage(cause))
+      setReassignError(getErrorMessage(cause))
     } finally {
-      setSubmitting(null)
+      setReassignSubmitting(false)
     }
   }
 
-  const handleSubmitResult = async (event: FormEvent, taskId: string) => {
-    event.preventDefault()
-    const draft = resultDrafts[taskId] ?? { quantity: '', minutes: '', note: '' }
-    setError(null)
-    setSubmitting(`result:${taskId}`)
-    try {
-      await submitProcessResult(taskId, {
-        completedQuantity: Number(draft.quantity),
-        actualMinutes: draft.minutes === '' ? null : Number(draft.minutes),
-        submittedOn: today(),
-        note: draft.note
-      })
-      setResultDrafts((current) => ({
-        ...current,
-        [taskId]: { quantity: '', minutes: '', note: '' }
-      }))
-    } catch (cause) {
-      setError(getErrorMessage(cause))
-    } finally {
-      setSubmitting(null)
-    }
-  }
+  if (selectedAssignment) {
+    const status = assignmentStatus(selectedAssignment.status)
+    const editable =
+      selectedAssignment.status === 'scheduled' || selectedAssignment.status === 'draft'
+    return (
+      <section className="yumi-work-assignments">
+        <YumiSection
+          actions={
+            <div className="yumi-record-action-bar">
+              {props.onNavigateToReviews ? (
+                <YumiButton onClick={props.onNavigateToReviews} variant="ghost">
+                  前往核算
+                </YumiButton>
+              ) : null}
+              <YumiButton onClick={closeDetail} variant="secondary">
+                返回工作安排列表
+              </YumiButton>
+            </div>
+          }
+          description={`${processLabels[selectedAssignment.processType]} · ${workerLabel(
+            selectedAssignment.workerId
+          )} · ${selectedAssignment.assignedOn} · ${scheduleModeLabel(selectedAssignment)}`}
+          title="工作安排详情"
+        >
+          <YumiDetailList
+            ariaLabel="工作安排详情"
+            items={[
+              { label: '兼职人员', value: workerLabel(selectedAssignment.workerId) },
+              { label: '安排日期', value: selectedAssignment.assignedOn },
+              { label: '工序', value: processLabels[selectedAssignment.processType] },
+              { label: '排班模式', value: scheduleModeLabel(selectedAssignment) },
+              {
+                label: '安排状态',
+                value: <YumiStatusTag tone={status.tone}>{status.label}</YumiStatusTag>
+              },
+              {
+                label: '核算状态',
+                value:
+                  selectedAssignment.processType === 'making'
+                    ? selectedAssignment.tasks.some((task) => task.reviewSummary)
+                      ? '已核算'
+                      : '待核算'
+                    : selectedAssignment.timedReview
+                      ? `已核算（${selectedAssignment.timedReview.approvedMinutes} 分钟）`
+                      : '待核算'
+              },
+              { label: '备注', value: selectedAssignment.note ?? '—' }
+            ]}
+          />
 
-  const handleInspection = async (event: FormEvent, taskId: string, resultId: string) => {
-    event.preventDefault()
-    const draft = inspectionDrafts[taskId] ?? { qualified: '', unqualified: '', note: '' }
-    setError(null)
-    setSubmitting(`inspection:${taskId}`)
-    try {
-      await confirmQualityInspection(resultId, {
-        qualifiedQuantity: Number(draft.qualified),
-        unqualifiedQuantity: Number(draft.unqualified),
-        inspectedOn: today(),
-        requiresRework: Number(draft.unqualified) > 0,
-        note: draft.note
-      })
-      setInspectionDrafts((current) => ({
-        ...current,
-        [taskId]: { qualified: '', unqualified: '', note: '' }
-      }))
-      props.onChanged()
-    } catch (cause) {
-      setError(getErrorMessage(cause))
-    } finally {
-      setSubmitting(null)
-    }
-  }
+          {selectedAssignment.processType === 'making' ? (
+            <YumiDataTable
+              ariaLabel="制作任务与核算摘要"
+              columns={[
+                {
+                  key: 'product',
+                  label: '订单商品',
+                  render: (task) => itemLabel(task.orderItemId)
+                },
+                {
+                  key: 'quantity',
+                  label: '计划数量',
+                  align: 'right',
+                  render: (task) => `${task.plannedQuantity ?? 0} 件`
+                },
+                {
+                  key: 'status',
+                  label: '任务状态',
+                  render: (task) => {
+                    const meta = taskStatusMeta(task.status)
+                    return <YumiStatusTag tone={meta.tone}>{meta.label}</YumiStatusTag>
+                  }
+                },
+                {
+                  key: 'review',
+                  label: '核算摘要',
+                  render: (task) =>
+                    task.reviewSummary ? (
+                      <div className="yumi-list-cell">
+                        <strong>
+                          合格 {task.reviewSummary.qualifiedQuantity} 件 · 不合格{' '}
+                          {task.reviewSummary.unqualifiedQuantity} 件
+                        </strong>
+                        <span>
+                          实际产出 {task.reviewSummary.completedQuantity} 件 · 核算日期{' '}
+                          {task.reviewSummary.reviewedOn}
+                        </span>
+                      </div>
+                    ) : (
+                      '待核算'
+                    )
+                },
+                {
+                  align: 'right',
+                  key: 'actions',
+                  label: '操作',
+                  render: (task) =>
+                    task.processType === 'making' && task.status === 'pending' ? (
+                      <YumiButton
+                        aria-label={`转派${itemLabel(task.orderItemId)}`}
+                        onClick={() => {
+                          setReassignError(null)
+                          setReassignWorkerId('')
+                          setReassignEffectiveOn(today())
+                          setReassignReason('')
+                          setReassignTarget({ assignment: selectedAssignment, task })
+                        }}
+                        variant="secondary"
+                      >
+                        转派
+                      </YumiButton>
+                    ) : (
+                      '—'
+                    )
+                }
+              ]}
+              getRowKey={(task) => task.id}
+              rows={selectedAssignment.tasks}
+            />
+          ) : (
+            <>
+              <YumiDetailList
+                ariaLabel="计时核算摘要"
+                items={
+                  selectedAssignment.timedReview
+                    ? [
+                        {
+                          label: '核算日期',
+                          value: selectedAssignment.timedReview.reviewedOn
+                        },
+                        {
+                          label: '核算分钟',
+                          value: `${selectedAssignment.timedReview.approvedMinutes} 分钟`
+                        },
+                        {
+                          label: '锁定与指引',
+                          value: selectedAssignment.timedReview.lock.message ?? '未锁定'
+                        }
+                      ]
+                    : [{ label: '核算状态', value: '待核算：实际时间与完成数量在待核算中登记' }]
+                }
+              />
+              {selectedReview ? (
+                <YumiDataTable
+                  ariaLabel="核算商品明细"
+                  columns={[
+                    {
+                      key: 'product',
+                      label: '商品',
+                      render: (item) => itemLabel(item.orderItemId)
+                    },
+                    {
+                      key: 'orderCode',
+                      label: '订单号',
+                      render: (item) =>
+                        (item.orderItemId && itemLabels.get(item.orderItemId)?.orderCode) || '—'
+                    },
+                    {
+                      key: 'completedQuantity',
+                      label: '完成数量',
+                      align: 'right',
+                      render: (item) => `${item.completedQuantity} 件`
+                    },
+                    {
+                      key: 'expectedUnitMinutes',
+                      label: '预计单件分钟',
+                      align: 'right',
+                      render: (item) =>
+                        item.expectedUnitMinutesSnapshot === null
+                          ? '—'
+                          : `${item.expectedUnitMinutesSnapshot} 分钟`
+                    }
+                  ]}
+                  getRowKey={(item) => item.id}
+                  rows={selectedReview.items}
+                />
+              ) : null}
+            </>
+          )}
 
-  const closeAssignmentDetail = () => {
-    const taskIds = new Set(selectedAssignment?.tasks.map((task) => task.id) ?? [])
-    setResultDrafts((current) =>
-      Object.fromEntries(Object.entries(current).filter(([taskId]) => !taskIds.has(taskId)))
+          {editable ? (
+            <div className="yumi-form-actions">
+              <YumiButton
+                onClick={() => {
+                  setStatusError(null)
+                  setStatusReason('')
+                  setStatusTarget({ assignment: selectedAssignment, status: 'absent' })
+                }}
+                variant="secondary"
+              >
+                标记缺勤
+              </YumiButton>
+              <YumiButton
+                onClick={() => {
+                  setStatusError(null)
+                  setStatusReason('')
+                  setStatusTarget({ assignment: selectedAssignment, status: 'cancelled' })
+                }}
+                variant="danger"
+              >
+                取消安排
+              </YumiButton>
+            </div>
+          ) : null}
+        </YumiSection>
+
+        {statusTarget ? (
+          <YumiDialog
+            description="缺勤或取消会释放尚未核算的制作计划数量；已有有效核算的安排会被拒绝。"
+            footer={
+              <>
+                <YumiButton
+                  disabled={statusSubmitting}
+                  onClick={() => setStatusTarget(null)}
+                  variant="ghost"
+                >
+                  返回
+                </YumiButton>
+                <YumiButton
+                  form="work-assignment-status-form"
+                  loading={statusSubmitting}
+                  type="submit"
+                  variant={statusTarget.status === 'cancelled' ? 'danger' : 'primary'}
+                >
+                  确认{statusTarget.status === 'absent' ? '标记缺勤' : '取消安排'}
+                </YumiButton>
+              </>
+            }
+            onOpenChange={(open) => {
+              if (!open) setStatusTarget(null)
+            }}
+            open
+            title={statusTarget.status === 'absent' ? '标记为缺勤？' : '取消这项安排？'}
+          >
+            <form id="work-assignment-status-form" onSubmit={submitStatus}>
+              <YumiField>
+                <YumiFieldLabel htmlFor="work-assignment-status-reason">
+                  原因（可选）
+                </YumiFieldLabel>
+                <YumiTextArea
+                  id="work-assignment-status-reason"
+                  onChange={(event) => setStatusReason(event.target.value)}
+                  value={statusReason}
+                />
+              </YumiField>
+              {statusError ? <YumiFormMessage tone="error">{statusError}</YumiFormMessage> : null}
+            </form>
+          </YumiDialog>
+        ) : null}
+
+        {reassignTarget ? (
+          <YumiDialog
+            description="仅未完成制作任务可以转派；原任务保留并标记为已取消。"
+            footer={
+              <>
+                <YumiButton
+                  disabled={reassignSubmitting}
+                  onClick={() => setReassignTarget(null)}
+                  variant="ghost"
+                >
+                  返回
+                </YumiButton>
+                <YumiButton
+                  form="work-assignment-reassign-form"
+                  loading={reassignSubmitting}
+                  type="submit"
+                  variant="primary"
+                >
+                  确认转派
+                </YumiButton>
+              </>
+            }
+            onOpenChange={(open) => {
+              if (!open) setReassignTarget(null)
+            }}
+            open
+            title="转派制作任务"
+          >
+            <form id="work-assignment-reassign-form" onSubmit={submitReassign}>
+              <YumiDetailList
+                ariaLabel="待转派任务"
+                items={[
+                  { label: '订单商品', value: itemLabel(reassignTarget.task.orderItemId) },
+                  { label: '原负责人', value: workerLabel(reassignTarget.assignment.workerId) },
+                  {
+                    label: '计划数量',
+                    value: `${reassignTarget.task.plannedQuantity ?? 0} 件`
+                  }
+                ]}
+              />
+              <div className="yumi-form-grid yumi-form-grid--two">
+                <YumiField>
+                  <YumiFieldLabel required>新负责人</YumiFieldLabel>
+                  <YumiSelect
+                    aria-label="新负责人"
+                    onValueChange={setReassignWorkerId}
+                    options={workers
+                      .filter(
+                        (worker) =>
+                          worker.enabled && worker.id !== reassignTarget.assignment.workerId
+                      )
+                      .map((worker) => ({ value: worker.id, label: worker.name }))}
+                    placeholder="选择负责人"
+                    value={reassignWorkerId}
+                  />
+                </YumiField>
+                <YumiField>
+                  <YumiFieldLabel required>生效日期</YumiFieldLabel>
+                  <YumiDatePicker
+                    aria-label="转派生效日期"
+                    onValueChange={setReassignEffectiveOn}
+                    value={reassignEffectiveOn}
+                  />
+                </YumiField>
+              </div>
+              <YumiField>
+                <YumiFieldLabel required>调整原因</YumiFieldLabel>
+                <YumiTextArea
+                  aria-label="调整原因"
+                  onChange={(event) => setReassignReason(event.target.value)}
+                  value={reassignReason}
+                />
+              </YumiField>
+              {reassignError ? (
+                <YumiFormMessage tone="error">{reassignError}</YumiFormMessage>
+              ) : null}
+            </form>
+          </YumiDialog>
+        ) : null}
+      </section>
     )
-    setInspectionDrafts((current) =>
-      Object.fromEntries(Object.entries(current).filter(([taskId]) => !taskIds.has(taskId)))
-    )
-    setSelectedAssignmentId(null)
   }
 
   return (
     <section className="yumi-work-assignments">
       <YumiSection
-        actions={
-          <YumiButton
-            aria-label="打开新建工作安排"
-            onClick={() => {
-              setError(null)
-              setCreateSheetOpen(true)
-            }}
-            variant="primary"
-          >
-            新建工作安排
-          </YumiButton>
-        }
-        title="工作安排记录"
         description={
           props.focusedTaskId
-            ? '已定位到当前待处理任务，仅展示这项任务所在的工作安排。'
-            : '完成记录提交后，负责人可以在质量确认中填写合格与不合格数量；其他工序只登记完成数量。'
+            ? '已定位到当前排班任务，仅展示这项任务所在的工作安排；新增排班请回到人员周历日期格。'
+            : '只读查看既有工作安排、状态与核算摘要；新增排班只能在排班人员周历的日期格完成。'
         }
+        title="工作安排记录"
       >
         {loading ? (
           <YumiEmptyState
@@ -287,16 +550,35 @@ export function WorkAssignmentsPage(props: {
           <YumiEmptyState
             description={
               props.focusedTaskId
-                ? '该任务可能已完成或已发生变化，请返回排班队列刷新后继续处理。'
-                : '负责人新建安排后，任务与结果确认入口会出现在这里。'
+                ? '该任务可能已完成或已发生变化，请返回排班周历刷新后继续查看。'
+                : '负责人在人员周历日期格派工后，安排、状态与核算摘要会出现在这里。'
             }
-            title={props.focusedTaskId ? '未找到当前任务' : '暂时没有工作安排'}
+            title={props.focusedTaskId ? '未找到当前排班任务' : '暂时没有工作安排'}
           />
         ) : (
           <YumiListSurface>
             <YumiListToolbar
               ariaLabel="工作安排列表工具"
               countLabel={`共 ${visibleAssignments.length} 项安排`}
+              filters={
+                <>
+                  <YumiSelect
+                    aria-label="筛选兼职人员"
+                    onValueChange={setWorkerFilter}
+                    options={[
+                      { value: '', label: '全部人员' },
+                      ...workers.map((worker) => ({ value: worker.id, label: worker.name }))
+                    ]}
+                    value={workerFilter}
+                  />
+                  <YumiSelect
+                    aria-label="筛选工序"
+                    onValueChange={setProcessFilter}
+                    options={[{ value: '', label: '全部工序' }, ...processOptions]}
+                    value={processFilter}
+                  />
+                </>
+              }
             />
             <YumiDataTable
               ariaLabel="工作安排列表"
@@ -306,8 +588,10 @@ export function WorkAssignmentsPage(props: {
                   label: '工作安排',
                   render: (assignment) => (
                     <div className="yumi-list-cell">
-                      <strong>{processLabels[assignment.processType]}工作安排</strong>
-                      <span>{assignment.assignedOn}</span>
+                      <strong>{processLabels[assignment.processType]}安排</strong>
+                      <span>
+                        {assignment.assignedOn} · {scheduleModeLabel(assignment)}
+                      </span>
                     </div>
                   )
                 },
@@ -317,23 +601,37 @@ export function WorkAssignmentsPage(props: {
                   render: (assignment) => workerLabel(assignment.workerId)
                 },
                 {
-                  key: 'tasks',
-                  label: '任务摘要',
-                  render: (assignment) => (
-                    <div className="yumi-list-cell">
-                      <strong>共 {assignment.tasks.length} 项任务</strong>
-                      <span>
-                        {assignment.tasks
-                          .map((task) => {
-                            const itemLabel = task.orderItemId
-                              ? (itemNames.get(task.orderItemId) ?? '未知商品')
-                              : '未关联订单产品'
-                            return `${itemLabel} · 计划 ${task.scheduledMinutes} 分钟`
-                          })
-                          .join('；')}
-                      </span>
-                    </div>
-                  )
+                  key: 'review',
+                  label: '核算摘要',
+                  render: (assignment) => {
+                    if (assignment.processType === 'making') {
+                      const reviewedCount = assignment.tasks.filter(
+                        (task) => task.reviewSummary
+                      ).length
+                      return (
+                        <div className="yumi-list-cell">
+                          <strong>
+                            {reviewedCount === assignment.tasks.length && reviewedCount > 0
+                              ? '已核算'
+                              : '待核算'}
+                          </strong>
+                          <span>
+                            {assignment.tasks.length} 项制作任务 · {reviewedCount} 项已核算
+                          </span>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div className="yumi-list-cell">
+                        <strong>{assignment.timedReview ? '已核算' : '待核算'}</strong>
+                        <span>
+                          {assignment.timedReview
+                            ? `${assignment.timedReview.approvedMinutes} 分钟 · 核算日期 ${assignment.timedReview.reviewedOn}`
+                            : '实际时间与完成数量在待核算中登记'}
+                        </span>
+                      </div>
+                    )
+                  }
                 },
                 {
                   key: 'status',
@@ -363,274 +661,6 @@ export function WorkAssignmentsPage(props: {
           </YumiListSurface>
         )}
       </YumiSection>
-
-      <YumiSheet
-        description={
-          selectedAssignment
-            ? `${processLabels[selectedAssignment.processType]} · ${workerLabel(selectedAssignment.workerId)} · ${selectedAssignment.assignedOn}`
-            : undefined
-        }
-        dirty={detailDraftDirty}
-        onOpenChange={(open) => {
-          if (!open) closeAssignmentDetail()
-        }}
-        open={selectedAssignment !== null}
-        title="工作安排详情"
-      >
-        {selectedAssignment ? (
-          <div className="yumi-assignment-task-list">
-            {selectedAssignment.tasks.map((task) => {
-              const result = resultByTaskId[task.id]
-              const resultDraft = resultDrafts[task.id] ?? { quantity: '', minutes: '', note: '' }
-              const inspectionDraft = inspectionDrafts[task.id] ?? {
-                qualified: '',
-                unqualified: '',
-                note: ''
-              }
-              const status = taskStatus(task.status)
-              return (
-                <div className="yumi-assignment-task" key={task.id}>
-                  <div className="yumi-assignment-task__summary">
-                    <span>
-                      {itemNames.get(task.orderItemId ?? '') ??
-                        task.orderItemId ??
-                        '未关联订单产品'}{' '}
-                      · {task.sourceType} · 计划 {task.scheduledMinutes} 分钟
-                    </span>
-                    <YumiStatusTag tone={status.tone}>{status.label}</YumiStatusTag>
-                  </div>
-                  <YumiTaskRateSummary
-                    pieceRateCents={task.pieceRateCents}
-                    processType={task.processType}
-                  />
-                  {task.status === 'pending' && (
-                    <form
-                      className="yumi-inline-form"
-                      onSubmit={(event) => handleSubmitResult(event, task.id)}
-                    >
-                      <YumiNumberField
-                        aria-label="完成数量"
-                        min="1"
-                        onChange={(event) =>
-                          setResultDrafts((current) => ({
-                            ...current,
-                            [task.id]: { ...resultDraft, quantity: event.target.value }
-                          }))
-                        }
-                        placeholder="完成数量"
-                        required
-                        value={resultDraft.quantity}
-                      />
-                      <YumiNumberField
-                        aria-label="实际分钟"
-                        min="0"
-                        onChange={(event) =>
-                          setResultDrafts((current) => ({
-                            ...current,
-                            [task.id]: { ...resultDraft, minutes: event.target.value }
-                          }))
-                        }
-                        placeholder="实际分钟（可选）"
-                        value={resultDraft.minutes}
-                      />
-                      <YumiButton
-                        loading={submitting === `result:${task.id}`}
-                        type="submit"
-                        variant="secondary"
-                      >
-                        提交完成
-                      </YumiButton>
-                    </form>
-                  )}
-                  {task.processType === 'making' &&
-                    task.status === 'pending_inspection' &&
-                    result && (
-                      <form
-                        className="yumi-inline-form"
-                        onSubmit={(event) => handleInspection(event, task.id, result.id)}
-                      >
-                        <strong>质量确认</strong>
-                        <YumiNumberField
-                          aria-label="合格数量"
-                          min="0"
-                          onChange={(event) =>
-                            setInspectionDrafts((current) => ({
-                              ...current,
-                              [task.id]: { ...inspectionDraft, qualified: event.target.value }
-                            }))
-                          }
-                          placeholder="合格"
-                          required
-                          value={inspectionDraft.qualified}
-                        />
-                        <YumiNumberField
-                          aria-label="不合格数量"
-                          min="0"
-                          onChange={(event) =>
-                            setInspectionDrafts((current) => ({
-                              ...current,
-                              [task.id]: { ...inspectionDraft, unqualified: event.target.value }
-                            }))
-                          }
-                          placeholder="不合格"
-                          required
-                          value={inspectionDraft.unqualified}
-                        />
-                        <YumiButton
-                          loading={submitting === `inspection:${task.id}`}
-                          type="submit"
-                          variant="primary"
-                        >
-                          确认质量结果
-                        </YumiButton>
-                      </form>
-                    )}
-                  {task.processType === 'making' &&
-                    task.status === 'pending_inspection' &&
-                    !result && <YumiFormMessage>正在读取待确认的完成记录…</YumiFormMessage>}
-                </div>
-              )
-            })}
-          </div>
-        ) : null}
-      </YumiSheet>
-
-      <YumiSheet
-        description="同一安排对应一位兼职人员、一天和一道固定工序；录入完成后会回到工作安排记录。"
-        dirty={createDraftDirty}
-        footer={
-          <YumiButton
-            form="work-assignment-create-form"
-            loading={submitting === 'assignment'}
-            type="submit"
-            variant="primary"
-          >
-            保存工作安排
-          </YumiButton>
-        }
-        onOpenChange={setCreateSheetOpen}
-        open={createSheetOpen}
-        title="新增工作安排"
-      >
-        <form className="yumi-form-panel" id="work-assignment-create-form" onSubmit={handleCreate}>
-          <YumiFormMessage>
-            同一安排对应一位兼职人员、一天和一道固定工序，可包含多个订单产品任务。
-          </YumiFormMessage>
-          <div className="yumi-form-grid yumi-form-grid--three">
-            <YumiField>
-              <YumiFieldLabel required>兼职人员</YumiFieldLabel>
-              <YumiSelect
-                aria-label="兼职人员"
-                onValueChange={setWorkerId}
-                options={workerOptions}
-                placeholder="选择人员"
-                value={workerId}
-              />
-            </YumiField>
-            <YumiField>
-              <YumiFieldLabel required>安排日期</YumiFieldLabel>
-              <YumiDatePicker
-                aria-label="安排日期"
-                onValueChange={setAssignedOn}
-                value={assignedOn}
-              />
-            </YumiField>
-            <YumiField>
-              <YumiFieldLabel required>工序</YumiFieldLabel>
-              <YumiSelect
-                aria-label="工序"
-                onValueChange={(value) => setProcessType(value as V2ProcessType)}
-                options={Object.entries(processLabels).map(([value, label]) => ({ value, label }))}
-                value={processType}
-              />
-            </YumiField>
-          </div>
-          {tasks.map((task, index) => (
-            <div className="yumi-task-draft" key={index}>
-              <div className="yumi-task-draft__heading">
-                <strong>任务 {index + 1}</strong>
-                {tasks.length > 1 && (
-                  <YumiButton
-                    onClick={() =>
-                      setTasks((current) => current.filter((_, taskIndex) => taskIndex !== index))
-                    }
-                    variant="danger"
-                  >
-                    移除
-                  </YumiButton>
-                )}
-              </div>
-              <div className="yumi-form-grid yumi-form-grid--two">
-                <YumiField>
-                  <YumiFieldLabel>订单产品</YumiFieldLabel>
-                  <YumiSelect
-                    aria-label={`任务 ${index + 1} 订单产品`}
-                    onValueChange={(value) => updateTask(index, { orderItemId: value })}
-                    options={[{ value: '', label: '请选择订单产品' }, ...orderItemOptions]}
-                    placeholder="请选择订单产品"
-                    value={task.orderItemId}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel required>任务来源</YumiFieldLabel>
-                  <YumiSelect
-                    aria-label={`任务 ${index + 1} 来源`}
-                    onValueChange={(value) =>
-                      updateTask(index, { sourceType: value as TaskDraft['sourceType'] })
-                    }
-                    options={sourceOptions}
-                    value={task.sourceType}
-                  />
-                </YumiField>
-                <YumiField>
-                  <YumiFieldLabel>计划数量</YumiFieldLabel>
-                  <YumiNumberField
-                    min="0"
-                    onChange={(event) => updateTask(index, { plannedQuantity: event.target.value })}
-                    value={task.plannedQuantity}
-                  />
-                </YumiField>
-                {processType === 'making' ? (
-                  <YumiField>
-                    <YumiFieldLabel>额外预留分钟</YumiFieldLabel>
-                    <YumiNumberField
-                      min="0"
-                      onChange={(event) => updateTask(index, { extraMinutes: event.target.value })}
-                      value={task.extraMinutes}
-                    />
-                  </YumiField>
-                ) : (
-                  <YumiField>
-                    <YumiFieldLabel>计划分钟</YumiFieldLabel>
-                    <YumiNumberField
-                      min="0"
-                      onChange={(event) =>
-                        updateTask(index, { plannedMinutes: event.target.value })
-                      }
-                      value={task.plannedMinutes}
-                    />
-                  </YumiField>
-                )}
-              </div>
-              <YumiField>
-                <YumiFieldLabel>任务备注</YumiFieldLabel>
-                <YumiTextField
-                  onChange={(event) => updateTask(index, { note: event.target.value })}
-                  value={task.note}
-                />
-              </YumiField>
-            </div>
-          ))}
-          <div className="yumi-form-actions">
-            <YumiButton
-              onClick={() => setTasks((current) => [...current, createTaskDraft(props.order)])}
-              variant="secondary"
-            >
-              增加任务
-            </YumiButton>
-          </div>
-        </form>
-      </YumiSheet>
     </section>
   )
 }
