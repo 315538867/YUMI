@@ -1403,6 +1403,17 @@
 .yumi-form-message--hint {
   color: var(--yumi-muted);
 }
+/* 字段消息槽位常驻占位：错误出现/消失时高度不变，避免界面跳动。 */
+.yumi-form-message--reserved {
+  visibility: hidden;
+}
+/* 字段内校验错误用轻量红字（输入框红边由 aria-invalid 提供），不做横幅；
+   独立于字段的内容级错误保留框式横幅作视觉强调。 */
+.yumi-field .yumi-form-message--error {
+  color: var(--yumi-danger);
+  font-size: 12px;
+  line-height: 18px;
+}
 .yumi-form-message--error {
   border: 1px solid color-mix(in srgb, var(--yumi-danger) 24%, transparent);
   border-radius: var(--yumi-radius-md);

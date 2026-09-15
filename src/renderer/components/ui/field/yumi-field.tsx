@@ -132,15 +132,13 @@ export function YumiField({ children, error, hint }: YumiFieldProps) {
     <YumiFieldContext.Provider value={fieldContext}>
       <div className="yumi-field">
         {children}
-        {error ? (
-          <YumiFormMessage id={fieldDescriptionId} tone="error">
-            {error}
-          </YumiFormMessage>
-        ) : hint ? (
-          <YumiFormMessage id={fieldDescriptionId} tone="hint">
-            {hint}
-          </YumiFormMessage>
-        ) : null}
+        <YumiFormMessage
+          className={description ? undefined : 'yumi-form-message--reserved'}
+          id={description ? fieldDescriptionId : undefined}
+          tone={error ? 'error' : 'hint'}
+        >
+          {description ?? ''}
+        </YumiFormMessage>
       </div>
     </YumiFieldContext.Provider>
   )

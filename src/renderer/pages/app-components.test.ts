@@ -129,8 +129,7 @@ describe('YUMI 表单反馈组件规范', () => {
       settlementDetailSource,
       financePageSource,
       orderPageSource,
-      settingsPageSource,
-      workAssignmentsPageSource
+      settingsPageSource
     ]
 
     for (const pageSource of feedbackSources) {

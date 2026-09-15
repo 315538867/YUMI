@@ -340,7 +340,9 @@ export function TimedReviewDialog({
       : null
   const parsedRange = range ? calculateReviewTimeRange(range.start, range.end) : null
   const rangeError = !range
-    ? null
+    ? submitAttempted
+      ? '请填写开始和结束时间'
+      : null
     : !parsedRange
       ? '结束时间必须晚于开始时间'
       : range.start.slice(0, 10) !== target.assignedOn

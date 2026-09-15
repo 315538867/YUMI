@@ -533,6 +533,23 @@ describe('WorkTimeReviewPanel 单次核算', () => {
     expect(within(minutesPanel).getByText(`${current}（跨日核算按开始日期归属）`)).toBeVisible()
   })
 
+  it('计时核算未填写时间时点击确认提示填写开始和结束时间', async () => {
+    const range = pastReviewRange()
+    mocks.listWorkAssignments.mockResolvedValue([timedAssignment({ assignedOn: range.assignedOn })])
+    mocks.listCandidates.mockResolvedValue([candidates[0]])
+    renderPanel()
+
+    const table = await pendingTable()
+    fireEvent.click(within(rowOf(table, '捏毛装袋')).getByRole('button', { name: '核算' }))
+
+    const dialog = await screen.findByRole('dialog', { name: '计时核算' })
+    await within(dialog).findByRole('table', { name: '可核算订单商品' })
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认核算' }))
+    expect(await within(dialog).findByText('请填写开始和结束时间')).toBeVisible()
+    expect(mocks.review).not.toHaveBeenCalled()
+  })
+
   it('更正核算需要填写原因，锁定记录禁用更正与作废并展示调整指引', async () => {
     mocks.listWorkAssignments.mockResolvedValue([makingRecordAssignment()])
     renderPanel()
