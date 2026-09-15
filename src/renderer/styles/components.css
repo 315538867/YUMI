@@ -809,6 +809,9 @@
 .yumi-dialog__content--confirm {
   width: min(420px, calc(100vw - 32px));
 }
+.yumi-dialog__content--wide {
+  width: min(760px, calc(100vw - 32px));
+}
 .yumi-dialog__header,
 .yumi-sheet__header {
   display: flex;
@@ -1687,6 +1690,24 @@
   color: var(--yumi-muted);
   font-size: 12px;
   line-height: 18px;
+}
+.yumi-work-time-review__time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--yumi-space-3);
+}
+.yumi-work-time-review__time-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--yumi-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+@media (max-width: 520px) {
+  .yumi-work-time-review__time-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* 商品全页工作区：左侧录入、右侧持续显示预计盈利预览；窄屏折为上下两段。 */

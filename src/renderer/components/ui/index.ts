@@ -52,6 +52,7 @@ export {
   YumiMonthPicker,
   type YumiDateRangeValue
 } from './date-picker/yumi-date-picker'
+export { YumiTimeField } from './date-picker/yumi-time-field'
 export { YumiConfirmDialog, YumiDialog } from './dialog/yumi-dialog'
 export { YumiSheet } from './sheet/yumi-sheet'
 export { YumiEntitySummary } from './entity-summary/yumi-entity-summary'

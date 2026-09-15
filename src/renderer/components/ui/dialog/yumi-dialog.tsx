@@ -10,6 +10,8 @@ type YumiDialogProps = {
   footer?: ReactNode
   onOpenChange(open: boolean): void
   open: boolean
+  /** 宽尺寸用于需要承载明细表格或并列字段的工作区表单。 */
+  size?: 'default' | 'wide'
   title: ReactNode
 }
 
@@ -19,6 +21,7 @@ export function YumiDialog({
   footer,
   onOpenChange,
   open,
+  size = 'default',
   title
 }: YumiDialogProps) {
   return (
@@ -27,7 +30,11 @@ export function YumiDialog({
         <Dialog.Overlay className="yumi-dialog__overlay" />
         <Dialog.Content
           aria-describedby={description ? undefined : undefined}
-          className="yumi-dialog__content"
+          className={
+            size === 'wide'
+              ? 'yumi-dialog__content yumi-dialog__content--wide'
+              : 'yumi-dialog__content'
+          }
         >
           <div className="yumi-dialog__header">
             <div>

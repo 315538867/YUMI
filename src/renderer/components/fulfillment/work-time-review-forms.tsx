@@ -8,6 +8,7 @@ import type {
   V2WorkTimeReviewItemInput
 } from '@shared/contracts/index'
 import { calculateReviewTimeRange, calculateWorkTimeComparison } from '@shared/calculations'
+import { isValidTime } from '../ui/date-picker/iso-date'
 import {
   buildTimedCandidateRows,
   parseWholeNumber,
@@ -22,7 +23,7 @@ import {
   YumiCalculatedAmount,
   YumiCheckbox,
   YumiDataTable,
-  YumiDateTimeRangePicker,
+  YumiDatePicker,
   YumiDetailList,
   YumiDialog,
   YumiField,
@@ -31,7 +32,7 @@ import {
   YumiNumberField,
   YumiTextArea,
   YumiTextField,
-  type YumiDateRangeValue
+  YumiTimeField
 } from '../ui'
 
 export interface MakingReviewDialogTarget {
@@ -279,11 +280,13 @@ export function TimedReviewDialog({
   onSubmit(values: TimedReviewValues): Promise<void>
   target: TimedReviewDialogTarget
 }) {
-  const [range, setRange] = useState<YumiDateRangeValue | null>(
-    target.review?.rawStartedAt && target.review.rawEndedAt
-      ? { start: target.review.rawStartedAt, end: target.review.rawEndedAt }
-      : null
-  )
+  // 时间范围拆成四个字段：日期默认排班日期，时间由负责人按分钟填写。
+  const initialStart = target.review?.rawStartedAt ?? ''
+  const initialEnd = target.review?.rawEndedAt ?? ''
+  const [startDate, setStartDate] = useState(initialStart.slice(0, 10) || target.assignedOn)
+  const [startTime, setStartTime] = useState(initialStart.slice(11, 16))
+  const [endDate, setEndDate] = useState(initialEnd.slice(0, 10) || target.assignedOn)
+  const [endTime, setEndTime] = useState(initialEnd.slice(11, 16))
   const [candidates, setCandidates] = useState<V2WorkTimeReviewCandidate[]>([])
   const [candidatesLoading, setCandidatesLoading] = useState(true)
   const [candidateError, setCandidateError] = useState<string | null>(null)
@@ -334,6 +337,11 @@ export function TimedReviewDialog({
     [candidates, itemLabels, target.review]
   )
 
+  const timesComplete = isValidTime(startTime) && isValidTime(endTime)
+  const range =
+    startDate && endDate && timesComplete
+      ? { start: `${startDate}T${startTime}`, end: `${endDate}T${endTime}` }
+      : null
   const parsedRange = range ? calculateReviewTimeRange(range.start, range.end) : null
   const rangeError = !range
     ? null
@@ -370,6 +378,18 @@ export function TimedReviewDialog({
     items: comparisonItems
   })
 
+  const changeStartDate = (next: string) => {
+    setStartDate(next)
+    setEndDate((currentEnd) => {
+      if (currentEnd === startDate || currentEnd < next) return next
+      return currentEnd
+    })
+  }
+
+  const changeEndDate = (next: string) => {
+    setEndDate(next && next < startDate ? startDate : next)
+  }
+
   const toggleRow = (row: TimedCandidateRow, checked: boolean) => {
     setEntries((current) => {
       const next = { ...current }
@@ -383,7 +403,7 @@ export function TimedReviewDialog({
     if (busy) return
     const parsed = range ? calculateReviewTimeRange(range.start, range.end) : null
     const problems: string[] = []
-    if (!range) problems.push('请选择核算时间范围')
+    if (!range) problems.push('请完整填写开始与结束的日期和时间（时间格式 HH:MM）')
     else if (!parsed) problems.push('结束时间必须晚于开始时间')
     else if (range.start.slice(0, 10) !== target.assignedOn)
       problems.push(`开始日期必须与排班日期一致（${target.assignedOn}）`)
@@ -424,6 +444,7 @@ export function TimedReviewDialog({
           ? '更正会保留旧版本并直接生成新的有效核算版本；填写原因后才能提交。'
           : '一次填写实际时间范围与跨订单商品完成数量，确认后直接形成已核算记录。'
       }
+      size="wide"
       footer={
         <>
           <YumiButton disabled={busy} onClick={onClose} variant="ghost">
@@ -447,10 +468,39 @@ export function TimedReviewDialog({
       </p>
       <YumiField
         error={rangeError ?? undefined}
-        hint={`开始日期固定为排班日期 ${target.assignedOn}；可跨日，跨日核算按开始日期归属。`}
+        hint={`开始日期默认填入排班日期 ${target.assignedOn}；可跨日，跨日核算按开始日期归属。`}
       >
         <YumiFieldLabel required>实际开始与结束时间</YumiFieldLabel>
-        <YumiDateTimeRangePicker aria-label="核算时间范围" onValueChange={setRange} value={range} />
+        <div className="yumi-work-time-review__time-grid">
+          <label className="yumi-work-time-review__time-field">
+            <span>开始日期</span>
+            <YumiDatePicker
+              aria-label="核算开始日期"
+              onValueChange={changeStartDate}
+              value={startDate}
+            />
+          </label>
+          <label className="yumi-work-time-review__time-field">
+            <span>开始时间</span>
+            <YumiTimeField
+              aria-label="核算开始时间"
+              onValueChange={setStartTime}
+              value={startTime}
+            />
+          </label>
+          <label className="yumi-work-time-review__time-field">
+            <span>结束日期</span>
+            <YumiDatePicker
+              aria-label="核算结束日期"
+              onValueChange={changeEndDate}
+              value={endDate}
+            />
+          </label>
+          <label className="yumi-work-time-review__time-field">
+            <span>结束时间</span>
+            <YumiTimeField aria-label="核算结束时间" onValueChange={setEndTime} value={endTime} />
+          </label>
+        </div>
       </YumiField>
       <YumiDetailList
         ariaLabel="系统计算的核算分钟"

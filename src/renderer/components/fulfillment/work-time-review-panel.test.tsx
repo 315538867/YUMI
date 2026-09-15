@@ -291,26 +291,24 @@ function rowOf(table: HTMLElement, text: string | RegExp): HTMLElement {
   return within(table).getByText(text).closest('tr') as HTMLElement
 }
 
-/** 通过日历浮层选择单一的连续时间范围。 */
+/** 通过两个日期浮层选择开始/结束日期，再直接填写 HH:MM 时间。 */
 function pickRange(range: { start: string; end: string }, times: { start: string; end: string }) {
-  fireEvent.click(screen.getByRole('button', { name: '核算时间范围' }))
-  const clickDay = (value: string) => {
+  const pickDay = (trigger: string, value: string) => {
+    fireEvent.click(screen.getByRole('button', { name: trigger }))
     const [year, month, day] = value.slice(0, 10).split('-').map(Number)
     const matches = screen.getAllByRole('button', {
       name: new RegExp(`${year}年${month}月${day}日`)
     })
     fireEvent.click(matches[0]!)
   }
-  clickDay(range.start)
-  // 单击一天即选中当天区间；再次点击同一天会清除选择。
-  if (range.end.slice(0, 10) !== range.start.slice(0, 10)) clickDay(range.end)
-  fireEvent.change(screen.getByRole('textbox', { name: '开始时间，格式为 HH:MM' }), {
+  pickDay('核算开始日期', range.start)
+  pickDay('核算结束日期', range.end)
+  fireEvent.change(screen.getByRole('textbox', { name: '核算开始时间' }), {
     target: { value: times.start }
   })
-  fireEvent.change(screen.getByRole('textbox', { name: '结束时间，格式为 HH:MM' }), {
+  fireEvent.change(screen.getByRole('textbox', { name: '核算结束时间' }), {
     target: { value: times.end }
   })
-  fireEvent.click(screen.getByRole('button', { name: '应用范围' }))
 }
 
 function rangeMinutes(start: string, end: string): number {
