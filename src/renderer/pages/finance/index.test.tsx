@@ -140,6 +140,38 @@ describe('财务负责人工作区', () => {
     expect(screen.queryByRole('dialog', { name: '登记日常收支' })).not.toBeInTheDocument()
   })
 
+  it('无分类的订单收款流水显示中文业务类型标签，不暴露原始代码', async () => {
+    mocks.state.entries = [
+      {
+        id: 'entry-fund-1',
+        sourceType: 'order_fund',
+        direction: 'income',
+        businessType: 'payment',
+        amountCents: 240_000,
+        occurredOn: '2026-09-14',
+        paymentMethod: '微信',
+        paymentSource: null,
+        categoryId: null,
+        categoryName: null,
+        advancePayerId: null,
+        advancePayerName: null,
+        orderId: 'order-1',
+        attachmentId: null,
+        reversalOfEntryId: null,
+        note: '首款',
+        createdAt: '2026-09-14T02:00:00.000Z'
+      }
+    ]
+    render(<FinancePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '现金流水' }))
+    const table = await screen.findByRole('table', { name: '现金流水列表' })
+
+    expect(within(table).getByText('收款')).toBeVisible()
+    expect(within(table).queryByText('payment')).not.toBeInTheDocument()
+    expect(within(table).getByText('收入 · 首款')).toBeVisible()
+  })
+
   it('负责人可在同一待报销列表选择多笔后，以单次确认原子提交', async () => {
     mocks.state.pendingReimbursements = [
       {

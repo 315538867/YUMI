@@ -340,7 +340,7 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
                     label: '业务类型 / 说明',
                     render: (entry) => (
                       <div className="yumi-list-cell">
-                        <strong>{entry.categoryName ?? entry.businessType}</strong>
+                        <strong>{getFinanceBusinessLabel(entry)}</strong>
                         <span>
                           {getFinanceEntryDetail(entry)}
                           {entry.note ? ` · ${entry.note}` : ''}
@@ -661,6 +661,17 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
       </YumiSheet>
     </section>
   )
+}
+
+const financeBusinessTypeLabels: Record<string, string> = {
+  payment: '收款',
+  refund: '退款',
+  after_sales_charge: '售后收费',
+  advance_reimbursement: '报销付款'
+}
+
+function getFinanceBusinessLabel(entry: V2FinancialEntry) {
+  return entry.categoryName ?? financeBusinessTypeLabels[entry.businessType] ?? entry.businessType
 }
 
 function getFinanceEntryDetail(entry: V2FinancialEntry) {
