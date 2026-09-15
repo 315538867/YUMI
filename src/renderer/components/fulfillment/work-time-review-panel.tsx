@@ -214,7 +214,6 @@ export function WorkTimeReviewPanel({
         description={`制作任务与计时班次都在这里一次完成核算；共 ${pendingRows.length} 项待核算。`}
         title="待核算"
       >
-        {loadError ? <YumiFormMessage tone="error">{loadError}</YumiFormMessage> : null}
         {loading && !pendingRows.length ? (
           <YumiFormMessage tone="hint">正在读取待核算事项…</YumiFormMessage>
         ) : pendingRows.length ? (
@@ -558,14 +557,14 @@ function VoidReviewDialog({
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [submitAttempted, setSubmitAttempted] = useState(false)
+  useYumiNotificationMessage(error)
   const lock = recordLockOf(row)
 
   const submit = async () => {
     if (busy) return
-    if (!reason.trim()) {
-      setError('请填写作废原因')
-      return
-    }
+    setSubmitAttempted(true)
+    if (!reason.trim()) return
     setBusy(true)
     setError(null)
     try {
@@ -599,7 +598,9 @@ function VoidReviewDialog({
       open
       title="作废核算记录？"
     >
-      <YumiField>
+      <YumiField
+        error={submitAttempted && !reason.trim() ? '请填写作废原因' : undefined}
+      >
         <YumiFieldLabel htmlFor="work-time-review-void-reason" required>
           作废原因
         </YumiFieldLabel>
@@ -609,7 +610,6 @@ function VoidReviewDialog({
           value={reason}
         />
       </YumiField>
-      {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
     </YumiDialog>
   )
 }

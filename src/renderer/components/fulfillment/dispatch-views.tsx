@@ -32,7 +32,8 @@ import {
   YumiSelect,
   YumiSheet,
   YumiStatusTag,
-  YumiTextArea
+  YumiTextArea,
+  useYumiNotificationMessage
 } from '../ui'
 
 const processLabels: Record<V2ProcessType, string> = {
@@ -408,6 +409,8 @@ export function WorkAssignmentSheet(props: {
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [submitAttempted, setSubmitAttempted] = useState(false)
+  useYumiNotificationMessage(error)
 
   useEffect(() => {
     if (!props.open) return
@@ -434,13 +437,28 @@ export function WorkAssignmentSheet(props: {
     label: `${item.orderCode} · ${item.productName}`
   }))
   const isMaking = processType === 'making'
+  const parsedQuantity = Number(quantity)
+  const parsedExtraMinutes = Number(extraMinutes || '0')
+  const workerError = submitAttempted && !workerId ? '请选择人员' : undefined
+  const assignedOnError = submitAttempted && !assignedOn ? '请选择日期' : undefined
+  const itemError = submitAttempted && isMaking && !orderItemId ? '请选择订单商品' : undefined
+  const quantityError =
+    submitAttempted && isMaking && (!Number.isInteger(parsedQuantity) || parsedQuantity <= 0)
+      ? '请输入大于 0 的整数'
+      : submitAttempted && isMaking && (!schedule || parsedQuantity > schedule.unassignedQuantity)
+        ? `计划数量不能超过当前待派上限 ${schedule?.unassignedQuantity ?? 0} 件。`
+        : undefined
+  const extraMinutesError =
+    submitAttempted &&
+    isMaking &&
+    (!Number.isInteger(parsedExtraMinutes) || parsedExtraMinutes < 0)
+      ? '额外预留分钟必须是非负整数。'
+      : undefined
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!workerId || !assignedOn) {
-      setError('请选择人员与日期。')
-      return
-    }
+    setSubmitAttempted(true)
+    if (!workerId || !assignedOn) return
     if (!isMaking) {
       setSubmitting(true)
       setError(null)
@@ -461,18 +479,13 @@ export function WorkAssignmentSheet(props: {
       return
     }
 
-    const parsedQuantity = Number(quantity)
-    const parsedExtraMinutes = Number(extraMinutes || '0')
     if (!orderItemId || !selectedItem || !Number.isInteger(parsedQuantity) || parsedQuantity <= 0) {
-      setError('请完整填写订单商品和正整数数量。')
       return
     }
     if (!schedule || parsedQuantity > schedule.unassignedQuantity) {
-      setError(`计划数量不能超过当前待派上限 ${schedule?.unassignedQuantity ?? 0} 件。`)
       return
     }
     if (!Number.isInteger(parsedExtraMinutes) || parsedExtraMinutes < 0) {
-      setError('额外预留分钟必须是非负整数。')
       return
     }
     const task: V2MakingTaskInput = {
@@ -509,9 +522,8 @@ export function WorkAssignmentSheet(props: {
       title={`派工：${processLabels[processType]}`}
     >
       <form className="yumi-form-panel yumi-sheet-form" onSubmit={handleSubmit}>
-        {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
         <div className="yumi-form-grid yumi-form-grid--two">
-          <YumiField>
+          <YumiField error={workerError}>
             <YumiFieldLabel required>兼职人员</YumiFieldLabel>
             <YumiSelect
               aria-label="派工人员"
@@ -521,7 +533,7 @@ export function WorkAssignmentSheet(props: {
               value={workerId}
             />
           </YumiField>
-          <YumiField>
+          <YumiField error={assignedOnError}>
             <YumiFieldLabel required>日期</YumiFieldLabel>
             <YumiDatePicker
               aria-label="派工日期"
@@ -539,7 +551,7 @@ export function WorkAssignmentSheet(props: {
             />
           </YumiField>
           {isMaking ? (
-            <YumiField>
+            <YumiField error={itemError}>
               <YumiFieldLabel required>订单商品</YumiFieldLabel>
               <YumiSelect
                 aria-label="派工订单商品"
@@ -551,7 +563,7 @@ export function WorkAssignmentSheet(props: {
             </YumiField>
           ) : null}
           {isMaking ? (
-            <YumiField>
+            <YumiField error={quantityError}>
               <YumiFieldLabel required>数量</YumiFieldLabel>
               <YumiNumberField
                 aria-label="派工数量"
@@ -578,7 +590,7 @@ export function WorkAssignmentSheet(props: {
             </YumiField>
           ) : null}
           {isMaking ? (
-            <YumiField>
+            <YumiField error={extraMinutesError}>
               <YumiFieldLabel>额外预留分钟</YumiFieldLabel>
               <YumiNumberField
                 aria-label="额外预留分钟"

@@ -86,6 +86,15 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
   useYumiNotificationMessage(loadError)
   useYumiNotificationMessage(error)
   const [submitting, setSubmitting] = useState(false)
+  const [draftSubmitted, setDraftSubmitted] = useState(false)
+  const [refundSubmitted, setRefundSubmitted] = useState(false)
+  const refundAmountCents = useMemo(() => {
+    try {
+      return yuanToCents(actualRefundAmount)
+    } catch {
+      return null
+    }
+  }, [actualRefundAmount])
 
   useEffect(() => {
     if (workerId && workers.some((worker) => worker.id === workerId)) return
@@ -206,15 +215,10 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
   }
   const handleCreateDraft = async (event: FormEvent) => {
     event.preventDefault()
+    setDraftSubmitted(true)
     setError(null)
-    if (!workerId) {
-      setError('请选择兼职人员。')
-      return
-    }
-    if (periodEndOn < periodStartOn) {
-      setError('结束日期不能早于开始日期。')
-      return
-    }
+    if (!workerId) return
+    if (periodEndOn < periodStartOn) return
     setSubmitting(true)
     try {
       const draft = await createDraft({ workerId, periodStartOn, periodEndOn })
@@ -229,16 +233,11 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
   const requestRefundConfirmation = (event: FormEvent) => {
     event.preventDefault()
     if (!selectedRefund) return
+    setRefundSubmitted(true)
     setError(null)
-    const actualRefundCents = yuanToCents(actualRefundAmount)
-    if (actualRefundCents <= 0) {
-      setError('请填写实际退款金额。')
-      return
-    }
-    if (actualRefundCents > selectedRefund.materialRefundCents) {
-      setError('实际退款不能超过待退款金额。')
-      return
-    }
+    const actualRefundCents = refundAmountCents
+    if (actualRefundCents === null || actualRefundCents <= 0) return
+    if (actualRefundCents > selectedRefund.materialRefundCents) return
     setRefundConfirmOpen(true)
   }
   const confirmRefund = async () => {
@@ -538,7 +537,7 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
           onSubmit={handleCreateDraft}
         >
           <div className="yumi-form-grid yumi-form-grid--two">
-            <YumiField>
+            <YumiField error={draftSubmitted && !workerId ? '请选择兼职人员。' : undefined}>
               <YumiFieldLabel required>兼职人员</YumiFieldLabel>
               <YumiSearchSelect
                 aria-label="兼职人员"
@@ -548,7 +547,13 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
                 value={workerId}
               />
             </YumiField>
-            <YumiField>
+            <YumiField
+              error={
+                draftSubmitted && periodEndOn < periodStartOn
+                  ? '结束日期不能早于开始日期。'
+                  : undefined
+              }
+            >
               <YumiFieldLabel required>结算日期范围</YumiFieldLabel>
               <YumiDateRangePicker
                 aria-label="结算日期范围"
@@ -593,7 +598,18 @@ export function SettlementsPage({ navigationTarget = null }: SettlementsPageProp
       >
         <form id="worker-refund-form" onSubmit={requestRefundConfirmation}>
           <div className="yumi-form-grid yumi-form-grid--two">
-            <YumiField>
+            <YumiField
+              error={
+                refundSubmitted && (refundAmountCents === null || refundAmountCents <= 0)
+                  ? '请填写实际退款金额。'
+                  : refundSubmitted &&
+                      selectedRefund &&
+                      refundAmountCents !== null &&
+                      refundAmountCents > selectedRefund.materialRefundCents
+                    ? '实际退款不能超过待退款金额。'
+                    : undefined
+              }
+            >
               <YumiFieldLabel required>实际退款金额（元）</YumiFieldLabel>
               <YumiNumberField
                 allowDecimal

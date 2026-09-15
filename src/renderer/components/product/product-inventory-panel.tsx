@@ -81,6 +81,7 @@ export function ProductInventoryPanel({ product }: { product: V2Product }) {
   const [allocateQuantity, setAllocateQuantity] = useState('0')
   const [allocateDate, setAllocateDate] = useState(today())
   useYumiNotificationMessage(loadError)
+  useYumiNotificationMessage(actionError)
 
   const stages = summary?.stages ?? {
     made: 0,
@@ -301,7 +302,6 @@ export function ProductInventoryPanel({ product }: { product: V2Product }) {
               value={openingNote}
             />
           </YumiField>
-          {actionError ? <YumiFormMessage tone="error">{actionError}</YumiFormMessage> : null}
         </form>
       </YumiDialog>
 
@@ -367,7 +367,6 @@ export function ProductInventoryPanel({ product }: { product: V2Product }) {
               value={adjustNote}
             />
           </YumiField>
-          {actionError ? <YumiFormMessage tone="error">{actionError}</YumiFormMessage> : null}
         </form>
       </YumiDialog>
 
@@ -438,7 +437,6 @@ export function ProductInventoryPanel({ product }: { product: V2Product }) {
                 value={allocateDate}
               />
             </YumiField>
-            {actionError ? <YumiFormMessage tone="error">{actionError}</YumiFormMessage> : null}
           </form>
         ) : (
           <YumiFormMessage tone="hint">

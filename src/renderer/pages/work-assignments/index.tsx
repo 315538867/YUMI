@@ -16,7 +16,6 @@ import {
   YumiEmptyState,
   YumiField,
   YumiFieldLabel,
-  YumiFormMessage,
   YumiListSurface,
   YumiListToolbar,
   YumiSection,
@@ -113,7 +112,10 @@ export function WorkAssignmentsPage(props: {
   const [reassignReason, setReassignReason] = useState('')
   const [reassignError, setReassignError] = useState<string | null>(null)
   const [reassignSubmitting, setReassignSubmitting] = useState(false)
+  const [reassignSubmitted, setReassignSubmitted] = useState(false)
   useYumiNotificationMessage(loadError)
+  useYumiNotificationMessage(statusError)
+  useYumiNotificationMessage(reassignError)
 
   const workerNames = useMemo(
     () => new Map(workers.map((worker) => [worker.id, worker.name])),
@@ -170,14 +172,9 @@ export function WorkAssignmentsPage(props: {
     event.preventDefault()
     const target = reassignTarget
     if (!target) return
-    if (!reassignWorkerId) {
-      setReassignError('请选择新的负责人')
-      return
-    }
-    if (!reassignReason.trim()) {
-      setReassignError('请填写调整原因')
-      return
-    }
+    setReassignSubmitted(true)
+    if (!reassignWorkerId) return
+    if (!reassignReason.trim()) return
     setReassignSubmitting(true)
     setReassignError(null)
     try {
@@ -442,7 +439,6 @@ export function WorkAssignmentsPage(props: {
                   value={statusReason}
                 />
               </YumiField>
-              {statusError ? <YumiFormMessage tone="error">{statusError}</YumiFormMessage> : null}
             </form>
           </YumiDialog>
         ) : null}
@@ -488,7 +484,9 @@ export function WorkAssignmentsPage(props: {
                 ]}
               />
               <div className="yumi-form-grid yumi-form-grid--two">
-                <YumiField>
+                <YumiField
+                  error={reassignSubmitted && !reassignWorkerId ? '请选择新的负责人' : undefined}
+                >
                   <YumiFieldLabel required>新负责人</YumiFieldLabel>
                   <YumiSelect
                     aria-label="新负责人"
@@ -512,7 +510,9 @@ export function WorkAssignmentsPage(props: {
                   />
                 </YumiField>
               </div>
-              <YumiField>
+              <YumiField
+                error={reassignSubmitted && !reassignReason.trim() ? '请填写调整原因' : undefined}
+              >
                 <YumiFieldLabel required>调整原因</YumiFieldLabel>
                 <YumiTextArea
                   aria-label="调整原因"
@@ -520,9 +520,6 @@ export function WorkAssignmentsPage(props: {
                   value={reassignReason}
                 />
               </YumiField>
-              {reassignError ? (
-                <YumiFormMessage tone="error">{reassignError}</YumiFormMessage>
-              ) : null}
             </form>
           </YumiDialog>
         ) : null}

@@ -32,7 +32,8 @@ import {
   YumiNumberField,
   YumiTextArea,
   YumiTextField,
-  YumiTimeField
+  YumiTimeField,
+  useYumiNotificationMessage
 } from '../ui'
 
 export interface MakingReviewDialogTarget {
@@ -77,6 +78,7 @@ export function MakingReviewDialog({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [touched, setTouched] = useState(false)
+  useYumiNotificationMessage(error)
 
   const validation = validateMakingReviewQuantities({
     plannedQuantity: target.plannedQuantity,
@@ -87,6 +89,8 @@ export function MakingReviewDialog({
   const completedError = touched || completed !== '' ? validation.completedError : null
   const qualifiedError =
     touched || qualified !== '' || completed !== '' ? validation.qualifiedError : null
+  const reasonError =
+    target.mode === 'correct' && touched && !reason.trim() ? '请填写更正原因' : undefined
 
   const submit = async () => {
     if (busy) return
@@ -98,18 +102,8 @@ export function MakingReviewDialog({
       completedQuantity,
       qualifiedQuantity
     })
-    if (current.completedError || current.qualifiedError) {
-      setError(current.completedError ?? current.qualifiedError)
-      return
-    }
-    if (completedQuantity === null || qualifiedQuantity === null) {
-      setError('请检查实际产出与合格数量')
-      return
-    }
-    if (target.mode === 'correct' && !reason.trim()) {
-      setError('请填写更正原因')
-      return
-    }
+    if (current.completedError || current.qualifiedError) return
+    if (target.mode === 'correct' && !reason.trim()) return
     setBusy(true)
     setError(null)
     try {
@@ -201,7 +195,7 @@ export function MakingReviewDialog({
         ]}
       />
       {target.mode === 'correct' ? (
-        <YumiField>
+        <YumiField error={reasonError}>
           <YumiFieldLabel htmlFor="making-review-reason" required>
             更正原因
           </YumiFieldLabel>
@@ -220,7 +214,6 @@ export function MakingReviewDialog({
           value={note}
         />
       </YumiField>
-      {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
     </YumiDialog>
   )
 }
@@ -304,7 +297,10 @@ export function TimedReviewDialog({
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [submitAttempted, setSubmitAttempted] = useState(false)
   const requestIdRef = useRef(0)
+  useYumiNotificationMessage(error)
+  useYumiNotificationMessage(candidateError)
 
   const loadCandidates = useCallback(
     async (nextSearch: string) => {
@@ -352,6 +348,8 @@ export function TimedReviewDialog({
         : range.end > localMinuteNow()
           ? '核算必须在实际结束时间之后进行'
           : null
+  const reasonError =
+    target.mode === 'correct' && submitAttempted && !reason.trim() ? '请填写更正原因' : undefined
 
   const selectedRows = rows.filter(
     (row) => row.orderItemId && entries[row.orderItemId] !== undefined
@@ -401,23 +399,19 @@ export function TimedReviewDialog({
 
   const submit = async () => {
     if (busy) return
+    setSubmitAttempted(true)
     const parsed = range ? calculateReviewTimeRange(range.start, range.end) : null
-    const problems: string[] = []
-    if (!range) problems.push('请完整填写开始与结束的日期和时间（时间格式 HH:MM）')
-    else if (!parsed) problems.push('结束时间必须晚于开始时间')
-    else if (range.start.slice(0, 10) !== target.assignedOn)
-      problems.push(`开始日期必须与排班日期一致（${target.assignedOn}）`)
-    else if (range.end > localMinuteNow()) problems.push('核算必须在实际结束时间之后进行')
-    if (!selectedRows.length) problems.push('请至少选择一个订单商品并填写完成数量')
-    for (const row of selectedRows) {
-      const message = itemErrors.get(row.orderItemId)
-      if (message) problems.push(`${row.productName} 完成数量${message}`)
-    }
-    if (target.mode === 'correct' && !reason.trim()) problems.push('请填写更正原因')
-    if (problems.length || !range || !parsed) {
-      setError(problems[0] ?? '请检查核算内容')
+    if (!range || !parsed) return
+    if (range.start.slice(0, 10) !== target.assignedOn) return
+    if (range.end > localMinuteNow()) return
+    if (!selectedRows.length) {
+      setError('请至少选择一个订单商品并填写完成数量')
       return
     }
+    for (const row of selectedRows) {
+      if (itemErrors.get(row.orderItemId)) return
+    }
+    if (target.mode === 'correct' && !reason.trim()) return
     setBusy(true)
     setError(null)
     try {
@@ -529,7 +523,6 @@ export function TimedReviewDialog({
           value={search}
         />
       </YumiField>
-      {candidateError ? <YumiFormMessage tone="error">{candidateError}</YumiFormMessage> : null}
       {candidatesLoading ? (
         <YumiFormMessage tone="hint">正在读取可核算的订单商品…</YumiFormMessage>
       ) : rows.length ? (
@@ -613,7 +606,7 @@ export function TimedReviewDialog({
         ) : null}
       </div>
       {target.mode === 'correct' ? (
-        <YumiField>
+        <YumiField error={reasonError}>
           <YumiFieldLabel htmlFor="timed-review-reason" required>
             更正原因
           </YumiFieldLabel>
@@ -632,7 +625,6 @@ export function TimedReviewDialog({
           value={note}
         />
       </YumiField>
-      {error ? <YumiFormMessage tone="error">{error}</YumiFormMessage> : null}
     </YumiDialog>
   )
 }

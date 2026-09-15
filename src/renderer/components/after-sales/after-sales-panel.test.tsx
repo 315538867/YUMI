@@ -101,9 +101,9 @@ describe('AfterSalesPanel', () => {
     expect(screen.getByRole('dialog', { name: '新建售后' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '确认负责人判断' }))
 
-    expect(await screen.findByRole('alert', { hidden: true })).toHaveTextContent(
-      '请完整填写问题原因、负责人责任判断和处理方式。'
-    )
+    expect(await screen.findByText('请填写问题原因。')).toBeVisible()
+    expect(screen.getByText('请填写负责人责任判断。')).toBeVisible()
+    expect(screen.getByText('请填写处理方式。')).toBeVisible()
     expect(createCase).not.toHaveBeenCalled()
   })
 })

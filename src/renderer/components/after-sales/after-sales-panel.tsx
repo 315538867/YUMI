@@ -104,6 +104,7 @@ export function AfterSalesPanel({
   const [chargeEntryId, setChargeEntryId] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
+  const [createSubmitted, setCreateSubmitted] = useState(false)
   useYumiNotificationMessage(error)
   const availableCharges = useMemo(
     () =>
@@ -192,6 +193,7 @@ export function AfterSalesPanel({
   }
   const openCreateForm = () => {
     resetCreateDraft()
+    setCreateSubmitted(false)
     setError(null)
     setShowCreateForm(true)
   }
@@ -202,15 +204,14 @@ export function AfterSalesPanel({
 
   const handleCreate = (event: FormEvent) => {
     event.preventDefault()
+    setCreateSubmitted(true)
     setError(null)
     if (
       !reasonDescription.trim() ||
       !responsibilityDescription.trim() ||
       !handlingDescription.trim()
-    ) {
-      setError('请完整填写问题原因、负责人责任判断和处理方式。')
+    )
       return
-    }
     setCreateConfirmOpen(true)
   }
   const confirmCreate = async () => {
@@ -437,7 +438,9 @@ export function AfterSalesPanel({
               如本次售后源于已发货商品，请选择原发货批次，后续处理会保留该上下文。
             </YumiFormMessage>
           )}
-          <YumiField>
+          <YumiField
+            error={createSubmitted && !reasonDescription.trim() ? '请填写问题原因。' : undefined}
+          >
             <YumiFieldLabel required>问题原因</YumiFieldLabel>
             <YumiTextArea
               onChange={(event) => setReasonDescription(event.target.value)}
@@ -454,7 +457,13 @@ export function AfterSalesPanel({
                 value={customerRequest}
               />
             </YumiField>
-            <YumiField>
+            <YumiField
+              error={
+                createSubmitted && !responsibilityDescription.trim()
+                  ? '请填写负责人责任判断。'
+                  : undefined
+              }
+            >
               <YumiFieldLabel required>负责人责任判断</YumiFieldLabel>
               <YumiTextArea
                 onChange={(event) => setResponsibilityDescription(event.target.value)}
@@ -462,7 +471,11 @@ export function AfterSalesPanel({
                 value={responsibilityDescription}
               />
             </YumiField>
-            <YumiField>
+            <YumiField
+              error={
+                createSubmitted && !handlingDescription.trim() ? '请填写处理方式。' : undefined
+              }
+            >
               <YumiFieldLabel required>处理方式</YumiFieldLabel>
               <YumiTextArea
                 onChange={(event) => setHandlingDescription(event.target.value)}

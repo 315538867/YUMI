@@ -306,11 +306,10 @@ describe('工作安排记录只读骨架', () => {
     })
     fireEvent.click(within(dialog).getByRole('button', { name: '确认取消安排' }))
 
-    expect(
-      await within(dialog).findByText(
-        '该排班已有有效核算，不能通过状态更新撤销；请先在待核算中作废核算'
-      )
-    ).toBeVisible()
+    const notification = await screen.findByRole('alert', { hidden: true })
+    expect(notification).toHaveTextContent(
+      '该排班已有有效核算，不能通过状态更新撤销；请先在待核算中作废核算'
+    )
     expect(mocks.setWorkAssignmentStatus).toHaveBeenCalledWith('assignment-1', {
       status: 'cancelled',
       reason: '订单取消'
