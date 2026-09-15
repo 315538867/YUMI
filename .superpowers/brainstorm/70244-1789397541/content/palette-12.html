@@ -1,0 +1,156 @@
+<h2>色板扩容 · 12 色方案</h2>
+<p class="subtitle">看到你们库里目前有 1 位人员（小A），但这次按"以后人多"来定：色板扩到 12 色。按加入顺序依次分配——第 1 人青、第 2 人橙……第 13 人回到青色循环；顺序特意间隔排布，相邻加入的人颜色差别最大。全部低饱和、明度接近，不晃眼。</p>
+
+<div class="palette mrow">
+  <span class="chip"><i class="dot" style="background:#0f7a8f"></i>1 · 青</span>
+  <span class="chip"><i class="dot" style="background:#a8621f"></i>2 · 橙</span>
+  <span class="chip"><i class="dot" style="background:#6d5bd0"></i>3 · 紫</span>
+  <span class="chip"><i class="dot" style="background:#3f7d5a"></i>4 · 绿</span>
+  <span class="chip"><i class="dot" style="background:#b05a72"></i>5 · 玫红</span>
+  <span class="chip"><i class="dot" style="background:#4a6fa5"></i>6 · 蓝</span>
+  <span class="chip"><i class="dot" style="background:#96803d"></i>7 · 黄褐</span>
+  <span class="chip"><i class="dot" style="background:#9d5aa8"></i>8 · 紫红</span>
+  <span class="chip"><i class="dot" style="background:#6d7d33"></i>9 · 橄榄</span>
+  <span class="chip"><i class="dot" style="background:#ab5252"></i>10 · 红</span>
+  <span class="chip"><i class="dot" style="background:#2f7d6d"></i>11 · 青绿</span>
+  <span class="chip"><i class="dot" style="background:#8a6a3f"></i>12 · 棕</span>
+</div>
+<p class="subtitle" style="margin-top:8px">如果以后超过 12 人还想尽量不撞色，可以再加一层"深浅变体"；不过颜色越多彼此越难分，建议 12 色循环就够。</p>
+
+<style>
+.mrow{font-family:Arial,"PingFang SC","Microsoft YaHei",sans-serif;text-align:left}
+.palette{display:flex;flex-wrap:wrap;gap:10px 12px;margin:14px 0 2px;align-items:center}
+.chip{display:inline-flex;align-items:center;background:#f7f9fc;border:1px solid #e8edf3;border-radius:99px;padding:5px 12px;font-size:12.5px;color:#4a5568}
+.dot{display:inline-block;width:9px;height:9px;border-radius:99px;margin-right:6px}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:700px;margin-top:10px}
+.wk-col{background:#f8fafc;border:1px solid #eaeef4;border-radius:11px;padding:8px;display:flex;flex-direction:column;gap:7px}
+.wk-day{text-align:center;padding:1px 0 6px;border-bottom:1px dashed #e4e9f0}
+.wk-day b{display:block;font-size:12.5px;color:#2b3a4c}
+.wk-day small{font-size:10.5px;color:#98a2b1}
+.pbox{background:#fff;border:1px solid #e3e9f1;border-radius:10px;padding:7px;box-shadow:0 1px 2px rgba(24,35,52,.04)}
+.pbox-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding:0 1px}
+.pbox-h b{font-size:12.5px;color:#22303f;font-weight:650}
+.pbox-h em{font-style:normal;font-size:10.5px;color:#8a94a3}
+.rec{background:#f7f9fc;border-radius:7px;padding:5px 7px;margin-top:4px}
+.rec .r1{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.rec .pt{font-size:11.5px;font-weight:600;color:#2b3a4d}
+.rec .r2{font-size:10.5px;color:#69748a;margin-top:2px}
+.tag{font-style:normal;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:99px;white-space:nowrap}
+.tag.wip{background:#e0f2fe;color:#0369a1}
+.tag.qc{background:#fef3c7;color:#92400e}
+</style>
+
+<div class="options mrow">
+  <div class="option" data-choice="color-bar-dot" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>色条 + 圆点（推荐）</h3>
+      <p>框保持白底，只有左缘 3px 色条和名字前的小圆点带色。最克制，5 个人同屏也不花。</p>
+      <div class="mini">
+        <div class="wk-col">
+          <div class="wk-day"><b>周一</b><small>09-14</small></div>
+          <div class="pbox" style="border-left:3px solid #0f7a8f">
+            <div class="pbox-h"><b><i class="dot" style="background:#0f7a8f"></i>小A</b><em>2 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">800g 大猫爪</span><i class="tag wip">待完成</i></div><div class="r2">制作 · 60 件</div></div>
+            <div class="rec"><div class="r1"><span class="pt">鱼尾抱枕</span><i class="tag qc">待质检</i></div><div class="r2">缝边 · 30 件</div></div>
+          </div>
+          <div class="pbox" style="border-left:3px solid #a8621f">
+            <div class="pbox-h"><b><i class="dot" style="background:#a8621f"></i>小李</b><em>1 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">猫窝</span><i class="tag wip">待完成</i></div><div class="r2">捏毛装袋 · 40 件</div></div>
+          </div>
+        </div>
+        <div class="wk-col">
+          <div class="wk-day"><b>周三</b><small>09-16</small></div>
+          <div class="pbox" style="border-left:3px solid #a8621f">
+            <div class="pbox-h"><b><i class="dot" style="background:#a8621f"></i>小李</b><em>1 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">猫窝</span><i class="tag wip">待完成</i></div><div class="r2">缝边 · 40 件</div></div>
+          </div>
+          <div class="pbox" style="border-left:3px solid #6d5bd0">
+            <div class="pbox-h"><b><i class="dot" style="background:#6d5bd0"></i>小陈</b><em>1 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">兔子挂件</span><i class="tag wip">待完成</i></div><div class="r2">制作 · 50 件</div></div>
+          </div>
+          <div class="pbox" style="border-left:3px solid #3f7d5a">
+            <div class="pbox-h"><b><i class="dot" style="background:#3f7d5a"></i>小周</b><em>1 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">星星挂饰</span><i class="tag wip">待完成</i></div><div class="r2">打包发货 · 80 件</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="color-head-tint" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>框头浅色底</h3>
+      <p>名字那一行铺极浅的色调，内容区仍是白底。分组感更强一点。</p>
+      <div class="mini">
+        <div class="wk-col">
+          <div class="wk-day"><b>周一</b><small>09-14</small></div>
+          <div class="pbox">
+            <div class="pbox-h" style="background:#e8f5f8;margin:-7px -7px 6px;padding:6px 8px;border-radius:9px 9px 0 0"><b><i class="dot" style="background:#0f7a8f"></i>小A</b><em>2 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">800g 大猫爪</span><i class="tag wip">待完成</i></div><div class="r2">制作 · 60 件</div></div>
+            <div class="rec"><div class="r1"><span class="pt">鱼尾抱枕</span><i class="tag qc">待质检</i></div><div class="r2">缝边 · 30 件</div></div>
+          </div>
+          <div class="pbox">
+            <div class="pbox-h" style="background:#f8efe4;margin:-7px -7px 6px;padding:6px 8px;border-radius:9px 9px 0 0"><b><i class="dot" style="background:#a8621f"></i>小李</b><em>1 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">猫窝</span><i class="tag wip">待完成</i></div><div class="r2">捏毛装袋 · 40 件</div></div>
+          </div>
+        </div>
+        <div class="wk-col">
+          <div class="wk-day"><b>周三</b><small>09-16</small></div>
+          <div class="pbox">
+            <div class="pbox-h" style="background:#f8efe4;margin:-7px -7px 6px;padding:6px 8px;border-radius:9px 9px 0 0"><b><i class="dot" style="background:#a8621f"></i>小李</b><em>1 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">猫窝</span><i class="tag wip">待完成</i></div><div class="r2">缝边 · 40 件</div></div>
+          </div>
+          <div class="pbox">
+            <div class="pbox-h" style="background:#efecfb;margin:-7px -7px 6px;padding:6px 8px;border-radius:9px 9px 0 0"><b><i class="dot" style="background:#6d5bd0"></i>小陈</b><em>1 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">兔子挂件</span><i class="tag wip">待完成</i></div><div class="r2">制作 · 50 件</div></div>
+          </div>
+          <div class="pbox">
+            <div class="pbox-h" style="background:#e9f4ee;margin:-7px -7px 6px;padding:6px 8px;border-radius:9px 9px 0 0"><b><i class="dot" style="background:#3f7d5a"></i>小周</b><em>1 条</em></div>
+            <div class="rec"><div class="r1"><span class="pt">星星挂饰</span><i class="tag wip">待完成</i></div><div class="r2">打包发货 · 80 件</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="color-full-tint" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>整框浅色底</h3>
+      <p>整个框都是极浅色调（任务记录改白底）。区分度最强，人多时页面"彩感"也最强。</p>
+      <div class="mini">
+        <div class="wk-col">
+          <div class="wk-day"><b>周一</b><small>09-14</small></div>
+          <div class="pbox" style="background:#e8f5f8;border-color:#cfe5eb">
+            <div class="pbox-h"><b><i class="dot" style="background:#0f7a8f"></i>小A</b><em>2 条</em></div>
+            <div class="rec" style="background:#fff"><div class="r1"><span class="pt">800g 大猫爪</span><i class="tag wip">待完成</i></div><div class="r2">制作 · 60 件</div></div>
+            <div class="rec" style="background:#fff"><div class="r1"><span class="pt">鱼尾抱枕</span><i class="tag qc">待质检</i></div><div class="r2">缝边 · 30 件</div></div>
+          </div>
+          <div class="pbox" style="background:#f8efe4;border-color:#ecd9c2">
+            <div class="pbox-h"><b><i class="dot" style="background:#a8621f"></i>小李</b><em>1 条</em></div>
+            <div class="rec" style="background:#fff"><div class="r1"><span class="pt">猫窝</span><i class="tag wip">待完成</i></div><div class="r2">捏毛装袋 · 40 件</div></div>
+          </div>
+        </div>
+        <div class="wk-col">
+          <div class="wk-day"><b>周三</b><small>09-16</small></div>
+          <div class="pbox" style="background:#f8efe4;border-color:#ecd9c2">
+            <div class="pbox-h"><b><i class="dot" style="background:#a8621f"></i>小李</b><em>1 条</em></div>
+            <div class="rec" style="background:#fff"><div class="r1"><span class="pt">猫窝</span><i class="tag wip">待完成</i></div><div class="r2">缝边 · 40 件</div></div>
+          </div>
+          <div class="pbox" style="background:#efecfb;border-color:#dcd4f2">
+            <div class="pbox-h"><b><i class="dot" style="background:#6d5bd0"></i>小陈</b><em>1 条</em></div>
+            <div class="rec" style="background:#fff"><div class="r1"><span class="pt">兔子挂件</span><i class="tag wip">待完成</i></div><div class="r2">制作 · 50 件</div></div>
+          </div>
+          <div class="pbox" style="background:#e9f4ee;border-color:#cfe5d8">
+            <div class="pbox-h"><b><i class="dot" style="background:#3f7d5a"></i>小周</b><em>1 条</em></div>
+            <div class="rec" style="background:#fff"><div class="r1"><span class="pt">星星挂饰</span><i class="tag wip">待完成</i></div><div class="r2">打包发货 · 80 件</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:14px">12 色够不够、以及上色方式选哪个，在终端回我一声就行。</p>

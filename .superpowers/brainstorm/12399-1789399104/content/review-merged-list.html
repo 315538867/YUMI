@@ -1,0 +1,101 @@
+<h2>待核算：合并为一个列表（方案示意）</h2>
+<p class="subtitle">现状：「制作结果待确认」表格 +「计时工序待核算」4 步表单两大块。提案：合成一个「待核算」列表——每行一件事，标签区分制品（制作）与非制品（计时三工序）。计时行按「员工 + 日期 + 工序」归一组一行（一条核算本就覆盖同工序多条安排）；制作行保持一条任务一行。</p>
+
+<style>
+.tm{font-family:Arial,"PingFang SC","Microsoft YaHei",sans-serif;text-align:left}
+.tm-card{max-width:1080px;border:1px solid #e4e8ef;border-radius:14px;background:#fff;padding:16px 18px;margin-top:10px}
+.tm-tabs{display:flex;gap:18px;border-bottom:1px solid #e8ecf2;padding-bottom:8px;margin-bottom:14px}
+.tm-tab{font-size:13.5px;color:#6b7686}
+.tm-tab.on{color:#22303f;font-weight:650;border-bottom:2px solid #276d67;padding-bottom:8px;margin-bottom:-9px}
+.tm-sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 2px}
+.tm-sec-head h4{margin:0;font-size:16px;color:#1d2734}
+.tm-sec-head span{font-size:12px;color:#8a94a3}
+.tm-sec-desc{font-size:12.5px;color:#7a8494;margin:0 0 10px}
+table.tm-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.tm-table th{background:#f4f7fa;color:#5b6675;font-weight:600;text-align:left;padding:8px 10px;border:1px solid #e8ecf2;font-size:12px}
+.tm-table td{padding:9px 10px;border:1px solid #edf1f6;color:#2b3a4d;vertical-align:middle}
+.tm-tag{display:inline-block;font-size:11px;font-weight:650;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.tm-tag.making{background:#e2efeb;color:#1f5b56}
+.tm-tag.timed{background:#eef1f5;color:#5b6675}
+.tm-btn{display:inline-block;font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid #d8dee8;background:#fff;color:#3c4a5c;white-space:nowrap}
+.tm-note{font-size:12px;color:#8a94a3;margin:8px 0 0}
+.tm-dialog{max-width:560px;border:1px solid #e4e8ef;border-radius:12px;background:#fff;box-shadow:0 12px 30px rgba(24,35,52,.10);padding:16px 18px;margin-top:10px}
+.tm-dialog h4{margin:0 0 2px;font-size:15px;color:#1d2734}
+.tm-dialog .sub{font-size:12px;color:#8a94a3;margin-bottom:10px}
+.tm-field{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed #edf1f6;font-size:12.5px;color:#3c4a5c}
+.tm-input{display:inline-block;min-width:74px;border:1px solid #d8dee8;border-radius:8px;padding:4px 8px;text-align:right;color:#22303f;background:#fff;font-size:12.5px}
+.tm-check{background:#f7f9fc;border-radius:8px;padding:8px 10px;font-size:12px;color:#5b6675;margin-top:10px;line-height:1.8}
+.tm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.tm-actions .p{background:#263436;border-color:#263436;color:#fff}
+</style>
+
+<div class="tm">
+  <div class="tm-card">
+    <div class="tm-tabs"><span class="tm-tab">订单视角</span><span class="tm-tab">人员周历</span><span class="tm-tab on">待核算</span></div>
+    <div class="tm-sec-head"><h4>待核算</h4><span>共 5 项待处理</span></div>
+    <p class="tm-sec-desc">制作结果与计时工序核算统一列出；标签区分制品（制作）与非制品（计时工序）。</p>
+    <table class="tm-table">
+      <thead>
+        <tr><th style="width:96px">类型</th><th style="width:88px">人员</th><th style="width:104px">工作日期</th><th>待核算内容</th><th style="width:112px">操作</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tm-tag making">制作</span></td><td>小王</td><td>09-13</td><td>800g 大猫爪 · 计划 60 件</td><td><span class="tm-btn">确认结果</span></td></tr>
+        <tr><td><span class="tm-tag timed">捏毛装袋</span></td><td>小A</td><td>09-13</td><td>2 个安排 · 大猫爪 60 + 猫窝 40</td><td><span class="tm-btn">登记核算</span></td></tr>
+        <tr><td><span class="tm-tag timed">缝边</span></td><td>小A</td><td>09-12</td><td>1 个安排 · 鱼尾抱枕 30</td><td><span class="tm-btn">登记核算</span></td></tr>
+        <tr><td><span class="tm-tag timed">打包发货</span></td><td>小李</td><td>09-12</td><td>1 个安排 · 星星挂饰 80</td><td><span class="tm-btn">登记核算</span></td></tr>
+        <tr><td><span class="tm-tag making">制作</span></td><td>小陈</td><td>09-12</td><td>兔子挂件 · 计划 50 件</td><td><span class="tm-btn">确认结果</span></td></tr>
+      </tbody>
+    </table>
+    <p class="tm-note">「确认结果」沿用现流程（进入任务处理：完成数量 + 合格/不合格）；「登记核算」打开下面的弹窗。</p>
+  </div>
+
+  <div class="tm-card">
+    <div class="tm-sec-head"><h4>已登记工时核算</h4><span>保留：历史记录与 确认 / 作废 操作</span></div>
+    <table class="tm-table">
+      <thead>
+        <tr><th style="width:104px">工作日期</th><th style="width:112px">工序</th><th style="width:112px">核算分钟</th><th>完成明细</th><th style="width:96px">状态</th><th style="width:124px">操作</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>09-11</td><td>捏毛装袋</td><td>240 分钟</td><td>2 个商品 · 70 件</td><td><span class="tm-tag timed">草稿</span></td><td><span class="tm-btn">确认工时</span></td></tr>
+        <tr><td>09-10</td><td>缝边</td><td>180 分钟</td><td>1 个商品 · 30 件</td><td><span class="tm-tag making">已确认</span></td><td><span class="tm-btn">作废重录</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:18px">点「登记核算」后的弹窗</h3>
+  <div class="tm-dialog">
+    <h4>登记工时核算</h4>
+    <div class="sub">小A · 09-13 · 捏毛装袋 · 含 2 个安排</div>
+    <div class="tm-field"><span>负责人核算时长（分钟）</span><span class="tm-input">240</span></div>
+    <div class="tm-field"><span>大猫爪 完成数量（件）</span><span class="tm-input">40</span></div>
+    <div class="tm-field"><span>猫窝 完成数量（件）</span><span class="tm-input">30</span></div>
+    <div class="tm-check">预计总分钟 180 · 时间差 +60 分钟 · 预计效率 75%（实际用时高于预计，请核对，可照常确认）</div>
+    <div class="tm-actions"><span class="tm-btn">保存草稿</span><span class="tm-btn p">保存并确认</span></div>
+  </div>
+</div>
+
+<div class="options tm" style="margin-top:16px">
+  <div class="option" data-choice="type-column" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>类型列 + 色标（推荐）</h3>
+      <p>列表内一列显示工序：制品（制作）用品牌色标签，非制品（捏毛装袋 / 缝边 / 打包发货）用灰蓝标签。够用且改动最小。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="type-filter" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>顶部筛选 Tab</h3>
+      <p>列表上方加 全部 / 制品 / 非制品 切换；列表本身仍显示工序名。数据少时略显多余。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="both" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>两个都要：类型列 + 顶部筛选</h3>
+      <p>列用于一眼区分，筛选用于「只看制品 / 只看非制品」聚焦处理。功能最全，实现也最多。</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:14px">行粒度如果不对（比如计时行要拆到每条安排一行，或制作行也要按天归并），直接在终端说；选 A / B / C 回我一个字母就行。</p>

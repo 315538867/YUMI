@@ -1,0 +1,189 @@
+<h2>人员周历改版 · 排版示意</h2>
+<p class="subtitle">结构已确认：去掉左侧人员列，按天分列、列内按人成框，同一人多任务在框内排多条记录。剩下要你定的是——「当天没任务的人怎么显示、＋入口放哪里」。下面是 A / B 两种，点一个选中。</p>
+
+<style>
+.wk{font-family:Arial,"PingFang SC","Microsoft YaHei",sans-serif;max-width:1120px;border:1px solid #e4e8ef;border-radius:14px;background:#fff;padding:14px 16px 16px;margin-top:10px;text-align:left;overflow-x:auto}
+.wk-inner{min-width:880px}
+.wk-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.wk-head h4{margin:0;font-size:16px;color:#1d2734;letter-spacing:.2px}
+.wk-head small{display:block;margin-top:4px;font-size:11.5px;color:#8a94a3}
+.wk-nav{display:flex;gap:6px}
+.wk-nav span{border:1px solid #e0e5ec;border-radius:9px;padding:5px 11px;font-size:12px;color:#5b6675;background:#fff}
+.wk-nav .on{border-color:#0e7490;color:#0e7490;font-weight:600}
+.wk-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.wk-col{background:#f8fafc;border:1px solid #eaeef4;border-radius:11px;padding:8px;display:flex;flex-direction:column;gap:7px;min-height:172px}
+.wk-day{text-align:center;padding:1px 0 6px;border-bottom:1px dashed #e4e9f0}
+.wk-day b{display:block;font-size:12.5px;color:#2b3a4c}
+.wk-day small{font-size:10.5px;color:#98a2b1}
+.pbox{background:#fff;border:1px solid #e3e9f1;border-radius:10px;padding:7px;box-shadow:0 1px 2px rgba(24,35,52,.04)}
+.pbox-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding:0 1px}
+.pbox-h b{font-size:12.5px;color:#22303f}
+.pbox-h em{font-style:normal;font-size:10.5px;color:#8a94a3}
+.rec{background:#f7f9fc;border-radius:7px;padding:5px 7px;margin-top:4px}
+.rec .r1{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.rec .pt{font-size:11.5px;font-weight:600;color:#2b3a4d}
+.rec .r2{font-size:10.5px;color:#69748a;margin-top:2px}
+.tag{font-style:normal;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:99px;white-space:nowrap}
+.tag.wip{background:#e0f2fe;color:#0369a1}
+.tag.qc{background:#fef3c7;color:#92400e}
+.add{margin-top:auto;text-align:center;font-size:11.5px;color:#0e7490;padding:6px 0;border:1px dashed #cfe0e6;border-radius:8px;background:#fff}
+.col-empty{flex:1;display:flex;align-items:center;justify-content:center;border:1px dashed #d7dee8;border-radius:9px;color:#9aa6b5;font-size:11.5px;background:#fbfcfe;min-height:120px}
+.pbox.ghost{background:#fbfcfe;border-style:dashed}
+.pbox.ghost .pbox-h b{color:#93a0b0}
+.rec-add{margin-top:5px;text-align:center;font-size:10.5px;color:#8b96a7;border:1px dashed #dbe2ec;border-radius:6px;padding:4px 0}
+</style>
+
+<div class="options">
+  <div class="option" data-choice="a-compact" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>精简版：只显示有任务的人（推荐）</h3>
+      <p>当天没任务的人整列不出现；每个日期列底部一个「＋ 派工」，点开选人再录任务。空列整体就是一个虚线加号，整周一眼扫完。代价：给还没安排的人加活时要多一步"选人"。</p>
+      <div class="wk"><div class="wk-inner">
+        <div class="wk-head">
+          <div><h4>人员周历</h4><small>2026-09-14 至 2026-09-20 · 仅显示待完成与待质检任务</small></div>
+          <div class="wk-nav"><span>上一周</span><span class="on">本周</span><span>下一周</span></div>
+        </div>
+        <div class="wk-grid">
+          <div class="wk-col">
+            <div class="wk-day"><b>周一</b><small>09-14</small></div>
+            <div class="pbox">
+              <div class="pbox-h"><b>小A</b><em>2 条</em></div>
+              <div class="rec"><div class="r1"><span class="pt">800g 大猫爪</span><i class="tag wip">待完成</i></div><div class="r2">制作 · 60 件</div></div>
+              <div class="rec"><div class="r1"><span class="pt">鱼尾抱枕</span><i class="tag qc">待质检</i></div><div class="r2">缝边 · 30 件</div></div>
+            </div>
+            <div class="add">＋ 派工</div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周二</b><small>09-15</small></div>
+            <div class="col-empty">＋ 派工</div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周三</b><small>09-16</small></div>
+            <div class="pbox">
+              <div class="pbox-h"><b>小李</b><em>1 条</em></div>
+              <div class="rec"><div class="r1"><span class="pt">猫窝</span><i class="tag wip">待完成</i></div><div class="r2">捏毛装袋 · 40 件</div></div>
+            </div>
+            <div class="add">＋ 派工</div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周四</b><small>09-17</small></div>
+            <div class="pbox">
+              <div class="pbox-h"><b>小A</b><em>1 条</em></div>
+              <div class="rec"><div class="r1"><span class="pt">鱼尾抱枕</span><i class="tag wip">待完成</i></div><div class="r2">打包发货 · 30 件</div></div>
+            </div>
+            <div class="add">＋ 派工</div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周五</b><small>09-18</small></div>
+            <div class="col-empty">＋ 派工</div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周六</b><small>09-19</small></div>
+            <div class="col-empty">＋ 派工</div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周日</b><small>09-20</small></div>
+            <div class="col-empty">＋ 派工</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b-allworkers" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>全员版：每人每天都占一个框</h3>
+      <p>有几个人就显示几个框，没任务的人是浅色虚线框，点框里的「＋ 派工」直接给这个人排（不用选人）。代价：空框多、列里更满，人多了会比较重复。</p>
+      <div class="wk"><div class="wk-inner">
+        <div class="wk-head">
+          <div><h4>人员周历</h4><small>2026-09-14 至 2026-09-20 · 仅显示待完成与待质检任务</small></div>
+          <div class="wk-nav"><span>上一周</span><span class="on">本周</span><span>下一周</span></div>
+        </div>
+        <div class="wk-grid">
+          <div class="wk-col">
+            <div class="wk-day"><b>周一</b><small>09-14</small></div>
+            <div class="pbox">
+              <div class="pbox-h"><b>小A</b><em>2 条</em></div>
+              <div class="rec"><div class="r1"><span class="pt">800g 大猫爪</span><i class="tag wip">待完成</i></div><div class="r2">制作 · 60 件</div></div>
+              <div class="rec"><div class="r1"><span class="pt">鱼尾抱枕</span><i class="tag qc">待质检</i></div><div class="r2">缝边 · 30 件</div></div>
+            </div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小李</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周二</b><small>09-15</small></div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小A</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小李</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周三</b><small>09-16</small></div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小A</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+            <div class="pbox">
+              <div class="pbox-h"><b>小李</b><em>1 条</em></div>
+              <div class="rec"><div class="r1"><span class="pt">猫窝</span><i class="tag wip">待完成</i></div><div class="r2">捏毛装袋 · 40 件</div></div>
+            </div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周四</b><small>09-17</small></div>
+            <div class="pbox">
+              <div class="pbox-h"><b>小A</b><em>1 条</em></div>
+              <div class="rec"><div class="r1"><span class="pt">鱼尾抱枕</span><i class="tag wip">待完成</i></div><div class="r2">打包发货 · 30 件</div></div>
+            </div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小李</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周五</b><small>09-18</small></div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小A</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小李</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周六</b><small>09-19</small></div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小A</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小李</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+          </div>
+          <div class="wk-col">
+            <div class="wk-day"><b>周日</b><small>09-20</small></div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小A</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+            <div class="pbox ghost">
+              <div class="pbox-h"><b>小李</b></div>
+              <div class="rec-add">＋ 派工</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:14px">点选 A 或 B，然后在终端回我一声；如果你想要两种之外的做法（比如 A 的布局 + 框内也能直接加任务），直接说。</p>
