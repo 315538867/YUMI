@@ -1,7 +1,13 @@
 import { CircleAlert, Inbox, ListFilter, LoaderCircle, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-export type YumiEmptyStateScenario = 'default' | 'filter' | 'first-use' | 'prerequisite' | 'loading'
+export type YumiEmptyStateScenario =
+  | 'default'
+  | 'empty'
+  | 'filter'
+  | 'first-use'
+  | 'prerequisite'
+  | 'loading'
 
 type YumiEmptyStateProps = {
   action?: ReactNode
@@ -13,6 +19,7 @@ type YumiEmptyStateProps = {
 
 const scenarioLabels: Record<YumiEmptyStateScenario, string> = {
   default: '暂无内容',
+  empty: '暂无数据',
   'first-use': '首次使用',
   prerequisite: '缺少前置资料',
   filter: '筛选无结果',
@@ -21,6 +28,7 @@ const scenarioLabels: Record<YumiEmptyStateScenario, string> = {
 
 const scenarioIcons: Record<YumiEmptyStateScenario, ReactNode> = {
   default: <Inbox size={22} />,
+  empty: <Inbox size={22} />,
   'first-use': <Sparkles size={22} />,
   prerequisite: <CircleAlert size={22} />,
   filter: <ListFilter size={22} />,

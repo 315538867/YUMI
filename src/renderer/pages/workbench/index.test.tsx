@@ -131,7 +131,8 @@ describe('负责人工作台页面', () => {
     expect(screen.getByText('登记发货')).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: /可以推进/ }))
-    expect(screen.getByRole('heading', { name: '可以推进' })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: '可以推进' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '待办事项' })).toBeVisible()
     expect(screen.getByRole('toolbar', { name: '工作台事项列表工具' })).toBeVisible()
     expect(screen.getByRole('table', { name: '工作台事项列表' })).toBeVisible()
     expect(screen.getByText('共 1 项待处理事项')).toBeVisible()
@@ -169,5 +170,23 @@ describe('负责人工作台页面', () => {
     expect(screen.queryByRole('button', { name: /需要我决定/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '建立客户' }))
     expect(onNavigate).toHaveBeenCalledWith({ view: 'customers' })
+  })
+
+  it('工作台页头、工作区 Tab 与区块标题互不重复，列表工具条不承载筛选控件', () => {
+    render(<WorkbenchPage onNavigate={vi.fn()} />)
+
+    const headingTexts = [...document.querySelectorAll('h1, h2')]
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean)
+    const tabLabels = within(screen.getByRole('navigation', { name: '工作台事项视图' }))
+      .getAllByRole('button')
+      .map((node) => node.textContent?.trim())
+    expect(headingTexts.filter((text) => tabLabels.includes(text!))).toHaveLength(0)
+    expect(new Set(headingTexts).size).toBe(headingTexts.length)
+
+    fireEvent.click(screen.getByRole('button', { name: /可以推进/ }))
+    const listToolbar = screen.getByRole('toolbar', { name: '工作台事项列表工具' })
+    expect(within(listToolbar).queryByLabelText(/筛选/)).not.toBeInTheDocument()
+    expect(within(listToolbar).queryByRole('combobox')).not.toBeInTheDocument()
   })
 })

@@ -190,14 +190,7 @@ export function ReportsPage({ onNavigate }: ReportsPageProps) {
               ]
             }
       }
-      insights={
-        loading ? undefined : (
-          <section aria-label="月度经营结果说明">
-            <h2>月度经营</h2>
-            <p>按统计月份查看实际收付款、经营支出和已确认工资。</p>
-          </section>
-        )
-      }
+      insights={undefined}
     >
       {loading ? (
         <YumiEmptyState
@@ -348,7 +341,7 @@ export function ReportsPage({ onNavigate }: ReportsPageProps) {
                       onClick={() => void reload()}
                       variant="secondary"
                     >
-                      刷新风险
+                      刷新交期
                     </YumiButton>
                   </>
                 }

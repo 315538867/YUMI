@@ -121,10 +121,10 @@ describe('经营报表页面级骨架', () => {
     const detailsEl = container.querySelector<HTMLElement>('.yumi-dashboard-overview__details')
     expect(toolbarEl).not.toBeNull()
     expect(metricsEl).not.toBeNull()
-    expect(insightsEl).not.toBeNull()
+    expect(insightsEl).toBeNull()
     expect(detailsEl).not.toBeNull()
 
-    const order = [header, toolbarEl, metricsEl, insightsEl, detailsEl]
+    const order = [header, toolbarEl, metricsEl, detailsEl]
     for (let index = 1; index < order.length; index += 1) {
       const relation = order[index - 1]!.compareDocumentPosition(order[index]!)
       expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -147,14 +147,11 @@ describe('经营报表页面级骨架', () => {
     expect(labels).toEqual(['实际收入', '经营支出', '经营结果', '已确认工资'])
   })
 
-  it('洞察区保留月度经营说明，明细区按固定顺序落五个区块', () => {
+  it('洞察区不再重复月度经营说明，明细区按固定顺序落五个区块', () => {
     const { container } = render(<ReportsPage />)
 
-    const insightsEl = container.querySelector<HTMLElement>('.yumi-dashboard-overview__insights')
-    expect(within(insightsEl!).getByRole('heading', { level: 2, name: '月度经营' })).toBeVisible()
-    expect(
-      within(insightsEl!).getByText('按统计月份查看实际收付款、经营支出和已确认工资。')
-    ).toBeVisible()
+    expect(container.querySelector('.yumi-dashboard-overview__insights')).toBeNull()
+    expect(screen.queryByRole('heading', { name: '月度经营' })).not.toBeInTheDocument()
 
     const detailsEl = container.querySelector<HTMLElement>('.yumi-dashboard-overview__details')
     const headings = [...detailsEl!.querySelectorAll('h2')].map((node) => node.textContent?.trim())
@@ -269,5 +266,30 @@ describe('经营报表期间筛选与错误反馈', () => {
     render(<ReportsPage />)
     const host = screen.getByLabelText('全局通知')
     expect(within(host).getByRole('status')).toHaveTextContent('已导出当前报表')
+  })
+})
+
+describe('P2 · 经营报表信息层级与动作归属（任务 2）', () => {
+  it('报表页面刷新紧邻统计月份，风险刷新只位于风险区工具栏', () => {
+    render(<ReportsPage />)
+    const period = screen.getByRole('toolbar', { name: '月度经营筛选工具' })
+    expect(within(period).getByLabelText('统计月份')).toBeVisible()
+    expect(within(period).getByRole('button', { name: '刷新' })).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '商品产能风险列表工具' })).toContainElement(
+      screen.getByRole('button', { name: '刷新风险' })
+    )
+  })
+
+  it('经营报表页头与区块标题互不重复，区块风险刷新不在页面周期工具条内', () => {
+    const { container } = render(<ReportsPage />)
+
+    const headingTexts = [...container.querySelectorAll('h1, h2')]
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean)
+    expect(new Set(headingTexts).size).toBe(headingTexts.length)
+    expect(screen.getByRole('heading', { level: 1, name: '经营报表' })).toBeVisible()
+    expect(
+      screen.getByRole('toolbar', { name: '月度经营筛选工具' })
+    ).not.toContainElement(screen.getByRole('button', { name: '刷新风险' }))
   })
 })

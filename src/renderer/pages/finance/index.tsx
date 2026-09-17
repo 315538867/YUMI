@@ -268,31 +268,44 @@ export function FinancePage({ navigationTarget = null }: FinancePageProps) {
               />
             </>
           }
-          metrics={{
-            ariaLabel: '本月经营结果指标',
-            items: [
-              {
-                label: '实际收入',
-                tone: 'success',
-                value: formatCents(monthlySummary?.incomeCents ?? 0)
-              },
-              {
-                label: '经营支出',
-                tone: 'danger',
-                value: formatCents(monthlySummary?.operatingExpenseCents ?? 0)
-              },
-              {
-                label: '经营结果',
-                tone: (monthlySummary?.operatingResultCents ?? 0) >= 0 ? 'success' : 'danger',
-                value: formatCents(monthlySummary?.operatingResultCents ?? 0)
-              }
-            ]
-          }}
+          metrics={
+            loading || !monthlySummary
+              ? undefined
+              : {
+                  ariaLabel: '本月经营结果指标',
+                  items: [
+                    {
+                      label: '实际收入',
+                      tone: 'success',
+                      value: formatCents(monthlySummary.incomeCents)
+                    },
+                    {
+                      label: '经营支出',
+                      tone: 'danger',
+                      value: formatCents(monthlySummary.operatingExpenseCents)
+                    },
+                    {
+                      label: '经营结果',
+                      tone: monthlySummary.operatingResultCents >= 0 ? 'success' : 'danger',
+                      value: formatCents(monthlySummary.operatingResultCents)
+                    }
+                  ]
+                }
+          }
           insights={
-            <section aria-label="本月经营结果">
-              <h2>本月经营结果</h2>
-              <p>只按实际收付款日期归属月份；报销付款不重复计入经营支出。</p>
-            </section>
+            loading ? (
+              <YumiEmptyState
+                description="正在读取当月经营结果，请稍候。"
+                scenario="loading"
+                title="月度经营结果加载中"
+              />
+            ) : monthlySummary ? undefined : (
+              <YumiEmptyState
+                description="选择其他统计月份，或先登记实际收付款。"
+                scenario="empty"
+                title="本月暂无经营数据"
+              />
+            )
           }
         />
       ) : workspaceView === 'cashflow' ? (

@@ -323,7 +323,7 @@ export function WorkbenchPage({
             <YumiSection
               ariaLabel="工作台事项"
               description="按当前视图集中处理由业务事实生成的待办事项。"
-              title={viewLabels[activeView]}
+              title="待办事项"
             >
               <YumiListSurface>
                 <YumiListToolbar

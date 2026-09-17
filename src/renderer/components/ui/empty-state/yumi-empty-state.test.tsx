@@ -19,7 +19,7 @@ describe('YumiEmptyState', () => {
     expect(screen.getByText('订单加载中')).toBeVisible()
   })
 
-  it('以明确的语义区分首次使用、缺少前置资料和筛选无结果', () => {
+  it('以明确的语义区分首次使用、缺少前置资料、筛选无结果和空数据', () => {
     const { rerender } = render(
       <YumiEmptyState
         description="先建立首个客户后再继续。"
@@ -52,6 +52,18 @@ describe('YumiEmptyState', () => {
     expect(screen.getByRole('status', { name: '筛选无结果' })).toHaveAttribute(
       'data-scenario',
       'filter'
+    )
+
+    rerender(
+      <YumiEmptyState
+        description="选择其他统计月份，或先登记实际收付款。"
+        scenario="empty"
+        title="本月暂无经营数据"
+      />
+    )
+    expect(screen.getByRole('status', { name: '暂无数据' })).toHaveAttribute(
+      'data-scenario',
+      'empty'
     )
   })
 })

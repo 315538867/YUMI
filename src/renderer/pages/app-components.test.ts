@@ -454,9 +454,10 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
     expect(reportsPageSource).not.toContain('yumi-finance-summary-grid')
     expect(reportsPageSource).not.toContain('yumi-finance-metric')
 
-    // 财务页指标带由 DashboardOverview 的 metrics 槽位统一渲染。
+    // 财务页指标带由 DashboardOverview 的 metrics 槽位统一渲染；加载/空数据时以
+    // 条件表达式省略槽位，仍不使用页面私有摘要网格。
     expect(financePageSource).toContain('DashboardOverview')
-    expect(financePageSource).toContain('metrics={{')
+    expect(financePageSource).toContain('metrics={')
     expect(financePageSource).not.toContain('yumi-finance-summary-grid')
     expect(financePageSource).not.toContain('yumi-finance-metric')
   })

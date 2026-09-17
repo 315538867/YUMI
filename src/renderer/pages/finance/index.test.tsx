@@ -58,6 +58,7 @@ afterEach(() => {
   mocks.reimburseBatch.mockReset().mockResolvedValue({ entries: [], totalAmountCents: 30_000 })
   mocks.state.entries = []
   mocks.state.pendingReimbursements = []
+  mocks.state.loading = false
   mocks.state.monthlySummary = {
     incomeCents: 50_000,
     operatingExpenseCents: 20_000,
@@ -69,7 +70,7 @@ describe('P3 · 财务 Pattern 根契约（任务 10.1）', () => {
   it('经营结果视图由唯一 dashboard-overview 标准根承接，指标带先于详情区', async () => {
     render(<FinancePage />)
 
-    await screen.findByRole('heading', { name: '本月经营结果' })
+    await screen.findByRole('navigation', { name: '财务工作视图' })
     const roots = document.querySelectorAll('[data-page-pattern]')
     expect(roots).toHaveLength(1)
     const root = roots[0] as HTMLElement
@@ -89,7 +90,7 @@ describe('P3 · 财务 Pattern 根契约（任务 10.1）', () => {
   it('现金流水视图切换为唯一 list-page 紧凑根，列表表面承接具名记录表', async () => {
     render(<FinancePage />)
 
-    await screen.findByRole('heading', { name: '本月经营结果' })
+    await screen.findByRole('navigation', { name: '财务工作视图' })
     fireEvent.click(screen.getByRole('button', { name: '现金流水' }))
     await screen.findByRole('table', { name: '现金流水列表' })
 
@@ -119,7 +120,7 @@ describe('P3 · 财务 Pattern 根契约（任务 10.1）', () => {
     ]
     render(<FinancePage />)
 
-    await screen.findByRole('heading', { name: '本月经营结果' })
+    await screen.findByRole('navigation', { name: '财务工作视图' })
     fireEvent.click(screen.getByRole('button', { name: '待报销' }))
     await screen.findByRole('table', { name: '待报销列表' })
 
@@ -141,7 +142,7 @@ describe('财务负责人工作区', () => {
   it('每个 Pattern 根都自载页面头与动作区，工作视图 Tab 随内容区渲染', async () => {
     render(<FinancePage />)
 
-    const overview = await screen.findByRole('heading', { name: '本月经营结果' })
+    const overview = screen.getByRole('region', { name: '本月经营结果指标' })
     const root = document.querySelector('[data-page-pattern]') as HTMLElement
     const header = within(root).getByRole('heading', { level: 1, name: '财务' }).closest('header')
     const tabs = within(root).getByRole('navigation', { name: '财务工作视图' })
@@ -155,7 +156,7 @@ describe('财务负责人工作区', () => {
   it('切换工作视图后重挂载唯一 Pattern 根，财务页头动作组随各根重建', async () => {
     render(<FinancePage />)
 
-    await screen.findByRole('heading', { name: '本月经营结果' })
+    await screen.findByRole('navigation', { name: '财务工作视图' })
     fireEvent.click(screen.getByRole('button', { name: '现金流水' }))
     await screen.findByRole('table', { name: '现金流水列表' })
 
@@ -181,7 +182,7 @@ describe('财务负责人工作区', () => {
     expect(screen.getByText('实际收入').parentElement).toHaveTextContent('¥500.00')
     expect(screen.getByText('经营支出').parentElement).toHaveTextContent('¥200.00')
     expect(screen.getByText('经营结果').parentElement).toHaveTextContent('¥300.00')
-    expect(screen.getByText(/报销付款不重复计入经营支出/)).toBeVisible()
+    expect(screen.getByText(/报销付款只进入现金流水，不重复计入经营费用/)).toBeVisible()
   })
 
   it('现金流水以统一工具条和具名记录表展示，不将登记表单作为列表首屏', async () => {
@@ -309,6 +310,42 @@ describe('财务负责人工作区', () => {
         paymentMethod: '公账转账',
         note: null
       })
+    )
+  })
+})
+
+describe('P2 · 财务总览信息层级（任务 2）', () => {
+  it('财务总览不重复当前 Tab 标题，并在无业务数据时使用内容区空态', async () => {
+    mocks.state.monthlySummary = null
+    const { container } = render(<FinancePage />)
+    expect(await screen.findByRole('navigation', { name: '财务工作视图' })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: '本月经营结果' })).not.toBeInTheDocument()
+    expect(container.querySelector('[data-scenario="empty"]')).not.toBeNull()
+  })
+
+  it('财务总览读取中呈现内容区加载状态，不提前展示指标占位', () => {
+    mocks.state.loading = true
+    const { container } = render(<FinancePage />)
+
+    expect(screen.getByRole('status', { name: '正在加载' })).toBeVisible()
+    expect(screen.getByText(/请稍候/)).toBeVisible()
+    expect(screen.queryByRole('region', { name: '本月经营结果指标' })).not.toBeInTheDocument()
+    expect(container.querySelector('.yumi-metric-strip')).toBeNull()
+  })
+
+  it('财务页头、工作区 Tab 与内容区标题互不重复，筛选只位于列表工具条', () => {
+    render(<FinancePage />)
+
+    const headingTexts = [...document.querySelectorAll('h1, h2')]
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean)
+    const tabLabels = within(screen.getByRole('navigation', { name: '财务工作视图' }))
+      .getAllByRole('button')
+      .map((node) => node.textContent?.trim())
+    expect(headingTexts.filter((text) => tabLabels.includes(text!))).toHaveLength(0)
+    expect(new Set(headingTexts).size).toBe(headingTexts.length)
+    expect(screen.getByRole('toolbar', { name: '经营结果筛选工具' })).toContainElement(
+      screen.getByLabelText('统计月份')
     )
   })
 })
