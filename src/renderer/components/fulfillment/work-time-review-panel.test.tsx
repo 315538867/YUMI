@@ -315,6 +315,23 @@ function rangeMinutes(start: string, end: string): number {
   return (new Date(end).getTime() - new Date(start).getTime()) / 60_000
 }
 
+/** 打开计时核算弹窗：预置一条今天的计时排班，从待核算列表进入核算。 */
+async function openTimedReviewDialog() {
+  const range = pastReviewRange()
+  mocks.listWorkAssignments.mockResolvedValue([timedAssignment({ assignedOn: range.assignedOn })])
+  cleanup()
+  renderPanel()
+  const table = await pendingTable()
+  fireEvent.click(within(rowOf(table, '捏毛装袋')).getByRole('button', { name: '核算' }))
+  return screen.findByRole('dialog', { name: '计时核算' })
+}
+
+/** 把时间范围改为同一排班日、但开始时间晚于结束时间的非法区间。 */
+function setInvalidRange() {
+  const range = pastReviewRange()
+  pickRange({ start: range.assignedOn, end: range.assignedOn }, { start: '18:00', end: '09:00' })
+}
+
 describe('WorkTimeReviewPanel 单次核算', () => {
   it('待核算只有“核算”入口，制作行显示订单商品与计划数量，计时行不显示商品名称', async () => {
     mocks.listWorkAssignments.mockResolvedValue([makingAssignment(), timedAssignment()])
@@ -533,7 +550,7 @@ describe('WorkTimeReviewPanel 单次核算', () => {
     expect(within(minutesPanel).getByText(`${current}（跨日核算按开始日期归属）`)).toBeVisible()
   })
 
-  it('计时核算未填写时间时点击确认提示填写开始和结束时间', async () => {
+  it('计时核算未填写时间时点击确认分别提示开始与结束时间字段', async () => {
     const range = pastReviewRange()
     mocks.listWorkAssignments.mockResolvedValue([timedAssignment({ assignedOn: range.assignedOn })])
     mocks.listCandidates.mockResolvedValue([candidates[0]])
@@ -546,8 +563,28 @@ describe('WorkTimeReviewPanel 单次核算', () => {
     await within(dialog).findByRole('table', { name: '可核算订单商品' })
 
     fireEvent.click(within(dialog).getByRole('button', { name: '确认核算' }))
-    expect(await within(dialog).findByText('请填写开始和结束时间')).toBeVisible()
+    expect(await within(dialog).findByText('请填写开始时间')).toBeVisible()
+    expect(within(dialog).getByText('请填写结束时间')).toBeVisible()
+    expect(within(dialog).queryByText('请填写开始和结束时间')).not.toBeInTheDocument()
     expect(mocks.review).not.toHaveBeenCalled()
+  })
+
+  it('开始和结束时间缺失时，错误分别出现在两个时间字段的稳定消息槽', async () => {
+    renderPanel()
+    await openTimedReviewDialog()
+    fireEvent.click(screen.getByRole('button', { name: '确认核算' }))
+    expect(screen.getByText('请填写开始时间')).toBeVisible()
+    expect(screen.getByText('请填写结束时间')).toBeVisible()
+    expect(screen.queryByText('请填写开始和结束时间')).not.toBeInTheDocument()
+  })
+
+  it('跨字段时间范围错误位于时间组内且不改变核算摘要的两列结构', async () => {
+    renderPanel()
+    await openTimedReviewDialog()
+    await setInvalidRange()
+    const group = screen.getByRole('group', { name: '实际开始与结束时间' })
+    expect(within(group).getByText('结束时间必须晚于开始时间')).toBeVisible()
+    expect(screen.getByRole('region', { name: '系统计算的核算分钟' })).toBeVisible()
   })
 
   it('更正核算需要填写原因，锁定记录禁用更正与作废并展示调整指引', async () => {

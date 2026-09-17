@@ -557,18 +557,14 @@
     font-size: var(--yumi-font-size-xs);
     line-height: var(--yumi-line-height-normal);
   }
+  .yumi-work-time-review__time-group {
+    display: grid;
+    gap: var(--yumi-space-3);
+  }
   .yumi-work-time-review__time-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--yumi-space-3);
-  }
-  .yumi-work-time-review__time-field {
-    display: grid;
-    gap: var(--yumi-space-1-5);
-    min-width: 0;
-    color: var(--yumi-muted);
-    font-size: var(--yumi-font-size-xs);
-    line-height: var(--yumi-line-height-normal);
   }
 
   /* 工资 Family：结算详情与来源记录归档为具名双列网格，窄屏折为单列。 */

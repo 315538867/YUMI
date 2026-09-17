@@ -408,3 +408,41 @@ describe('工资列表页面', () => {
     )
   })
 })
+
+describe('工资退款与嵌入边界（Task 4）', () => {
+  it('登记退款金额非法时错误落在字段消息槽，不弹出确认也不进入横幅', async () => {
+    render(<SettlementsPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '待退款 1' }))
+    fireEvent.click(screen.getByRole('button', { name: '处理退款：小林' }))
+
+    fireEvent.change(screen.getByRole('textbox', { name: '实际退款金额（元）' }), {
+      target: { value: '0' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '确认退款' }))
+    expect(screen.getByText('请填写实际退款金额。')).toBeVisible()
+
+    fireEvent.change(screen.getByRole('textbox', { name: '实际退款金额（元）' }), {
+      target: { value: '15' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '确认退款' }))
+    expect(screen.getByText('实际退款不能超过待退款金额。')).toBeVisible()
+    expect(
+      screen.queryByRole('alertdialog', { name: '确认登记兼职退款？' })
+    ).not.toBeInTheDocument()
+    expect(mocks.resolveRefund).not.toHaveBeenCalled()
+  })
+
+  it('人员与时薪嵌入工资页没有第二页面表面，仅保留唯一的页面根', () => {
+    render(<SettlementsPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '人员与时薪' }))
+    expect(screen.getByRole('heading', { level: 2, name: '兼职人员' })).toBeVisible()
+
+    const pages = document.querySelectorAll('.yumi-page')
+    expect(pages).toHaveLength(1)
+    expect(document.querySelector('[data-page-pattern]')).toBeNull()
+    expect(document.querySelector('.yumi-workers-workspace')).not.toHaveClass('yumi-page')
+    expect(document.querySelector('.yumi-workers-workspace > .yumi-page-header')).toBeNull()
+  })
+})

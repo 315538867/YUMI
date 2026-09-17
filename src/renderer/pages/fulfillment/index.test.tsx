@@ -659,3 +659,43 @@ describe('P2 · 排班 Pattern 根契约（任务 9.1）', () => {
     expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(0)
   })
 })
+
+describe('P4 · 排班挂起边界（Task 4）', () => {
+  it('人员周历只在自己的局部滚动容器内横滚，不把整页变成滚动表面', async () => {
+    installWeekData()
+    render(<FulfillmentPage />)
+    await screen.findByRole('region', { name: '人员周历' })
+
+    const scrollers = document.querySelectorAll('.yumi-worker-week__scroller')
+    expect(scrollers).toHaveLength(1)
+    const scroller = scrollers[0] as HTMLElement
+    expect(scroller.querySelector('.yumi-worker-week__grid')).not.toBeNull()
+    expect(screen.getByRole('region', { name: '人员周历' }).contains(scroller)).toBe(true)
+
+    // 周历主体仍留在日历工作区唯一的滚动区与周历自身的滚动容器内
+    const patternRoot = document.querySelector('[data-page-pattern="calendar-workspace"]')
+    expect(patternRoot).not.toBeNull()
+    expect(patternRoot!.querySelector('.yumi-calendar-workspace__scroll')).not.toBeNull()
+    expect(patternRoot!.querySelector('.yumi-worker-week__scroller')).not.toBeNull()
+    expect(document.querySelectorAll('.yumi-page')).toHaveLength(1)
+  })
+
+  it('待核算表格只出现在具名表格包装器内，切换页签不新增第二页面表面', async () => {
+    installWeekData()
+    render(<FulfillmentPage />)
+    await screen.findByRole('region', { name: '人员周历' })
+
+    fireEvent.click(screen.getByRole('button', { name: '待核算' }))
+    await screen.findByRole('table', { name: '待核算事项' })
+
+    const wraps = document.querySelectorAll('.yumi-data-table-wrap')
+    expect(wraps.length).toBeGreaterThan(0)
+    wraps.forEach((wrap) => expect(wrap.querySelector('.yumi-data-table')).not.toBeNull())
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    expect(
+      (
+        document.querySelector('[data-page-pattern]') as HTMLElement
+      ).getAttribute('data-page-pattern')
+    ).toBe('review-workspace')
+  })
+})

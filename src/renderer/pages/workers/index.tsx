@@ -272,7 +272,7 @@ export function WorkersPage({
   )
 
   return (
-    <div className="yumi-workers-workspace yumi-page">
+    <div className="yumi-workers-workspace">
       <YumiSection actions={createAction} description={pageDescription} title="兼职人员">
         {workerList}
       </YumiSection>

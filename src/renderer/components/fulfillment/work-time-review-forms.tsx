@@ -339,10 +339,13 @@ export function TimedReviewDialog({
       ? { start: `${startDate}T${startTime}`, end: `${endDate}T${endTime}` }
       : null
   const parsedRange = range ? calculateReviewTimeRange(range.start, range.end) : null
-  const rangeError = !range
-    ? submitAttempted
-      ? '请填写开始和结束时间'
-      : null
+  // 字段级错误在稳定消息槽内承载；时间组级关系错误统一放在四输入之后、摘要之前。
+  const startDateError = submitAttempted && !startDate ? '请填写开始日期' : undefined
+  const startTimeError = submitAttempted && !isValidTime(startTime) ? '请填写开始时间' : undefined
+  const endDateError = submitAttempted && !endDate ? '请填写结束日期' : undefined
+  const endTimeError = submitAttempted && !isValidTime(endTime) ? '请填写结束时间' : undefined
+  const rangeRelationError = !range
+    ? null
     : !parsedRange
       ? '结束时间必须晚于开始时间'
       : range.start.slice(0, 10) !== target.assignedOn
@@ -462,42 +465,48 @@ export function TimedReviewDialog({
           workTimeProcessLabels[target.processType]
         }`}
       </p>
-      <YumiField
-        error={rangeError ?? undefined}
-        hint={`开始日期默认填入排班日期 ${target.assignedOn}；可跨日，跨日核算按开始日期归属。`}
+      <div
+        aria-label="实际开始与结束时间"
+        className="yumi-work-time-review__time-group"
+        role="group"
       >
-        <YumiFieldLabel required>实际开始与结束时间</YumiFieldLabel>
         <div className="yumi-work-time-review__time-grid">
-          <div className="yumi-work-time-review__time-field">
-            <span>开始日期</span>
+          <YumiField
+            error={startDateError}
+            hint={`开始日期默认填入排班日期 ${target.assignedOn}；可跨日，跨日核算按开始日期归属。`}
+          >
+            <YumiFieldLabel>开始日期</YumiFieldLabel>
             <YumiDatePicker
               aria-label="核算开始日期"
               onValueChange={changeStartDate}
               value={startDate}
             />
-          </div>
-          <div className="yumi-work-time-review__time-field">
-            <span>开始时间</span>
+          </YumiField>
+          <YumiField error={startTimeError}>
+            <YumiFieldLabel>开始时间</YumiFieldLabel>
             <YumiTimeField
               aria-label="核算开始时间"
               onValueChange={setStartTime}
               value={startTime}
             />
-          </div>
-          <div className="yumi-work-time-review__time-field">
-            <span>结束日期</span>
+          </YumiField>
+          <YumiField error={endDateError}>
+            <YumiFieldLabel>结束日期</YumiFieldLabel>
             <YumiDatePicker
               aria-label="核算结束日期"
               onValueChange={changeEndDate}
               value={endDate}
             />
-          </div>
-          <div className="yumi-work-time-review__time-field">
-            <span>结束时间</span>
+          </YumiField>
+          <YumiField error={endTimeError}>
+            <YumiFieldLabel>结束时间</YumiFieldLabel>
             <YumiTimeField aria-label="核算结束时间" onValueChange={setEndTime} value={endTime} />
-          </div>
+          </YumiField>
         </div>
-      </YumiField>
+        {rangeRelationError ? (
+          <YumiFormMessage tone="error">{rangeRelationError}</YumiFormMessage>
+        ) : null}
+      </div>
       <YumiDetailList
         ariaLabel="系统计算的核算分钟"
         items={[

@@ -325,3 +325,32 @@ describe('工作安排记录只读骨架', () => {
     )
   })
 })
+
+describe('嵌入模式边界（Task 4）', () => {
+  it('嵌入视图不渲染模式根、页面头或第二页面表面', () => {
+    render(<WorkAssignmentsPage />)
+
+    expect(screen.getByRole('table', { name: '工作安排列表' })).toBeVisible()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(0)
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+    const root = document.querySelector('.yumi-work-assignments')
+    expect(root).not.toBeNull()
+    expect(root!.classList.contains('yumi-page')).toBe(false)
+  })
+
+  it('详情视图同样保持嵌入边界，记录表只出现在局部表格包装器内', () => {
+    render(<WorkAssignmentsPage />)
+
+    const table = screen.getByRole('table', { name: '工作安排列表' })
+    const timedRow = within(table)
+      .getByText('510 分钟 · 核算日期 2026-09-12')
+      .closest('tr') as HTMLElement
+    fireEvent.click(within(timedRow).getByRole('button', { name: '查看详情' }))
+
+    expect(screen.getByText('工作安排详情')).toBeVisible()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(0)
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+    const wraps = document.querySelectorAll('.yumi-data-table-wrap')
+    expect(wraps.length).toBeGreaterThan(0)
+  })
+})
