@@ -1042,7 +1042,6 @@
   }
   /* Form Workspace：底部固定操作条留出内容安全留白，滚动内容不会从操作条下方透出。 */
   .yumi-form-workspace {
-    --yumi-sticky-actions-space: calc(var(--yumi-control-height) + var(--yumi-panel-padding));
     padding-bottom: var(--yumi-sticky-actions-space);
   }
   /* Form Workspace 预览侧栏：允许内容收缩换行，长中文标签不做逐字断开。 */

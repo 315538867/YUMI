@@ -159,6 +159,8 @@
   /* 6. 组件别名令牌：组件只依赖语义与布局别名，页面可在断点处局部覆盖；
         尺寸与间距别名必须引用基础尺度，不直接写裸长度。 */
   --yumi-control-height: var(--yumi-size-control);
+  /* 复合令牌：固定操作条内容安全留白，由控件高度与面板内边距派生，随密度档位解析。 */
+  --yumi-sticky-actions-space: calc(var(--yumi-control-height) + var(--yumi-panel-padding));
   --yumi-control-padding-x: var(--yumi-space-3);
   --yumi-field-gap: var(--yumi-space-3);
   --yumi-overlay-padding: var(--yumi-space-5);
