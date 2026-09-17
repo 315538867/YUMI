@@ -1,0 +1,841 @@
+/*
+ * Composites 层：稳定多控件关系与语义槽位（页头/区块/表格/列表表面/抽屉/对话框等），
+ * 经 index.css 以 layer(composites) 载入，位于 primitives 之后，可消费原语内部结构，
+ * 但自身内部结构禁止被 pages 等领域样式覆盖（shared-class-override 门禁）。
+ */
+/* 页面级骨架：返回导航、对象信息、业务动作分层，Tab 始终紧随其后由页面网格承接。 */
+.yumi-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--yumi-space-4);
+  margin: 0;
+}
+.yumi-page-header__leading {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: var(--yumi-space-2);
+}
+.yumi-page-header__navigation {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+}
+.yumi-page-header__navigation .yumi-button {
+  min-height: 28px;
+  padding-inline: 0;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-sm);
+}
+.yumi-page-header__content {
+  min-width: 0;
+}
+.yumi-page-header__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--yumi-space-2);
+}
+.yumi-page-header__title {
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-2xl-5);
+  font-weight: 750;
+  line-height: var(--yumi-line-height-display);
+}
+.yumi-page-header__meta {
+  min-width: 0;
+  color: var(--yumi-muted);
+  font-family: var(--yumi-font-numeric);
+  font-size: var(--yumi-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--yumi-line-height-normal);
+  overflow-wrap: anywhere;
+}
+.yumi-page-header__description {
+  margin: var(--yumi-space-1) 0 0;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-md);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-page-header__actions {
+  display: flex;
+  max-width: 100%;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--yumi-space-2);
+}
+.yumi-page-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--yumi-space-2);
+  max-width: 100%;
+}
+.yumi-page-actions__context,
+.yumi-page-actions__secondary,
+.yumi-page-actions__primary {
+  display: flex;
+  align-items: center;
+  gap: var(--yumi-space-2);
+}
+.yumi-page-actions__context {
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-section {
+  min-width: 0;
+}
+.yumi-section__heading-content {
+  min-width: 0;
+}
+.yumi-section__heading {
+  margin: 0 0 var(--yumi-space-3);
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-lg-5);
+  font-weight: 700;
+  line-height: var(--yumi-line-height-display);
+}
+.yumi-section__description {
+  margin: calc(-1 * var(--yumi-space-1)) 0 var(--yumi-space-3);
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--yumi-space-4);
+}
+.yumi-section__header .yumi-section__heading {
+  margin-bottom: var(--yumi-space-1);
+}
+.yumi-section__header .yumi-section__description {
+  margin: 0 0 var(--yumi-space-3);
+}
+.yumi-section__meta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--yumi-space-2);
+}
+.yumi-section__status {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+.yumi-section__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--yumi-space-2);
+}
+.yumi-dialog__overlay {
+  position: fixed;
+  z-index: var(--yumi-z-overlay);
+  inset: 0;
+  background: var(--yumi-overlay);
+  backdrop-filter: blur(2px);
+}
+.yumi-dialog__content {
+  position: fixed;
+  z-index: var(--yumi-z-dialog);
+  top: 50%;
+  left: 50%;
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 32px));
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-lg);
+  padding: var(--yumi-overlay-padding);
+  background: var(--yumi-surface-raised);
+  box-shadow: var(--yumi-shadow-md);
+}
+.yumi-dialog__content--confirm {
+  width: min(420px, calc(100vw - 32px));
+}
+.yumi-dialog__content--wide {
+  width: min(760px, calc(100vw - 32px));
+}
+.yumi-dialog__header,
+.yumi-sheet__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--yumi-space-3);
+}
+.yumi-dialog__header .yumi-button,
+.yumi-sheet__header .yumi-button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: var(--yumi-space-1-5);
+}
+.yumi-dialog__title {
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-lg-5);
+  font-weight: 700;
+  line-height: var(--yumi-line-height-display);
+}
+.yumi-dialog__description {
+  margin: var(--yumi-space-1) 0 0;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-dialog__body {
+  margin-top: var(--yumi-space-4);
+}
+.yumi-dialog__footer,
+.yumi-sheet__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--yumi-space-2);
+  border-top: 1px solid var(--yumi-border);
+  margin-top: var(--yumi-space-4);
+  padding-top: var(--yumi-space-3);
+}
+.yumi-sheet {
+  position: fixed;
+  z-index: var(--yumi-z-dialog);
+  top: 0;
+  right: 0;
+  display: flex;
+  width: min(560px, 100vw);
+  height: 100vh;
+  flex-direction: column;
+  border-left: 1px solid var(--yumi-border);
+  background: var(--yumi-surface-raised);
+  box-shadow: var(--yumi-shadow-sheet);
+}
+.yumi-sheet__header {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--yumi-border);
+  padding: var(--yumi-overlay-padding);
+}
+.yumi-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--yumi-overlay-padding);
+}
+.yumi-sheet__footer {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--yumi-space-3) var(--yumi-overlay-padding);
+}
+.yumi-sheet--compact .yumi-sheet__header,
+.yumi-sheet--compact .yumi-sheet__body {
+  padding: var(--yumi-space-4);
+}
+.yumi-sheet--compact .yumi-sheet__footer {
+  padding: var(--yumi-space-3) var(--yumi-space-4);
+}
+.yumi-data-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-md);
+  background: var(--yumi-surface);
+}
+.yumi-data-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-sm);
+}
+.yumi-data-table th {
+  border-bottom: 1px solid var(--yumi-border);
+  padding: var(--yumi-space-2-5) var(--yumi-space-3);
+  background: var(--yumi-surface-muted);
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+  font-weight: var(--yumi-font-weight-semibold);
+  line-height: var(--yumi-line-height-normal);
+  text-align: left;
+  white-space: nowrap;
+}
+.yumi-data-table td {
+  border-bottom: 1px solid var(--yumi-border);
+  padding: var(--yumi-space-3);
+  line-height: var(--yumi-line-height-normal);
+  vertical-align: middle;
+}
+.yumi-data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.yumi-data-table tbody tr:hover {
+  background: var(--yumi-brand-subtle);
+}
+.yumi-data-table__right {
+  text-align: right !important;
+}
+.yumi-data-table__numeric {
+  font-variant-numeric: tabular-nums;
+}
+.yumi-data-table-wrap--compact .yumi-data-table th {
+  padding-block: var(--yumi-space-2);
+}
+.yumi-data-table-wrap--compact .yumi-data-table td {
+  padding-block: var(--yumi-space-2-5);
+}
+.yumi-data-table-wrap--comfortable .yumi-data-table th,
+.yumi-data-table-wrap--comfortable .yumi-data-table td {
+  padding-inline: var(--yumi-space-4);
+}
+.yumi-data-table__empty {
+  padding: var(--yumi-space-9) !important;
+  color: var(--yumi-muted);
+  text-align: center;
+}
+.yumi-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--yumi-space-2);
+  padding: var(--yumi-space-12) var(--yumi-space-5);
+  color: var(--yumi-ink);
+  text-align: center;
+}
+.yumi-empty-state__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: var(--yumi-radius-md);
+  background: var(--yumi-brand-soft);
+  color: var(--yumi-brand);
+}
+.yumi-empty-state[data-scenario='prerequisite'] .yumi-empty-state__icon {
+  background: var(--yumi-warning-soft);
+  color: var(--yumi-warning);
+}
+.yumi-empty-state[data-scenario='filter'] .yumi-empty-state__icon {
+  background: var(--yumi-surface-muted);
+  color: var(--yumi-muted);
+}
+.yumi-empty-state[data-scenario='loading'] .yumi-empty-state__icon {
+  background: var(--yumi-surface-muted);
+  color: var(--yumi-brand);
+}
+.yumi-empty-state__loading-icon {
+  animation: yumi-loading-spin var(--yumi-duration-spin-slow) var(--yumi-easing-linear) infinite;
+}
+@keyframes yumi-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.yumi-empty-state p {
+  max-width: 320px;
+  margin: 0;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-empty-state__action {
+  margin-top: var(--yumi-space-2);
+}
+/* 列表型经营页面：页面动作归页头，工具条只控制当前记录集。 */
+.yumi-list-surface {
+  display: grid;
+  gap: var(--yumi-space-4);
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-lg);
+  padding: var(--yumi-space-5);
+  background: var(--yumi-surface);
+  box-shadow: var(--yumi-shadow-sm);
+}
+.yumi-list-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--yumi-space-3);
+  padding-bottom: var(--yumi-space-4);
+  border-bottom: 1px solid var(--yumi-border);
+}
+.yumi-list-toolbar__controls {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--yumi-space-3);
+}
+.yumi-list-toolbar__search {
+  min-width: min(100%, 280px);
+  flex: 0 1 280px;
+}
+.yumi-list-toolbar__search .yumi-input {
+  width: 100%;
+}
+.yumi-list-toolbar__filters {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: var(--yumi-space-2);
+}
+.yumi-list-toolbar__filter {
+  flex: 0 0 184px;
+  min-width: 0;
+}
+.yumi-list-toolbar__filter .yumi-select,
+.yumi-list-toolbar__filter .yumi-select__trigger {
+  width: 100%;
+}
+.yumi-list-toolbar__filter .yumi-select__trigger {
+  min-width: 0;
+}
+.yumi-list-toolbar__count {
+  margin-left: auto;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--yumi-line-height-normal);
+  white-space: nowrap;
+}
+@media (max-width: 1279px) {
+  .yumi-list-toolbar {
+    flex-wrap: wrap;
+  }
+  .yumi-list-toolbar__controls {
+    flex-wrap: wrap;
+  }
+  .yumi-list-toolbar__filters {
+    flex-wrap: wrap;
+  }
+}
+.yumi-list-surface .yumi-data-table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+.yumi-list-surface .yumi-data-table th,
+.yumi-list-surface .yumi-data-table td {
+  vertical-align: middle;
+}
+.yumi-list-cell {
+  display: grid;
+  gap: var(--yumi-space-1);
+  min-width: 0;
+}
+.yumi-list-cell strong {
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-md);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-list-cell span {
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+  line-height: var(--yumi-line-height-normal);
+  overflow-wrap: break-word;
+}
+/* 操作格由列表单元的纵向网格改为横向按钮行；按钮过窄时换行而不是堆叠。 */
+.yumi-list-cell--actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--yumi-space-2);
+  min-width: 124px;
+  white-space: nowrap;
+}
+.yumi-list-cell--actions .yumi-button {
+  white-space: nowrap;
+}
+.yumi-list-cell--actions .yumi-select__trigger {
+  min-width: 124px;
+}
+/* 详情摘要：实体状态留在标题上下文，指标独占下一行，禁止以双列卡片造成半宽指标或空白留白。 */
+.yumi-record-summary {
+  display: grid;
+  min-width: 0;
+  gap: var(--yumi-space-4);
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-lg);
+  padding: var(--yumi-space-5);
+  background: var(--yumi-surface);
+  box-shadow: var(--yumi-shadow-sm);
+}
+.yumi-record-summary__header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--yumi-space-4);
+}
+.yumi-record-summary__heading-content,
+.yumi-record-summary__metrics {
+  min-width: 0;
+}
+.yumi-record-summary__heading {
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-xl);
+  line-height: var(--yumi-line-height-display);
+}
+.yumi-record-summary__description {
+  margin: var(--yumi-space-1) 0 0;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-record-summary__status {
+  flex: 0 0 auto;
+}
+/* 资料分组：详情和编辑共用三级标题、说明和相邻分组分隔，避免沿用领域私有类名。 */
+.yumi-form-section {
+  display: grid;
+  min-width: 0;
+  gap: var(--yumi-space-3);
+}
+.yumi-form-section + .yumi-form-section {
+  border-top: 1px solid var(--yumi-border);
+  padding-top: var(--yumi-space-4);
+}
+.yumi-form-section__heading-content {
+  min-width: 0;
+}
+.yumi-form-section__heading {
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-md);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-form-section__description {
+  margin: var(--yumi-space-1) 0 0;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-form-section--comfortable {
+  gap: var(--yumi-space-4);
+}
+/* 只读详情资料：语义化标签和值使用统一描述列表，宽屏双列，窄屏自动收为单列。 */
+.yumi-detail-list {
+  min-width: 0;
+}
+.yumi-detail-list__list {
+  display: grid;
+  grid-template-columns: repeat(var(--yumi-detail-column-count), minmax(0, 1fr));
+  gap: var(--yumi-space-5);
+  margin: 0;
+}
+.yumi-detail-list--1 {
+  --yumi-detail-column-count: 1;
+}
+.yumi-detail-list--2 {
+  --yumi-detail-column-count: 2;
+}
+.yumi-detail-list__item {
+  min-width: 0;
+}
+.yumi-detail-list__item dt {
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-detail-list__item dd {
+  margin: var(--yumi-space-1) 0 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-md);
+  line-height: var(--yumi-line-height-normal);
+  overflow-wrap: anywhere;
+}
+.yumi-detail-list--comfortable .yumi-detail-list__list {
+  gap: var(--yumi-space-6);
+}
+/* 经营摘要：按真实指标数量连续排布，避免卡片网格出现无内容留白。 */
+.yumi-metric-strip {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-lg);
+  background: var(--yumi-surface);
+  box-shadow: var(--yumi-shadow-sm);
+}
+.yumi-metric-strip__list {
+  display: grid;
+  grid-template-columns: repeat(var(--yumi-metric-count), minmax(0, 1fr));
+  margin: 0;
+}
+.yumi-metric-strip__item {
+  display: grid;
+  min-width: 0;
+  gap: var(--yumi-space-1);
+  padding: var(--yumi-space-4-5) var(--yumi-space-4);
+}
+.yumi-metric-strip__item + .yumi-metric-strip__item {
+  border-left: 1px solid var(--yumi-border);
+}
+.yumi-metric-strip--comfortable .yumi-metric-strip__item {
+  padding: var(--yumi-space-5);
+}
+.yumi-metric-strip__item dt {
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-metric-strip__item dd {
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-2xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--yumi-line-height-display);
+  overflow-wrap: anywhere;
+}
+.yumi-metric-strip__item small {
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-metric-strip__item--brand dd {
+  color: var(--yumi-brand);
+}
+.yumi-metric-strip__item--success dd {
+  color: var(--yumi-success);
+}
+.yumi-metric-strip__item--warning dd {
+  color: var(--yumi-warning);
+}
+.yumi-metric-strip__item--danger dd {
+  color: var(--yumi-danger);
+}
+/* 金额与比例公式：结果、公式主干与代入值始终直接可见，组成明细按需展开。 */
+.yumi-calculated-amount {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--yumi-space-4);
+  row-gap: var(--yumi-space-0-5);
+  align-items: baseline;
+}
+.yumi-calculated-amount__label {
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-calculated-amount__value {
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--yumi-line-height-display);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.yumi-calculated-amount--comfortable .yumi-calculated-amount__value {
+  font-size: var(--yumi-font-size-2xl);
+  line-height: var(--yumi-line-height-display);
+}
+.yumi-calculated-amount__value--profit {
+  color: var(--yumi-success);
+}
+.yumi-calculated-amount__value--loss {
+  color: var(--yumi-danger);
+}
+.yumi-calculated-amount__value--muted {
+  color: var(--yumi-muted);
+}
+.yumi-calculated-amount__expression,
+.yumi-calculated-amount__substitution,
+.yumi-calculated-amount__note {
+  grid-column: 1 / -1;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+  line-height: var(--yumi-line-height-normal);
+  overflow-wrap: anywhere;
+}
+.yumi-calculated-amount__substitution {
+  font-variant-numeric: tabular-nums;
+}
+.yumi-calculated-amount__breakdown {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--yumi-space-1-5);
+  margin: var(--yumi-space-1) 0 0;
+}
+.yumi-calculated-amount__breakdown-item {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--yumi-space-4);
+  border-top: 1px solid var(--yumi-border);
+  padding-top: var(--yumi-space-1-5);
+}
+.yumi-calculated-amount__breakdown-item dt {
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-calculated-amount__breakdown-item dd {
+  display: grid;
+  justify-items: end;
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-calculated-amount__breakdown-expression {
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+}
+.yumi-calculated-amount__breakdown-substitution {
+  font-variant-numeric: tabular-nums;
+}
+/* 实体主体：客户、商品等真实业务对象优先，编码退为紧凑元数据。 */
+.yumi-entity-summary {
+  display: grid;
+  min-width: 0;
+  gap: var(--yumi-space-2);
+  border-bottom: 1px solid var(--yumi-border);
+  padding: 0 0 var(--yumi-space-4);
+}
+.yumi-entity-summary__eyebrow {
+  margin: 0;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-xs);
+  font-weight: 650;
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-entity-summary__title {
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-2xl);
+  line-height: var(--yumi-line-height-display);
+}
+.yumi-entity-summary__metadata {
+  margin-top: var(--yumi-space-2);
+}
+.yumi-entity-summary__metadata .yumi-detail-list__list {
+  gap: var(--yumi-space-3) var(--yumi-space-5);
+}
+/* 记录关键操作：所有操作均为具名按钮，允许换行但不得隐藏到更多菜单。 */
+.yumi-record-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--yumi-space-2);
+}
+/* 快照边界：强调只读事实，而不使用会被误认为可编辑的表单提示。 */
+.yumi-snapshot-notice {
+  display: grid;
+  gap: var(--yumi-space-1);
+  border: 1px solid color-mix(in srgb, var(--yumi-brand) 26%, var(--yumi-border));
+  border-radius: var(--yumi-radius-md);
+  padding: var(--yumi-space-3) var(--yumi-space-4);
+  background: var(--yumi-brand-subtle);
+}
+.yumi-snapshot-notice__title {
+  color: var(--yumi-brand-hover);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-snapshot-notice__content {
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+/* 文档预览：将导出前的冻结事实与可变编辑表单明确区分。 */
+.yumi-document-preview {
+  display: grid;
+  min-width: 0;
+  gap: var(--yumi-space-4);
+  border: 1px solid var(--yumi-border);
+  border-radius: var(--yumi-radius-lg);
+  padding: var(--yumi-space-5);
+  background: var(--yumi-surface);
+}
+.yumi-document-preview__header {
+  min-width: 0;
+}
+.yumi-document-preview__title {
+  margin: 0;
+  color: var(--yumi-ink);
+  font-size: var(--yumi-font-size-lg-5);
+  line-height: var(--yumi-line-height-display);
+}
+.yumi-document-preview__description {
+  margin: var(--yumi-space-1) 0 0;
+  color: var(--yumi-muted);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-document-preview__content {
+  min-width: 0;
+}
+
+/* 表格行高消费密度语义别名：标准与舒适档行高由令牌统一约束，紧凑档行内省略。 */
+.yumi-data-table-wrap:not(.yumi-data-table-wrap--compact) tbody tr {
+  min-height: var(--yumi-table-row-min-height);
+}
+
+/* 全局业务反馈：固定在右上角，成功/提示自动关闭，错误保留更久并支持手动关闭。 */
+.yumi-notification-host {
+  position: fixed;
+  z-index: var(--yumi-z-toast);
+  top: 84px;
+  right: 24px;
+  display: grid;
+  width: min(420px, calc(100vw - 32px));
+  gap: var(--yumi-space-2);
+  pointer-events: none;
+}
+.yumi-notification-host .yumi-notification {
+  position: relative;
+  top: auto;
+  right: auto;
+  max-width: none;
+  pointer-events: auto;
+}
+.yumi-notification {
+  display: flex;
+  max-width: min(420px, calc(100vw - 32px));
+  align-items: flex-start;
+  gap: var(--yumi-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--yumi-radius-md);
+  padding: var(--yumi-space-2-5) var(--yumi-space-2-5) var(--yumi-space-2-5) var(--yumi-space-3-5);
+  box-shadow: var(--yumi-shadow-md);
+  font-size: var(--yumi-font-size-sm);
+  line-height: var(--yumi-line-height-normal);
+}
+.yumi-notification > span {
+  flex: 1;
+}
+.yumi-notification--danger {
+  border-color: var(--yumi-danger-border);
+  background: var(--yumi-danger-soft);
+  color: var(--yumi-danger);
+}
+.yumi-notification--success {
+  border-color: var(--yumi-success-border);
+  background: var(--yumi-success-soft);
+  color: var(--yumi-success);
+}
+.yumi-notification--warning {
+  border-color: var(--yumi-warning-border);
+  background: var(--yumi-warning-soft);
+  color: var(--yumi-warning);
+}
+.yumi-notification--info {
+  border-color: var(--yumi-info-border);
+  background: var(--yumi-info-soft);
+  color: var(--yumi-info);
+}
+.yumi-notification .yumi-button--icon {
+  width: 24px;
+  min-height: 24px;
+  padding: 0;
+  color: currentColor;
+}

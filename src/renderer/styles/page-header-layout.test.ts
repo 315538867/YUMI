@@ -1,42 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const css = readFileSync(new URL('./components.css', import.meta.url), 'utf8')
+const css = readFileSync(new URL('./composites.css', import.meta.url), 'utf8')
 
 function rule(selector: string, source = css) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const match = source.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`, 'm'))
   if (!match) throw new Error(`未找到 ${selector} 规则`)
   return match[1]
-}
-
-function mediaRule(maxWidth: number, selector: string) {
-  const media = new RegExp(`@media\\s*\\(max-width:\\s*${maxWidth}px\\)\\s*\\{`, 'g')
-  let match: RegExpExecArray | null
-
-  while ((match = media.exec(css))) {
-    const bodyStart = css.indexOf('{', match.index)
-    let depth = 0
-    let bodyEnd = -1
-    for (let index = bodyStart; index < css.length; index += 1) {
-      if (css[index] === '{') depth += 1
-      if (css[index] === '}') depth -= 1
-      if (depth === 0) {
-        bodyEnd = index
-        break
-      }
-    }
-    if (bodyEnd < 0) throw new Error(`max-width: ${maxWidth}px 媒体查询缺少结束括号`)
-
-    const body = css.slice(bodyStart + 1, bodyEnd)
-    try {
-      return rule(selector, body)
-    } catch {
-      media.lastIndex = bodyEnd + 1
-    }
-  }
-
-  throw new Error(`未找到 max-width: ${maxWidth}px 下的 ${selector} 规则`)
 }
 
 describe('共享页头布局契约', () => {
@@ -47,15 +18,10 @@ describe('共享页头布局契约', () => {
     expect(rule('.yumi-page-header__actions')).toMatch(/max-width:\s*100%/)
   })
 
-  it('窄屏将页头动作移到独立行，避免标题和按钮互相挤压或变形', () => {
-    expect(mediaRule(820, '.yumi-page-header')).toMatch(/flex-direction:\s*column/)
-    expect(mediaRule(820, '.yumi-page-header__leading')).toMatch(/width:\s*100%/)
-    expect(mediaRule(820, '.yumi-page-header__actions')).toMatch(/width:\s*100%/)
-    expect(mediaRule(820, '.yumi-page-actions')).toMatch(/justify-content:\s*flex-start/)
-  })
-
-  it('手机端让编号元数据在标题下换行，而不是压缩标题或操作', () => {
-    expect(mediaRule(640, '.yumi-page-header__meta')).toMatch(/flex-basis:\s*100%/)
-    expect(mediaRule(640, '.yumi-page-header__title')).toMatch(/font-size:\s*22px/)
+  it('窄宽度下动作区与标题行可自身折行，不依赖私有断点压缩标题或操作', () => {
+    expect(rule('.yumi-page-header__actions')).toMatch(/flex-wrap:\s*wrap/)
+    expect(rule('.yumi-page-header__actions')).toMatch(/max-width:\s*100%/)
+    expect(rule('.yumi-page-header__title-row')).toMatch(/flex-wrap:\s*wrap/)
+    expect(rule('.yumi-page-header__meta')).toMatch(/overflow-wrap:\s*anywhere/)
   })
 })

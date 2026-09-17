@@ -23,6 +23,8 @@ type YumiPageHeaderProps = {
   actions?: YumiPageActionsProps
 }
 
+export type { YumiPageHeaderProps }
+
 type YumiPageActionMenu = {
   ariaLabel: string
   disabled?: boolean
@@ -176,8 +178,9 @@ type YumiRecordSummaryProps = {
 }
 
 /**
- * 实体详情中的经营摘要骨架。
- * 标题/说明与状态处于同一摘要头部，指标始终以整行承接，避免业务页面恢复两列卡片而让指标只占半行。
+ * 实体详情中的经营摘要骨架：标题/说明与状态处于同一头部，指标以整行承接。
+ * 只承载当前实体的经营状态汇总（通常配合 YumiMetricStrip），不重复完整 Tab 内容；
+ * 不得放入表格、明细列表或身份属性（身份由 YumiEntitySummary 表达）。
  */
 export function YumiRecordSummary({
   ariaLabel,
@@ -204,15 +207,20 @@ export function YumiRecordSummary({
   )
 }
 
-export function YumiSection({
-  actions,
-  ariaLabel,
-  children,
-  className,
-  description,
-  status,
-  title
-}: YumiSectionProps) {
+type YumiSectionHeaderProps = {
+  title?: ReactNode
+  description?: ReactNode
+  /** 仅作用于当前内容区的操作；页面级操作仍应放在 YumiPageHeader。 */
+  actions?: ReactNode
+  /** 区块级摘要状态或统计信息；不承担提交操作。 */
+  status?: ReactNode
+}
+
+/**
+ * 区块头部共享复合组件：标题与说明居左，状态在前、操作在后固定居右。
+ * 容器、顺序与间距由本组件统一控制，业务方不得注入 class 或无语义包装调整内部布局。
+ */
+export function YumiSectionHeader({ actions, description, status, title }: YumiSectionHeaderProps) {
   const heading = (
     <div className="yumi-section__heading-content">
       {title ? <h2 className="yumi-section__heading">{title}</h2> : null}
@@ -222,22 +230,41 @@ export function YumiSection({
 
   const hasHeaderMeta = Boolean(actions || status)
 
+  if (!hasHeaderMeta) {
+    return heading
+  }
+
+  return (
+    <div className="yumi-section__header">
+      {heading}
+      <div className="yumi-section__meta">
+        {status ? <div className="yumi-section__status">{status}</div> : null}
+        {actions ? <div className="yumi-section__actions">{actions}</div> : null}
+      </div>
+    </div>
+  )
+}
+
+export function YumiSection({
+  actions,
+  ariaLabel,
+  children,
+  className,
+  description,
+  status,
+  title
+}: YumiSectionProps) {
   return (
     <section
       aria-label={ariaLabel}
       className={['yumi-section', className].filter(Boolean).join(' ')}
     >
-      {hasHeaderMeta ? (
-        <div className="yumi-section__header">
-          {heading}
-          <div className="yumi-section__meta">
-            {status ? <div className="yumi-section__status">{status}</div> : null}
-            {actions ? <div className="yumi-section__actions">{actions}</div> : null}
-          </div>
-        </div>
-      ) : (
-        heading
-      )}
+      <YumiSectionHeader
+        actions={actions}
+        description={description}
+        status={status}
+        title={title}
+      />
       {children}
     </section>
   )

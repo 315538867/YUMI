@@ -11,10 +11,12 @@ type YumiListToolbarProps = {
   search?: ReactNode
 }
 
+export type { YumiListToolbarProps }
+
 function flattenToolbarItems(node: ReactNode): ReactNode[] {
   return Children.toArray(node).flatMap((child) => {
     if (isValidElement(child) && child.type === Fragment) {
-      return flattenToolbarItems(child.props.children)
+      return flattenToolbarItems((child.props as { children?: ReactNode }).children)
     }
     return [child]
   })

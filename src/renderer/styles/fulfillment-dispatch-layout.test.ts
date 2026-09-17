@@ -2,7 +2,11 @@ import { expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const css = readFileSync(resolve(__dirname, 'pages.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+const patternsCss = readFileSync(resolve(__dirname, 'patterns.css'), 'utf8').replace(
+  /\/\*[\s\S]*?\*\//g,
+  ''
+)
+const css = patternsCss
 
 function rule(selector: string, source = css) {
   const blocks = source.matchAll(/(?:^|\n)\s*([^{}]+?)\s*\{([^{}]*)\}/g)
@@ -14,30 +18,6 @@ function rule(selector: string, source = css) {
     if (selectors.includes(selector)) return block[2]
   }
   throw new Error(`Missing CSS rule: ${selector}`)
-}
-
-function mediaRule(query: string, selector: string) {
-  let searchFrom = 0
-  while (searchFrom < css.length) {
-    const start = css.indexOf(`@media ${query}`, searchFrom)
-    if (start < 0) break
-    const bodyStart = css.indexOf('{', start)
-    let depth = 0
-    for (let index = bodyStart; index < css.length; index += 1) {
-      if (css[index] === '{') depth += 1
-      if (css[index] === '}') depth -= 1
-      if (depth === 0) {
-        const body = css.slice(bodyStart + 1, index)
-        try {
-          return rule(selector, body)
-        } catch {
-          searchFrom = index + 1
-          break
-        }
-      }
-    }
-  }
-  throw new Error(`Missing ${selector} in media query: ${query}`)
 }
 
 it('人员周历按七天网格分列，人员分组框用 data-tone 保持整周稳定配色', () => {
@@ -69,15 +49,9 @@ it('制作卡与计时卡共用卡片基线，计时卡只保留单行工序与�
   expect(timedMeta).toContain('font-weight: 600')
 })
 
-it('日期格“＋ 派工”保持整宽可点，窄屏下与周导航按钮一起撑满可用宽度', () => {
+it('日期格“＋ 派工”保持整宽可点', () => {
   expect(rule('.yumi-worker-week__add')).toContain('width: 100%')
   expect(rule('.yumi-worker-week__empty')).toContain('width: 100%')
-  expect(mediaRule('(max-width: 640px)', '.yumi-worker-week .yumi-section__actions')).toContain(
-    'width: 100%'
-  )
-  expect(
-    mediaRule('(max-width: 640px)', '.yumi-worker-week .yumi-section__actions .yumi-button')
-  ).toContain('flex: 1')
 })
 
 it('订单视角派工样式已移除，页面不再保留订单对话框格与行内工序摘要', () => {

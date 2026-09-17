@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { V2NavigationTarget, V2WorkAssignment } from '@shared/contracts/index'
 import { useFulfillment } from '../../composables/use-fulfillment'
+import { CalendarWorkspace } from '../../components/patterns/calendar-workspace'
+import { ReviewWorkspace } from '../../components/patterns/review-workspace'
 import { WorkAssignmentsPage } from '../work-assignments'
 import { WorkTimeReviewPanel } from '../../components/fulfillment/work-time-review-panel'
 import {
@@ -15,6 +17,7 @@ import {
   YumiFormMessage,
   YumiMetricStrip,
   YumiPageHeader,
+  type YumiPageHeaderProps,
   YumiPrimaryTabs,
   useYumiNotificationMessage
 } from '../../components/ui'
@@ -112,7 +115,7 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
 
   if (focusedProcessTaskId) {
     return (
-      <section className="yumi-page fulfillment-workspace">
+      <section className="yumi-page">
         <YumiPageHeader
           actions={{ ariaLabel: '排班处理页面动作' }}
           navigation={{
@@ -128,82 +131,115 @@ export function FulfillmentPage({ navigationTarget = null, onNavigate }: Fulfill
     )
   }
 
-  return (
-    <section className="yumi-page fulfillment-workspace">
-      <YumiPageHeader
-        actions={{
-          ariaLabel: '排班页面动作',
-          visibleActions: [{ label: '导出排班', onClick: () => undefined }]
-        }}
-        description="人员周历是唯一的新建排班入口；待核算页签统一登记制作与计时的实际产出。"
-        title="排班"
-      />
-      <YumiPrimaryTabs
-        ariaLabel="排班视角"
-        items={[
-          { id: 'workers', label: '人员周历' },
-          { id: 'reviews', label: '待核算' }
-        ]}
-        onValueChange={setOverview}
-        value={overview}
-      />
-      <YumiMetricStrip
-        ariaLabel="排班阶段总量"
-        items={[
-          { label: '订单总量', value: `${scheduleTotals.confirmed} 件` },
-          { label: '待制作', value: `${scheduleTotals.making} 件` },
-          { label: '待捏毛装袋', value: `${scheduleTotals.fluffingBagging} 件` },
-          { label: '待缝边', value: `${scheduleTotals.edgeSewing} 件` },
-          { label: '待打包发货', value: `${scheduleTotals.packing} 件` },
-          { label: '待发货', tone: 'brand', value: `${scheduleTotals.readyToShip} 件` },
-          { label: '已发货', value: `${scheduleTotals.shipped} 件` }
-        ]}
-      />
-      {loading ? (
-        <YumiEmptyState
-          description="排班资料正在读取，请稍候。"
-          scenario="loading"
-          title="加载排班待办中…"
-        />
-      ) : overview === 'workers' ? (
-        <WorkerWeekSchedule
-          assignments={assignments}
-          itemLabels={itemLabels}
-          onOpenAssignment={(prefill) => setAssignmentPrefill(prefill)}
-          onOpenAssignmentDetail={(assignment, workerName) =>
-            setDetailTarget({ assignment, workerName })
-          }
-          onOpenReview={openReviewTarget}
-          workers={workers}
-        />
-      ) : (
-        <>
-          {reviewHint ? <YumiFormMessage tone="hint">{reviewHint}</YumiFormMessage> : null}
-          <WorkTimeReviewPanel
-            onChanged={() => {
-              setReviewHint(null)
-              void reload()
-            }}
+  const fulfillmentPageHeader: YumiPageHeaderProps = {
+    actions: {
+      ariaLabel: '排班页面动作',
+      visibleActions: [{ label: '导出排班', onClick: () => undefined }]
+    },
+    description: '人员周历是唯一的新建排班入口；待核算页签统一登记制作与计时的实际产出。',
+    title: '排班'
+  }
+  const overviewTabs = (
+    <YumiPrimaryTabs
+      ariaLabel="排班视角"
+      items={[
+        { id: 'workers', label: '人员周历' },
+        { id: 'reviews', label: '待核算' }
+      ]}
+      onValueChange={setOverview}
+      value={overview}
+    />
+  )
+  const stageMetrics = (
+    <YumiMetricStrip
+      ariaLabel="排班阶段总量"
+      items={[
+        { label: '订单总量', value: `${scheduleTotals.confirmed} 件` },
+        { label: '待制作', value: `${scheduleTotals.making} 件` },
+        { label: '待捏毛装袋', value: `${scheduleTotals.fluffingBagging} 件` },
+        { label: '待缝边', value: `${scheduleTotals.edgeSewing} 件` },
+        { label: '待打包发货', value: `${scheduleTotals.packing} 件` },
+        { label: '待发货', tone: 'brand', value: `${scheduleTotals.readyToShip} 件` },
+        { label: '已发货', value: `${scheduleTotals.shipped} 件` }
+      ]}
+    />
+  )
+  const loadingState = (
+    <YumiEmptyState
+      description="排班资料正在读取，请稍候。"
+      scenario="loading"
+      title="加载排班待办中…"
+    />
+  )
+
+  if (overview === 'workers') {
+    return (
+      <CalendarWorkspace
+        header={fulfillmentPageHeader}
+        overlay={
+          <>
+            <WorkAssignmentSheet
+              items={queueItems}
+              onOpenChange={(open) => {
+                if (!open) setAssignmentPrefill(null)
+              }}
+              onSubmit={createWorkAssignment}
+              open={assignmentPrefill !== null}
+              prefill={assignmentPrefill}
+              workers={workers}
+            />
+            <WorkAssignmentDetailDialog
+              assignment={detailTarget?.assignment ?? null}
+              itemLabels={itemLabels}
+              onClose={() => setDetailTarget(null)}
+              workerName={detailTarget?.workerName ?? ''}
+            />
+          </>
+        }
+        summary={stageMetrics}
+        toolbar={overviewTabs}
+      >
+        {loading ? (
+          loadingState
+        ) : (
+          <WorkerWeekSchedule
+            assignments={assignments}
+            itemLabels={itemLabels}
+            onOpenAssignment={(prefill) => setAssignmentPrefill(prefill)}
+            onOpenAssignmentDetail={(assignment, workerName) =>
+              setDetailTarget({ assignment, workerName })
+            }
+            onOpenReview={openReviewTarget}
             workers={workers}
           />
+        )}
+      </CalendarWorkspace>
+    )
+  }
+
+  return (
+    <ReviewWorkspace
+      header={fulfillmentPageHeader}
+      queue={
+        <>
+          {overviewTabs}
+          {stageMetrics}
+          {loading ? (
+            loadingState
+          ) : (
+            <>
+              {reviewHint ? <YumiFormMessage tone="hint">{reviewHint}</YumiFormMessage> : null}
+              <WorkTimeReviewPanel
+                onChanged={() => {
+                  setReviewHint(null)
+                  void reload()
+                }}
+                workers={workers}
+              />
+            </>
+          )}
         </>
-      )}
-      <WorkAssignmentSheet
-        items={queueItems}
-        onOpenChange={(open) => {
-          if (!open) setAssignmentPrefill(null)
-        }}
-        onSubmit={createWorkAssignment}
-        open={assignmentPrefill !== null}
-        prefill={assignmentPrefill}
-        workers={workers}
-      />
-      <WorkAssignmentDetailDialog
-        assignment={detailTarget?.assignment ?? null}
-        itemLabels={itemLabels}
-        onClose={() => setDetailTarget(null)}
-        workerName={detailTarget?.workerName ?? ''}
-      />
-    </section>
+      }
+    />
   )
 }

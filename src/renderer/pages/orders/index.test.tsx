@@ -14,6 +14,7 @@ import { YumiNotificationProvider } from '../../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
   renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import { installDomInteractionPolyfills } from '../../test/dom'
+import type { V2OrderFund } from '@shared/contracts/index'
 import { OrdersPage } from './index'
 
 const mocks = vi.hoisted(() => {
@@ -208,7 +209,7 @@ const mocks = vi.hoisted(() => {
       }
     ],
     selectedOrder,
-    funds: [],
+    funds: [] as V2OrderFund[],
     shipments: [
       {
         id: 'shipment-old',
@@ -842,7 +843,7 @@ describe('订单分批发货交互', () => {
     ).toBeTruthy()
 
     for (const tab of ['概览', '排班', '发货', '资金', '盈利', '售后']) {
-      fireEvent.click(screen.getByRole('button', { name: tab, exact: true }))
+      fireEvent.click(screen.getByRole('button', { name: tab }))
       expect(screen.getByRole('heading', { name: '订单详情' })).toBeVisible()
       expect(screen.getByRole('navigation', { name: '订单详情导航' })).toBeVisible()
       expect(screen.getByRole('button', { name: '返回订单列表' })).toBeVisible()
@@ -865,7 +866,7 @@ describe('订单分批发货交互', () => {
     const firstSection = screen.getByRole('heading', { level: 2, name: '订单商品' })
 
     for (const tab of ['概览', '排班', '发货', '资金', '盈利', '售后']) {
-      expect(within(workNavigation).getByRole('button', { name: tab, exact: true })).toBeVisible()
+      expect(within(workNavigation).getByRole('button', { name: tab })).toBeVisible()
     }
     expect(within(workNavigation).getByRole('button', { name: '概览' })).toHaveAttribute(
       'aria-current',
@@ -1176,5 +1177,87 @@ describe('订单前置资料引导', () => {
       mocks.customers = originalCustomers
       mocks.products = originalProducts
     }
+  })
+})
+
+describe('订单页面模式根契约（8.1）', () => {
+  it('列表态只渲染一个 List Page 根，页头、工具条与记录区按模式层级呈现', () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    const root = roots[0] as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'list-page')
+    expect(root).toHaveAttribute('data-density', 'compact')
+    expect(within(root).getByRole('heading', { name: '订单' })).toBeVisible()
+    expect(within(root).getByRole('toolbar', { name: '订单列表工具' })).toBeVisible()
+    expect(within(root).getByRole('table', { name: '订单列表' })).toBeVisible()
+    expect(document.querySelector('.yumi-page-header__actions')).not.toBeNull()
+  })
+
+  it('新建态独占 Form Workspace 根，返回导航在页头、保存动作落在粘性动作区', () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
+
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    const root = roots[0] as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'form-workspace')
+    expect(root).toHaveAttribute('data-density', 'standard')
+    expect(within(root).getByRole('navigation', { name: '新建订单导航' })).toBeVisible()
+    expect(within(root).getByRole('button', { name: '返回订单列表' })).toBeVisible()
+    expect(within(root).getByRole('button', { name: '保存并进入详情' })).toBeVisible()
+    expect(within(root).getByRole('combobox', { name: '客户' })).toBeVisible()
+  })
+
+  it('详情态独占 Detail Page 根，页头、摘要、指标带、Tab 与当前区块保持区域顺序', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    await screen.findByRole('button', { name: '导出订单表' })
+
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    const root = roots[0] as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'detail-page')
+    expect(root).toHaveAttribute('data-density', 'standard')
+
+    const header = within(root)
+      .getByRole('heading', { name: '订单详情' })
+      .closest('.yumi-page-header') as HTMLElement
+    const summary = within(root).getByRole('region', { name: '订单主体信息' })
+    const tabs = within(root).getByRole('navigation', { name: '订单详情工作视图' })
+    const body = root.querySelector('.yumi-detail-page__body') as HTMLElement
+
+    expect(header.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(summary.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(tabs.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(root).getByRole('table', { name: '订单商品列表' })).toBeVisible()
+  })
+
+  it('列表/新建/详情切换始终只有一个页面模式根，编辑浮层经 Portal 落在根外', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: '保存并进入详情' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '返回订单列表' }))
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    expect(document.querySelector('[data-page-pattern]')).toHaveAttribute(
+      'data-page-pattern',
+      'list-page'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    await screen.findByRole('button', { name: '编辑订单' })
+    fireEvent.click(screen.getByRole('button', { name: '编辑订单' }))
+
+    const dialog = await screen.findByRole('dialog', { name: '编辑订单' })
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    const root = document.querySelector('[data-page-pattern]') as HTMLElement
+    expect(root.contains(dialog)).toBe(false)
+    expect(root).toHaveAttribute('data-page-pattern', 'detail-page')
   })
 })

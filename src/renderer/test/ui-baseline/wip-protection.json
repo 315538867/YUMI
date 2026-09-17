@@ -1,0 +1,14 @@
+{
+  "$comment": "P0 保护清单（任务 1.10）曾保护财务总览 WIP；该 WIP 已在 2026-09-16 经负责人明确决定（'先还原吧'）整体还原：reports 目录回到提交基线，pages.css 末尾 WIP 段落删除。完整备份保存在 /tmp/yumi-wip-backup-20260916/（4 个未跟踪源文件 + reports 跟踪文件 diff + pages.css WIP 段落）。自此无继续保护项，报表家族可正常迁移（6.2 起）。",
+  "owner": "财务总览 WIP 作者（非本次重构）",
+  "change": "rebuild-yumi-ui-system",
+  "recordedAt": "2026-09-15",
+  "resolvedAt": "2026-09-16",
+  "resolution": "按负责人决定整体还原（git checkout reports 两个跟踪文件 + 删除 4 个未跟踪 financial-overview 文件 + 截除 pages.css 末尾 272 行 WIP 段落）；备份在 /tmp/yumi-wip-backup-20260916/",
+  "rule": "WIP 已还原、无继续保护项；本变更不再受受保护路径约束，可正常迁移报表页面家族",
+  "files": [],
+  "protectedCssRegions": [],
+  "baselineEntriesOwnedByWip": [],
+  "wipProtectedBaselineKeys": [],
+  "forbiddenPathPrefixes": []
+}

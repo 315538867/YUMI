@@ -18,6 +18,7 @@ import {
   YumiFieldLabel,
   YumiListSurface,
   YumiListToolbar,
+  YumiRecordActionBar,
   YumiSection,
   YumiSelect,
   YumiStatusTag,
@@ -202,16 +203,21 @@ export function WorkAssignmentsPage(props: {
       <section className="yumi-work-assignments">
         <YumiSection
           actions={
-            <div className="yumi-record-action-bar">
-              {props.onNavigateToReviews ? (
-                <YumiButton onClick={props.onNavigateToReviews} variant="ghost">
-                  前往核算
-                </YumiButton>
-              ) : null}
-              <YumiButton onClick={closeDetail} variant="secondary">
-                返回工作安排列表
-              </YumiButton>
-            </div>
+            <YumiRecordActionBar
+              actions={[
+                ...(props.onNavigateToReviews
+                  ? [
+                      {
+                        label: '前往核算',
+                        onClick: props.onNavigateToReviews,
+                        variant: 'ghost' as const
+                      }
+                    ]
+                  : []),
+                { label: '返回工作安排列表', onClick: closeDetail, variant: 'secondary' as const }
+              ]}
+              ariaLabel="工作安排详情动作"
+            />
           }
           description={`${processLabels[selectedAssignment.processType]} · ${workerLabel(
             selectedAssignment.workerId

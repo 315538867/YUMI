@@ -1,17 +1,22 @@
 import type { ReactNode } from 'react'
 import { YumiDetailList, type YumiDetailListItem } from '../detail-list/yumi-detail-list'
 
+/** 实体身份属性：编号、联系人、日期、地址等上下文；不得承载金额、进度等经营指标。 */
+export type YumiEntitySummaryMetadataItem = YumiDetailListItem
+
 type YumiEntitySummaryProps = {
   ariaLabel: string
   className?: string
   eyebrow?: ReactNode
-  metadata?: readonly YumiDetailListItem[]
+  metadata?: readonly YumiEntitySummaryMetadataItem[]
   title: ReactNode
 }
 
+export type { YumiEntitySummaryProps }
+
 /**
- * 实体详情顶部的紧凑主体信息。先表达客户、商品等经营主体，编号降级为元数据，
- * 避免只有一条编号的大摘要占据页面首屏。
+ * 实体详情顶部的紧凑身份块。只表达「这是什么主体」——眉题、名称与身份属性；
+ * 经营指标由经营摘要（YumiRecordSummary + YumiMetricStrip）另行承载，本组件不重复完整 Tab 内容。
  */
 export function YumiEntitySummary({
   ariaLabel,

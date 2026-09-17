@@ -1,54 +1,67 @@
-:root {
-  font-family: var(--yumi-font-sans);
-  color: var(--yumi-ink);
-  background: var(--yumi-canvas);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  font-variant-numeric: tabular-nums;
-}
+/*
+ * 基础层（Foundations）：页面骨架、字体、焦点轮廓、选区与 reduced-motion 契约统一收在
+ * foundations 层，随 index.css 的固定层顺序落位；组件样式保持无层并覆盖其上。
+ */
+@layer foundations {
+  :root {
+    font-family: var(--yumi-font-sans);
+    color: var(--yumi-ink);
+    background: var(--yumi-canvas);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    font-variant-numeric: tabular-nums;
+  }
 
-* {
-  box-sizing: border-box;
-}
+  * {
+    box-sizing: border-box;
+  }
 
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
 
-body {
-  margin: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--yumi-canvas);
-  color: var(--yumi-ink);
-  font-size: 14px;
-  line-height: 1.5;
-}
+  body {
+    margin: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--yumi-canvas);
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-md);
+    line-height: var(--yumi-line-height-normal);
+  }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
-button {
-  -webkit-tap-highlight-color: transparent;
-}
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-[tabindex]:focus-visible {
-  outline: none;
-  box-shadow: var(--yumi-focus-ring);
-}
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: none;
+    box-shadow: var(--yumi-focus-ring);
+  }
 
-::selection {
-  background: var(--yumi-brand-soft);
-  color: var(--yumi-ink);
+  ::selection {
+    background: var(--yumi-brand-soft);
+    color: var(--yumi-ink);
+  }
+
+  /* 减少动态效果：系统偏好开启时把所有状态过渡缩短到近乎即时；自旋等必要状态反馈保留。 */
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --yumi-duration-fast: 0ms;
+    }
+  }
 }

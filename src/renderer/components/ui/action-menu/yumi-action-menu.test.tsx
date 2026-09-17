@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiActionMenu } from './yumi-action-menu'
 
@@ -88,5 +88,24 @@ describe('YumiActionMenu', () => {
     fireEvent.keyDown(screen.getByRole('button', { name: '更多操作' }), { key: 'ArrowUp' })
     const menu = await screen.findByRole('menu', { name: '订单详情更多操作' })
     expect(within(menu).getByRole('menuitem', { name: '发货汇总' })).toHaveFocus()
+  })
+
+  it('菜单关闭后焦点恢复到触发按钮', async () => {
+    render(
+      <YumiActionMenu
+        aria-label="订单详情更多操作"
+        items={[{ id: 'export', label: '导出', onSelect: vi.fn() }]}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: '更多操作' })
+    fireEvent.click(trigger)
+    const menu = await screen.findByRole('menu', { name: '订单详情更多操作' })
+    fireEvent.keyDown(within(menu).getByRole('menuitem', { name: '导出' }), { key: 'Escape' })
+
+    await waitFor(() =>
+      expect(screen.queryByRole('menu', { name: '订单详情更多操作' })).not.toBeInTheDocument()
+    )
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 })

@@ -185,64 +185,116 @@ afterEach(() => {
   mocks.resolveRefund.mockClear()
 })
 
-describe('工资页面级骨架', () => {
-  it('工资页使用统一页面容器承接页头、Tab 与首个内容区', () => {
+describe('P3 · 工资 Pattern 根契约（任务 10.1）', () => {
+  it('工资结算页签由唯一 list-page 紧凑根承接，列表表面承载结算记录表', () => {
     render(<SettlementsPage />)
 
-    const header = screen.getByRole('heading', { level: 1, name: '工资' }).closest('header')
     expect(screen.getByText('2 位人员')).toBeVisible()
-    const workspace = header?.closest('.yumi-page')
-    const tabs = screen.getByRole('navigation', { name: '工资工作视图' })
-    const firstSection = screen.getByRole('heading', { level: 2, name: '工资结算记录' })
-
-    expect(workspace).toBeInTheDocument()
-    expect(workspace).toHaveClass('yumi-settlements-workspace')
-    expect(workspace?.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(
-      tabs.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
+    expect(screen.getByRole('table', { name: '工资结算列表' })).toBeVisible()
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    const root = roots[0] as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'list-page')
+    expect(root).toHaveAttribute('data-density', 'compact')
+    expect(root).toHaveClass('yumi-page')
+    expect(within(root).getByRole('toolbar', { name: '工资结算列表工具' })).toBeVisible()
+    expect(within(root).getByRole('table', { name: '工资结算列表' })).toBeVisible()
+    expect(within(root).getByRole('heading', { name: '工资' })).toBeVisible()
   })
 
-  it('工资页保持统一页头说明与页面级 Tab，内容区不重复渲染二级页头', () => {
+  it('查看结算后由唯一 detail-page 标准根承接，返回导航回到结算列表', async () => {
     render(<SettlementsPage />)
 
-    const header = screen.getByRole('heading', { level: 1, name: '工资' }).closest('header')
-    expect(screen.getByText('2 位人员')).toBeVisible()
-    const tabs = screen.getByRole('navigation', { name: '工资工作视图' })
-    const firstSection = screen.getByRole('heading', { level: 2, name: '工资结算记录' })
+    fireEvent.click(screen.getByRole('button', { name: '查看结算详情：小林' }))
+    await screen.findByRole('region', { name: '工资结算摘要' })
+
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    const root = roots[0] as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'detail-page')
+    expect(root).toHaveAttribute('data-density', 'standard')
+    expect(root).toHaveClass('yumi-page')
+    expect(within(root).getByRole('button', { name: '返回工资结算列表' })).toBeVisible()
+    expect(within(root).getByRole('table', { name: '制作结果来源记录' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '返回工资结算列表' }))
+    expect(screen.getByRole('table', { name: '工资结算列表' })).toBeVisible()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    expect(
+      (document.querySelector('[data-page-pattern]') as HTMLElement).getAttribute(
+        'data-page-pattern'
+      )
+    ).toBe('list-page')
+  })
+
+  it('待退款页签由唯一 list-page 紧凑根承接，人员时薪页签保持嵌入不创建模式根', () => {
+    render(<SettlementsPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /待退款/ }))
+    expect(screen.getByRole('table', { name: '兼职待退款列表' })).toBeVisible()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    expect(
+      (document.querySelector('[data-page-pattern]') as HTMLElement).getAttribute(
+        'data-page-pattern'
+      )
+    ).toBe('list-page')
+
+    fireEvent.click(screen.getByRole('button', { name: '人员与时薪' }))
+    expect(screen.getByRole('heading', { level: 2, name: '兼职人员' })).toBeVisible()
+    expect(screen.getByRole('toolbar', { name: '兼职人员列表工具' })).toBeVisible()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(0)
+  })
+})
+
+describe('工资页面级骨架', () => {
+  it('工资结算页签由 list-page 根自载页头、Tab 与首个内容区', () => {
+    render(<SettlementsPage />)
+
+    const root = document.querySelector('[data-page-pattern]') as HTMLElement
+    expect(root).not.toBeNull()
+    const header = within(root).getByRole('heading', { level: 1, name: '工资' }).closest('header')
+    const tabs = within(root).getByRole('navigation', { name: '工资工作视图' })
+    const table = within(root).getByRole('table', { name: '工资结算列表' })
+
     expect(header).not.toBeNull()
+    expect(within(header!).getByRole('group', { name: '工资页面动作' })).toBeVisible()
+    expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(tabs.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('工资页保持统一页头说明与页面级 Tab，列表内容区不重复二级区块标题', () => {
+    render(<SettlementsPage />)
+
+    const root = document.querySelector('[data-page-pattern]') as HTMLElement
+    const header = within(root).getByRole('heading', { level: 1, name: '工资' }).closest('header')
+    expect(screen.getByText('2 位人员')).toBeVisible()
     expect(
       screen.getByText(
         '负责人确认实际工资；已确认工资后发现的不合格，不回写历史实发，改由负责人单独处理退款。'
       )
     ).toBeVisible()
     expect(within(header!).getByRole('group', { name: '工资页面动作' })).toBeVisible()
-    expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(root).getByRole('navigation', { name: '工资工作视图' })).toBeVisible()
     expect(
-      tabs.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
+      screen.queryByRole('heading', { level: 2, name: '工资结算记录' })
+    ).not.toBeInTheDocument()
   })
 
-  it('切换工资工作视图后页头动作组仍固定在页头，Tab 不进入内容区', () => {
+  it('切换工资工作视图后重挂载唯一 Pattern 根或嵌入区，可往返回到结算列表', () => {
     render(<SettlementsPage />)
 
-    const header = screen.getByRole('heading', { level: 1, name: '工资' }).closest('header')
-    expect(screen.getByText('2 位人员')).toBeVisible()
-    const tabs = screen.getByRole('navigation', { name: '工资工作视图' })
-    const actionGroup = within(header!).getByRole('group', { name: '工资页面动作' })
+    fireEvent.click(screen.getByRole('button', { name: '人员与时薪' }))
+    expect(screen.getByRole('heading', { level: 2, name: '兼职人员' })).toBeVisible()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(0)
 
-    fireEvent.click(within(tabs).getByRole('button', { name: '人员与时薪' }))
-
-    const contentHeading = screen.getByRole('heading', { level: 2, name: '兼职人员' })
-    expect(within(header!).getByRole('group', { name: '工资页面动作' })).toBe(actionGroup)
-    expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '工资结算' }))
+    expect(screen.getByRole('table', { name: '工资结算列表' })).toBeVisible()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
     expect(
-      tabs.compareDocumentPosition(contentHeading) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-    expect(within(tabs).getByRole('button', { name: '人员与时薪' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    )
+      (document.querySelector('[data-page-pattern]') as HTMLElement).getAttribute(
+        'data-page-pattern'
+      )
+    ).toBe('list-page')
   })
 })
 
@@ -250,7 +302,6 @@ describe('工资列表页面', () => {
   it('使用统一工具条、具名记录表和状态筛选，不以编辑表单作为列表首屏', () => {
     render(<SettlementsPage />)
 
-    expect(screen.getByRole('heading', { level: 2, name: '工资结算记录' })).toBeVisible()
     expect(screen.getByRole('toolbar', { name: '工资结算列表工具' })).toBeVisible()
     expect(screen.getByRole('table', { name: '工资结算列表' })).toBeVisible()
     expect(screen.getByText('共 2 笔结算')).toBeVisible()
@@ -327,7 +378,11 @@ describe('工资列表页面', () => {
     render(<SettlementsPage />)
 
     fireEvent.click(screen.getByRole('button', { name: '待退款 1' }))
-    expect(screen.getByRole('heading', { level: 2, name: '待退款记录' })).toBeVisible()
+    expect(
+      screen.getByText(
+        '只列出已确认工资后才发现的不合格；负责人登记实际收到的退款，原工资记录保持不变。'
+      )
+    ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '处理退款：小林' }))
     expect(screen.getByRole('dialog', { name: '登记兼职退款' })).toHaveTextContent(
       '原结算不会被改写'

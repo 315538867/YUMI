@@ -18,5 +18,26 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       '@typescript-eslint/no-explicit-any': 'warn'
     }
+  },
+  {
+    files: [
+      'openspec/changes/archive/2026-09-17-rebuild-yumi-ui-system/scripts/**/*.mjs',
+      'openspec/changes/archive/2026-09-17-rebuild-yumi-ui-system/visual-harness/**/*.{mjs,cjs}'
+    ],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        setTimeout: 'readonly',
+        __dirname: 'readonly',
+        require: 'readonly'
+      }
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
+      ]
+    }
   }
 )

@@ -1,6 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { useOverlayFocusRestore } from '../focus-restore'
+import { useDensity } from '../../patterns/density'
 import { YumiButton } from '../button/yumi-button'
 import { YumiConfirmDialog } from '../dialog/yumi-dialog'
 import type { YumiDensity } from '../tabs/yumi-tabs'
@@ -31,6 +33,8 @@ export function YumiSheet({
   title
 }: YumiSheetProps) {
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
+  const contextDensity = useDensity()
+  useOverlayFocusRestore(open)
 
   const requestClose = () => {
     if (dirty) {
@@ -52,6 +56,7 @@ export function YumiSheet({
           <Dialog.Overlay className="yumi-dialog__overlay" />
           <Dialog.Content
             className={`yumi-sheet yumi-sheet--${density}`}
+            data-density={contextDensity}
             onEscapeKeyDown={(event) => {
               if (dirty) event.preventDefault()
             }}

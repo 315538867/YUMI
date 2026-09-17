@@ -1,12 +1,13 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render as renderBase, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render as renderBase, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
   renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import { installDomInteractionPolyfills } from '../../test/dom'
+import type { V2WorkbenchFirstUseGuide } from '@shared/contracts/index'
 import { WorkbenchPage } from '.'
 
 const mocks = vi.hoisted(() => ({
@@ -16,7 +17,7 @@ const mocks = vi.hoisted(() => ({
     loadError: null as string | null,
     snapshot: {
       generatedOn: '2026-09-08',
-      firstUseGuide: null,
+      firstUseGuide: null as V2WorkbenchFirstUseGuide | null,
       decisionItems: [
         {
           id: 'making-review:task-1',
@@ -63,6 +64,56 @@ afterEach(() => {
   cleanup()
   mocks.reload.mockReset()
   mocks.state.snapshot.firstUseGuide = null
+})
+
+describe('P3 · 工作台 Pattern 根契约（任务 10.1）', () => {
+  it('工作台由唯一 dashboard-overview 标准根承接，指标带之后是事项详情区', () => {
+    render(<WorkbenchPage onNavigate={vi.fn()} />)
+
+    expect(screen.getByRole('region', { name: '工作台概览' })).toBeVisible()
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    const root = roots[0] as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'dashboard-overview')
+    expect(root).toHaveAttribute('data-density', 'standard')
+    expect(root).toHaveClass('yumi-page')
+
+    const metrics = within(root).getByRole('region', { name: '工作台概览' })
+    const details = root.querySelector('.yumi-dashboard-overview__details')
+    expect(details).not.toBeNull()
+    expect(
+      metrics.compareDocumentPosition(details!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      within(details as HTMLElement).getByRole('navigation', { name: '工作台事项视图' })
+    ).toBeVisible()
+    expect(
+      within(details as HTMLElement).getByRole('region', { name: '订单履约阶段分布' })
+    ).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: /可以推进/ }))
+    expect(screen.getByRole('table', { name: '工作台事项列表' })).toBeVisible()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    expect(
+      (document.querySelector('[data-page-pattern]') as HTMLElement).getAttribute(
+        'data-page-pattern'
+      )
+    ).toBe('dashboard-overview')
+  })
+
+  it('首用引导与读取中不渲染指标带，模式根始终保持唯一', () => {
+    mocks.state.snapshot.firstUseGuide = {
+      title: '先建立客户',
+      description: '订单需要关联客户资料，先建立首个客户后再继续。',
+      actionLabel: '建立客户',
+      navigationTarget: { view: 'customers' }
+    }
+    render(<WorkbenchPage onNavigate={vi.fn()} />)
+
+    expect(screen.getByText('先建立客户')).toBeVisible()
+    expect(screen.queryByRole('region', { name: '工作台概览' })).not.toBeInTheDocument()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+  })
 })
 
 describe('负责人工作台页面', () => {

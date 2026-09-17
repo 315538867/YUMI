@@ -13,7 +13,6 @@
   --yumi-palette-bamboo-deep: #1f5b56;
   --yumi-palette-bamboo-soft: #e2efeb;
   --yumi-palette-bamboo-subtle: #f1f6f2;
-  --yumi-palette-rattan-yellow: #c9952f;
   --yumi-palette-rattan-deep: #a66c1e;
   --yumi-palette-rattan-soft: #f8edd8;
   --yumi-palette-rattan-border: #ecd49f;
@@ -22,7 +21,6 @@
   --yumi-palette-red-ochre-soft: #f8e8e3;
   --yumi-palette-red-ochre-border: #eac6bd;
   --yumi-palette-success: #3d7964;
-  --yumi-palette-success-deep: #2f6452;
   --yumi-palette-success-soft: #e8f2e9;
   --yumi-palette-success-border: #c7dfd0;
   --yumi-palette-info: #3d7775;
@@ -54,7 +52,6 @@
 
   /* 3. 状态令牌：仅表达状态含义；藤黄只用于提醒和强调，不承担大面积底色。 */
   --yumi-success: var(--yumi-palette-success);
-  --yumi-success-hover: var(--yumi-palette-success-deep);
   --yumi-success-soft: var(--yumi-palette-success-soft);
   --yumi-success-border: var(--yumi-palette-success-border);
   --yumi-warning: var(--yumi-palette-rattan-deep);
@@ -106,41 +103,107 @@
   --yumi-worker-tone-12-soft: #f6f1e7;
   --yumi-worker-tone-12-border: #e5d8c0;
 
-  /* 5. 排版、间距、圆角、阴影与布局令牌及组件别名：排版、密度和组件尺寸的跨组件统一来源。 */
+  /* 5. 排版、间距、圆角、阴影与布局令牌及组件别名的基础尺度（含尺寸尺度）：
+        原始尺度是唯一允许裸值的地方，业务样式不得直接使用；尺寸与间距通过语义别名消费。 */
   --yumi-font-sans: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --yumi-font-numeric: 'SFMono-Regular', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
+  --yumi-font-size-2xs: 11px;
   --yumi-font-size-xs: 12px;
   --yumi-font-size-sm: 13px;
   --yumi-font-size-md: 14px;
   --yumi-font-size-lg: 16px;
+  --yumi-font-size-lg-5: 18px;
   --yumi-font-size-xl: 20px;
+  --yumi-font-size-2xl: 22px;
+  --yumi-font-size-2xl-5: 26px;
+  --yumi-font-size-3xl: 30px;
   --yumi-line-height-tight: 1.25;
   --yumi-line-height-normal: 1.5;
+  --yumi-line-height-display: 1.4;
   --yumi-font-weight-medium: 500;
   --yumi-font-weight-semibold: 650;
   --yumi-space-1: 4px;
+  --yumi-space-1-5: 6px;
   --yumi-space-2: 8px;
+  --yumi-space-2-5: 10px;
   --yumi-space-3: 12px;
+  --yumi-space-3-5: 14px;
   --yumi-space-4: 16px;
+  --yumi-space-4-5: 18px;
   --yumi-space-5: 20px;
   --yumi-space-6: 24px;
+  --yumi-space-7: 28px;
   --yumi-space-8: 32px;
+  --yumi-space-9: 36px;
+  --yumi-space-12: 48px;
+  --yumi-space-0-5: 2px;
+  /* 尺寸尺度：控件与结构的原始几何，只被语义别名引用。 */
+  --yumi-size-control: 36px;
+  --yumi-size-control-compact: 32px;
+  --yumi-size-control-comfortable: 40px;
+  --yumi-size-row-min: 44px;
+  --yumi-size-tab-indicator: 2px;
+  --yumi-radius-xs: 6px;
   --yumi-radius-sm: 8px;
   --yumi-radius-md: 12px;
   --yumi-radius-lg: 16px;
+  --yumi-radius-xl: 22px;
+  --yumi-radius-full: 999px;
   --yumi-shadow-sm: 0 1px 2px rgb(38 52 54 / 6%);
   --yumi-shadow-md: 0 12px 30px rgb(38 52 54 / 12%), 0 2px 8px rgb(38 52 54 / 6%);
   --yumi-shadow-sheet: -12px 0 30px rgb(38 52 54 / 12%);
   --yumi-layout-content-max: 1440px;
-  --yumi-layout-page-gutter: var(--yumi-space-6);
-  --yumi-layout-sidebar-width: 224px;
+  --yumi-layout-page-gutter: var(--yumi-space-7);
+  --yumi-layout-sidebar-width: 232px;
 
-  /* 组件别名令牌：组件只依赖语义和布局 token，页面可在断点处局部覆盖。 */
-  --yumi-control-height: 36px;
-  --yumi-control-height-compact: 32px;
+  /* 6. 组件别名令牌：组件只依赖语义与布局别名，页面可在断点处局部覆盖；
+        尺寸与间距别名必须引用基础尺度，不直接写裸长度。 */
+  --yumi-control-height: var(--yumi-size-control);
   --yumi-control-padding-x: var(--yumi-space-3);
+  --yumi-field-gap: var(--yumi-space-3);
+  --yumi-overlay-padding: var(--yumi-space-5);
   --yumi-panel-padding: var(--yumi-space-5);
   --yumi-section-gap: var(--yumi-space-5);
-  --yumi-table-row-min-height: 44px;
-  --yumi-tab-indicator-height: 3px;
+  --yumi-table-row-min-height: var(--yumi-size-row-min);
+  --yumi-tab-indicator-height: var(--yumi-size-tab-indicator);
+
+  /* 7. 动效与层级令牌：过渡与自旋统一走时长/缓动令牌，浮层、固定操作与页面内容一律引用命名层级令牌，业务样式不得出现裸时长与裸 z-index。 */
+  /* 动效尺度：过渡时长按交互粒度命名；自旋时长保持必要状态反馈，不进入减速队列。 */
+  --yumi-duration-fast: 140ms;
+  --yumi-duration-spin: 700ms;
+  --yumi-duration-spin-slow: 880ms;
+  --yumi-easing-standard: ease;
+  --yumi-easing-linear: linear;
+
+  /* 命名层级令牌：页面内容处于基底，sticky 固定操作与可点行焦点抬升一档，遮罩压在页面之上，对话框高于遮罩，菜单/弹出层高于对话框，通知永远最上。 */
+  --yumi-z-page: 0;
+  --yumi-z-sticky: 1;
+  --yumi-z-overlay: 80;
+  --yumi-z-dialog: 81;
+  --yumi-z-menu: 90;
+  --yumi-z-toast: 200;
+}
+
+/* 8. 密度语义映射：Pattern 根携带 data-density 时按档位覆盖语义别名，后代继承生效；
+      默认（无密度根）即标准档的 :root 定义。密度块只覆盖语义别名，基础尺度保持单一事实来源。 */
+[data-density='compact'] {
+  --yumi-control-height: var(--yumi-size-control-compact);
+  --yumi-field-gap: var(--yumi-space-2);
+  --yumi-section-gap: var(--yumi-space-4);
+  --yumi-panel-padding: var(--yumi-space-4);
+  --yumi-overlay-padding: var(--yumi-space-4);
+}
+[data-density='standard'] {
+  --yumi-control-height: var(--yumi-size-control);
+  --yumi-field-gap: var(--yumi-space-3);
+  --yumi-section-gap: var(--yumi-space-5);
+  --yumi-panel-padding: var(--yumi-space-5);
+  --yumi-overlay-padding: var(--yumi-space-5);
+}
+[data-density='comfortable'] {
+  --yumi-control-height: var(--yumi-size-control-comfortable);
+  --yumi-field-gap: var(--yumi-space-4);
+  --yumi-section-gap: var(--yumi-space-6);
+  --yumi-panel-padding: var(--yumi-space-6);
+  --yumi-overlay-padding: var(--yumi-space-6);
 }

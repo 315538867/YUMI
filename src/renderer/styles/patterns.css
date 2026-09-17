@@ -1,0 +1,1111 @@
+@layer patterns {
+  /* Detail Page：摘要、指标带与标签位于页头之下；标签内容区按页面同档间距纵向排布。 */
+  .yumi-detail-page__body {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+
+  /* Dashboard Overview：明细区作为独立区域承载下钻区块，内部保持与页面同档间距。 */
+  .yumi-dashboard-overview__details {
+    display: grid;
+    gap: var(--yumi-space-6);
+  }
+
+  /* Settings Workspace：导航与内容分成上下两级区域，内容区承载当前设置视图。 */
+  .yumi-settings-workspace__nav {
+    display: grid;
+  }
+  .yumi-settings-workspace__content {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+  /* 当前设置视图的局部布局约束，全部由令牌驱动；面板间距与卡片外观由共享表单面板提供。 */
+  .yumi-settings-workspace .yumi-settings-panel {
+    max-width: 680px;
+  }
+  .yumi-settings-workspace .yumi-settings-protection {
+    display: grid;
+    gap: var(--yumi-space-4);
+    max-width: 960px;
+  }
+  .yumi-settings-workspace .yumi-settings-protection__intro {
+    margin: 0;
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-sm);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-settings-workspace .yumi-settings-library-surface,
+  .yumi-settings-workspace .yumi-settings-backup-surface {
+    max-width: 960px;
+  }
+  .yumi-settings-workspace .yumi-settings-library-surface .yumi-data-table th:nth-child(1),
+  .yumi-settings-workspace .yumi-settings-library-surface .yumi-data-table td:nth-child(1) {
+    min-width: 150px;
+  }
+  .yumi-settings-workspace .yumi-settings-library-surface .yumi-data-table th:nth-child(2),
+  .yumi-settings-workspace .yumi-settings-library-surface .yumi-data-table td:nth-child(2) {
+    min-width: 240px;
+  }
+  .yumi-settings-workspace .yumi-settings-library-surface .yumi-data-table th:nth-child(4),
+  .yumi-settings-workspace .yumi-settings-library-surface .yumi-data-table td:nth-child(4),
+  .yumi-settings-workspace .yumi-settings-backup-surface .yumi-data-table th:nth-child(4),
+  .yumi-settings-workspace .yumi-settings-backup-surface .yumi-data-table td:nth-child(4) {
+    min-width: 152px;
+  }
+  .yumi-settings-workspace .yumi-settings-backup-surface .yumi-data-table th:nth-child(1),
+  .yumi-settings-workspace .yumi-settings-backup-surface .yumi-data-table td:nth-child(1) {
+    min-width: 170px;
+  }
+  .yumi-settings-workspace .yumi-settings-backup-surface .yumi-data-table th:nth-child(3),
+  .yumi-settings-workspace .yumi-settings-backup-surface .yumi-data-table td:nth-child(3) {
+    min-width: 180px;
+  }
+  .yumi-settings-workspace .yumi-settings-table-actions {
+    display: inline-flex;
+    justify-content: flex-end;
+    gap: var(--yumi-space-2);
+  }
+
+  /* 订单 Family：订单行、发货行、进度与盈利明细沿用领域自己的紧凑布局，统一由令牌与共享骨架驱动。 */
+  .yumi-order-line {
+    display: grid;
+    grid-template-columns: minmax(190px, 2fr) minmax(96px, 0.75fr) minmax(120px, 0.9fr) auto;
+    align-items: end;
+    gap: var(--yumi-space-3);
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-md);
+    padding: var(--yumi-space-3);
+    background: var(--yumi-brand-subtle);
+  }
+  .yumi-order-schedule-stack {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+  .yumi-shipping-list-preview {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+  .yumi-shipment-lines {
+    overflow: hidden;
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-md);
+  }
+  .yumi-shipment-lines > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 100px 90px 118px;
+    align-items: center;
+    gap: var(--yumi-space-3);
+    border-bottom: 1px solid var(--yumi-border);
+    padding: var(--yumi-space-3);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-sm);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-shipment-lines > div:last-child {
+    border-bottom: 0;
+  }
+  .yumi-shipment-lines > div > span:first-child {
+    color: var(--yumi-ink);
+    font-weight: 600;
+  }
+  .yumi-list-page .yumi-data-table th:first-child,
+  .yumi-list-page .yumi-data-table td:first-child {
+    min-width: 220px;
+  }
+  .yumi-order-progress {
+    display: grid;
+    min-width: 130px;
+    gap: var(--yumi-space-1);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+    white-space: nowrap;
+  }
+  .yumi-order-progress__track {
+    display: block;
+    width: 100%;
+    height: 7px;
+    overflow: hidden;
+    border-radius: var(--yumi-radius-full);
+    background: var(--yumi-neutral-soft);
+  }
+  .yumi-order-progress__track i {
+    display: block;
+    width: var(--yumi-order-progress);
+    height: 100%;
+    border-radius: inherit;
+    background: var(--yumi-brand);
+  }
+  .yumi-order-items-total {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--yumi-space-5);
+    border: 1px solid var(--yumi-border);
+    border-top: 0;
+    border-radius: 0 0 var(--yumi-radius-md) var(--yumi-radius-md);
+    padding: var(--yumi-space-3) var(--yumi-space-4);
+    background: var(--yumi-surface-muted);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-sm);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-order-items-total strong {
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-lg-5);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-order-profit-stack {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+  .yumi-order-profit-summary {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.45fr) repeat(3, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-md);
+    background: var(--yumi-surface);
+  }
+  .yumi-order-profit-summary__main,
+  .yumi-order-profit-summary__stats > div {
+    display: grid;
+    align-content: center;
+    gap: var(--yumi-space-1);
+    min-width: 0;
+    padding: var(--yumi-space-5);
+    border-right: 1px solid var(--yumi-border);
+  }
+  .yumi-order-profit-summary__main {
+    background: var(--yumi-brand-soft);
+  }
+  .yumi-order-profit-summary__main > span,
+  .yumi-order-profit-summary__stats dt,
+  .yumi-order-profit-summary small,
+  .yumi-order-profit-costs small {
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    font-weight: 600;
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-order-profit-summary__main > strong {
+    overflow: hidden;
+    font-size: var(--yumi-font-size-3xl);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--yumi-line-height-display);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .yumi-order-profit-summary__positive,
+  .yumi-order-profit-table__positive {
+    color: var(--yumi-success);
+  }
+  .yumi-order-profit-summary__negative,
+  .yumi-order-profit-table__negative {
+    color: var(--yumi-danger);
+  }
+  .yumi-order-profit-summary__stats,
+  .yumi-order-profit-costs {
+    display: contents;
+    margin: 0;
+  }
+  .yumi-order-profit-summary__stats > div:last-child {
+    border-right: 0;
+  }
+  .yumi-order-profit-summary__stats dd,
+  .yumi-order-profit-costs dd {
+    overflow: hidden;
+    margin: 0;
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-xl);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: var(--yumi-line-height-display);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .yumi-order-profit-summary__received {
+    color: var(--yumi-success) !important;
+  }
+  .yumi-order-profit-costs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-sm);
+  }
+  .yumi-order-profit-costs > div {
+    display: grid;
+    align-content: center;
+    gap: var(--yumi-space-1);
+    min-width: 0;
+    padding: var(--yumi-space-4) var(--yumi-space-5);
+    border-right: 1px solid var(--yumi-border);
+  }
+  .yumi-order-profit-costs > div:last-child {
+    border-right: 0;
+  }
+  .yumi-order-profit-costs__pending {
+    color: var(--yumi-warning) !important;
+  }
+  .yumi-order-profit-reconciliation {
+    margin: var(--yumi-space-3) 0 0;
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+
+  /* Calendar Workspace：工具栏与摘要位于页头之后，日历网格在自身区域横向滚动。 */
+  .yumi-calendar-workspace__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--yumi-space-3);
+  }
+  .yumi-calendar-workspace__summary {
+    display: grid;
+  }
+  .yumi-calendar-workspace__scroll {
+    overflow-x: auto;
+  }
+  .yumi-calendar-workspace__grid {
+    display: grid;
+    gap: var(--yumi-space-2);
+  }
+  .yumi-calendar-workspace__overlay {
+    display: contents;
+  }
+
+  /* Review Workspace：统一队列与处理入口按页面同档间距纵向排布。 */
+  .yumi-review-workspace__queue,
+  .yumi-review-workspace__processing {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+
+  /* Scheduling-Review 家族（9.6）：人员周历按天分列按人成框，核算面板与深链任务列表纵向堆叠。 */
+
+  /* Work Assignments：深链任务处理列表的纵向堆叠。 */
+  .yumi-work-assignments {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+
+  /* Worker Week：按天分列、按人成框的人员周历。 */
+  .yumi-worker-week {
+    display: grid;
+    gap: var(--yumi-space-4);
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-lg);
+    padding: var(--yumi-space-5);
+    background: var(--yumi-surface);
+    box-shadow: var(--yumi-shadow-sm);
+  }
+  .yumi-worker-week__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--yumi-space-2);
+  }
+  .yumi-worker-week__scroller {
+    overflow-x: auto;
+  }
+  .yumi-worker-week__grid {
+    display: grid;
+    gap: var(--yumi-space-2);
+    padding-bottom: var(--yumi-space-0-5);
+  }
+  .yumi-worker-week__column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--yumi-space-1-5);
+    min-height: 200px;
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-md);
+    padding: var(--yumi-space-2);
+    background: var(--yumi-surface-muted);
+  }
+  .yumi-worker-week__date {
+    display: grid;
+    gap: var(--yumi-space-0-5);
+    padding: var(--yumi-space-0-5) 0 var(--yumi-space-2);
+    border-bottom: 1px dashed var(--yumi-border);
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+    text-align: center;
+  }
+  .yumi-worker-week__date small {
+    color: var(--yumi-subtle);
+    font-size: var(--yumi-font-size-2xs);
+    font-weight: var(--yumi-font-weight-medium);
+  }
+  /* 人员分组框：整框浅色底 + 首行圆点，颜色按 data-tone 稳定分配，同一人整周同色。 */
+  .yumi-worker-week__person {
+    --worker-tone-color: var(--yumi-worker-tone-1-color);
+    --worker-tone-soft: var(--yumi-worker-tone-1-soft);
+    --worker-tone-border: var(--yumi-worker-tone-1-border);
+    display: grid;
+    gap: var(--yumi-space-1);
+    border: 1px solid var(--worker-tone-border);
+    border-radius: var(--yumi-radius-md);
+    padding: var(--yumi-space-2);
+    background: var(--worker-tone-soft);
+  }
+  .yumi-worker-week__person[data-tone='1'] {
+    --worker-tone-color: var(--yumi-worker-tone-1-color);
+    --worker-tone-soft: var(--yumi-worker-tone-1-soft);
+    --worker-tone-border: var(--yumi-worker-tone-1-border);
+  }
+  .yumi-worker-week__person[data-tone='2'] {
+    --worker-tone-color: var(--yumi-worker-tone-2-color);
+    --worker-tone-soft: var(--yumi-worker-tone-2-soft);
+    --worker-tone-border: var(--yumi-worker-tone-2-border);
+  }
+  .yumi-worker-week__person[data-tone='3'] {
+    --worker-tone-color: var(--yumi-worker-tone-3-color);
+    --worker-tone-soft: var(--yumi-worker-tone-3-soft);
+    --worker-tone-border: var(--yumi-worker-tone-3-border);
+  }
+  .yumi-worker-week__person[data-tone='4'] {
+    --worker-tone-color: var(--yumi-worker-tone-4-color);
+    --worker-tone-soft: var(--yumi-worker-tone-4-soft);
+    --worker-tone-border: var(--yumi-worker-tone-4-border);
+  }
+  .yumi-worker-week__person[data-tone='5'] {
+    --worker-tone-color: var(--yumi-worker-tone-5-color);
+    --worker-tone-soft: var(--yumi-worker-tone-5-soft);
+    --worker-tone-border: var(--yumi-worker-tone-5-border);
+  }
+  .yumi-worker-week__person[data-tone='6'] {
+    --worker-tone-color: var(--yumi-worker-tone-6-color);
+    --worker-tone-soft: var(--yumi-worker-tone-6-soft);
+    --worker-tone-border: var(--yumi-worker-tone-6-border);
+  }
+  .yumi-worker-week__person[data-tone='7'] {
+    --worker-tone-color: var(--yumi-worker-tone-7-color);
+    --worker-tone-soft: var(--yumi-worker-tone-7-soft);
+    --worker-tone-border: var(--yumi-worker-tone-7-border);
+  }
+  .yumi-worker-week__person[data-tone='8'] {
+    --worker-tone-color: var(--yumi-worker-tone-8-color);
+    --worker-tone-soft: var(--yumi-worker-tone-8-soft);
+    --worker-tone-border: var(--yumi-worker-tone-8-border);
+  }
+  .yumi-worker-week__person[data-tone='9'] {
+    --worker-tone-color: var(--yumi-worker-tone-9-color);
+    --worker-tone-soft: var(--yumi-worker-tone-9-soft);
+    --worker-tone-border: var(--yumi-worker-tone-9-border);
+  }
+  .yumi-worker-week__person[data-tone='10'] {
+    --worker-tone-color: var(--yumi-worker-tone-10-color);
+    --worker-tone-soft: var(--yumi-worker-tone-10-soft);
+    --worker-tone-border: var(--yumi-worker-tone-10-border);
+  }
+  .yumi-worker-week__person[data-tone='11'] {
+    --worker-tone-color: var(--yumi-worker-tone-11-color);
+    --worker-tone-soft: var(--yumi-worker-tone-11-soft);
+    --worker-tone-border: var(--yumi-worker-tone-11-border);
+  }
+  .yumi-worker-week__person[data-tone='12'] {
+    --worker-tone-color: var(--yumi-worker-tone-12-color);
+    --worker-tone-soft: var(--yumi-worker-tone-12-soft);
+    --worker-tone-border: var(--yumi-worker-tone-12-border);
+  }
+  .yumi-worker-week__person-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--yumi-space-1-5);
+    padding: 0 var(--yumi-space-0-5);
+  }
+  .yumi-worker-week__person-name {
+    display: flex;
+    align-items: center;
+    gap: var(--yumi-space-1-5);
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-worker-week__person-dot {
+    width: var(--yumi-space-2);
+    height: var(--yumi-space-2);
+    border-radius: var(--yumi-radius-full);
+    background: var(--worker-tone-color);
+  }
+  .yumi-worker-week__person-count {
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-2xs);
+  }
+  .yumi-worker-week__task {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: var(--yumi-space-0-5);
+    width: 100%;
+    min-height: 0;
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-sm);
+    padding: var(--yumi-space-1) var(--yumi-space-2);
+    background: var(--yumi-surface);
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-display);
+    text-align: left;
+    white-space: normal;
+  }
+  .yumi-worker-week__task:hover:not(:disabled) {
+    border-color: var(--worker-tone-color);
+    background: var(--yumi-surface);
+  }
+  .yumi-worker-week__task-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--yumi-space-1-5);
+  }
+  .yumi-worker-week__task-product {
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .yumi-worker-week__task-meta {
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-2xs);
+    line-height: var(--yumi-line-height-display);
+  }
+  /* 计时卡片只显示“工序 · 待核算/已核算”，用整行单行文本保持与制作卡一致的阅读层级。 */
+  .yumi-worker-week__task--timed {
+    justify-content: center;
+  }
+  .yumi-worker-week__task--timed .yumi-worker-week__task-meta {
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-xs);
+    font-weight: 600;
+  }
+  .yumi-worker-week__add {
+    width: 100%;
+    min-height: 28px;
+    justify-content: center;
+    margin-top: auto;
+    border: 1px dashed var(--yumi-info-border);
+    border-radius: var(--yumi-radius-sm);
+    padding: var(--yumi-space-1) 0;
+    background: var(--yumi-surface);
+    color: var(--yumi-brand-hover);
+    font-size: var(--yumi-font-size-xs);
+  }
+  .yumi-worker-week__add:hover:not(:disabled) {
+    background: var(--yumi-brand-subtle);
+  }
+  .yumi-worker-week__empty {
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    border: 1px dashed var(--yumi-border);
+    border-radius: var(--yumi-radius-md);
+    padding: 0;
+    background: var(--yumi-surface);
+    color: var(--yumi-subtle);
+    font-size: var(--yumi-font-size-xs);
+  }
+  .yumi-worker-week__empty:hover:not(:disabled) {
+    border-color: var(--yumi-info-border);
+    background: var(--yumi-brand-subtle);
+    color: var(--yumi-brand-hover);
+  }
+
+  /* Work Time Review：核算面板的锁定提示与登记弹窗的组摘要/预计时长核对。 */
+  .yumi-work-time-review__dialog-meta {
+    margin: 0 0 var(--yumi-space-3);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-sm);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-work-time-review__comparison {
+    display: grid;
+    gap: var(--yumi-space-2);
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-md);
+    background: var(--yumi-surface-muted);
+    padding: var(--yumi-space-4);
+    margin: var(--yumi-space-3) 0;
+  }
+  .yumi-work-time-review__formula {
+    margin: 0;
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  /* 锁定记录的不可操作原因与只读历史提示。 */
+  .yumi-work-time-review__lock {
+    display: block;
+    max-width: 240px;
+    color: var(--yumi-warning);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+    overflow-wrap: anywhere;
+  }
+  .yumi-work-time-review__muted {
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-work-time-review__time-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--yumi-space-3);
+  }
+  .yumi-work-time-review__time-field {
+    display: grid;
+    gap: var(--yumi-space-1-5);
+    min-width: 0;
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+
+  /* 工资 Family：结算详情与来源记录归档为具名双列网格，窄屏折为单列。 */
+  .yumi-settlement-detail {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+  .yumi-settlement-sources {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--yumi-space-5);
+  }
+
+  /* 人员列表工作区：独立区块纵向排布，窄屏仍保持同档间距。 */
+  .yumi-workers-workspace {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+
+  /* 工作台 Family：总览以「判断—推进」为阅读顺序，图表只使用已存在待办事实。 */
+  .yumi-workbench-stage-chart {
+    display: grid;
+    gap: var(--yumi-space-4);
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-md);
+    padding: var(--yumi-space-4);
+    background: var(--yumi-surface);
+  }
+  .yumi-workbench-stage-chart__header h2 {
+    margin: 0;
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-lg);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-workbench-stage-chart__header p {
+    margin: var(--yumi-space-1) 0 0;
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-workbench-stage-chart__list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--yumi-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .yumi-workbench-stage-chart__list li {
+    display: grid;
+    min-width: 0;
+    gap: var(--yumi-space-2);
+  }
+  .yumi-workbench-stage-chart__list li > div {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--yumi-space-2);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-workbench-stage-chart__list strong {
+    flex: 0 0 auto;
+    color: var(--yumi-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .yumi-workbench-stage-chart__track {
+    display: block;
+    height: var(--yumi-space-2);
+    overflow: hidden;
+    border-radius: var(--yumi-radius-full);
+    background: var(--yumi-brand-subtle);
+  }
+  .yumi-workbench-stage-chart__track i {
+    display: block;
+    width: var(--yumi-workbench-stage-ratio);
+    height: 100%;
+    border-radius: inherit;
+    background: var(--yumi-brand);
+  }
+
+  .yumi-workbench-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+    gap: var(--yumi-space-4);
+    align-items: stretch;
+  }
+  .yumi-workbench-stage-chart,
+  .yumi-workbench-item-structure,
+  .yumi-workbench-priority-list,
+  .yumi-workbench-distribution {
+    min-width: 0;
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-md);
+    background: var(--yumi-surface);
+  }
+  .yumi-workbench-item-structure {
+    display: grid;
+    gap: var(--yumi-space-3);
+    padding: var(--yumi-space-4);
+  }
+  .yumi-workbench-item-structure h2,
+  .yumi-workbench-priority-list h2,
+  .yumi-workbench-distribution h2 {
+    margin: 0;
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-lg);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-workbench-item-structure > div:first-child > p,
+  .yumi-workbench-priority-list__header p,
+  .yumi-workbench-distribution > div:first-child > p {
+    margin: var(--yumi-space-1) 0 0;
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-workbench-item-structure__body {
+    display: grid;
+    grid-template-columns: 78px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    column-gap: var(--yumi-space-4);
+    align-items: center;
+  }
+  .yumi-workbench-item-structure__body > strong {
+    grid-row: span 2;
+    display: grid;
+    width: 76px;
+    height: 76px;
+    place-items: center;
+    border: 12px solid var(--yumi-brand);
+    border-left-color: var(--yumi-warning);
+    border-radius: 50%;
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-xl);
+    font-variant-numeric: tabular-nums;
+  }
+  .yumi-workbench-item-structure__body > span {
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+  }
+  .yumi-workbench-item-structure__body dl {
+    display: grid;
+    gap: var(--yumi-space-1-5);
+    margin: var(--yumi-space-2) 0 0;
+  }
+  .yumi-workbench-item-structure__body dl > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--yumi-space-3);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+  }
+  .yumi-workbench-item-structure__body dt,
+  .yumi-workbench-item-structure__body dd {
+    margin: 0;
+  }
+  .yumi-workbench-item-structure__body dd {
+    color: var(--yumi-ink);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .yumi-workbench-priority-list {
+    grid-column: 1;
+    overflow: hidden;
+  }
+  .yumi-workbench-priority-list__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--yumi-space-4);
+    padding: var(--yumi-space-4);
+  }
+  .yumi-workbench-priority-list ol,
+  .yumi-workbench-distribution ul {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .yumi-workbench-priority-list li,
+  .yumi-workbench-distribution li {
+    display: grid;
+    min-width: 0;
+    align-items: center;
+    gap: var(--yumi-space-3);
+    border-top: 1px solid var(--yumi-border);
+    padding: var(--yumi-space-3) var(--yumi-space-4);
+  }
+  .yumi-workbench-priority-list li {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .yumi-workbench-priority-list li > div,
+  .yumi-workbench-distribution li > div {
+    display: grid;
+    min-width: 0;
+    gap: var(--yumi-space-0-5);
+  }
+  .yumi-workbench-priority-list li strong,
+  .yumi-workbench-distribution li strong {
+    overflow: hidden;
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-sm);
+    line-height: var(--yumi-line-height-normal);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .yumi-workbench-priority-list li span:not(.yumi-workbench-priority-list__index),
+  .yumi-workbench-distribution li span {
+    overflow: hidden;
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .yumi-workbench-priority-list__index {
+    display: grid;
+    width: var(--yumi-space-6);
+    height: var(--yumi-space-6);
+    place-items: center;
+    border-radius: 50%;
+    background: var(--yumi-brand-soft);
+    color: var(--yumi-brand-hover);
+    font-size: var(--yumi-font-size-xs);
+    font-weight: 700;
+  }
+  .yumi-workbench-priority-list__empty,
+  .yumi-workbench-distribution__empty,
+  .yumi-workbench-stage-chart__empty {
+    margin: 0;
+    padding: var(--yumi-space-4);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-sm);
+  }
+  .yumi-workbench-distribution {
+    grid-column: 2;
+    grid-row: 2;
+    overflow: hidden;
+  }
+  .yumi-workbench-distribution > div:first-child {
+    padding: var(--yumi-space-4);
+  }
+  .yumi-workbench-distribution li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  /* 客户/商品 Family：历史订单宽表与预计盈利预览沿用领域布局，全部令牌驱动。 */
+  .yumi-customer-order-history {
+    min-width: 0;
+  }
+  .yumi-customer-order-history .yumi-data-table {
+    min-width: 920px;
+  }
+  .yumi-customer-order-history .yumi-data-table th:first-child,
+  .yumi-customer-order-history .yumi-data-table td:first-child {
+    min-width: 120px;
+    white-space: nowrap;
+  }
+  .yumi-customer-order-history .yumi-data-table th:nth-child(2),
+  .yumi-customer-order-history .yumi-data-table td:nth-child(2) {
+    min-width: 108px;
+    white-space: nowrap;
+  }
+  .yumi-customer-order-history .yumi-data-table th:nth-child(3),
+  .yumi-customer-order-history .yumi-data-table td:nth-child(3),
+  .yumi-customer-order-history .yumi-data-table th:nth-child(4),
+  .yumi-customer-order-history .yumi-data-table td:nth-child(4),
+  .yumi-customer-order-history .yumi-data-table th:nth-child(5),
+  .yumi-customer-order-history .yumi-data-table td:nth-child(5) {
+    min-width: 104px;
+    white-space: nowrap;
+  }
+  .yumi-customer-order-history .yumi-data-table th:nth-child(6),
+  .yumi-customer-order-history .yumi-data-table td:nth-child(6) {
+    min-width: 148px;
+    white-space: nowrap;
+  }
+  .yumi-customer-order-history .yumi-data-table th:last-child,
+  .yumi-customer-order-history .yumi-data-table td:last-child {
+    min-width: 84px;
+    white-space: nowrap;
+  }
+  .yumi-product-profit-preview {
+    display: grid;
+    min-width: 0;
+    gap: var(--yumi-space-4);
+  }
+  .yumi-product-profit-preview__price {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--yumi-space-3);
+    border-bottom: 1px solid var(--yumi-border);
+    padding-bottom: var(--yumi-space-3);
+  }
+  .yumi-product-profit-preview__price span {
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-product-profit-preview__price strong {
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-xl);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--yumi-line-height-display);
+  }
+
+  /* 应用壳：窄侧栏、命令栏与唯一滚动内容区；窗口固定不滚动，导航与内容各自纵向滚动。 */
+  .yumi-app-shell {
+    display: flex;
+    width: 100%;
+    height: 100dvh;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--yumi-canvas);
+  }
+  .yumi-app-sidebar {
+    display: flex;
+    width: var(--yumi-layout-sidebar-width);
+    height: 100%;
+    min-height: 0;
+    flex: 0 0 var(--yumi-layout-sidebar-width);
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--yumi-border);
+    padding: var(--yumi-space-6) var(--yumi-space-3) var(--yumi-space-4);
+    background: var(--yumi-surface-muted);
+  }
+  .yumi-app-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--yumi-space-2-5);
+    padding: 0 var(--yumi-space-2) var(--yumi-space-7);
+    color: var(--yumi-ink);
+  }
+  .yumi-app-brand__mark {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: var(--yumi-radius-md);
+    background: var(--yumi-brand);
+    color: var(--yumi-on-brand);
+    font-family: Georgia, serif;
+    font-size: var(--yumi-font-size-lg-5);
+    font-weight: 700;
+  }
+  .yumi-app-brand strong {
+    display: block;
+    font-size: var(--yumi-font-size-md);
+    line-height: var(--yumi-line-height-tight);
+  }
+  .yumi-app-brand em {
+    display: block;
+    margin-top: calc(var(--yumi-space-0-5) / 2);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-2xs);
+    font-style: normal;
+    font-weight: 700;
+    line-height: var(--yumi-line-height-tight);
+  }
+  .yumi-app-navigation {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    align-content: start;
+    grid-auto-rows: max-content;
+    gap: var(--yumi-space-3-5);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: var(--yumi-space-1);
+  }
+  .yumi-app-navigation__group {
+    display: grid;
+    gap: var(--yumi-space-1);
+  }
+  .yumi-app-navigation__label {
+    margin: 0;
+    padding: 0 var(--yumi-space-2-5) var(--yumi-space-1);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-2xs);
+    font-weight: 700;
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-app-navigation__item {
+    width: 100%;
+    justify-content: flex-start;
+    gap: var(--yumi-space-2-5);
+    padding: var(--yumi-space-2) var(--yumi-space-2-5);
+    color: var(--yumi-muted);
+    font-weight: 600;
+    text-align: left;
+  }
+  .yumi-app-navigation__item:hover:not(:disabled) {
+    background: var(--yumi-brand-subtle);
+    color: var(--yumi-brand-hover);
+  }
+  .yumi-app-navigation__item--active {
+    background: var(--yumi-brand-soft);
+    color: var(--yumi-brand-hover);
+  }
+  .yumi-app-sidebar__footer {
+    margin-top: auto;
+    border-top: 1px solid var(--yumi-border);
+    padding: var(--yumi-space-3-5) var(--yumi-space-2) 0;
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-app-workspace {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .yumi-app-command-bar {
+    display: flex;
+    min-height: 68px;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--yumi-space-4);
+    border-bottom: 1px solid var(--yumi-border);
+    padding: 0 var(--yumi-space-8);
+    background: var(--yumi-surface-raised);
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-sm);
+  }
+  .yumi-app-command-bar > div {
+    display: flex;
+    align-items: center;
+    gap: var(--yumi-space-2);
+  }
+  .yumi-app-command-bar strong {
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-md);
+  }
+  .yumi-app-content {
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--yumi-space-6) var(--yumi-layout-page-gutter) var(--yumi-space-9);
+  }
+  .yumi-app-content > .yumi-page {
+    width: 100%;
+    max-width: var(--yumi-layout-content-max);
+    margin-inline: auto;
+  }
+
+  /* 业务页面工作区：圆角表面承接内容，页面内部抬升不会越过遮罩与浮层。 */
+  .yumi-page {
+    display: grid;
+    align-content: start;
+    gap: var(--yumi-space-6);
+    min-width: 0;
+    position: relative;
+    z-index: var(--yumi-z-page);
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-xl);
+    padding: var(--yumi-space-7) var(--yumi-space-8) var(--yumi-space-9);
+    background: var(--yumi-surface-raised);
+    box-shadow: var(--yumi-shadow-sm);
+  }
+  .yumi-form-panel {
+    display: grid;
+    gap: var(--yumi-space-4);
+    border: 1px solid var(--yumi-border);
+    border-radius: var(--yumi-radius-lg);
+    padding: var(--yumi-space-5);
+    background: var(--yumi-surface);
+    box-shadow: var(--yumi-shadow-sm);
+  }
+  .yumi-form-grid {
+    display: grid;
+    gap: var(--yumi-space-4);
+  }
+  .yumi-form-grid--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .yumi-form-grid--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .yumi-form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--yumi-space-3);
+  }
+  .yumi-form-actions--between {
+    justify-content: space-between;
+  }
+  .yumi-inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--yumi-space-2);
+  }
+  .yumi-line-editor {
+    display: grid;
+    gap: var(--yumi-space-3);
+    min-width: 0;
+    margin: 0;
+    border: 0;
+    padding: 0;
+  }
+  .yumi-line-editor > legend {
+    padding: 0;
+    color: var(--yumi-ink);
+    font-size: var(--yumi-font-size-md);
+    font-weight: 700;
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-sheet-form {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  .yumi-table-secondary {
+    color: var(--yumi-muted);
+    font-size: var(--yumi-font-size-xs);
+    line-height: var(--yumi-line-height-normal);
+  }
+  .yumi-after-sales-panel {
+    display: grid;
+    gap: var(--yumi-space-5);
+  }
+  .yumi-calculation-formula-catalog {
+    display: grid;
+    gap: var(--yumi-space-6);
+  }
+}

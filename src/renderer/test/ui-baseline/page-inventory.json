@@ -1,0 +1,236 @@
+{
+  "$comment": "由 OpenSpec 变更 rebuild-yumi-ui-system 的 baselines 脚本生成；page-pattern.test.ts 会校验。目标 Pattern 归属另见 page-pattern-map.json。",
+  "appShell": {
+    "file": "src/renderer/pages/app.tsx",
+    "commandBarSelector": ".yumi-app-command-bar",
+    "sidebarSelector": ".yumi-app-sidebar",
+    "sidebarWidth": "232px",
+    "verticalScrollContainers": [".yumi-app-content", ".yumi-app-navigation"]
+  },
+  "pageLocalScrollContainers": [],
+  "topLevelViews": [
+    {
+      "view": "workbench",
+      "label": "工作台",
+      "file": "src/renderer/pages/workbench/index.tsx",
+      "component": "WorkbenchPage",
+      "renders": {
+        "YumiPageHeader": false,
+        "YumiPrimaryTabs": true,
+        "YumiSegmentedTabs": false,
+        "YumiListSurface": true,
+        "YumiListToolbar": true,
+        "YumiDataTable": true,
+        "YumiMetricStrip": true,
+        "YumiEntitySummary": false,
+        "YumiRecordSummary": false,
+        "YumiSection": true,
+        "YumiDetailList": false,
+        "YumiFormSection": false,
+        "YumiSheet": false,
+        "YumiDialog": false,
+        "YumiEmptyState": true
+      }
+    },
+    {
+      "view": "orders",
+      "label": "订单",
+      "file": "src/renderer/pages/orders/index.tsx",
+      "component": "OrdersPage",
+      "renders": {
+        "YumiPageHeader": true,
+        "YumiPrimaryTabs": true,
+        "YumiSegmentedTabs": false,
+        "YumiListSurface": true,
+        "YumiListToolbar": true,
+        "YumiDataTable": true,
+        "YumiMetricStrip": true,
+        "YumiEntitySummary": true,
+        "YumiRecordSummary": false,
+        "YumiSection": true,
+        "YumiDetailList": false,
+        "YumiFormSection": true,
+        "YumiSheet": true,
+        "YumiDialog": false,
+        "YumiEmptyState": true
+      }
+    },
+    {
+      "view": "fulfillment",
+      "label": "排班",
+      "file": "src/renderer/pages/fulfillment/index.tsx",
+      "component": "FulfillmentPage",
+      "renders": {
+        "YumiPageHeader": false,
+        "YumiPrimaryTabs": true,
+        "YumiSegmentedTabs": false,
+        "YumiListSurface": false,
+        "YumiListToolbar": false,
+        "YumiDataTable": false,
+        "YumiMetricStrip": true,
+        "YumiEntitySummary": false,
+        "YumiRecordSummary": false,
+        "YumiSection": false,
+        "YumiDetailList": false,
+        "YumiFormSection": false,
+        "YumiSheet": false,
+        "YumiDialog": false,
+        "YumiEmptyState": true
+      }
+    },
+    {
+      "view": "settlements",
+      "label": "工资",
+      "file": "src/renderer/pages/settlements/index.tsx",
+      "component": "SettlementsPage",
+      "renders": {
+        "YumiPageHeader": false,
+        "YumiPrimaryTabs": true,
+        "YumiSegmentedTabs": false,
+        "YumiListSurface": true,
+        "YumiListToolbar": true,
+        "YumiDataTable": true,
+        "YumiMetricStrip": false,
+        "YumiEntitySummary": false,
+        "YumiRecordSummary": false,
+        "YumiSection": true,
+        "YumiDetailList": false,
+        "YumiFormSection": false,
+        "YumiSheet": true,
+        "YumiDialog": false,
+        "YumiEmptyState": true
+      }
+    },
+    {
+      "view": "finance",
+      "label": "财务",
+      "file": "src/renderer/pages/finance/index.tsx",
+      "component": "FinancePage",
+      "renders": {
+        "YumiPageHeader": false,
+        "YumiPrimaryTabs": true,
+        "YumiSegmentedTabs": false,
+        "YumiListSurface": true,
+        "YumiListToolbar": true,
+        "YumiDataTable": true,
+        "YumiMetricStrip": true,
+        "YumiEntitySummary": false,
+        "YumiRecordSummary": false,
+        "YumiSection": true,
+        "YumiDetailList": false,
+        "YumiFormSection": false,
+        "YumiSheet": true,
+        "YumiDialog": false,
+        "YumiEmptyState": true
+      }
+    },
+    {
+      "view": "reports",
+      "label": "报表",
+      "file": "src/renderer/pages/reports/index.tsx",
+      "component": "ReportsPage",
+      "renders": {
+        "YumiPageHeader": false,
+        "YumiPrimaryTabs": false,
+        "YumiSegmentedTabs": false,
+        "YumiListSurface": true,
+        "YumiListToolbar": true,
+        "YumiDataTable": true,
+        "YumiMetricStrip": false,
+        "YumiEntitySummary": false,
+        "YumiRecordSummary": false,
+        "YumiSection": true,
+        "YumiDetailList": false,
+        "YumiFormSection": false,
+        "YumiSheet": false,
+        "YumiDialog": false,
+        "YumiEmptyState": true
+      }
+    },
+    {
+      "view": "customers",
+      "label": "客户",
+      "file": "src/renderer/pages/customers/index.tsx",
+      "component": "CustomersPage",
+      "renders": {
+        "YumiPageHeader": false,
+        "YumiPrimaryTabs": false,
+        "YumiSegmentedTabs": false,
+        "YumiListSurface": false,
+        "YumiListToolbar": false,
+        "YumiDataTable": true,
+        "YumiMetricStrip": false,
+        "YumiEntitySummary": false,
+        "YumiRecordSummary": false,
+        "YumiSection": false,
+        "YumiDetailList": true,
+        "YumiFormSection": true,
+        "YumiSheet": true,
+        "YumiDialog": false,
+        "YumiEmptyState": true
+      }
+    },
+    {
+      "view": "products",
+      "label": "商品",
+      "file": "src/renderer/pages/products/index.tsx",
+      "component": "ProductsPage",
+      "renders": {
+        "YumiPageHeader": false,
+        "YumiPrimaryTabs": false,
+        "YumiSegmentedTabs": false,
+        "YumiListSurface": false,
+        "YumiListToolbar": false,
+        "YumiDataTable": true,
+        "YumiMetricStrip": false,
+        "YumiEntitySummary": false,
+        "YumiRecordSummary": false,
+        "YumiSection": true,
+        "YumiDetailList": true,
+        "YumiFormSection": true,
+        "YumiSheet": false,
+        "YumiDialog": false,
+        "YumiEmptyState": true
+      }
+    },
+    {
+      "view": "settings",
+      "label": "设置",
+      "file": "src/renderer/pages/settings/index.tsx",
+      "component": "SettingsPage",
+      "renders": {
+        "YumiPageHeader": false,
+        "YumiPrimaryTabs": true,
+        "YumiSegmentedTabs": true,
+        "YumiListSurface": true,
+        "YumiListToolbar": true,
+        "YumiDataTable": true,
+        "YumiMetricStrip": false,
+        "YumiEntitySummary": false,
+        "YumiRecordSummary": false,
+        "YumiSection": true,
+        "YumiDetailList": true,
+        "YumiFormSection": true,
+        "YumiSheet": true,
+        "YumiDialog": true,
+        "YumiEmptyState": true
+      }
+    }
+  ],
+  "embeddedViews": [
+    {
+      "component": "WorkAssignmentsPage",
+      "file": "src/renderer/pages/work-assignments/index.tsx",
+      "renderedBy": ["src/renderer/pages/fulfillment/index.tsx"],
+      "rendersPageHeader": false,
+      "rendersPageLevelSurface": true
+    },
+    {
+      "component": "WorkersPage",
+      "file": "src/renderer/pages/workers/index.tsx",
+      "renderedBy": ["src/renderer/pages/settlements/index.tsx"],
+      "rendersPageHeader": false,
+      "rendersPageLevelSurface": true
+    }
+  ]
+}

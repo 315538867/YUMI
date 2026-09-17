@@ -2,6 +2,8 @@ import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useOverlayFocusRestore } from '../focus-restore'
+import { useDensity } from '../../patterns/density'
 import { YumiButton } from '../button/yumi-button'
 
 type YumiDialogProps = {
@@ -24,6 +26,8 @@ export function YumiDialog({
   size = 'default',
   title
 }: YumiDialogProps) {
+  const density = useDensity()
+  useOverlayFocusRestore(open)
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
@@ -34,6 +38,7 @@ export function YumiDialog({
               ? 'yumi-dialog__content yumi-dialog__content--wide'
               : 'yumi-dialog__content'
           }
+          data-density={density}
         >
           <div className="yumi-dialog__header">
             <div>
@@ -79,11 +84,16 @@ export function YumiConfirmDialog({
   open,
   title
 }: YumiConfirmDialogProps) {
+  const density = useDensity()
+  useOverlayFocusRestore(open)
   return (
     <AlertDialog.Root onOpenChange={onOpenChange} open={open}>
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="yumi-dialog__overlay" />
-        <AlertDialog.Content className="yumi-dialog__content yumi-dialog__content--confirm">
+        <AlertDialog.Content
+          className="yumi-dialog__content yumi-dialog__content--confirm"
+          data-density={density}
+        >
           <AlertDialog.Title className="yumi-dialog__title">{title}</AlertDialog.Title>
           {description ? (
             <AlertDialog.Description className="yumi-dialog__description">

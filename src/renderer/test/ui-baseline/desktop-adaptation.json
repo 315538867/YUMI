@@ -1,0 +1,55 @@
+{
+  "$comment": "P0 固化：页面只保留两个经实测的桌面适配点。数值沿用设计候选 1280/1440——1.7 实测确认外层窗口尺寸等于 renderer viewport（无标题栏扣减），因此候选值无需换算即可直接作为 CSS viewport 断点。P1 需把这两个断点写成 Foundations 令牌，并让页面样式只消费令牌而不是自带 @media。",
+  "source": "docs/superpowers/specs/2026-09-15-yumi-ui-system-rebuild-design.md 第 8 节「桌面适配」",
+  "measuredViewportSource": "openspec/changes/rebuild-yumi-ui-system/baselines/viewport-measurements.json",
+  "viewportSupportedRange": {
+    "minViewportWidth": 1100,
+    "minViewportHeight": 720,
+    "note": "最小窗口 1100 × 720 的实测 viewport；不支持低于此宽度的移动或平板流程"
+  },
+  "adaptationPoints": [
+    {
+      "name": "narrow",
+      "width": 1280,
+      "appliesWhen": "viewport < 1280",
+      "role": "较窄桌面：压缩非关键留白、工具栏折行、压缩双栏的辅助栏"
+    },
+    {
+      "name": "wide",
+      "width": 1440,
+      "appliesWhen": "viewport >= 1440",
+      "role": "宽桌面：数据表与日历利用额外宽度，同时限制文本行长"
+    }
+  ],
+  "ranges": [
+    {
+      "name": "narrow",
+      "minWidth": 1100,
+      "maxWidth": 1279,
+      "label": "较窄桌面"
+    },
+    {
+      "name": "standard",
+      "minWidth": 1280,
+      "maxWidth": 1439,
+      "label": "标准桌面",
+      "note": "使用标准布局，不做额外压缩或扩张"
+    },
+    {
+      "name": "wide",
+      "minWidth": 1440,
+      "maxWidth": null,
+      "label": "宽桌面"
+    }
+  ],
+  "acceptanceViewportCoverage": [
+    { "viewportWidth": 1100, "range": "narrow", "windowLabel": "min" },
+    { "viewportWidth": 1440, "range": "wide", "windowLabel": "default" },
+    { "viewportWidth": 1920, "range": "wide", "windowLabel": "wide" }
+  ],
+  "openQuestion": "标准桌面区间 1280–1439 没有对应的验收窗口尺寸（默认窗口 1440 恰好落在宽桌面下界）。若希望三档验收各覆盖一个区间，需要把第二个适配点从 1440 移到 1600 左右；此处按设计文档候选值固化，留待负责人确认。",
+  "knownPrivateBreakpoints": {
+    "note": "P0 只登记不清理，具体条目见 style-violations.json 的 private-breakpoint 类别",
+    "count": 13
+  }
+}

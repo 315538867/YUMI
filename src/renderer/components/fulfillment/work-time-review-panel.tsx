@@ -600,9 +600,7 @@ function VoidReviewDialog({
       open
       title="作废核算记录？"
     >
-      <YumiField
-        error={submitAttempted && !reason.trim() ? '请填写作废原因' : undefined}
-      >
+      <YumiField error={submitAttempted && !reason.trim() ? '请填写作废原因' : undefined}>
         <YumiFieldLabel htmlFor="work-time-review-void-reason" required>
           作废原因
         </YumiFieldLabel>

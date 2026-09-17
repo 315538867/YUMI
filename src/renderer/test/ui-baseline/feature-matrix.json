@@ -1,0 +1,312 @@
+{
+  "$comment": "P0 功能保留矩阵（任务 1.5）。P3 迁移任一家族前必须逐条核对，迁移后不得丢失其中任何一项。条目只增不减：确实要废弃的，必须先在任务说明里写明理由再删除。人类可读版见 openspec/changes/rebuild-yumi-ui-system/baselines/feature-matrix.md。",
+  "source": "逐个通读 src/renderer/pages/**/index.tsx 与相关子组件盘点得出；目标 Pattern 来自 page-pattern-map.json，页面清单来自 page-inventory.json",
+  "entryFormat": "<category>/<slug>: <中文描述>；category ∈ view|metric|list|filter|action|form|state|calendar|interaction",
+  "families": [
+    {
+      "id": "reports",
+      "label": "报表",
+      "pages": [
+        {
+          "module": "reports",
+          "file": "src/renderer/pages/reports/index.tsx",
+          "label": "经营报表",
+          "targetPatterns": ["dashboard-overview"],
+          "features": [
+            "view/single-scroll: 单页纵向滚动，无 Tab 与分段切换",
+            "view/section-order: 区块顺序为指标带（月度经营结果）→ 商品产能风险 → 交期风险 → 订单核算 → 排班进度 → 已确认工资",
+            "metric/monthly-result: 月度经营结果指标条 4 格：实际收入（success）、经营支出（danger）、经营结果（按正负变色）、已确认工资（brand）",
+            "metric/risk-tags: 风险级别标签：正常 / 预警 / 严重 / 未计划",
+            "list/capacity-risk: 商品产能风险表：商品、待制作需求、已排制作、可用产能、缺口、风险、处理",
+            "list/delivery-risk: 交期风险表：订单、预计发货、制作截止、待发数量、风险、处理",
+            "list/order-review: 订单核算表：订单、订单金额、净收款、待收、商品成本、售后成本、核算利润参考",
+            "list/schedule-progress: 排班进度表：订单产品、确认数量、制作中、待捏毛装袋、待打包、待发货、已发货",
+            "list/confirmed-wages: 已确认工资表：兼职人员、结算周期、实际付款日、实发金额、负责人备注",
+            "filter/month: 统计月份选择器，默认当月，变更即整页重新加载",
+            "filter/capacity-dates: 产能风险开始与结束日期，默认今天与今天加七天，仅影响产能风险",
+            "filter/delivery-as-of: 交期风险截至日期，默认今天，仅影响交期风险",
+            "filter/risk-level: 风险级别下拉（全部级别、严重、预警、未计划、正常），纯前端过滤且影响计数",
+            "action/export-current: 页头主操作导出当前报表",
+            "action/export-menu: 更多操作菜单：导出订单表、导出发货汇总",
+            "action/refresh: 刷新与两处刷新风险均触发全量重新加载六个请求",
+            "action/drill-product: 查看商品，深链到商品页并带 productId",
+            "action/drill-fulfillment: 进入排班处理，深链到排班页并带 orderId 与 focus 为 queue",
+            "state/loading: 整页 loading 空态替换全部内容（非骨架）",
+            "state/empty-per-table: 每张表独立空态文案，容器带 role 为 status",
+            "state/partial-data: 缺数据回退：数字 0、列表空数组、文本为破折号",
+            "interaction/export-feedback: 导出反馈分级：成功停留五秒、已取消三秒、失败为 danger"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "label": "设置",
+      "pages": [
+        {
+          "module": "settings",
+          "file": "src/renderer/pages/settings/index.tsx",
+          "label": "设置",
+          "targetPatterns": ["settings-workspace"],
+          "features": [
+            "view/tabs: 主 Tab：工作室参数（默认）、计算公式、财务资料、数据保护；页头标题、描述与动作随 Tab 变化",
+            "view/finance-subtabs: 财务资料内嵌分段 Tab：收入类目、支出类目、私人垫付人",
+            "list/formula-catalog: 系统计算公式表：分类、计算项、公式、输入来源、口径与边界；共 30 行覆盖 7 个 scope，数据来自共享公式注册表",
+            "list/resource-library: 资源库表：名称、说明、状态（启用或已停用）、操作（编辑、删除）",
+            "list/backup: 备份表：创建时间、备份类型（手动备份、恢复前安全备份）、内容（附件数 · 版本）、操作（恢复）",
+            "action/studio-edit: 编辑工作室参数，打开 Sheet",
+            "action/finance-create: 新增收入类目、新增支出类目、新增垫付人，打开 Dialog",
+            "action/backup-create: 立即备份，进行中禁用",
+            "action/backup-restore: 恢复备份，确认弹窗说明会覆盖当前数据、先创建安全备份、应用自动重启",
+            "action/delete-confirm: 删除类目或垫付人，确认弹窗；若被财务流水引用则保留原数据并拒绝删除",
+            "form/studio-params: 工作室参数：材料克单价（元每克，最多六位小数）、捏毛装袋与缝边与打包发货预计基准时薪（元每小时）、订单默认预留天数（非负整数）",
+            "form/category: 类目表单：类目名称必填，状态仅编辑时显示",
+            "form/payer: 垫付人表单：姓名必填，备注与状态，状态仅编辑时显示",
+            "form/readonly-params: 工作室参数只读明细列表，空值显示暂无参数",
+            "state/loading: 三处 loading 空态，初次加载无骨架",
+            "state/empty: 各表独立空态：暂无私人垫付人、暂无收入或支出类目、还没有备份",
+            "state/submitting: 提交按表单 key 锁定按钮 loading；备份 busy 期间禁用全部恢复按钮",
+            "interaction/no-dirty-guard: 关闭 Sheet 或 Dialog 不校验脏数据，与订单页行为不一致，迁移时需确认目标行为"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orders",
+      "label": "订单",
+      "pages": [
+        {
+          "module": "orders",
+          "file": "src/renderer/pages/orders/index.tsx",
+          "label": "订单",
+          "targetPatterns": ["list-page", "form-workspace", "detail-page"],
+          "features": [
+            "view/modes: 三种整页模式互斥切换：列表、新建订单、订单详情（不是抽屉）",
+            "view/detail-tabs: 订单详情六个 Tab：概览、排班、发货、资金、盈利、售后",
+            "list/orders: 订单列表：订单号、客户（编码与共 N 款）、下单日期、订单金额、资金状态、排班进度（进度条为已发 x 共 y 件）、预计交付、操作（查看详情）",
+            "list/product-lines: 订单商品列表：商品、数量、单价、小计，底部商品合计",
+            "list/tasks: 本订单任务列表：商品与阶段、数量、负责人、状态、处理（前往排班）",
+            "list/shipments: 发货批次列表：批次、发货日期与物流、本批商品与数量、批次状态、操作（查看发货清单、导出本批清单、作废批次）",
+            "list/funds: 订单资金流水列表：发生日期、业务类型与说明、金额带正负号、支付方式、状态、操作（更正、查看凭证、关联凭证）",
+            "list/profit: 商品盈利明细：商品、数量、订单收入、预计直接成本、缝边预计增量利润、已知毛利、毛利率",
+            "list/proof-preview: 发货清单商品快照：商品、本批数量、订单数量、商品备注",
+            "list/after-sales: 售后记录列表：发生日期、问题与处理、原发货批次、核算成本、状态、操作（行内状态更新）",
+            "filter/search: 搜索订单号或客户，匹配订单编码与客户名称，大小写不敏感",
+            "filter/fund-status: 资金状态筛选：全部资金状态、待收款、已收齐",
+            "filter/delivery-status: 交付排班筛选：全部交付排班、已设置交付、未设置交付",
+            "action/create: 新建订单，进入全页表单工作区",
+            "action/save: 保存并进入详情，为新建流程主操作",
+            "action/edit: 编辑订单，打开 Sheet 记录内容变更：变更日期、变更说明、金额调整、调整原因、变更后的商品行，并显示已记录 N 次变更",
+            "action/export-order-table: 导出订单表",
+            "action/export-shipping-summary: 发货汇总",
+            "action/shipment-create: 登记分批发货 Sheet：发货日期、承运商、运单号、每行本次发货数量（上限为当前可发数量，显示确认、累计已发、待发）、发货备注",
+            "action/shipment-void: 作废发货批次，Sheet 加确认弹窗；作废日期与作废原因必填",
+            "action/fund-record: 登记收款或退款 Sheet：业务类型（收款、退款、售后收费）、金额、发生日期、支付方式、收款凭证、备注",
+            "action/fund-correct: 冲正并更正，Sheet 加确认弹窗：原资金流水、替代类型、替代金额、冲正日期",
+            "action/proof: 收款凭证的选择、移除与查看，走系统文件对话框；凭证缺失或读取失败有专门提示",
+            "action/after-sales-create: 新建售后 Sheet 加确认弹窗；关联实际售后收费另开 Sheet",
+            "action/goto-schedule: 进入排班工作区与逐行前往排班，深链到排班页并带 orderId、orderItemId 与 focus 为 queue",
+            "form/create-order: 新建订单字段：客户、预计发货日期、预留制作天数（默认取工作室参数）、订单优惠、订单商品、订单备注",
+            "form/order-lines: 商品行字段：商品（可快建）、数量、单价（默认取商品基础售价）、缝边勾选、缝边数量（上限为数量）、缝边单价、明细优惠、移除行（仅剩一行时禁用）、添加商品行",
+            "form/amount-preview: 金额预览指标条：商品与缝边小计、明细优惠、订单优惠、预计订单金额；复用共享计算模块",
+            "form/quick-create-customer: 新建客户快选 Sheet（客户名称必填、联系人、默认收货地址、备注）；失败时保留订单草稿",
+            "form/quick-create-product: 新建商品快选 Sheet（商品名称必填、基础售价必填）；失败时保留订单草稿",
+            "state/loading: 列表、详情、排班信息、订单盈利、发货清单各有独立 loading 空态",
+            "state/first-use: 还没有订单，并给出前置资料引导（先建立客户、建立商品）",
+            "state/filtered-empty: 没有符合筛选条件的订单",
+            "state/error: 局部错误态：无法读取订单排班、订单盈利暂不可用",
+            "state/tags: 状态标签族：资金（待收、已收齐）、发货（已发货、已作废）、流水（已生效、已冲正）、任务（待质检、制作中、待排班）",
+            "state/read-only-history: 只读历史：内容变更记录与已作废批次不再可操作",
+            "interaction/dirty-guard: 所有 Sheet 关闭前做脏值确认",
+            "interaction/aria-labels: 逐控件 aria-label（第 N 行商品、数量、单价、缝边；批次 N 操作；订单页面动作），迁移必须保留",
+            "interaction/no-sort: 现状记录：全页无列排序、无分页、无多选批量、无键盘快捷键；这是现状缺口而非要保留的功能"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scheduling-review",
+      "label": "排班与核算",
+      "pages": [
+        {
+          "module": "fulfillment",
+          "file": "src/renderer/pages/fulfillment/index.tsx",
+          "label": "排班",
+          "targetPatterns": ["calendar-workspace", "review-workspace"],
+          "features": [
+            "view/tabs: 主 Tab 排班视角：人员周历（默认）、待核算",
+            "view/task-focus: 深链带 processTaskId 时整页切为任务处理只读视图，并提供返回人员周历",
+            "metric/stage-strip: 排班阶段总量七指标：订单总量、待制作、待捏毛装袋、待缝边、待打包发货、待发货、已发货",
+            "action/export-schedule: 导出排班页头按钮，当前为空实现；迁移时须确认是补齐还是按未接线代码处理",
+            "action/nav-focus: 导航聚焦：shipment 跳到订单发货 Tab，inspection 与 reviews 切到待核算 Tab",
+            "state/loading: 整页 loading 空态显示正在加载排班待办",
+            "state/error: 读取失败经通知浮层提示，页头动作在加载期间禁用"
+          ]
+        },
+        {
+          "module": "work-assignments",
+          "file": "src/renderer/pages/work-assignments/index.tsx",
+          "label": "排班工作区（嵌入排班页）",
+          "targetPatterns": ["calendar-workspace", "review-workspace"],
+          "features": [
+            "calendar/week-grid: 七列周历周一到周日，列宽 minmax 最小一百五十像素，外层容器横向滚动，页面整体不横滚",
+            "calendar/person-group: 按人员分组，十二档颜色令牌按人员顺序取模且整周同色；按建立时间排序；已删除人员单独分组",
+            "calendar/cards: 制作卡（商品名、待核算或已核算标签、制作与计划 N 件）与计时卡（工序、待核算或已核算，不关联商品）",
+            "calendar/nav: 上一周、本周、下一周 周导航",
+            "calendar/add: 每列底部加派工按钮（aria-label 为某日派工），空列显示空态占位",
+            "calendar/click: 点击卡片：未来日期打开只读安排详情弹窗；今天及以前切到待核算并给提示",
+            "list/pending: 统一待核算列表：工序、人员、排班日期、待核算内容、操作（核算）；工序列用标签区分制作与计时，两者在同一列表内",
+            "list/records: 已核算记录列表：工序、人员、核算日期、核算内容、状态、锁定与指引、操作（查看、更正、作废）",
+            "list/pending-membership: 待核算口径：排除已缺勤与已取消、仅排班日期不晚于今天、制作需无核算汇总、计时需无计时核算；排序为排班日期倒序、人员、键",
+            "action/assign: 派工，打开 Sheet",
+            "action/absent-cancel: 标记缺勤与取消安排，Dialog 且原因可选",
+            "action/reassign: 转派制作任务，Dialog；仅未完成制作任务可转派",
+            "action/view-detail: 工作安排详情 Dialog，只读",
+            "action/review-making: 制作核算 Dialog：实际产出数量、合格数量，加只读的系统计算数量（不合格数量、未完成数量）",
+            "action/review-timed: 计时核算宽 Dialog：开始与结束的日期时间四字段、只读核算分钟与归属日期、候选搜索与勾选表、效率核对面板",
+            "action/correct: 更正核算，correct 模式必须填更正原因",
+            "action/void: 作废核算记录 Dialog；作废即冲正回退",
+            "form/assignment: 派工字段：人员、日期、工序（制作、捏毛装袋、缝边、打包发货）；制作专属字段为订单商品、数量（上限为待派上限）、任务来源（正常生产、返工、售后补发、负责人安排）、额外预留分钟；备注",
+            "form/reassign: 转派字段：新负责人（启用人员且排除原负责人）、生效日期、调整原因必填",
+            "form/making-review: 制作核算校验：合格不超过产出不超过计划，且产出不超过本次排班计划；允许零产出",
+            "form/timed-review: 计时核算校验：开始日期须等于排班日期、结束不晚于当前、结束晚于开始；勾选候选行自动填满可处理数量；跨日按开始日归属",
+            "state/empty: 无人员首用引导（指引去工资页维护人员与时薪）、无安排、待核算空、记录空、候选空与搜索无结果",
+            "state/locked: 锁定记录禁用更正与作废并显示锁定原因与指引",
+            "interaction/conflicts: 冲突与警告：派工超排上限、计时交期逾期标记、缺少预计单件分钟快照提示、效率核对异常提示",
+            "interaction/no-drag: 现状记录：无拖拽排班、无键盘快捷键、无批量勾选"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "finance-payroll-workbench",
+      "label": "财务 / 工资 / 工作台",
+      "pages": [
+        {
+          "module": "workbench",
+          "file": "src/renderer/pages/workbench/index.tsx",
+          "label": "工作台",
+          "targetPatterns": ["dashboard-overview"],
+          "features": [
+            "view/tabs: 事项视图 Tab：总览、需要我决定（N）、可以推进（N）",
+            "metric/strip: 概览指标：需要我决定、可以推进、优先处理、数据截至；首用引导时隐藏",
+            "metric/stage-chart: 订单履约阶段分布条形：待执行、待核算、待发货，宽度按最大值取比例",
+            "metric/item-structure: 当前事项结构：事项总数，加可以推进、需要我决定、优先处理三个计数",
+            "list/priority: 现在优先处理：按优先级取前三条（紧急、高、普通），每条可进入处理",
+            "list/distribution: 事项分布四组：排班与核算、订单履约、工资结算、财务报销，各带待处理计数与查看处理",
+            "list/items: 事项列表：待处理事项（标题与描述）、优先级标签（优先处理、请跟进、待处理）、金额或数量、处理时点、操作（进入处理）",
+            "action/refresh: 刷新工作台快照",
+            "action/drill: 进入处理：按事项类型深链到订单、排班、工资或财务对应视图",
+            "state/loading-first-use: loading 空态、首用引导空态（带动作文案）、各视图独立空态"
+          ]
+        },
+        {
+          "module": "finance",
+          "file": "src/renderer/pages/finance/index.tsx",
+          "label": "财务",
+          "targetPatterns": ["dashboard-overview", "list-page", "review-workspace"],
+          "features": [
+            "view/tabs: 财务工作视图 Tab：月度经营结果、现金流水、待报销",
+            "metric/month: 本月经营结果指标：实际收入、经营支出、经营结果（按正负变色）",
+            "filter/month: 统计月份选择器（月度结果）与查看月份选择器（现金流水）",
+            "filter/as-of: 待报销截至日期，默认今天",
+            "list/cashflow: 现金流水表：发生日期、业务类型与说明、支付方式、状态、金额带正负号",
+            "list/pending-reimbursement: 待报销列表：垫付人与费用、垫付日期、待报销金额、状态、操作（选择切换，按钮带 aria-pressed）",
+            "action/entry: 登记收支，打开 Sheet，为页面主操作",
+            "action/batch-reimburse: 批量报销（已选择 N 笔），未选择时禁用",
+            "form/entry: 登记日常收支：方向（收入、支出）与实际收付款日期、金额、收支类目（必填，按方向过滤启用项）；支出专属付款来源（公账支出、私人垫付）与垫付人；支付方式、备注",
+            "form/batch-reimburse: 确认批量报销：付款日期必填、支付方式、备注；并说明任一记录已报销或无效则整批不产生部分报销",
+            "state/selection: 选择汇总显示已选择 N 笔与合计金额；待报销列表变化时自动裁剪失效选择",
+            "state/empty-error: 各表 loading 与独立空态；错误统一走通知浮层"
+          ]
+        },
+        {
+          "module": "settlements",
+          "file": "src/renderer/pages/settlements/index.tsx",
+          "label": "工资",
+          "targetPatterns": ["list-page", "detail-page"],
+          "features": [
+            "view/tabs: 工资工作视图 Tab：工资结算、待退款（带计数）、人员与时薪（嵌入人员页）",
+            "metric/header-meta: 页头元信息显示 N 位人员",
+            "list/settlements: 工资结算列表：兼职人员、结算周期、最终实发（未确认显示待确认）、状态（草稿、已确认）、操作（查看详情）",
+            "list/refunds: 待退款列表：人员与原结算、不合格数量、退款金额、状态（待退款、已退款）、操作（处理退款，仅待退款可操作）",
+            "filter/settlement: 结算状态筛选（全部、草稿、已确认）加搜索人员或结算周期",
+            "filter/refund: 退款状态筛选（全部、待退款、已退款）加搜索人员或原结算",
+            "view/inline-detail: 选中结算后在列表下方内联展开详情（不是抽屉），并标注当前查看行",
+            "action/create-draft: 新建结算 Sheet（主操作），创建后自动选中新草稿",
+            "action/confirm-settlement: 确认并记账，受门禁限制（最终实发大于零且已填实际付款日期），并走确认弹窗",
+            "action/resolve-refund: 登记兼职退款 Sheet 加确认弹窗",
+            "form/draft: 新建结算字段：兼职人员必填、结算日期范围必填（结束不得早于开始）",
+            "form/detail: 结算详情字段：本期实际扣款、其他调整、最终实发、实际付款日期、负责人备注",
+            "form/adjustment: 已结算工时更正：关联核算记录、更正后分钟、原因、备注",
+            "form/refund: 登记兼职退款字段：实际退款金额必填且不得超过待退款金额、退款日期、处理备注",
+            "state/focus: 深链聚焦：带 settlementId 自动选中结算；focus 为 refund 时切到待退款",
+            "state/loading-empty: 列表 loading 与按筛选分支的空态文案"
+          ]
+        },
+        {
+          "module": "workers",
+          "file": "src/renderer/pages/workers/index.tsx",
+          "label": "人员与时薪（嵌入工资页）",
+          "targetPatterns": ["list-page", "detail-page"],
+          "features": [
+            "view/embedded-header: 嵌入形态使用区块标题加新增人员，独立形态使用页头；注意现状嵌入时仍渲染页头形成嵌套页头（1.2 已登记）",
+            "list/workers: 兼职人员列表：人员与备注、状态、建立日期、操作（查看详情）",
+            "filter/status-search: 人员状态筛选（全部、已启用、已停用）加搜索姓名或备注",
+            "action/create: 新增兼职人员 Sheet：姓名、首个时薪（元）、生效日期、备注；成功后提示已建立并记录首条时薪",
+            "view/profile: 人员资料明细：姓名、状态、备注、当前时薪（无记录时显示暂未记录）",
+            "list/wage-history: 时薪历史记录表：生效日期、时薪（元每小时）",
+            "action/wage-adjust: 调整时薪，内联表单（新时薪、生效日期），支持取消调整",
+            "state/empty: 还没有兼职人员首用引导、筛选无结果、时薪历史为空"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "base-data",
+      "label": "客户 / 商品",
+      "pages": [
+        {
+          "module": "customers",
+          "file": "src/renderer/pages/customers/index.tsx",
+          "label": "客户",
+          "targetPatterns": ["list-page", "detail-page"],
+          "features": [
+            "view/states: 列表、详情、编辑三态在同一页内切换（编辑用 Sheet）",
+            "list/customers: 客户列表：客户与备注、联系人（空显示未填写）、默认地址、状态（启用、停用）、最近更新、操作（查看详情）",
+            "filter/status-search: 客户状态筛选（全部、已启用、已停用）加搜索客户、联系人或地址，匹配名称、联系人、默认地址与备注",
+            "view/detail: 客户详情：返回客户列表、编辑客户、客户基础资料明细（联系人、状态、默认收货地址、备注）",
+            "metric/order-insights: 客户订单统计指标条：订单数、订单金额、净收款（success）、待收（warning），并显示最近下单时间",
+            "list/order-history: 客户历史订单表：订单、下单时间、订单金额、净收款、待收、状态（订单状态与发货状态拼接）、操作（查看订单）",
+            "action/create-edit: 新建客户与编辑客户共用 Sheet：客户名称必填、联系人、默认收货地址、备注；仅主动保存后写入",
+            "action/view-order: 查看订单，深链到订单详情概览",
+            "state/loading-empty: loading 空态、还没有客户资料首用空态、没有符合筛选条件的客户",
+            "state/insights-loading: 详情订单统计懒加载，加载中单独提示",
+            "interaction/dirty-guard: 关闭 Sheet 前做放弃修改确认"
+          ]
+        },
+        {
+          "module": "products",
+          "file": "src/renderer/pages/products/index.tsx",
+          "label": "商品",
+          "targetPatterns": ["list-page", "form-workspace", "detail-page"],
+          "features": [
+            "view/modes: 列表、新建、编辑、详情四种整页模式互斥切换",
+            "view/detail-tabs: 商品详情四个 Tab：商品概览、成本与预计盈利、制作产能、商品存量；支持左右方向键切换",
+            "list/products: 商品列表：商品与编码（附带材料克重）、默认售价、预计制作分钟、日产能（未维护时提示）、状态、最近更新、操作（查看详情）",
+            "filter/status-search: 商品状态筛选（全部、已启用、已停用）加搜索商品、编码或备注",
+            "view/profit: 成本与预计盈利区块：预计单件成本（可展开构成）、预计单件利润、预计利润率、缝边预计增加成本；数据懒加载并有独立 loading 与错误态",
+            "view/capacity: 制作产能区块：模具数量、每模每批产出、每日最大批次数、日产能，以及制作与捏毛装袋与缝边与打包发货四项预计单件时长",
+            "view/inventory: 商品存量面板：存量流水表（带正负数量）、录入历史存量、负责人调整、投入订单三个 Dialog",
+            "form/workspace: 全页两栏编辑工作区：基础资料（商品名称必填、默认销售单价）、材料与单件成本（单件材料重量、单件固定成本、包装成本、配饰成本、替换袋成本、缝边耗材成本）、提成（制作、捏毛装袋、缝边）、预计时长与产能、备注",
+            "form/derived-capacity: 派生字段计算日产能等于模具数量乘每模每批产出乘每日最大批次数；参数不完整时提示填写完整模具参数后计算",
+            "form/profit-preview: 右侧吸附的预计盈利预览，随表单输入即时重算，输入按商品字段加工作室参数与三个基准时薪计算",
+            "state/loading-empty-error: 列表四态、设置加载失败提示、盈利区块独立 loading 与错误态、保存中按钮 loading、存量面板 loading 与流水首用空态",
+            "interaction/tab-keys: 详情 Tab 支持左右方向键切换",
+            "interaction/no-dirty-guard: 现状记录：返回列表即丢弃未保存修改，无脏值拦截，与客户页行为不一致"
+          ]
+        }
+      ]
+    }
+  ]
+}

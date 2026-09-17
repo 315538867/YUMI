@@ -1,0 +1,16 @@
+{
+  "$comment": "P0 任务 1.3 生成的静态违规基线；style-violations.test.ts 以「新增即失败、清零需同步收紧」的棘轮方式校验。P3 任务 12.2 清零：全部违规已消除，基线收紧为严格零豁免门禁。",
+  "categories": [
+    "raw-color",
+    "raw-typography",
+    "raw-spacing",
+    "raw-radius",
+    "raw-shadow",
+    "private-breakpoint",
+    "shared-class-override",
+    "legacy-class-in-source",
+    "dangling-token-reference",
+    "unconsumed-token"
+  ],
+  "entries": []
+}

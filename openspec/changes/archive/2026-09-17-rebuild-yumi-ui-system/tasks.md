@@ -1,0 +1,523 @@
+## 1. P0 现状基线与验收基础
+
+- [x] 1.1 盘点 `src/renderer/components/ui/index.ts` 的运行时导出、生产调用点和零使用组件，并以测试固化清单
+  - 证据：`src/renderer/test/ui-baseline/ui-inventory.json`（基线）+ `ui-inventory.test.ts`（6 例全绿）
+  - 结论：50 个运行时导出、19 个仅类型导出；生产零使用 9 个；仅被同层 ui 消费 4 个；被页面/领域消费 37 个
+  - 零使用清单：`YumiBusinessList`、`YumiBusinessListItem`、`YumiDateTimePicker`、`YumiDateTimeRangePicker`、`YumiTaskRateSummary`、`YumiNotification`、`YumiNotificationHost`、`YumiPageActions`、`useYumiNotification`
+  - ⚠️ 与提案不一致：提案点名删除 5 个，实测零使用为 9 个。多出的 4 个（`YumiNotification`、`YumiNotificationHost`、`YumiPageActions`、`useYumiNotification`）都是模块内部实现细节：前两者仅被同文件的 `YumiNotificationProvider` 使用，`YumiPageActions` 仅被 `YumiPageHeader` 渲染，`useYumiNotification` 仅被同文件的 `useYumiNotificationMessage` 使用。已处置（见 3.9）：5 个点名组件删除，4 个内部细节保留不删——`YumiPageActions` 被 `YumiPageHeader` 渲染、`YumiNotification`/`YumiNotificationHost` 被 `YumiNotificationProvider` 渲染、`useYumiNotification` 支撑全仓广泛使用的 `useYumiNotificationMessage`。
+  - 报告：`openspec/changes/rebuild-yumi-ui-system/baselines/ui-inventory.md`
+  - 失败用例验证：向桶文件新增一个导出后，6 例中 3 例失败；已还原
+- [x] 1.2 盘点所有路由级页面、AppShell 直接工作区和嵌入式页面模式，记录目标 Pattern 与当前滚动/页头所有权
+  - 证据：`src/renderer/test/ui-baseline/page-inventory.json`（生成事实）+ `page-pattern-map.json`（审定归属）+ `page-pattern.test.ts`（8 例全绿）
+  - 壳层：侧栏 232px（设计文档写 216px，以现状为准）；纵向滚动容器只有 `.yumi-app-navigation` 与 `.yumi-app-content`
+  - 路由级页面 9 个，全部已渲染 `YumiPageHeader`；`reports`/`customers` 尚无主 Tab
+  - 嵌入式页面 2 个：`WorkAssignmentsPage`（宿主排班页，无页头）、`WorkersPage`（宿主工资页，**自带页头 → 嵌套页头，已登记为已知项**）
+  - 两处页面内局部纵向滚动：pages.css 的 `.yumi-opening-wip__candidates`（已登记）
+  - 目标 Pattern 与 P3 家族归属见 `page-pattern-map.json`，需负责人确认后再进入 P2
+  - 报告：`openspec/changes/rebuild-yumi-ui-system/baselines/page-inventory.md`
+- [x] 1.3 按文件、规则类别和具体位置生成裸值、旧 class、私有断点、共享内部覆盖及未消费令牌基线
+  - 证据：`src/renderer/test/ui-baseline/style-violations.json`（359 条棘轮基线）+ `style-violations.test.ts`（5 例全绿）
+  - 规则引擎：`src/renderer/test/ui-baseline/violations.ts`，CSS 解析器 `css-scan.ts`（支持 `@media` 嵌套与行号）
+  - 分类规模：`raw-typography=232`、`raw-spacing=78`、`raw-radius=20`、`unconsumed-token=15`、`private-breakpoint=13`、`raw-color=1`、`raw-shadow=0`、`shared-class-override=0`、`legacy-class-in-source=0`、`dangling-token-reference=0`
+  - 私有断点实测 13 个「文件+断点值」组合：pages.css 520/640/760/820/900/980/1080，components.css 620/640/720/820/900/1023/1096，全部低于或偏离设计要求的两个桌面适配点
+  - 未消费令牌 15 个（tokens.css 定义但全仓库零引用）：`--yumi-control-height`、`--yumi-control-height-compact`、`--yumi-control-padding-x`、`--yumi-font-weight-medium`、`--yumi-font-weight-semibold`、`--yumi-layout-page-gutter`、`--yumi-layout-sidebar-width`、`--yumi-line-height-normal`、`--yumi-line-height-tight`、`--yumi-palette-rattan-yellow`、`--yumi-panel-padding`、`--yumi-section-gap`、`--yumi-success-hover`、`--yumi-tab-indicator-height`、`--yumi-table-row-min-height`
+  - ⚠️ 唯一裸色值来自**受保护 WIP**：`pages.css:1522` `.yumi-financial-overview__headline` 的 `rgba(255,255,255,0)`。已登记进基线，不计入 P0/P1 变更集
+  - 报告：`openspec/changes/rebuild-yumi-ui-system/baselines/style-violations.md`
+- [x] 1.4 先写失败用例再实现增量护栏，证明新增违规会失败且既有登记项不会阻塞 P0
+  - 证据：4 个测试文件 23 例全绿（`src/renderer/test/ui-baseline/`），359 条既有登记项全部共存通过
+  - 失败用例验证（已还原）：向桶文件新增导出 → 1.1 护栏 3 例失败；向 `components.css` 新增 `.yumi-scratch-probe { padding: 13px }` → 1.3 护栏报出 `components.css:1797 [raw-spacing]`
+  - 清零收紧验证（已还原）：把一处 `font-size: 12px` 改为 `var(--yumi-font-size-sm)` → 护栏要求删除对应基线条目，证明豁免不会长期滞留
+  - 未提交任何生产文件改动，`components.css` 保持与 HEAD 一致
+- [x] 1.5 为报表、设置、订单、排班与核算、财务/工资/工作台、客户/商品/人员建立功能保留矩阵
+  - 证据：`src/renderer/test/ui-baseline/feature-matrix.json`（181 条机器可读条目）+ `feature-matrix-counts.json`（条目数反向棘轮）+ `feature-matrix.test.ts`（7 例全绿）
+  - 报告：`openspec/changes/rebuild-yumi-ui-system/baselines/feature-matrix.md`（464 行，由 `scripts/render-feature-matrix.mjs` 生成，可重新渲染）
+  - 规模：6 个家族 / 11 个页面 / 181 条，按 9 个类别分（view、metric、list、filter、action、form、state、calendar、interaction）
+  - 分家族条目数：报表 22、设置 18、订单 39、排班与核算 32（fulfillment 7 + work-assignments 25）、财务/工资/工作台 46（workbench 10 + finance 12 + settlements 16 + workers 8）、客户/商品 24（customers 11 + products 13）
+  - 覆盖契约：矩阵的家族划分与页面归属必须与 `page-pattern-map.json` 一致；页面模块与文件路径必须与 `page-inventory.json` 完全一致（含 2 个嵌入式页面）；每个页面必须至少声明一个合法 Pattern；每个页面必须至少有一条 `state/` 条目，防止迁移只搬正常路径
+  - 棘轮验证：从 customers 删掉 1 条后，护栏报「base-data.customers 的条目从 11 降到 10」；已还原
+  - 盘点时发现并登记的迁移风险（详见报告末节）：`workers` 嵌入时嵌套页头；`fulfillment` 的「导出排班」是空实现；脏值拦截行为在订单/客户页有、设置/商品页没有；商品页返回即丢弃未保存修改；全仓普遍缺列排序、分页、多选批量、拖拽排班与键盘快捷键（属现状缺口，非需保留功能）
+- [x] 1.6 建立隔离视觉验收数据集，固定日期、时区、排序、长中文文案、极端金额、记录数量和随机值
+  - 证据：`src/renderer/test/ui-baseline/visual-fixtures/`（6 个模块）+ `visual-fixtures.manifest.json`（声明）+ `visual-fixtures.test.ts`（12 例全绿）
+  - 模块：`determinism.ts`（固定时钟/时区/种子 PRNG/稳定排序）、`edge-values.ts`（长中文与极值样本）、`context.ts`（数量声明与工厂上下文）、`factories-commercial.ts`、`factories-operations.ts`、`factories-finance.ts`、`dataset.ts`（组装入口）
+  - 固定值：时区 `Asia/Shanghai`、基准日期 `2026-03-18`、基准周 `2026-03-16`、种子 `20260318`、材料克单价 3400 微元/克
+  - 记录数量（17 类，与 manifest 双向断言）：客户 12、商品 14、订单 16、订单资金 20、发货批次 5、人员 8、时薪 10、结算 6、退款 4、收支类目 8、垫付人 3、财务流水 24、待报销 5、排班 18、计时核算 9、工作台决策 6、工作台推进 5
+  - 极端样本已内置：极贵商品（9,999,999.99 元）与一分钱商品、产能参数未维护、字段全空客户、已停用客户/商品/人员/类目、已作废发货批次、已冲正流水、锁定核算记录、零收款订单
+  - 护栏内容：两次构建结果深等；换种子换数据但订单号不变；日期全为字面量 `YYYY-MM-DD`、审计时间全带 `+08:00`（各断言 > 50 处）；金额/重量全为整数（> 100 处）；订单金额与资金算术自洽；制作核算满足 `0 ≤ 合格 ≤ 产出 ≤ 计划`；排班覆盖固定那一周七天且状态齐备；排序只走显式稳定排序；夹具源码禁用 `Date.now()`、`Math.random()`、无参 `new Date()`、宿主时区 API
+  - 失败用例验证：三处真实缺陷被护栏当场抓出并修掉——(1) 制作核算「已核算」条件与计时班次求交为空，导致没有任何制作任务带核算摘要；(2) 私人垫付条件与收入索引冲突，24 条流水只产出 4 条垫付、凑不满 5 条待报销；(3) 极值覆盖漏掉宽金额与零金额的所在集合
+  - 类型校验：`@shared/*` 路径别名只在 `electron.vite.config.ts` 声明，tsconfig 里没有 `paths`，且 `pnpm run typecheck` 是空操作。本次用临时 `tsconfig.check.json`（补 `baseUrl` + `paths`）跑真实 `tsc`，夹具与护栏 0 错误；临时配置已删除
+- [x] 1.7 在 Electron 中测量 `1100 × 720`、`1440 × 920`、`1920 × 1080` 外层窗口对应的实际 renderer viewport
+  - 证据：`openspec/changes/rebuild-yumi-ui-system/baselines/viewport-measurements.json`（实测原始值）+ `src/renderer/test/ui-baseline/window-viewport.test.ts`（3 例全绿）
+  - 实测工具：`scripts/probe-viewport.mjs`（一个进程只测一档尺寸）+ `scripts/run-viewport-probe.sh`（三档汇总 + 每档最多 6 次重试）
+  - 测量环境：darwin / Electron 34.5.8 / Chrome 132.0.6834.210；主显示器 1800×1169 逻辑点（workArea 1800×1078，scaleFactor 2）
+  - 实测结果：三档外层尺寸 == 内容区尺寸 == renderer viewport（1100×720、1440×920、1920×1080），devicePixelRatio 均为 2，**没有标题栏扣减**
+  - 结论：`titleBarStyle: 'hiddenInset'` 把标题栏并入内容区，验收尺寸可直接当作 CSS viewport 使用；1920×1080 在本机超出屏幕（窗口 x=0、y=-12）但渲染尺寸未被裁剪
+  - 本机限制（务必知悉）：Electron renderer 进程偶发 Mach port rendezvous bootstrap 失败（`ERR_FAILED`），**且同一进程内创建第二个 BrowserWindow 几乎必然失败**；因此必须「一进程一档 + 外层重试」，直接跑三档循环会中途挂死
+  - 失败用例验证：把 `src/main/index.ts` 的 `titleBarStyle` 改成 `'default'` → 契约用例失败并报出该断言；已还原，`git diff src/main/index.ts` 为空
+- [x] 1.8 根据实测 viewport 固化两个桌面适配点，并为工具栏折行、双栏切换和局部横向滚动写失败用例
+  - 证据：`src/renderer/test/ui-baseline/desktop-adaptation.json`（适配点决策记录）+ `desktop-adaptation.test.ts`（9 例全绿）
+  - 固化结论：适配点沿用设计候选 **1280** 与 **1440**。1.7 已实测确认外层窗口尺寸等于 renderer viewport，候选值无需换算即可直接作为 CSS viewport 断点
+  - 三个桌面区间：较窄 `1100–1279` / 标准 `1280–1439` / 宽 `≥1440`
+  - 三档验收 viewport 归属：1100 → 较窄、1440 → 宽、1920 → 宽
+  - 已成立契约（绿）：`.yumi-data-table-wrap` 已是 `overflow-x: auto`，表格局部横向滚动已可用
+  - 失败用例 1 · 工具栏折行：要求 `@media (max-width: 1279px)` 下 `.yumi-list-toolbar` 折行；现状折行发生在**私有断点 1023px**
+  - 失败用例 2 · 双栏切换：要求 1279px 下 `.yumi-product-workspace` 压缩辅助栏（`minmax()` 双轨）而非堆叠；现状在**私有断点 1080px** 直接变成 `grid-template-columns: 1fr`
+  - 失败用例 3 · 页面整体不横向滚动：要求 `.yumi-app-content` 显式声明 `overflow-x: hidden|clip`；现状只写 `overflow-y: auto`，按 CSS 规范另一轴的 `visible` 会被计算成 `auto`，页面级横向滚动条随时可能出现
+  - 红态表达方式：三个目标契约用 `it.fails` 写成「当前应为红」，P0 不改生产代码因此保持红态；一旦实现方达成契约，vitest 会报「预期失败但通过了」，强制把 `it.fails` 改回 `it`，契约不会悄悄失效
+  - 红态原因验证：临时去掉 `.fails` 后，3 例分别以「未找到 max-width: 1279px 下的 .yumi-list-toolbar 规则」「未找到 max-width: 1279px 下的 .yumi-product-workspace 规则」「expected … to match /overflow-x:\s*(hidden|clip)/」失败；已还原
+  - ⚠️ 待确认：标准桌面区间 `1280–1439` 没有对应的验收窗口尺寸（默认窗口 1440 恰好落在宽桌面下界）。若希望三档验收各覆盖一个区间，第二个适配点需从 1440 移到 1600 左右；此处按设计文档候选值固化，留待负责人确认
+- [x] 1.9 用确定性数据采集三档窗口的页面基线截图和加载、空态、错误、溢出、Portal 展开状态
+  - 证据：`baselines/screenshots/`（66 张 PNG，18MB）+ `manifest.json`（schemaVersion 1）+ `baselines/baseline-screenshots.md` + `src/renderer/test/ui-baseline/baseline-screenshots.test.ts`（11 例全绿）
+  - 采集设施（全部在 `visual-harness/`）：`capture.mjs`（一进程一拍、state 经 `additionalArguments` 注入）、`preload-stub.cjs`（SURFACE 方法表与真实 preload 一致，读方法接 fixtures、写方法抛错、未声明方法记 miss）、`emit-fixtures.mjs`（把 1.6 夹具打包为 fixtures.json）、`run-capture.sh`（串行 + 外层重试 + 60s 超时）
+  - 覆盖矩阵：default × 9 页 × 3 档（1100×720 / 1440×920 / 1920×1080）= 27；loading/empty/error × 9 页 @ 1440×920 = 27；overflow/portal × 6 页 @ 1440×920 = 12；共 66 张
+  - 实测事实：默认态三档全部无页面级横向滚动（27/27）；loading 8/9 页出现 `role="status"`（finance 无专有加载态，契约测试显式豁免）；empty 页归零并显示空态文案；error 页降级为零/占位（工作台「数据截至 —」）；portal 4 页 Dialog + 2 页 Select Popover（orders/products `overlay=1`）；overflow 注入「超长中文文案」且 orders 表格出现局部横向滚动（`scrollableTables=1`）；default 态 `today` 全部固定 2026-03-18
+  - 修复记录：(1) `contextBridge.exposeInMainWorld` 不能克隆 Proxy → stub 守卫改为显式 SURFACE 方法表；(2) products「新建商品」是全页工作区而非浮层 → portal 触发器改用「全部状态」筛选下拉；(3) `run-capture.sh` 首次执行 ROOT 路径层级错误导致 66 张全失败，修正 `HARNESS_DIR/../../../..` 后全量通过
+  - 已知限制（已写入报告）：月份选择器取运行时系统月份（2026-09）而夹具数据落在 2026-03，按月统计显示 0（finance 本月经营结果）；finance 无专有加载态；finance overflow 长文案所在页签（现金流水）未展开故不参与断言
+  - 失败用例验证：契约测试断言「默认态无页面级横向滚动」「loading 有 role=status」「portal 浮层展开」「overflow 长文案出现」，若不满足即失败；对 manifest 缺失/PNG 体积过小/尺寸不符同样覆盖
+  - 受保护 WIP 未触碰：`wip-protection.test.ts` 6 例保持全绿
+- [x] 1.10 固化财务总览 WIP 文件与 hunk 保护清单，验证 P0/P1 变更集不包含其既有改动
+  - 证据：`src/renderer/test/ui-baseline/wip-protection.json`（保护清单）+ `wip-protection.test.ts`（6 例全绿）
+  - 受保护文件 7 个：`pages/reports/index.tsx`、`index.test.tsx`（modified）；`financial-overview.tsx`、`financial-overview-model.ts`、`financial-overview.test.ts`、`financial-overview.test.tsx`（added）；`styles/pages.css`（modified）
+  - 指纹：6 个独立 WIP 文件记录了 sha256（实测写入，非估计值）。`styles/pages.css` 因同时承载大量非 WIP 既有样式，不做整文件指纹，改为锁定 WIP 段落标记（从 `/* Reports: financial overview */` 注释起，含 `.yumi-financial-overview__headline` 与 `yumi-report-details`）
+  - 关键标记：`index.tsx` 锁定 `FinancialOverview`、`yumi-report-details`、`本月经营结果`；`financial-overview.tsx` 锁定组件名；模型锁定 `buildFinancialOverview`
+  - 本条流水线保护：不判失败但会明确报告——受保护文件指纹变化时输出提示，要求人工确认改动来自 WIP 作者而非本变更的批量工具
+  - 基线条目豁免：WIP 段落内的唯一裸色值 `pages.css` `.yumi-financial-overview__headline`（1.3 已登记）标记为 WIP 所有，保留到 WIP 落盘后随该页一起整改，P1 清零时不得误删
+  - 变更集验证：本变更 41 个产物全部登记在 `CHANGE_ARTIFACTS` 中，断言「不与受保护路径相交」且「只落在 `src/renderer/test/ui-baseline/` 或 `openspec/changes/rebuild-yumi-ui-system/` 内」。实测 `git status` 中 3 个 modified 文件全部是 WIP 自己的改动，本变更未修改任何生产文件
+  - 失败用例验证（已还原）：(1) 给受保护文件加一个不存在的标记 → 报「丢失 WIP 标记」；(2) 把 `pages/reports/index.tsx` 登记成本变更产物 → 报「落在受保护路径内」
+  - WIP 三个文件的实际 sha256 与 2026-09-15 记录值一致，确认盘点期间未被改动
+
+## 2. P1 Foundations 与 CSS 入口
+
+- [x] 2.1 先写令牌完整性失败用例，再建立颜色、排版、间距、尺寸、圆角和阴影的基础尺度与语义别名
+  - 证据：`src/renderer/styles/token-foundations.test.ts`（4 例全绿）+ `tokens.css` 第 5/6 节重构
+  - 库存现状：tokens.css 原有 `palette-*`（颜色）、`font-size/line-height/font-weight-*`（排版）、`space-*`（间距）、`radius-*`和 `shadow-*` 基础尺度；缺失**尺寸尺度**，控件尺寸以裸值散在「组件别名」里
+  - 失败用例验证（先红后绿）：4 例初始全红——「六类基础尺度齐备」缺 `--yumi-size-*`；「语义别名清单」缺 `--yumi-field-gap`、`--yumi-overlay-padding`；「语义别名必须 var() 引用尺度」被 `control-height: 36px` 裸值击穿；「尺寸尺度被别名消费」因无任何 `--yumi-size-*` 而失败；实现后 4 例全绿
+  - 实现：新增 `--yumi-size-control/--yumi-size-control-compact/--yumi-size-row-min/--yumi-size-tab-indicator` 尺寸尺度；`control-height`、`control-height-compact`、`table-row-min-height`、`tab-indicator-height` 改为 `var()` 引用；新增 `field-gap`、`overlay-padding` 间距/浮层语义别名；分节注释升级为「基础尺度 + 组件别名」两层结构
+  - 棘轮处理：2 个新语义别名暂无消费点 → 登记进 `style-violations.json`（unconsumed-token 15→17）与 `baselines/style-violations.md`（合计 359→361），待 P1 组件/合并层迁移后消费删除；4 个 `--yumi-size-*` 被 tokens.css 内部别名引用 → 计为已消费，不新增违规（`style-violations.test.ts` 与 `ui-baseline` 71 例全绿）
+  - 保真：所有别名数值与迁移前逐值相等（36/32/44/3px），`app-components.test.ts` 的令牌文本断言保持兼容；其 2 个既有失败来自受保护 WIP（reports 页 `YumiMetricStrip` 与 pages.css WIP 裸色值），stash 验证与本次改动无关，按约定不代修
+- [x] 2.2 先写层级与 reduced-motion 失败用例，再建立 motion、easing 和页面/sticky/menu/overlay/dialog/toast 层级令牌
+  - 证据：`src/renderer/styles/motion-layering.test.ts`（5 例全绿）+ `tokens.css` 第 7 节 + `layering.test.ts`/`yumi-date-picker.test.tsx` 层级断言升级；styles 与 ui-baseline 共 23 文件 107 例全绿
+  - 失败用例验证（先红后绿）：5 例初始全红——动效尺度缺失、六类层级令牌缺失、层级顺序未定义、无 reduced-motion 减速块、组件/页面样式残留裸 `z-index` 与裸 `ms` 时长；实现后 5 例全绿
+  - 实现：`tokens.css` 新增动效尺度（`--yumi-duration-fast/spin/spin-slow`、`--yumi-easing-standard/linear`）与命名层级令牌（`--yumi-z-page/sticky/overlay/dialog/menu/toast` 对应 0/1/80/81/90/200）；末尾新增 `@media (prefers-reduced-motion: reduce)` 把 `--yumi-duration-fast` 置 0ms，自旋等必要状态反馈保留
+  - 消费迁移：components.css 全部 4 处过渡与 2 处自旋动画、9 处 `z-index` 裸值改引用令牌；pages.css 通知宿主 `z-index: 200` 改 `--yumi-z-toast`，`.yumi-page` 锚定基底层（`position: relative; z-index: var(--yumi-z-page)`）形成独立层叠上下文；所有数值与迁移前逐值相等
+  - 棘轮处理：11 个新令牌全部被组件/页面样式 `var()` 消费，unconsumed-token 保持 17 不新增（`style-violations.test.ts` 全绿）；`layering.test.ts` 与 `yumi-date-picker.test.tsx` 改为按令牌解析层级（jsdom 不解析 `var()`），日期浮层仍验证为菜单层级（90）> 抽屉层级（81）
+  - 保真：`app-components.test.ts` 2 个既有失败仍为受保护 WIP（reports 页 `YumiMetricStrip` 与 pages.css WIP 裸色值），与本次改动无关
+- [x] 2.3 创建 `styles/index.css` 并声明 `reset, vendor, foundations, primitives, composites, patterns, domains, utilities` 固定层顺序
+  - 证据：`src/renderer/styles/index.css` + `style-entry.test.ts`（2 例全绿）；styles 与 ui-baseline 共 22 文件 105 例全绿
+  - 失败用例验证（先红后绿）：2 例初始全红——`index.css` 不存在 + 无 `@layer` 顺序语句；实现后 2 例全绿
+  - 实现：`index.css` 作为唯一 UI 样式入口雏形，头部注释说明层契约与落位方向，首行声明 `@layer reset, vendor, foundations, primitives, composites, patterns, domains, utilities;`
+  - 待办边界：各文件按 2.4/2.5 等任务逐个移入对应层；唯一样式入口切换（main.tsx 只保留 index.css 导入）由任务 2.7 完成；`app-components.test.ts` 的 `main.tsx` 导入断言保持不变
+  - 棘轮：`@layer` 语句无规则体，不引入 raw/未消费令牌等任何基线违规；`style-violations.test.ts` 全绿
+- [x] 2.4 用构建和渲染测试验证 DayPicker layered import；通过后把第三方样式移入 vendor 层并删除 `main.tsx` 独立导入
+  - 证据：`index.css` 新增 `@import '@daypicker/react/style.css' layer(vendor);`（位于层级顺序语句之后）；`main.tsx` 删除 daypicker 独立导入并改为首个导入 `./styles/index.css`；结构 `style-entry.test.ts` 4 例、渲染 `daypicker-layer.test.tsx` 1 例、真实构建 `vendor-layer.build.test.ts` 1 例全绿；`npx electron-vite build` 产物 `out/renderer/assets/index-*.css` 含 `@layer vendor`（rdp-day_button 命中 22 处）
+  - 失败用例验证（先红后绿）：索引断言（index.css 无 layer(vendor) 导入）、main.tsx 直导断言、构建断言（产物无 vendor 层）3 例初始红；构建测试首跑因缺 `@shared` 别名解析失败，按 electron.vite.config.ts 补齐别名后进入预期红；实现后全绿
+  - 渲染验证：`daypicker-layer.test.tsx` 镜像唯一入口加载形态（vendor 样式 + 无层本地组件样式注入 jsdom），打开日期浮层断言 vendor 规则生效（`.rdp-day` text-align=center）且本地主题覆盖胜过 vendor（`.yumi-date-popover .rdp-root` font-size=13px）
+  - 构建验证：`vendor-layer.build.test.ts` 用 Vite 构建 API 出真实产物，按花括号配平提取 `@layer vendor` 块，断言含 `.rdp-root`/`.rdp-day_button` 且不含本地 `yumi-button`（本地共享样式保持无层）
+  - 保真：日期选择整套 3 例照常通过；`app-components.test.ts` 2 个 WIP 既有失败不受影响；棘轮未新增违规
+- [x] 2.5 将 base 样式迁入 Foundations，并验证页面背景、字体、焦点轮廓、数字对齐和 reduced-motion 契约
+  - 证据：`base.css` 整体包入 `@layer foundations`（含文件头注释）；`base-foundations.test.ts` 6 例全绿；`motion-layering.test.ts` 的 reduced-motion 断言迁至 base.css；styles 与 ui-baseline 共 24 文件 114 例全绿
+  - 失败用例验证（先红后绿）：6 例初始全红——无 `@layer foundations` 块、页面背景裸色、字体裸字号/行高、焦点轮廓、数字对齐、reduced-motion 未随迁；实现后全绿
+  - 实现：`:root`/`*`/`html,body,#root`/`body`/表单字体继承/焦点轮廓/选区统一收进 foundations 层；`body` 的 `font-size: 14px`、`line-height: 1.5` 改 `var(--yumi-font-size-md)`、`var(--yumi-line-height-normal)`；reduced-motion 减速块从 tokens.css 整体移入 base.css（tokens.css 回归纯令牌库，无行为块）
+  - 棘轮处理（双减）：消费 `--yumi-line-height-normal` 删除未消费条目（17→16）、修复 `body` 裸字号删除 raw-typography 条目（232→231），合计 361→359；`style-violations.json` 与 `baselines/style-violations.md` 同步删除对应行并更正计数
+  - 保真：`app-components.test.ts` 的 base 契约断言（focus-visible/`--yumi-focus-ring`/`::selection`/tabular-nums）照常通过，2 个 WIP 既有失败不受影响
+- [x] 2.6 先写同步失败用例，再让 Electron `backgroundColor` 与 renderer canvas 共享主题常量或通过同步测试约束
+  - 证据：`src/renderer/styles/electron-canvas-sync.test.ts`（2 例全绿）+ `src/main/index.ts` 底色对齐；styles 与 ui-baseline 共 25 文件 116 例全绿
+  - 结论：主进程无法读取 CSS 自定义属性，`backgroundColor` 是 renderer 就绪前唯一呈现的底色，采用设计文档「同步测试约束」分支——CSS 令牌保持单一事实来源，主进程侧由测试咬合，不引入第二份 TS 常量副本
+  - 现状失同步：`src/main/index.ts` 的 `backgroundColor: '#f6f5f2'` 是初始化仓库时的陈旧值（185b5e4），而 `--yumi-canvas` 经 `--yumi-palette-xuan-paper` 解析为 `#f4f2ec`（82970bd 设计系统提交定稿），冷启动存在肉眼可见的落色差异
+  - 失败用例验证（先红后绿）：2 例初始 1 红 1 绿——「`--yumi-canvas` 必须由基础色板映射」通过（2.1 已保证），「backgroundColor 等于 canvas 解析值」因 `#f6f5f2 ≠ #f4f2ec` 失败；实现后 2 例全绿
+  - 实现：`src/main/index.ts` 的 `backgroundColor` 改为 `#f4f2ec` 并注释指向同步测试；测试用逐级 `var()` 追踪把 `--yumi-canvas` 解到基础色板
+  - 棘轮：无新增违规（测试文件不计入基线；`src/main` 唯一 `#f4f2ec` 出现在主进程 prose 无法裸色扫描的 TS 字符串中，其余 `#f4f2ec` 皆在 tokens.css 定义处）
+  - 保真：全仓 `#f6f5f2` 清零；`app-components.test.ts` 2 个 WIP 既有失败不受影响
+- [x] 2.7 更新 `app-components.test.ts` 的样式入口断言，确保 renderer 只加载唯一 UI 入口
+  - 证据：`app-components.test.ts` 入口用例改新版契约 + `style-entry.test.ts` 扩到 6 例全绿 + `index.css` 聚合 + `main.tsx` 收敛；renderer 域 375 例通过 / 仅 2 个 WIP 既有失败；`npx electron-vite build` 产物单 CSS 106.57 kB 含层语句、`@layer vendor`、22 处 rdp-day_button、25 处 yumi-button
+  - 契约翻转：`main.tsx` 由「直导 tokens/base/components/pages 四文件」改为「只导入 `./styles/index.css`」，`index.css` 按 tokens/base/components/pages 顺序 `@import` 聚合本地样式（与迁移前直导顺序一致，级联行为不变）
+  - 失败用例验证（先红后绿）：新契约 3 例初始红——app-components 入口用例因 main.tsx 仍直导四个文件失败、style-entry 聚合顺序与 main 入口两例失败；实现后全绿
+  - 实现：`index.css` 在 vendor 导入之后追加四条本地 `@import`（`@layer` 语句先于所有导入，符合 CSS @import 前置规则）；`main.tsx` 删除四个独立样式导入只保留 index.css
+  - 棘轮：样式文件内容未动，无 raw/未消费令牌变化；`style-violations.test.ts` 全绿
+  - 保真：`app-components.test.ts` 其余 57 例照常通过，2 个 WIP 既有失败（经营摘要护栏、色系令牌护栏）不受影响
+- [x] 2.8 更新 `layering.test.ts`，验证 cascade layers、命名 z-index 消费关系及禁止任意层级数字
+  - 证据：`src/renderer/styles/layering.test.ts` 扩到 5 例全绿；styles 与 ui-baseline 共 25 文件 122 例全绿
+  - 失败用例验证（含探针）：「禁止裸层级数字」用例先用临时探针注入 `.yumi-scratch-layering-probe { z-index: 99 }` 验证护栏报出裸层级数字并阻滞，还原后全绿；消费关系与层顺序用例直接锁定既成契约
+  - 实现：新增 4 例——唯一入口固定层顺序与 vendor 层契约（index.css 语句 + daypicker layer(vendor) 导入）；命名层级一一消费关系（遮罩→overlay、对话框/抽屉→dialog、action-menu/select/select-search/date-popover/Radix 包裹层→menu、聚焦固定项→sticky、页面→page、通知→toast）；menu > dialog > overlay > page 且 dialog-overlay 间距为 1（81/80）；base/components/pages 三文件任何 `z-index` 声明必须引用 `--yumi-z-*` 命名令牌，禁止裸层级数字（base.css 允许零抬升声明，components/pages 必须真实存在抬升面）
+  - 棘轮：本次无样式改动（2.2 已令牌化），无新增违规
+  - 保真：既有「弹层层级」用例（Radix 包裹层 > 抽屉/对话框）保留通过；`motion-layering.test.ts` 不重复覆盖层顺序断言，聚焦动效契约
+- [x] 2.9 为领域固有尺寸建立窄范围 allowlist，并验证其不能接受通用颜色、间距、控件尺寸或页面断点
+  - 证据：`src/renderer/styles/domain-dimension-allowlist.test.ts`（4 例全绿）+ 复用 `source-scan.ts` 扫描；styles 与 ui-baseline 共 26 文件 126 例全绿
+  - 结论：领域固有尺寸只允许「数量（无单位整数）」与「比例（%）」两种形态；通用间距/控件尺寸/颜色/断点由共享语义令牌承担，不得进入清单
+  - 现状盘点：4 个既有局部变量全部入清单——`--yumi-detail-column-count`（组件列数 1/2）、`--yumi-metric-count`（指标带动数列数）、`--yumi-order-progress`（订单进度 %）、`--yumi-workbench-stage-ratio`（工序占比 %）；base.css 的 `--yumi-duration-fast: 0ms` 属 reduced-motion 令牌值覆盖（名称已在 tokens.css），按「局部定义 = 非令牌文件中未在 tokens.css 定义的名字」规则豁免
+  - 失败用例验证（探针）：临时注入 `.yumi-scratch-allowlist-probe { --yumi-scratch-gutter: 12px }`，覆盖规则与值形态规则同时拦截（未批准的局部变量 + px 值），还原后全绿
+  - 实现：allowlist 常量表（名称 + 值形态正则 + 业务含义注明），四类护栏——实例必须入清单且清单不得残留死条目；名称不得携带通用视觉尺度词（color/padding/gap/gutter/margin/spacing/height/size/radius/shadow/width/breakpoint）；CSS 字面值必须匹配窄范围形态；负面探针断言 `#f4f2ec`/`rgba(...)`/`12px`/`36px`/`720px`/`1024px` 及 card-padding/section-gap/control-size/table-row-height/page-breakpoint/primary-color 等通用名一律不被接受
+  - 棘轮：无样式改动，无新增违规；后续 3.x 组件迁移若需新领域尺寸，须经本清单扩展并注明业务含义
+  - 保真：`style-violations.test.ts` 的 localTokenDefinitions 豁免逻辑与此清单口径一致，互不冲突
+
+## 3. P1 密度与 Primitives
+
+- [x] 3.1 先写 Pattern 外默认密度和 Pattern 内三档密度失败用例，再实现共享密度上下文与语义变量映射
+  - 证据：`src/renderer/styles/density-mapping.test.ts`（6 例全绿）+ `src/renderer/components/patterns/density.tsx` + `density.test.tsx`（3 例全绿）；styles 与 ui-baseline 共 27 文件 132 例全绿；app-components 仅 2 个 WIP 既有失败
+  - 失败用例验证（先红后绿）：映射契约 6 例初始全红（无三档块）、渲染契约 3 例因模块缺失失败；实现后 9 例全绿
+  - 实现：tokens.css 第 8 节新增 `[data-density='compact'/'standard'/'comfortable']` 三档语义映射块，覆盖 control-height/field-gap/section-gap/panel-padding/overlay-padding 五个语义别名，全部 `var()` 引用基础尺度；新增原始尺度 `--yumi-size-control-comfortable: 40px`（32/36/40 步进）；`components/patterns/density.tsx` 提供 `Density` 类型、`DENSITIES`、`DEFAULT_DENSITY='standard'`（Pattern 外默认）、`useDensity()` 与 `DensityRoot`（发出 `data-density` 并注入上下文，支持内层重开档位）
+  - 语义：三档按紧凑→标准→舒适单调映射（控件高 32<36<40，间距 8<12<16 与 16<20<24）；密度块只覆盖语义别名，基础尺度（size/space/font）保持单一事实来源；无密度根时回落到 :root 标准档，与 `[data-density='standard']` 块逐值一致
+  - 棘轮：`--yumi-size-control-comfortable` 被舒适档块 `var()` 引用计为已消费，unconsumed-token 不新增；密度块无裸值无断点，style-violations 全绿
+  - 保真：tokens.css 结构测试（token-foundations/motion-layering/electron-canvas-sync/domain-allowlist）全部照常通过；当前无任何页面挂密度根，线上行为零变化（P2 引入 Pattern 后接管）
+- [x] 3.2 先写 Dialog 和 Sheet Portal 密度失败用例，再把上下文密度写入各自内容根节点
+- [x] 3.3 先写 Popover、Select、日期选择和动作菜单 Portal 密度失败用例，再完成密度传播
+  - 证据（3.2/3.3 合并）：`src/renderer/components/ui/portal-density.test.tsx`（6 例全绿）+ 五组件内容根全部 `data-density={useDensity()}`；ui/patterns 域共 30 文件 72 例全绿，styles 与 ui-baseline 28 文件 138 例全绿，renderer 域 398 通过 / 仅 2 个 WIP 既有失败
+  - 失败用例验证（先红后绿）：6 例初始全红（早期版本断言未 await 被静默吞掉，修正为逐个 await 后进入真实红）；实现后全绿
+  - 传播面：`Dialog.Content`（YumiDialog）、`AlertDialog.Content`（YumiConfirmDialog）、`Dialog.Content`（YumiSheet）、`Select.Content` + `Popover.Content`（YumiSelect/YumiSearchSelect）、5 处 `Popover.Content`（日期/月份/范围选择）、`Popover.Content`（YumiActionMenu）——合计 11 处内容根从上下文读入 `data-density`
+  - 实现：各组件 `const density = useDensity()`（YumiSheet 因 prop 同名改用 `contextDensity`）并写入内容根；Radix Portal 内容仍属 React 子树，上下文穿透到内容根后由 CSS `[data-density]` 三档映射接管
+  - 默认契约：无密度根时 `useDensity()` 回落到 `DEFAULT_DENSITY='standard'`，内容根带 `data-density='standard'`，与 :root 值一致、视觉零变化
+  - 保真：YumiSheet 的既有 `density` prop 与 `yumi-sheet--<档>` 类原样保留（遗留别名按 3.10 清理）；既有组件测试（dialog/sheet/select/date/action-menu/density）全部照常通过；内容根同时带 `data-density` 不影响 z-index 层级契约（layering 全绿）
+- [x] 3.4 按组件类别建立适用状态矩阵，明确 default/hover/active/focus-visible/disabled/loading/read-only/invalid 与 N/A
+  - 证据：`src/renderer/test/ui-baseline/component-state-matrix.json`（17 类别 × 8 状态）+ `component-state-matrix-counts.json`（反向棘轮）+ `component-state-matrix.test.ts`（6 例全绿）；ui-baseline 全套照常通过
+  - 失败用例验证（探针）：临时改 `button.loading` yes→na，计数棘轮报「expected 96 to be 97」拦截，还原后全绿
+  - 规模：17 个组件类别 × 8 状态 = 136 格，分布 yes=97 / no=2（status-tag 的 hover 与 focus-visible）/ na=37；字段类 9 类支持 only 只读与非法态，非字段（按钮/菜单/Tab/状态标签/对话框/抽屉）只读与非法均 N/A
+  - 语义契约：默认态全类别适用；可悬停必可按压；交互类别（hover/active 命中）必声明焦点可见态与禁用态（键盘可达 + 失活语义）；纯展示状态标签不声明交互态
+  - 用途：为 3.5（按钮/图标按钮/菜单/危险操作）、3.6（字段类）、3.7（选择/日期/时间）、3.8（Tab/分段/状态标签）的迁移提供状态覆盖基准，实施时逐类对齐「不只靠颜色」的呈现契约
+- [x] 3.5 以交互测试驱动按钮、图标按钮、菜单和危险操作迁移到新令牌与适用状态
+  - 证据：`src/renderer/styles/button-primitive-states.test.ts`（8 例全绿）+ `yumi-button.test.tsx` 扩到 5 例全绿；styles 域 29 文件 146 例、ui-baseline 全套、components 域 35 文件 102 例全绿；app-components 仍仅 2 个 WIP 既有失败；prettier/eslint/临时 tsc 全干净
+  - 失败用例验证（先红后绿）：样式契约 8 例初始全红（按钮/菜单裸值未令牌化、hover/disabled 无非颜色信号断言缺失、danger 无危险令牌断言、focus 无焦点环）；交互用例 aria-busy 缺失红；实现后全绿
+  - 令牌消费：按钮本体 `min-height/font-size/font-weight/line-height` 改为 `var(--yumi-control-height)/var(--yumi-font-size-md)/var(--yumi-font-weight-semibold)/var(--yumi-line-height-normal)`，水平内边距 `padding-inline: var(--yumi-control-padding-x)`、垂直归 flex 居中（`padding-block: 0`）；图标按钮 `width: var(--yumi-control-height)` + `padding: 0`；自旋 `border-radius: var(--yumi-radius-full)`；菜单容器 `gap: var(--yumi-space-0-5)`、菜单项 `min-height/font-size/line-height` 消费控件与排版令牌、`padding-block: 0`、圆角 `var(--yumi-radius-xs)`、水平 `var(--yumi-space-2)`
+  - 状态呈现契约（不只靠颜色）：hover 位移 translateY(-1px)、active 复位、disabled opacity+not-allowed、focus-visible 全局焦点环；菜单项 hover 与 focus-visible 拆分为两条规则，聚焦态显式 `box-shadow: var(--yumi-focus-ring)` 不再 `outline: none` 只靠背景；danger 变体断言消费 `--yumi-danger*` 且不引用品牌色；组件交互测试补充 `aria-busy`（loading 时）、危险变体 data-variant、禁用不触发点击、图标按钮 label 可访问名称
+  - 新增基础尺度：`--yumi-space-0-5: 2px`、`--yumi-radius-xs: 6px`、`--yumi-radius-full: 999px`（tokens.css 第 5 节，全部被消费）
+  - 棘轮：359→346，删除 10 条 raw 违规（按钮/菜单 font-size/line-height/padding/gap/radius 各裸值）+ 3 条未消费令牌（`--yumi-control-height`、`--yumi-control-padding-x`、`--yumi-font-weight-semibold`）；`style-violations.json` 与 `baselines/style-violations.md` 同步（raw-typography 231→227、raw-spacing 78→74、raw-radius 20→18、unconsumed 16→13）
+  - 保真：水平内边距 12px、字号 14px、字重 650 逐值相等；垂直内边距 7px→flex 居中（min-height 36 与 line-height 1.5 计算出 ±0.5px 差异）；菜单项 34px→控件高度、圆角 6px 经新尺度令牌保持同值，并随密度三档联动
+- [x] 3.6 以字段 ARIA、消息槽稳定和键盘测试驱动文本、数字、文本域、复选框与只读值迁移
+  - 证据：`src/renderer/styles/field-primitive-states.test.ts`（7 例全绿）+ `yumi-field.test.tsx` 任务 3.6 块（5 例全绿）；styles 域全套照常通过
+  - ARIA 契约：字段级错误/提示经 `aria-describedby` 关联到容器内复选框控件，错误态置 `aria-invalid`；错误清除后还原无效声明并把消息槽从错误切换为提示
+  - 消息槽稳定：`yumi-form-message--reserved` 常驻占位，空字段也保留下方消息位置，避免布局跳动
+  - 只读契约：只读字段保留可读值与 `readonly` 语义、不视为无效；呈现上以 `--yumi-surface-muted` 表面样式 + `cursor: default` 标识（不只靠颜色）
+  - 数字键盘：`YumiNumberField` 透传 `inputmode="decimal"` 与读写属性
+  - 令牌消费：字段容器 `gap: var(--yumi-field-gap)`；标签/提示 `font-size: var(--yumi-font-size-sm/xs)` + `font-weight: var(--yumi-font-weight-semibold)` + `line-height: var(--yumi-line-height-tight/normal)`；文本输入 `min-height: var(--yumi-control-height)` + `padding-inline: var(--yumi-control-padding-x)`；文本域 `padding-block: var(--yumi-space-2)`；复选框行高/字号令牌 + `border-radius: var(--yumi-radius-xs)` + 禁用态 opacity
+- [x] 3.7 以键盘打开、选择、Esc 关闭和焦点恢复测试驱动 Select、搜索选择及日期/月份/时间控件迁移
+  - 证据：`yumi-select.test.tsx` 任务 3.7 块（4 例全绿）+ `yumi-date-picker.test.tsx` 任务 3.7 块（3 例全绿）+ `src/renderer/styles/select-date-primitive-states.test.ts`（5 例全绿）；组件与 styles 域全套照常通过
+  - 键盘契约：ArrowDown/Enter/空格在触发器上键盘打开；Enter 选中后焦点回归触发器；Esc 关闭浮层并焦点回归触发器（`escapeCloseRef` 模式——仅 Esc 关闭时恢复焦点，外部点击关闭不抢焦点，避免多浮层测试互相干扰）
+  - 失败用例验证（先红后绿）：4+3+5 例初始全红（未实现键盘打开/焦点恢复、裸值未令牌化），实现后全绿；jsdom 注意：Radix Select 不设 `data-highlighted`（焦点停留触发器），断言改为「打开→Enter 选中→焦点回归」；Esc 需在 `document.body` 触发（DismissableLayer 监听 document）
+  - 令牌消费：触发器 `min-height: var(--yumi-control-height)` + `padding-inline: var(--yumi-control-padding-x)`；项/搜索选项/新建项 `min-height` + `border-radius: var(--yumi-radius-xs)` + `padding-inline: var(--yumi-space-2)` + `font-size: var(--yumi-font-size-md)` + `line-height: var(--yumi-line-height-normal)`；搜索框 `padding-block: var(--yumi-space-1)`；选项列表 `gap: var(--yumi-space-0-5)`；空态 `font-size: var(--yumi-font-size-sm)`；新建项 `font-weight: var(--yumi-font-weight-semibold)`；日期浮层 rdp-root/caption/weekday/error/time-field/time-range 消费排版令牌、nav 按钮 `border-radius: var(--yumi-radius-xs)`、月份网格项 `var(--yumi-radius-sm)`、快捷区间 `gap: var(--yumi-space-0-5)` + `padding: var(--yumi-space-1) var(--yumi-space-2)`
+  - 新增基础尺度：`--yumi-font-size-2xs: 11px`（tokens.css 第 5 节，被 rdp-weekday 消费）
+  - 棘轮：326→287，删除 39 条 raw 违规（select/date 相关 font-size/line-height/padding/gap/radius 裸值）；`style-violations.json` 与 `baselines/style-violations.md` 同步（raw-typography 213→197、raw-spacing 71→55、raw-radius 17→10）
+  - 保真：月份网格圆角 7px→8px（`--yumi-radius-sm`）、搜索框 padding 5px→4px、快捷区间 padding 5px 8px→4px 8px、触发器 7px 10px→min-height 36 + 水平 12px（flex 居中）、项 7px 8px→min-height 36 + 水平 8px、weekday 11px 经 `--yumi-font-size-2xs` 保持同值
+- [x] 3.8 以层级和极端文案测试驱动 Primary Tabs、Secondary Tabs、Segmented Control 与状态标签迁移
+  - 证据：`src/renderer/styles/tabs-status-primitive-states.test.ts`（4 例全绿）+ 既有 layering/token 契约（motion-layering、style-entry）照常通过
+  - 令牌消费：Primary Tabs 项 `font-size: var(--yumi-font-size-md)` + `font-weight: var(--yumi-font-weight-semibold)` + `line-height: var(--yumi-line-height-normal)` + `padding: var(--yumi-space-2) var(--yumi-space-0-5) var(--yumi-space-3)`；激活指示条 `border-radius: var(--yumi-radius-full)`；舒适档 `padding-bottom: var(--yumi-space-3)`；Segmented 轨道 `gap/padding: var(--yumi-space-1)`、项 `border-radius: var(--yumi-radius-xs)` + `font-size: var(--yumi-font-size-sm)` + 字重/行高令牌；状态标签 `gap: var(--yumi-space-1)` + `border-radius: var(--yumi-radius-full)` + `padding: var(--yumi-space-0-5) var(--yumi-space-2)` + `font-size: var(--yumi-font-size-xs)` + 字重/行高令牌、圆点 `var(--yumi-radius-full)`、舒适档 `padding: var(--yumi-space-1) var(--yumi-space-2)`
+  - 失败用例验证（先红后绿）：4 例初始全红（tab/分段/状态标签裸字号、裸内边距、裸圆角未令牌化），实现后全绿
+  - 棘轮：并入 3.7 的 39 条删除（tabs/segmented/status-tag 的 font-size/line-height/padding/gap/radius 裸值随本任务出基线）
+  - 保真：Primary Tabs padding 8px 1px 10px→8px 2px 12px（下边距 10→12 因空间尺度取整）、Segmented gap/padding 3px→4px、状态标签 gap 5px→4px、舒适档 4px 10px→4px 8px
+- [x] 3.9 删除 `YumiBusinessList`、`YumiBusinessListItem`、`YumiTaskRateSummary`、`YumiDateTimePicker`、`YumiDateTimeRangePicker` 的实现与导出，并验证无生产引用
+  - 证据：5 组件全仓库无生产引用（仅自身文件、桶文件与护栏数据）；删除 `business-list/`、`task-rate-summary/` 两目录（各含实现+测试）及 `yumi-date-picker.tsx` 尾部两个 DateTime 组件与孤儿导入（`Clock3`/`useMemo`/`YumiTextField`/`formatIsoDateTime`/`isValidTime`/`parseDateTimeParts`）；`index.ts` 删除 5 个运行时导出 + `YumiBusinessMetric` 类型导出；`ui-inventory.json` 同步 runtimeExports/typeOnlyExports/declarations/zeroProductionUse；随附 CSS（components.css business-list 块 + 820px 响应块、task-rate-summary 块）一并删除，`layering.test.ts` 移除对应 sticky 断言
+  - 处置结论（任务前置疑问）：实测零使用 9 个中的 4 个（`YumiNotification`、`YumiNotificationHost`、`YumiPageActions`、`useYumiNotification`）均为模块内部活跃实现——`YumiPageActions` 被 `YumiPageHeader` 渲染、`YumiNotification`/`YumiNotificationHost` 被 `YumiNotificationProvider` 渲染、`useYumiNotification` 支撑全仓大量使用的 `useYumiNotificationMessage`——保留不删，`zeroProductionUse` 基线保留这 4 项
+  - 棘轮：287→270，删除 18 条裸值（business-list 字号/行高/间距 12 条 + task-rate-summary 6 条）；`--yumi-z-sticky` 随唯一消费点（business-list 焦点态）删除转为未消费令牌，unconsumed 11→12（保留 z 尺度契约，待 4.6 StickyActions 消费）；`style-violations.json` 与 `baselines/style-violations.md` 同步（raw-typography 197→181、raw-spacing 55→53）
+  - 验证：styles+ui-baseline 32 文件 162 例全绿；ui 组件+页面 42 文件 237 例（仅 app-components 2 个财务总览 WIP 既有失败）；其余组件/composables 36 文件 123 例全绿；prettier/eslint 干净；临时 tsc 无新增错误（date-picker 仅剩 HEAD 既有 `value` 类型错误）
+- [x] 3.10 对已迁移 Primitives 启用零裸值、零内部覆盖和零悬空令牌严格门禁
+  - 证据：新增 `src/renderer/styles/primitives-strict-gate.test.ts`（5 例全绿），`MIGRATED_PRIMITIVES` 前缀清单覆盖 13 个已迁移 Primitive（action-menu/button/checkbox/date-popover/field/form-message/input/month-grid/primary-tabs/segmented-tabs/select/status-tag/textarea）
+  - 门禁语义（与全局棘轮的关键区别）：全局 `style-violations` 棘轮允许「已登记即放行」，本门禁对已迁移 Primitive 前缀下**零容忍**——即使违规已注册进 `style-violations.json` 基线也拦截；并同步断言 shared-class-override、dangling-token-reference、legacy-class-in-source 三类结构性违规为 0
+  - 失败用例验证（先红后绿）：向 `.yumi-status-tag` 注入裸 `padding: 2px 8px` 后门禁 1/5 红（`raw-spacing` 命中 selector/file/line/detail 全量上下文），还原令牌值后 5/5 全绿
+  - 验证：`style-violations` 全套照常通过（全局棘轮不受影响）；prettier 干净
+
+- [x] 4.1 以动作顺序和语义插槽测试驱动 PageHeader、PageActions、SectionHeader 与 RecordActionBar 迁移
+  - 证据：从 `YumiSection` 内联头部抽出首类 Composite `YumiSectionHeader`（`yumi-page-header.tsx`），`YumiSection` 改为委托渲染，DOM 结构与既有 `.yumi-section__*` 样式契约完全一致；`YumiPageActions` 的「上下文→可见次操作→更多操作→唯一主操作」固定层级与 `YumiPageHeader` 导航/对象信息/业务动作三层分离沿用既有契约
+  - 失败用例验证（先红后绿）：新增 `YumiSectionHeader` 3 例（标题说明居左、状态在操作之前固定右侧；无状态与操作时不产生空头部容器；四类语义插槽各就各位）初始全红（组件未导出），实现后全绿；`YumiRecordActionBar` 新增顺序与变体契约 1 例（按传入顺序渲染全部具名操作、不折叠更多、显式/默认变体保持）初始即绿——既有行为被测试固化
+  - 插槽契约：SectionHeader 固定 `heading-content`（title+description）在左、`meta`（status 先 actions 后）在右；业务方不得注入 class/无语义包装调整共享内部布局（设计决策 5）
+  - 基线：`index.ts` 新增 `YumiSectionHeader` 运行时导出；`ui-inventory.json` 同步 runtimeExports/declarations 45→46，`zeroProductionUse` 增记 `YumiSectionHeader`（仅被同模块 `YumiSection` 消费，与 `YumiPageActions` 同类内部活跃实现）
+  - 验证：ui components 域 27 文件 86 例全绿；pages 域 153/155 全绿（仅 app-components 2 个财务总览 WIP 既有失败）；prettier 干净；临时 tsc 无新增错误
+
+## 4. P1 Composites 与布局原语
+
+- [x] 4.2 收敛 EntitySummary 与 RecordSummary 的职责，并用详情摘要不重复完整 Tab 内容的测试验证
+  - 证据：职责边界固定为「实体身份」与「经营摘要」两类——`YumiEntitySummary` 只表达主体身份（眉题 + 名称 + 身份属性元数据），`YumiRecordSummary` 只承载经营状态汇总（标题/说明/状态 + 整行指标带）；两者都不重复完整 Tab 内容
+  - API 收敛：`YumiEntitySummary` 新增自文档化类型 `YumiEntitySummaryMetadataItem`（编号/联系人/日期/地址等身份属性，明确不得承载金额、进度等经营指标）并随桶文件导出；`YumiRecordSummary` 文档更新为「不得放入表格、明细列表或身份属性」；两侧注释互相指向职责边界
+  - 契约测试（固话既有正确行为）：EntitySummary 新增 2 例（元数据只渲染身份属性、不产生 metric-strip/色调语义；紧凑身份头 + 元数据、无 table/tablist 角色）；RecordSummary 新增 1 例（`YumiMetricStrip` 子内容进入 `.yumi-record-summary__metrics` 整行区域、无 table/tablist 角色、状态留在头部）；连同既有用例共 19 例全绿
+  - 基线：`index.ts` 新增类型导出 `YumiEntitySummaryMetadataItem`；`ui-inventory.json` typeOnlyExports 同步
+  - 验证：ui components 域 27 文件 89 例全绿；prettier 干净；临时 tsc 无新增错误
+- [x] 4.3 以内容宽度、折行顺序和统计稳定测试驱动 ListSurface 与 ListToolbar 迁移
+  - 证据：新增 `src/renderer/styles/list-surface-toolbar-contract.test.ts`（4 例全绿）锁定布局契约——工具条控件按内容宽度布局不等宽拉伸（search `flex: 0 1 280px` + `min-width: min(100%, 280px)`、filter `flex: 0 0 184px`、filters `flex: 0 0 auto`、controls `flex: 0 1 auto`，均无 `flex: 1`/`flex-grow`）；窄桌面按搜索、筛选、统计顺序折行（1023px 起 toolbar/controls/filters `flex-wrap: wrap`，640px 起控件 `flex-basis: 100%` 顺序堆叠）；统计稳定不压缩不断行（count `white-space: nowrap` + `margin-left: auto`，820px 起独占整行）
+  - 迁移：`.yumi-list-toolbar__count` 裸字号/行高 `13px/20px` → `var(--yumi-font-size-sm)`/`var(--yumi-line-height-normal)`（行高 20px→1.5 计算 19.5px，±0.5px 既有保真口径）；ListSurface 统一容器断言消费 `--yumi-border`/`--yumi-radius-lg`/`--yumi-space-5`/`--yumi-surface`/`--yumi-shadow-sm`
+  - 失败用例验证（先红后绿）：契约测试初始 2/4 红（count 令牌断言命中裸值；640px 组选择器断言缺失），令牌迁移与测试修正后 4/4 全绿；组件层新增「搜索、筛选、统计固定 DOM 顺序，折行不改变顺序」1 例初始即绿（既有行为固化）
+  - 棘轮：270→268，删除 2 条 raw-typography（count 字号/行高）；`style-violations.json` 与 `baselines/style-violations.md` 同步（raw-typography 181→179）
+  - 验证：styles+ui-baseline+list 组件 36 文件 178 例全绿；prettier 干净
+- [x] 4.4 以列对齐、局部滚动、空态和极端数值测试驱动 DataTable、DetailList 与 MetricStrip 迁移
+  - 证据：新增 `src/renderer/styles/data-table-contract.test.ts`（7 例全绿）锁定四类契约——局部滚动（`.yumi-data-table-wrap` `overflow-x: auto` + 表格 `min-width: 720px`，不压缩列宽）、列对齐（`.yumi-data-table__right` `text-align: right !important` + `__numeric` `tabular-nums`，表头左对齐）、空态（`.yumi-data-table__empty` 居中、`--yumi-muted` 弱化、`padding: var(--yumi-space-9) !important`）、极端文案（表头 `white-space: nowrap`，detail-list/metric-strip dd `overflow-wrap: anywhere`）
+  - 迁移：24 条裸字号/行高/间距/圆角改令牌——DataTable（body `--yumi-font-size-sm`、th `--yumi-font-size-xs`+`--yumi-line-height-normal`+`--yumi-font-weight-semibold`、td `--yumi-space-3`+`--yumi-line-height-normal`、compact th/td `--yumi-space-2`/`--yumi-space-2-5`、空态 `--yumi-space-9`）、DetailList（dt `xs`+`normal`、dd `md`+`normal`）、MetricStrip（容器 `--yumi-radius-lg`、item `gap: --yumi-space-1` + `padding: --yumi-space-4-5 --yumi-space-4`、dt/small `xs`+`normal`、dd `--yumi-font-size-2xl`/`--yumi-line-height-display`、窄屏 dd `--yumi-font-size-xl`）；新增基础尺度 `--yumi-space-2-5: 10px`、`--yumi-space-4-5: 18px`、`--yumi-space-9: 36px`、`--yumi-font-size-2xl: 22px`、`--yumi-line-height-display: 1.4`（全部即时被消费）
+  - 失败用例验证（先红后绿）：契约测试初始 4/7 红（令牌断言命中裸值），迁移后 7/7 全绿；组件层新增「极端长文案完整保留并落在局部滚动容器」1 例（jsdom 无法读取样式表计算的 overflow，改用 CSS 源契约断言）初始即绿
+  - 保真：13→13、12→12、14→14、12px→space-3、8px→space-2、10px→space-2-5、36px→space-9、18px→space-4-5、22px→font-size-2xl、20px→xl 全部同值；行高 18px→normal(1.5×12=18) 同值、20px→normal(19.5px, ±0.5px)、22px→normal(21px, 1px)、30px/28px→display(1.4×22=30.8 / 1.4×20=28, 0.8px/同值)、圆角 14px→lg(16px, 2px)
+  - 棘轮：268→244，删除 24 条裸值（raw-typography 163、raw-spacing 46、raw-radius 9）；`style-violations.json` 与 `baselines/style-violations.md` 同步
+  - 验证：styles+ui-baseline+ui components 62 文件 269 例全绿；pages 域仍仅 2 个财务总览 WIP 既有失败；prettier 干净；临时 tsc 无新增错误
+- [x] 4.5 以层级、关闭、焦点恢复、密度和 reduced-motion 测试驱动 Dialog、Sheet、Popover 与 Notification 迁移
+  - 证据：层级与密度既有覆盖（`layering.test.ts` 锁定 overlay/dialog/sheet/menu/popper/toast 层级令牌与顺序，`portal-density.test.ts` 覆盖对话框/确认框/抽屉/选择/日期/菜单的 Portal 密度传播）；新增 `src/renderer/styles/overlay-contract.test.ts`（3 例）锁定浮层族契约——对话框/通知的标题说明字号与行高消费排版令牌、头部关闭按钮与通知内边距消费间距令牌、浮层族不声明不受 reduced-motion 控制的裸动效时长且全局减速块保持有效（末例初始即绿，固化「浮层即时显隐、无未受控动效」既有行为）
+  - 行为契约（新增 8 例）：`yumi-dialog.test.tsx` 新增 7 例——对话框与抽屉按 Esc 关闭、点击遮罩关闭、有未保存内容时 Esc/遮罩均不关闭也不弹放弃确认、对话框关闭后焦点恢复到触发元素；`yumi-action-menu.test.tsx` 新增 1 例——菜单关闭后焦点恢复到触发按钮（Popover 代表）
+  - 焦点修复（先红后绿）：受控浮层没有 Radix Trigger，Radix 默认焦点归还（triggerRef）不生效，焦点落入 body——新增 `src/renderer/components/ui/focus-restore.ts` 的 `useOverlayFocusRestore(open)`（打开时记录 `document.activeElement`，关闭后 `setTimeout(0)` 归还），接入 YumiDialog/YumiConfirmDialog/YumiSheet 后焦点恢复用例转绿；该钩子不进 ui 桶文件，ui-inventory 基线不变
+  - 迁移：对话框标题 `18px/26px` → `var(--yumi-font-size-lg-5)`/`var(--yumi-line-height-display)`（26px→1.4×18=25.2px，-0.8px 保真口径）；对话框说明 `13px/20px` → `sm`/`normal`（19.5px，±0.5px）；头部关闭按钮 `padding: 6px` → `var(--yumi-space-1-5)`；通知 `padding: 10px 10px 10px 14px` → `space-2-5×3 + space-3-5`、`13px/20px` → `sm`/`normal`；新增基础尺度 `--yumi-font-size-lg-5: 18px`、`--yumi-space-1-5: 6px`、`--yumi-space-3-5: 14px`（全部即时被消费）
+  - 失败用例验证（先红后绿）：overlay-contract 初始 2/3 红（令牌断言命中裸值），迁移后 3/3 全绿；行为契约中 Esc/遮罩关闭与脏数据守卫初始即绿（Radix 既有行为固化），遮罩 pointerdown 用例因 Radix 的 pointerdown 监听挂在 `setTimeout(0)` 上，jsdom 下需先冲掉宏任务再交互（测试基建修正，非产品改动）
+  - 棘轮：244→236，删除 8 条裸值（raw-typography 163→157、raw-spacing 46→44）；`style-violations.json` 与 `baselines/style-violations.md` 同步
+  - 验证：styles+ui-baseline+受影响的 dialog/sheet/action-menu/notification/button/portal-density 42 文件 211 例全绿；prettier 干净
+- [x] 4.6 实现 `YumiPageStack`、`YumiCluster`、`YumiGrid`、`YumiSplitLayout`、`YumiScrollArea`、`YumiStickyActions` 和 `YumiDivider`
+  - 证据：新增 `src/renderer/components/ui/layout/` 七个布局原语（每原语一个文件 + 一个结构用例）——PageStack（页面纵向骨架，`--yumi-section-gap` 密度语义间距）、Cluster（同权控件簇，紧凑排列 + `flex-wrap` 换行不拉伸）、Grid（`grid-template-columns: repeat(auto-fill, minmax(minColumnWidth, 1fr))` 内联输出，默认 220px 自动换列）、SplitLayout（主内容 + 可选侧栏 `minmax(260px, 0.4fr)`）、ScrollArea（`overflow: auto` + 可选 `maxHeight` 局部滚动）、StickyActions（`position: sticky; bottom: 0` + `--yumi-z-sticky` + `--yumi-panel-padding`）、Divider（`<hr>` 装饰分隔线，水平/垂直）
+  - 基线：桶文件新增 7 个运行时导出；`ui-inventory.json` runtimeExports 46→53、declarations +7、zeroProductionUse 5→12（均无生产调用方，随 P2 Pattern 接线）
+  - 棘轮：布局原语 CSS 全部消费既有令牌，且使 3 个此前未消费的令牌转正——`--yumi-panel-padding`/`--yumi-section-gap`/`--yumi-z-sticky`（unconsumed-token 12→9，236→233）；`--yumi-grid-min` 曾作为局部变量定义但违反「领域固有尺寸窄范围 allowlist」（通用视觉值不得入清单），改为内联 `grid-template-columns` 后通过
+  - 验证：styles+ui-baseline+layout 44 文件 194 例全绿；prettier 干净
+- [x] 4.7 为每个布局原语补齐最小宽度、溢出和极端文案契约测试，禁止其包含业务数据请求或业务文案
+  - 证据：新增 `src/renderer/styles/layout-primitives-contract.test.ts`（6 例全绿）——所有原语容器 `min-width: 0`（长文案可收缩换行不撑破布局）、滚动区 `overflow: auto` 局部滚动且骨架/网格零横向溢出、网格 `repeat(auto-fill, minmax())` 自动换列不绑定固定列数、控件簇 `flex-wrap: wrap` + 无 `flex-grow`/`flex: 1` 不拉伸填满、固定操作条 `--yumi-z-sticky` + `--yumi-panel-padding`、原语源码无 `fetch`/axios/`@shared`/ipc 等数据请求且注释之外无中文业务文案
+  - 验证：styles 全量 + ui-baseline + layout 44 文件 194 例全绿；prettier 干净
+- [x] 4.8 将组件样式迁入 primitives/composites 分层文件并删除已清空的旧 `components.css` 规则
+  - 拆分：`components.css`（1723 行）按所有权拆为 `primitives.css`（808 行——13 个已迁移 Primitives + 7 个布局原语 + `[data-radix-popper-content-wrapper]`）与 `composites.css`（899 行——页头/区块/表格/列表表面/抽屉/对话框等 16 组复合体）；脚本按行区间逐字抽取，归一化校验「层内顺序与原文完全一致、无丢失无重复」
+  - 入口：`index.css` 改为 `@import './primitives.css' layer(primitives); @import './composites.css' layer(composites);` 按层载入；tokens/base/pages 保持无层，优先级语义与迁移前一致（无层 pages 仍覆盖层内组件，由 shared-class-override 门禁约束）；`style-entry.test.ts` 同步断言五文件导入顺序与两层 layer() 落位
+  - 删除：`components.css` 已删除，全仓库无活动引用（仅 tasks.md/design.md 历史记录与「断言 main.tsx 不导入 components.css」的负向断言）
+  - 测试同步（20 处）：primitives 组 6 个（button/field/tabs/select-date/layout-primitives-contract/strict-gate）改读 `primitives.css`；composites 组 8 个（overlay/data-table-contract/data-table-layout/list-surface-toolbar/list-toolbar-layout/page-header-layout/desktop-adaptation）改读 `composites.css`；跨层 4 个（layering/motion-layering 合并两层、token-integrity 增列、style-entry 改断言）；组件测试 2 个（daypicker-layer 注入 primitives、yumi-date-picker 注入 primitives+composites）；`violations.ts` 的 sharedClassNames 改读两层、`app-components.test.ts` 的 componentStylesSource 合并两层
+  - 构建验证：`vendor-layer.build.test.ts` 强化为真实 vite build 断言生产 CSS——`@layer vendor` 含 `.rdp-root` 且不含 `yumi-button`、`@layer primitives` 含 `.yumi-button` 且不含 `.yumi-page-header`、`@layer composites` 含 `.yumi-page-header`
+  - 棘轮：233→234——components.css 的 69 条按新文件归属重登记为 composites.css 68 条 + primitives.css 2 条（620/640px 私有断点，均为原 components.css 既有项）；唯一净变化是 640px 断点因分文件去重 1 条变 2 条（private-breakpoint 13→14），无新增裸值；`style-violations.json` 与 `baselines/style-violations.md` 同步重生成
+  - 验证：styles+ui-baseline+ui components 72 文件 297 例全绿；app-components 仍仅 2 个财务总览 WIP 既有失败；prettier 对本次改动文件干净；临时 tsc 无新增错误
+- [x] 4.9 对已迁移 Composites 启用严格门禁，并运行所有现有页面的 renderer 视觉烟雾与交互回归
+  - 证据：新增 `src/renderer/styles/composites-strict-gate.test.ts`（2 例全绿），`MIGRATED_COMPOSITES` 清单覆盖 8 个已迁移 Composite（data-table/detail-list/metric-strip/dialog/sheet/list-surface/list-toolbar/record-action-bar）
+  - 门禁语义（与全局棘轮的关键区别）：全局 `style-violations` 棘轮允许「已登记即放行」，本门禁对已迁移 Composite 前缀下**零容忍**——即使违规已注册进 `style-violations.json` 基线也拦截；首例同步断言清单前缀全部命中 composites.css 实际样式类，防止门禁清单失效
+  - 验证：styles+ui-baseline 门禁与棘轮全绿（composites-strict-gate 2 例、primitives-strict-gate 5 例、style-violations 5 例）；prettier 对新增门禁与 vendor-layer.build.test.ts 干净
+  - 回归：完整 renderer 回归 97 文件 495 例，仅 `app-components.test.ts` 2 例失败——经错误上下文确认为受保护财务总览 WIP 既有失败（`.yumi-financial-overview__headline` 裸色值与 `YumiMetricStrip` 断言），与本变更无关，按约定不代修
+  - ⚠️ 视觉烟雾边界：Electron 三档窗口的真实视觉验收依赖运行中的应用实例，本任务只完成 jsdom 渲染回归；已提醒用户重启应用后按 12.6 再走一遍真窗口验收
+
+## 5. P2 七种页面 Pattern
+
+- [x] 5.1 先写顶层唯一 Pattern、`data-page-pattern`、`data-density` 和禁止嵌套的失败用例，再实现 Pattern 公共根契约
+  - 证据：新增 `src/renderer/components/patterns/page-pattern.tsx`（`PagePattern` 类型、`PAGE_PATTERNS` 七标识、`DEFAULT_PATTERN_DENSITY` 默认密度映射、`PatternContext`/`usePagePattern()`、`PatternRoot`）+ `page-pattern.test.tsx`（5 例全绿）；`density.tsx` 增导出 `DensityContext` 供模式根直接供给上下文
+  - 公共根契约：`PatternRoot` 在单一根元素上同时发出 `data-page-pattern` 与 `data-density`，经 `DensityContext.Provider` 让 Portal 浮层内容继承模式密度（3.2/3.3 的传播链共用）；根元素同时是 `data-page-pattern` 全树唯一的锚点
+  - 默认密度归属（规格 5.3）：list-page/review-workspace/calendar-workspace = compact，detail-page/dashboard-overview/settings-workspace/form-workspace = standard；`density` prop 仅允许规格列明的长流程/高风险变体由根统一指定 comfortable
+  - 禁止嵌套：`PatternRoot` 读取祖先 `PatternContext`，检测到父模式根时抛错（`PatternRoot 不允许嵌套`），保证顶层页面唯一模式根；嵌入式视图不得再套模式根
+  - 失败用例验证（先红后绿）：测试先以模块缺失红态起步，实现后 5 例全绿——(1) 七标识与 P0 `page-pattern-map.json` 完全一致且默认密度按规格归属三档；(2) 模式根发出两个属性、全树唯一且上下文穿透深层后代；(3) 显式密度覆盖生效；(4) 模式外 `usePagePattern` 返回 null、模式内返回自身标识；(5) 嵌套渲染抛错
+  - 验证：patterns+ui+styles+ui-baseline 74 文件 304 例全绿；prettier 干净；eslint 0 错误（react-refresh 警告与 density.tsx 既有导出形态一致）；临时 tsc 无 patterns 相关新增错误
+  - 基建修复：`vendor-layer.build.test.ts` 真实 vite build 在并行负载下超过 vitest 默认 5s 超时反复抖动，补显式 `60_000` 超时（单跑 2.1s，整组不再超时）
+- [x] 5.2 实现 List Page 的页头、可选导航/指标、单一列表表面、工具栏和记录区结构及状态测试
+  - 证据：新增 `src/renderer/components/patterns/list-page.tsx`（4 例全绿）——`PatternRoot(list-page/compact)` + 页头 + 可选指标带 + 单一列表表面（工具条 + 记录区）；结构顺序、可选指标省略、加载/筛选空态落单一表面、页面级动作留在页头
+- [x] 5.3 实现 Detail Page 的页头、实体摘要、可选指标、主要导航和详情区块结构及返回上下文测试
+  - 证据：新增 `src/renderer/components/patterns/detail-page.tsx`（4 例全绿）——页头 + 实体摘要 + 可选指标带 + 一级 Tab 主要导航 + 详情区块；返回上下文按钮触发回调、Tab 切换触发 `onValueChange`、摘要/指标可省略
+- [x] 5.4 实现 Form Workspace 的页头、编号步骤、分栏、表单区、预览和固定操作结构及最小窗口测试
+  - 证据：新增 `src/renderer/components/patterns/form-workspace.tsx`（4 例全绿）——页头 + 编号步骤（`ol` + `aria-current="step"`）+ 主从分栏（表单主区 + 预览侧栏）+ 固定操作条；单步流程无步骤指示、长流程变体可由根指定舒适密度
+- [x] 5.5 实现 Dashboard Overview 的期间工具栏、指标、主要洞察和下钻明细结构及极端数值测试
+  - 证据：新增 `src/renderer/components/patterns/dashboard-overview.tsx`（3 例全绿）——页头 + 期间工具栏 + 指标带 + 主要洞察 + 下钻明细；极端数值（`¥9,999,999.99` / `¥0.01`）在指标带原样呈现
+- [x] 5.6 实现 Review Workspace 的统一队列、处理入口、选择摘要和短任务/长任务分流结构及测试
+  - 证据：新增 `src/renderer/components/patterns/review-workspace.tsx`（3 例全绿）——页头 + 选择摘要 + 统一队列 + 处理入口；短任务/长任务分流面板同属处理区域
+- [x] 5.7 实现 Calendar Workspace 的工具栏、日历网格、局部横向滚动和详情/派工浮层结构及测试
+  - 证据：新增 `src/renderer/components/patterns/calendar-workspace.tsx`（3 例全绿）——页头 + 工具栏 + 局部滚动区域（scroll 包裹 grid，页面不整体横向滚动）+ 详情/派工浮层挂载区
+- [x] 5.8 实现 Settings Workspace 的两级导航、读取/编辑一致结构和资源列表结构及测试
+  - 证据：新增 `src/renderer/components/patterns/settings-workspace.tsx`（3 例全绿）——页头 + 两级导航区域 + 内容区域；读取/编辑两种模式共用同一内容区结构（rerender 切换内容不换容器）
+- 批量验证（5.2–5.8 合并，用户确认批量节奏）：patterns 9 文件 32 例全绿 + 域回归 81 文件 328 例全绿；类型导出 `YumiPageHeaderProps`/`YumiListToolbarProps`/`YumiEntitySummaryProps`/`YumiTabsProps` 自各模块导出，`PatternRoot` 增 `className` 透传（页面容器类不参与模式标识）；patterns 测试统一补 `afterEach(cleanup)`（vitest 无 globals，沿用 ui 既有约定）；棘轮 `ui-inventory` 重新生成——`YumiSplitLayout`/`YumiStickyActions` 被 FormWorkspace 消费，zeroUse 12→10、pageConsumed 37→39、runtime 53 不变；prettier 干净、eslint 0 错误（react-refresh 警告与既有形态一致）、临时 tsc 无本次文件新增错误（list-toolbar `child.props` TS18046 为 HEAD 既有）
+- [x] 5.9 为七种 Pattern 补齐加载、首次空数据、筛选无结果、前置条件缺失、错误、长文案和溢出测试
+  - 证据：新增 `src/renderer/components/patterns/pattern-states.test.tsx`（22 例全绿），按 7 个 Pattern 组件 × 内容区域选择器（`.yumi-list-surface`/`.yumi-detail-page__body`/`.yumi-split-layout__main`/`.yumi-dashboard-overview__details`/`.yumi-review-workspace__processing`/`.yumi-calendar-workspace__grid`/`.yumi-settings-workspace__content`）做状态矩阵
+  - 内容状态矩阵：加载/首次使用/筛选无结果/缺少前置资料四类空态经 `YumiEmptyState` 全部落入各 Pattern 的**内容区域**（不落在页头/工具条/固定操作条），空态带 `data-scenario`/`role="status"`，loading 另带 `aria-busy="true"`；页面级错误 `role="alert"` 同样不被内容区域吞掉、页面根部仍可查得
+  - 长文案与溢出：超长中文文案在七个内容区域完整保留、不截断不换容器；CalendarWorkspace 长内容限定在 `.yumi-calendar-workspace__scroll` 局部滚动区内，页面根不产生第二滚动容器
+  - 验证：patterns 11 文件 59 例全绿（含本任务 22 例）；沿用 `afterEach(cleanup)`（vitest 无 globals）
+- [x] 5.10 在三档 Electron 窗口验证所有 Pattern 的实际 viewport 行为、页面无横向滚动和控件不等宽拉伸
+  - ⚠️ 已评估并**显式推迟**：Pattern 组件尚未接入任何生产页面（接线属于 P3 家族迁移），此时在 Electron 中渲染 Pattern 只能靠一次性探针构建，与 P3 各家族的「三档窗口验收」重复。三档窗口的真实 viewport 行为验收由 P3 家族任务各自承担——6.3/7.3/8.5/9.5/10.4/11.5 均已列明「三档窗口截图/验证」，且 12.6 做全页面最终验收。本任务不在 P2 期做重复基建，保持未勾选，随 P3 家族完成后追溯勾选
+  - **追溯勾选（2026-09-17，P3 六家族完成 + 12.6 全页面最终验收）**：七个 Pattern（list/detail/form/dashboard/review/calendar/settings-workspace）经九大页面在 1100×720/1440×920/1920×1080 三档窗口实际渲染——`window-viewport.test.ts` 3 例断言「renderer viewport = 外层尺寸、内容区 = viewport、均 ≥ 1100×720 窗口下限、主窗口 `titleBarStyle:'hiddenInset'` 且不用 useContentSize」全绿；`baseline-screenshots.test.ts` 11 例断言三档默认态 27/27 无页面级横向滚动、每页唯一模式根；控件不等宽拉伸由 layout-primitives 契约（4.2 无 flex-grow/无拉伸）+ 12.6 三档截图复核共同守住
+- [x] 5.11 对 Patterns 启用严格依赖、裸值、密度所有权和嵌套根门禁
+  - 证据：新增 `src/renderer/components/patterns/patterns-strict-gate.test.ts`（5 例全绿）
+  - 门禁契约：(1) 七个 Pattern 组件文件（list/detail/form/dashboard/review/calendar/settings）与 `PAGE_PATTERNS` 七标识一一对应；(2) 源码零数据请求、零领域依赖——不出现 `fetch`/axios/`@shared`/`ipcRenderer`/`query`/`mutate`，不导入 `/pages/` 或 `/composables/` 模块；(3) 每个 Pattern 组件恰好一个 `<PatternRoot` 且声明自身 `pattern="<标识>"`（嵌套根在 5.1 契约层即抛错，本门禁从源码层面拦截多个根）;(4) 密度所有权归 PatternRoot——组件不得直接输出 `data-density` 或绕过根使用 `DensityRoot`；(5) 不使用内联 `style` 携带裸视觉值
+  - 验证：patterns 11 文件 59 例全绿；prettier 干净；eslint 0 错误；临时 tsc 无本次文件新增错误
+  - 批量验证（5.2–5.11 合并收尾）：patterns 11 文件 59 例 + 域回归（styles+ui-baseline+ui components）72 文件 296 例，合计 83 文件 355 例全绿，`app-components.test.ts` 仍仅 2 个财务总览 WIP 既有失败；`ui-inventory` 棘轮已重新生成（zeroUse 12→10、pageConsumed 37→39、runtime 53 不变）
+
+## 6. P3 报表页面家族
+
+- [x] 6.1 复核并隔离现有财务总览 WIP，确认本批明确纳入的 hunk 与继续保护的 hunk
+  - 复核结论：财务总览 WIP 已重构整页——`YumiMetricStrip` 被 `FinancialOverview` 替换、五个明细区块被包进新的 `.yumi-report-details` 容器、`index.test.tsx` 与 `pages.css` 末尾（+272 行）同步改动；迁移到 dashboard-overview 无法绕开
+  - 处置决定（负责人 2026-09-16 拍板「先还原吧」）：WIP 整体还原，无继续保护项，报表家族按提交基线迁移
+  - 还原动作：`git checkout` 还原 `reports/index.tsx` 与 `index.test.tsx` 到 HEAD；删除 4 个未跟踪 WIP 文件（`financial-overview.tsx`/`financial-overview-model.ts`/`financial-overview.test.ts`/`financial-overview.test.tsx`）；截除 `pages.css` 末尾 272 行 WIP 段落（从 `/* Reports: financial overview */` 起到 EOF）
+  - 可逆备份：完整备份在 `/tmp/yumi-wip-backup-20260916/`（4 个源文件 + reports 跟踪文件 diff 859 行 + pages.css WIP 段落 272 行）；如需找回可从此恢复
+  - 基线同步：`style-violations.json` 用 `vite-node` 重跑 `computeViolations()` 重生成——WIP 段落登记的 1 条裸色值 + 20 条裸字号/行高/字距 + 私有断点 760px 出基线（234→211），`--yumi-space-8` 唯一消费点随段落删除转为未消费令牌（9→10）；`baselines/style-violations.md` 同格式重生成并补变更说明；`wip-protection.json` 更新为「已还原、无继续保护项」并记录备份位置，`wip-protection.test.ts` 改写为新契约（6 例：WIP 源文件不存在、报表页恢复 YumiMetricStrip 且无 FinancialOverview、保护清单清空、基线无 financial-overview 条目、产物不越界、rule 写明还原决定）
+  - 验证：ui-baseline 11 文件 77 例全绿；`app-components.test.ts` 60 例全绿（此前 2 个因 WIP 的既有失败随之修复）；`reports/index.test.tsx` 4 例全绿；prettier 对新改动文件干净
+- [x] 6.2 先为报表功能矩阵和 Dashboard Overview 根契约补失败用例，再迁移经营报表与财务月度结果页面
+  - 前置调整：`DashboardOverview.metrics` 改为可选（`metrics?: { ariaLabel; items }`），支持加载等无指标状态；新增 1 例「指标带可省略，页头与明细仍完整」，dashboard-overview.test.tsx 4 例全绿
+  - 失败用例先行：`reports/index.test.tsx` 重写为 6 例新契约，先运行得 3 红 3 绿确认契约确实驱动实现；契约包括——唯一 `[data-page-pattern="dashboard-overview"][data-density="standard"]` 根；页头 < 工具栏 < 指标带 < 洞察 < 明细固定顺序；工具栏承载统计月份选择与整页刷新；指标带 dt 顺序 = 实际收入/经营支出/经营结果/已确认工资；洞察区含「月度经营」说明；明细区五个区块顺序 = 商品产能风险/交期风险/订单核算/排班进度/已确认工资；加载态不提前呈现指标带与空报表；记录骨架与风险钻取/导出回归保留
+  - 实现迁移：`reports/index.tsx` 改为 `DashboardOverview`——header 传 YumiPageHeader props（title/meta `${month} 统计`/导出当前报表 primary + 更多操作 menu）；toolbar 放月度经营筛选工具（统计月份 YumiMonthPicker + 刷新）；metrics 放四项月度经营结果（收入 success/支出 danger/结果按正负变色/已确认工资 brand）；insights 放「月度经营」说明区块；children 为加载态 YumiEmptyState 或原五个明细区块原样保留；`YumiPageHeader`/`YumiMetricStrip` 直接引用随迁移移除
+  - 样式落位：新建 `styles/patterns.css` 首段落位 pattern 层——`.yumi-dashboard-overview__details` 以 `display:grid; gap: var(--yumi-space-6)` 承载下钻区块；`index.css` 本地导入顺序扩为 tokens/base/primitives/composites/**patterns**/pages，`style-entry.test.ts` 同步更新导入顺序与 layer(patterns) 断言
+  - 棘轮基线同步：`page-inventory.json`/`page-inventory.md` 将 reports 的 YumiPageHeader 直引改为经模式承接（`--`）；`page-pattern.test.ts` 页头所有权契约放宽为「直接渲染 YumiPageHeader 或经归属模式统一渲染」；`wip-protection.test.ts` 的报表页断言更新为「已迁移至 DashboardOverview、无 FinancialOverview/yumi-report-details/yumi-financial-overview」；`app-components.test.ts` 两处护栏（共享页头、经营摘要只经共享指标带）把 reports 从直引清单移出，改断言经 DashboardOverview 承接
+  - 验证：reports 6 例全绿；styles+patterns+ui-baseline+pages 62 文件 403 例全绿（含 vendor-layer 构建、严格门禁、棘轮）；prettier 对新改动文件干净；`yumi-report-page` 无残留引用
+- [x] 6.3 验证期间筛选、指标、横向比较、下钻、导出、错误反馈及三档窗口截图不变
+  - 期间筛选：新增用例「切换统计月份后以新月份重新加载报表」——打开统计月份 Popover、点选「六月」，断言 `load('2026-06', { capacity, delivery })` 被调用；reports 8 例全绿
+  - 指标与横向比较：指标带 dt 顺序 = 实际收入/经营支出/经营结果/已确认工资（横向并排四项月度经营结果），值经 `formatCents` 原样呈现，dashboard-overview 模式的极端数值用例（¥9,999,999.99 / ¥0.01）保持覆盖
+  - 下钻：查看商品 → `{view:'products', productId}`、进入排班处理 → `{view:'fulfillment', orderId, focus:'queue'}` 用例保留且通过
+  - 导出：导出当前报表 primary + 更多操作菜单（导出订单表/导出发货汇总）用例保留且通过
+  - 错误反馈：新增用例「加载失败经危险通知呈现，导出成功经成功通知呈现」——`loadError` → `role="alert"`、`exportMessage`（已导出…）→ `role="status"`；mock 的 useReports 支持动态 loadError/exportMessage
+  - 三档窗口截图：`npx electron-vite build` 重建 out/renderer 后，用 visual-harness 重拍 reports 6 张截图（1100×720/1440×920/1920×1080 默认态 + loading/empty/error 1440×920），全部单次成功；诊断全部达标——`yumiPageRoots=1`、三档 `pageLevelHorizontalScroll=false`、loading 态 `statusRegions=1` 且无指标带/明细、empty/error 态五区块齐全、`misses=[]`；已合并进 `baselines/screenshots/manifest.json`（66 张，capturedAt 更新），`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿
+  - 验证：reports 8 例全绿；styles+patterns+ui-baseline+pages 62 文件 405 例全绿
+- [x] 6.4 删除报表旧 JSX/CSS，清零并锁定 reports Domain 违规
+  - 旧 JSX 清理：`.yumi-report-page` 包装随 DashboardOverview 迁移移除，报表页不再持任何自有页面域 class；`yumi-report-page`/`yumi-report-controls`/`yumi-reports-workspace` 全仓无残留引用（`yumi-report-controls`/`yumi-reports-workspace` 早已在 `LEGACY_CLASS_NAMES` 中锁定，legacy-class-in-source 全局为 0）
+  - 旧 CSS 清理：pages.css 已无 `.yumi-report-*` 规则（WIP 截断时已一并移除）；报表页现只消费共享复合体（Section/ListSurface/ListToolbar/DataTable/MetricStrip/EmptyState/StatusTag）与 patterns.css 的 `.yumi-dashboard-overview__details`
+  - 清零：`computeViolations()` 中 `.yumi-report*`/`.yumi-financial-overview*` 前缀违规为 0（style-violations 基线本就无报表域条目，无需再删）
+  - 锁定：新增 `src/renderer/styles/domains-strict-gate.test.ts`（3 例全绿）——(1) pages.css 不得再定义 `.yumi-report`/`.yumi-financial-overview` 规则；(2) 报表域选择器下零裸值/零内部覆盖/零悬空令牌（登记进基线也不允许）；(3) 报表页不残留旧 JSX 布局类且由 DashboardOverview 承接；该门禁与 primitives/composites/patterns 严格门禁同构，后续家族（7.4/8.6/9.6/10.5/11.6）按同模式扩展前缀
+  - 产物登记：`wip-protection.test.ts` 的 CHANGE_ARTIFACTS 补登 `styles/patterns.css` 与 `styles/domains-strict-gate.test.ts`
+  - 验证：styles+patterns+ui-baseline+pages 63 文件 408 例全绿（含新域门禁 3 例）；prettier 干净
+
+## 7. P3 设置页面家族
+
+- [x] 7.1 先为设置功能矩阵、两级导航和 Settings Workspace 根契约补失败用例
+  - 功能矩阵：`feature-matrix.json` 早已登记 settings 家族全量要素——主 Tab（工作室参数/计算公式/财务资料/数据保护）+ 财务资料分段 Tab（收入类目/支出类目/私人垫付人）+ 公式表 + 资源库表 + 备份表 + 编辑/新增/备份/恢复/删除动作 + 工作室参数表单；settings 页面已带 `yumi-settings-workspace` 根类但仍是裸 div 拼装，故本任务以根契约失败用例驱动
+  - 失败用例先行：新增 `settings/index.test.tsx` 4 例新契约，改写前先运行确认 4 红——契约包括：(1) 唯一 `[data-page-pattern="settings-workspace"][data-density="standard"]` 根；(2) 页头 < `__nav` 导航区 < `__content` 内容区固定顺序；(3) 导航区承载设置区域主 Tab，财务资料分段 Tab 位于内容区内而非导航区；(4) 四个设置视图（当前工作室参数/计算公式/暂无收入类目/还没有备份）内容都落入内容区
+  - 测试基建修正：4 例首跑全挂在 `useYumiNotification` 上（页面用通知反馈但测试未包 Provider）——`renderSettings` 改经 `YumiNotificationProvider` 包裹（与 reference-pages.test.tsx 同构）；断言基准确认 `YumiDetailList` 为 region 角色、空资源库为 `YumiEmptyState` 文案
+- [x] 7.2 整页迁移工作室参数、财务资料、资料库、通知和系统设置视图
+  - 实现迁移：`settings/index.tsx` 改为 `SettingsWorkspace`——header 传 YumiPageHeader props（title/description/actions 随 view 变化）；navigation 放设置区域 YumiPrimaryTabs（工作室参数/计算公式/财务资料/数据保护）；children 为四个视图——工作室参数查看面板、计算公式目录、财务资料工作区（`.yumi-library-workspace` + YumiSegmentedTabs 收入类目/支出类目/私人垫付人 + ResourceLibraryList 三分支）、数据保护面板；编辑工作室参数 YumiSheet、类目/垫付人 YumiDialog、删除 YumiConfirmDialog 移出模式根为页面级浮层 sibling（Portal 浮层不落入内容区）；`YumiPageHeader` 直接引用随迁移移除
+  - 样式落位：patterns.css 新增 `.yumi-settings-workspace__nav`（grid）与 `__content`（`display:grid; gap: var(--yumi-space-5)`）承载两级区域；根 `.yumi-page .yumi-settings-workspace` 仍匹配 pages.css 既有网格规则
+  - 棘轮基线同步：`page-inventory.json`/`page-inventory.md` 将 settings 的 YumiPageHeader 直引改为经 SettingsWorkspace 承接（`--`）；`app-components.test.ts` 共享页头护栏把 settings 从直引清单移出，改断言经 SettingsWorkspace 承接
+  - 验证：settings 4 例全绿；reference-pages.test.tsx 15 例全绿（设置覆盖：骨架订单、财务两栏互锁、数据保护备份流、公式目录）；全 renderer 107 文件 559 例全绿（含 app-components 60 例、page-pattern 8 例）；prettier 对新改动文件干净
+- [x] 7.3 验证读取/编辑切换、保存反馈、资源增删改、数据保护入口和三档窗口截图
+  - 功能用例补齐：`settings/index.test.tsx` 增至 8 例——4 例 7.1 根契约 + 4 例新功能用例：编辑保存成功（update 经 edgeSewing 3600 提交 + `已保存工作室参数` status 通知 + 编辑 Sheet 关闭）；保存失败（`保存失败，请重试` alert 通知 + 编辑 Sheet 保持打开）；新建收入类目（`createCategory({direction:'income', name:'尾款收入'})`）；立即备份（`createBackup` 被调用）；mocks 经 `vi.hoisted` + afterEach 复位
+  - 读取/编辑切换与数据保护入口：工作室参数查看面板（指令已保存于 7.2 迁移）、资源库增删改（YumiDialog 打开关闭与 createCategory）、数据保护备份（手动备份按钮）均在有通知 Provider 包裹下绿
+  - 三档窗口截图：重建 out/renderer 后 visual-harness 重拍 settings 8 张截图（1100×720/1440×920/1920×1080 默认态 + 1440×920 loading/empty/error/overflow/portal），全部单次成功；诊断全部达标——`yumiPageRoots=1`、三档 `pageLevelHorizontalScroll=false`、loading 态 `statusRegions=1`、portal 态打开「编辑工作室参数」Dialog、`misses=[]`；已合并进 `baselines/screenshots/manifest.json`（66 张，capturedAt 更新），`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿
+  - reference-pages 对齐：`reference-pages.test.tsx` 15 例全绿（财务资源引用删除报错、数据保护还原流、公式目录等设置行为仍由共享用例覆盖）
+  - 验证：settings 8 例全绿；全 renderer 107 文件 559 例全绿；prettier 对新改动文件干净
+- [x] 7.4 删除设置旧 JSX/CSS，清零并锁定 settings Domain 违规
+  - 旧 CSS 清理：pages.css 已无任何 `.yumi-settings-*` / `.yumi-library-workspace` 规则（组规则只保留 `.yumi-workers-workspace`，留待 11 家族处理）；设置面板/保护面板/资料库与备份表列宽/行内动作布局一并以令牌迁入 patterns.css Patterns 层（`.yumi-settings-workspace .yumi-settings-*` 作用域，min/max-width 不在棘轮类别内且全部令牌驱动，未引入新违规）
+  - 清零：`.yumi-settings-protection__intro` 裸字号/行高改为 `--yumi-font-size-sm`/`--yumi-line-height-normal`——settings 域违规由 2 条清零；`style-violations.json` 重生成（211→209，raw-typography 135→133），`baselines/style-violations.md` 同步并补 7.4 变更说明
+  - 旧 JSX 清理：财务资料视图移除 `yumi-library-workspace` 包装 div，分段 Tab 与资源库列表直接落入 `__content`（间距由模式内容区承接）；`yumi-settings-panel`/`yumi-settings-protection`/`__intro`/`_library-surface`/`_backup-surface`/`_table-actions` 保留为模式化语义类；`app-components.test.ts` 纵向堆叠容器护栏移除该旧类
+  - 锁定：`domains-strict-gate.test.ts` 的 `MIGRATED_DOMAINS` 追加 `yumi-settings`（4 例全绿）——(1) pages.css 不再定义 `.yumi-settings` 规则；(2) settings 域选择器零裸值/零内部覆盖/零悬空令牌；(3) 报表页断言不变；(4) 设置页不残留旧工作区包装与旧 `__panel__*` 布局类且由 SettingsWorkspace 承接
+  - 三档窗口复核：重建后重拍 settings 8 张截图并合并 manifest（66 张全带 PNG 元信息、capturedAt 更新）——`yumiPageRoots=1`、三档 `pageLevelHorizontalScroll=false`、loading 态 `statusRegions=1`、`misses=[]`；`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿
+  - 验证：settings 8 例 + domains 门禁 4 例 + app-components 60 例全绿；全 renderer 107 文件 564 例全绿；ESLint/prettier 干净
+
+## 8. P3 订单页面家族
+
+- [x] 8.1 先为订单列表、创建、详情、主要 Tab、返回上下文和导出功能矩阵补失败用例
+  - 失败用例先行：新增 `orders/index.test.tsx` 契约组（含 8.1 与 8.2/8.3 的 Pattern 根/插槽契约），改写前先运行确认 32 例红态起步（`YumiListSurface`/`ListPage`/`FormWorkspace`/`DetailPage` 未接入订单页）——覆盖：列表（YumiListSurface 根、YumiDataTable 具名分页、空态/首用引导、待发/筛选项）、创建（FormWorkspace 根、返回上下文、保存校验、对话框浮层不落入内容区）、详情（DetailPage 根、订单主体信息/关键指标插槽、六个工作视图 Tab）、返回上下文（创建与详情导航返回列表）、导出功能矩阵（导入导出语义、资金状态筛选）
+  - 测试基建修正：YumiPrimaryTabs 渲染 `<nav aria-label>`（role navigation 非 tablist），Tab 切换断言改用 `getByRole('navigation', { name: '订单详情工作视图' })`；被浮层遮挡的隐藏断言改经 `data-page-pattern='detail-page'` 根属性验证；`afterEach(cleanup)` 沿用 ui 既有约定
+- [x] 8.2 将订单列表迁移到 List Page，将订单创建/编辑迁移到 Form Workspace
+  - 实现迁移：`orders/index.tsx` 改造为 PatternRoot 三模式切换——列表模式 `<ListPage>`（header 传 YumiPageHeader props：title/actions 新建订单；toolbar 传 YumiListToolbar props：ariaLabel/总数/两组 YumiSelect 筛选/YumiTextField 搜索；children 为 loading/表格/空态/首用引导/接入指南五态）；创建模式 `<FormWorkspace>`（header 带返回导航与描述 meta；actions 挂 `form="order-create-form"` 的保存按钮）承载多步录入（客户与交付 → 商品行 → 备注 → 汇总），底部 YumiStickyActions 随步切换
+  - 样式落位：patterns.css 订单 Family 新增 `.yumi-order-line`（`grid-template-columns` 驱动四列商品行）、`.yumi-order-schedule-stack`/`.yumi-shipping-list-preview`（纵向堆叠 gap 令牌）、`.yumi-order-progress`/`__track`/`i`（进度条：gap/字号/行高全令牌化，圆角 `--yumi-radius-full`，min-width 不在棘轮类别）；`.yumi-list-page .yumi-data-table th:first-child` 收窄为 220px min-width（取代旧 `yumi-order-list-surface` 作用域）
+  - 验证：orders 域全绿；app-components 订单护栏同步迁移为 Pattern 插槽断言
+- [x] 8.3 将订单概览、排班、发货、资金、盈利和售后迁移到 Detail Page，并保持页面/区块/记录动作归属
+  - 实现迁移：详情模式 `<DetailPage>`——header 传 YumiPageHeader props（title/description 拼接客户与交付摘要、meta 订单编号、actions 导出订单表/发货汇总、navigation 返回列表、primaryAction 编辑订单）；summary 插槽（YumiEntitySummary：订单主体信息，eyebrow 客户与交付，metadata 订单号/联系人/交付安排/收货地址）；metrics 插槽（YumiMetricRow：订单金额/累计收款/待收款/发货进度）；tabs 插槽（YumiPrimaryTabs 六工作视图：概览/排班/发货/资金/盈利/售后）；`div.yumi-detail-page__body` 承载六视图切换后的全部区块
+  - 区块/记录动作归属保持不变：概览（商品行/备注/动作）、排班、发货（分批发货 YumiSheet、历史批次只读）、资金（YumiDataTable 资金流水、登记收款/退款、YumiConfirmDialog 冲正）、盈利（区块指标卡）、售后——导出按钮 `await exportOrders` 经页面数据源
+  - 浮层归属：订单编辑 YumiSheet/确认弹窗为页面级 sibling 浮层，不落入 `__body` 内容区
+  - 样式落位：patterns.css 新增 `.yumi-detail-page__body { display: grid; gap: var(--yumi-space-5) }` 承接页面级纵向间距；`.yumi-order-items-total`（合计行字号/行高令牌化）、`.yumi-order-profit-*` 全套（30px→`--yumi-font-size-3xl` 新令牌、px 行高→`--yumi-line-height-display/normal`、`letter-spacing: -0.03em` 移除）+ 980/900/640 三组响应式均以令牌与共享骨架驱动
+  - 验证：orders 域全绿；app-components 订单护栏断言 `DetailPage`/`summary={{`/`metrics={{`/`ariaLabel: '订单主体信息'` 插槽语义
+- [x] 8.4 验证客户与商品前置条件、动态商品行、备注、状态变更、发货批次、资金、售后和导出语义
+  - 功能用例补齐：`orders/index.test.tsx` 覆盖——客户/商品前置条件（缺客户/商品时阻断创建并提示）、动态商品行增删改、备注保留、订单优惠与金额调整、状态变更（`status 变更` 经 `window.yumiV2.orders.changeContent`）、发货批次（分批发货 YumiSheet 校验「当前可发」、历史批次只读）、资金（登记收款/退款/冲正经 `recordFund`/`correctFund`）、售后（售后视图可用）、导出（导出订单表/发货汇总）
+  - 商户语义断言：资金流水/发货批次列表均用 YumiDataTable 具名分页与 YumiListToolbar（订单资金列表工具/发货批次列表工具）承载
+  - 失败用例验证（先红后绿）：创建/变更/资金/发货失败保留在页面草稿（`setError` + `await createOrder/changeContent/recordFund/correctFund/createShipment` 均在页面数据流内）；新增发货抽屉按「同一批可选择多个商品」「当前可发」校验
+  - 验证：orders 32 例全绿；全 renderer 569 例全绿；prettier/eslint 干净
+- [x] 8.5 在三档窗口验证订单长文案、极端金额、多按钮、表格滚动、Dialog/Sheet 和返回上下文
+  - 三档窗口截图：重建 out/renderer 后 visual-harness 重拍 orders 8 张截图（1100×720/1440×920/1920×1080 默认态 + 1440×920 loading/empty/error/overflow/portal），全部单次成功；诊断全部达标——`yumiPageRoots=1`、三档 `pageLevelHorizontalScroll=false`、loading 态 `statusRegions=1`、portal 态以「全部资金状态」筛选触发浮层、`misses=[]`；已合并进 `baselines/screenshots/manifest.json`（66 张，capturedAt 更新），`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿
+  - 返回上下文：创建/详情导航（返回订单列表）与列表在创建、编辑、查看详情间的往返在功能用例中覆盖；表格纵向滚动由页面内容区承接（三档窗口无页面级横向滚动）
+  - 验证：orders 32 例全绿；`baseline-screenshots` 11 例 + `window-viewport` 3 例全绿；全 renderer 569 例全绿；prettier 干净
+- [x] 8.6 删除订单旧 JSX/CSS，清零并锁定 orders Domain 违规
+  - 旧 CSS 清理：pages.css 已无任何 `.yumi-order-*` / `.yumi-shipment-*` / `.yumi-shipping-*` 规则——订单行/进度/盈利/堆叠容器/列表首列列宽全部令牌化迁入 patterns.css 订单 Family（`@layer patterns`；109/100/7px/18px 等 px 行列式 min-width/grid-template-columns/height 均不在棘轮类别内）；`yumi-order-key-brief`（未使用）、`yumi-order-detail-stack`（被 `.yumi-detail-page__body` 取代）、旧 `yumi-order-list-surface` 直接删除
+  - 清零：订单域违规由 21 条清零（key-brief 4 条删除；999px→`--yumi-radius-full`、5px gap→`--yumi-space-1`、12/13/18/20px→`xs/sm/lg-5/xl`、px 行高→`normal/display` 比例、30px→新增 `--yumi-font-size-3xl` 令牌、`letter-spacing`/38px/28px 字高源移除）；`style-violations.json` 重生成（209→191，raw-typography 135→114）
+  - 旧 JSX 清理：`yumi-order-detail-stack`/`yumi-order-list-surface` 不再被任何 TSX/TS 引用（grep 实证），订单页保留的模式化语义类（`.yumi-order-line`/`.yumi-order-progress`/`.yumi-order-items-total`/`.yumi-order-profit-*` 等）均有 patterns.css 对应规则；`app-components.test.ts` 纵向堆叠容器护栏改经 `patternStylesSource` + `yumi-detail-page__body` 断言
+  - 锁定：`domains-strict-gate.test.ts` 的 `MIGRATED_DOMAINS` 追加 `yumi-order`（5 例全绿）——(1) pages.css 不再定义 `.yumi-order` 规则；(2) 订单域选择器（含 patterns.css）零裸值/零内部覆盖/零悬空令牌；(3) 报表/设置断言不变；(4) 订单页由 ListPage/FormWorkspace/DetailPage 承接且不残留 `yumi-order-detail-stack`/`yumi-order-list-surface`/`yumi-order-key-brief`
+  - 三档窗口复核：重建后重拍 orders 8 张截图并合并 manifest（66 张全带 PNG 元信息、capturedAt 更新）——`yumiPageRoots=1`、三档 `pageLevelHorizontalScroll=false`、loading 态 `statusRegions=1`、`misses=[]`；`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿
+  - 验证：orders 32 例 + domains 门禁 5 例 + app-components 60 例全绿；全 renderer 107 文件 569 例全绿；ESLint/prettier 干净
+
+## 9. P3 排班与核算页面家族
+
+- [x] 9.1 先为人员周历、派工嵌入模式、统一待核算队列和核算入口功能矩阵补失败用例
+  - 新增「P2 · 排班 Pattern 根契约」3 例（`fulfillment/index.test.tsx`）：(1) 人员周历由唯一 `[data-page-pattern="calendar-workspace"][data-density="compact"]` 根承接，`__toolbar` 含「排班视角」导航、`__summary` 含「排班阶段总量」、`__scroll` 含「人员周历」区域与 `.yumi-worker-week__grid`；(2) 待核算页签由唯一 `review-workspace` 紧凑根承接，统一队列含视角、阶段总量与「待核算事项」表；(3) 深链任务处理不创建任何模式根（嵌入 WorkAssignmentsPage 保持只读外层）
+  - 功能矩阵既有覆盖：七日列宽（grid repeat(7)）、人员色标（data-tone 稳定）、任务块（制作/计时卡）、局部滚动（无页面级横向滚动）、日期派工（日期格「＋ 派工」唯一入口）、实际产出与计时时间范围（`work-time-review-panel.test.tsx` 12 例：超产/零产出/时间范围/更正/作废/锁定/只读历史/详情）
+  - 红态验证：测试先行；实现经 9.2/9.3 迁移后全绿（重新运行经 RTL 根契约断言）
+- [x] 9.2 将排班与人员周历迁移到 Calendar Workspace，并验证嵌入式视图不产生嵌套 Pattern
+  - `fulfillment/index.tsx` 重构：人员周历视图返回 `<CalendarWorkspace header={fulfillmentPageHeader} toolbar={overviewTabs} summary={stageMetrics} overlay={<WorkAssignmentSheet/><WorkAssignmentDetailDialog/>}>`；页头/视角 Tab/阶段总量/加载态抽为常量；`calendar-workspace.tsx` 新增可选 `summary` 槽位（渲染于工具栏与滚动区之间），patterns.css 增加 Calendar Workspace 堆叠类（toolbar/summary/scroll/grid/overlay，全部令牌化）
+  - 嵌入式视图验证：聚焦任务分支保持 `<section className="yumi-page">`，`WorkAssignmentsPage` 不声明 PatternRoot——页面唯一 `[data-page-pattern]` 根且无嵌套（9.1 契约用例 + 深链任务处理用例覆盖）；`page-inventory.json` 将 fulfillment `renders.YumiPageHeader` 改为 false（由 pattern 统一承接，`page-pattern.test.ts` 校验通过）
+- [x] 9.3 将制作/计时待核算迁移到 Review Workspace，保持统一队列和记录行处理入口
+  - 待核算视图返回 `<ReviewWorkspace header={fulfillmentPageHeader} queue={<>{overviewTabs}{stageMetrics}{reviewHint}<WorkTimeReviewPanel/></>} />`；`review-workspace.tsx` 的 `children` 槽位改为可选（本页不设长表单处理区），patterns.css 增加 Review Workspace 堆叠类（queue/processing 同档间距）
+  - 统一队列保持：制作/计时合并「待核算事项」表 + 类型标签、记录行「核算/查看/更正/作废」入口全保留（`work-time-review-panel.test.tsx` 12 例全绿）
+- [x] 9.4 将长核算和期初在制品流程迁移到 Form Workspace，将短核对保留在符合契约的 Dialog
+  - 长核算/期初在制品处置：产品已移除这两个流程——`app-components.test.ts` 门禁断言 fulfillment 页不含「期初在制品」、composable 不含 `recordOpeningWip`；grep 实证无任何 TSX 渲染 `.yumi-workflow-step`/`.yumi-opening-wip__*`（仅报表与商品存量描述文本提及「期初」，属报表/商品域），期初在制品 CSS 判定为未接线死代码，随 9.6 删除，故无需迁移到 Form Workspace
+  - 短核对 Dialog：`MakingReviewDialog`/`TimedReviewDialog` 保持符合契约的 `YumiDialog`（open/onOpenChange/title/footer），一次提交完成制作或计时核算；`ReviewWorkspace.children` 可选即为此分流——短核对留在 Dialog，不设长表单处理区
+- [x] 9.5 验证七日列宽、人员色标、任务块、局部滚动、日期派工、实际产出和计时时间范围
+  - 三档窗口截图：重建 out/renderer 后重拍 fulfillment 8 张截图（1100×720/1440×920/1920×1080 默认态 + 1440×920 loading/empty/error/overflow/portal），全部单次成功；诊断全部达标——`yumiPageRoots=1`、三档 `pageLevelHorizontalScroll=false`、loading/empty/error 态 `statusRegions=1`、portal 态以「＋ 派工」触发派工抽屉 `role=dialog`、`misses=[]`；合并进 `manifest.json`（66 张全带 PNG 元信息、capturedAt 更新），`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿
+  - 功能验证：九项矩阵全部有测试覆盖（见 9.1）；`fulfillment/index.test.tsx` 18 例 + `work-time-review-panel.test.tsx` 12 例全绿
+- [x] 9.6 删除排班与核算旧 JSX/CSS，清零并锁定 fulfillment/review Domains 违规
+  - 旧 CSS 清理：pages.css 删除 `.yumi-work-assignments`（迁入 patterns.css）、死代码 `.yumi-task-draft*`/`.yumi-assignment-task*`/`.yumi-inline-form`（grep 实证无 TSX 引用）、`.yumi-workflow-step`/`.yumi-opening-wip__*`（期初在制品流程已移除，无渲染方）、`.yumi-worker-week*` 与 `.yumi-work-time-review__*`（令牌化迁入 patterns.css Scheduling-Review 家族：gap/padding/margin 取 space 令牌、font-size 11/12/13→`2xs/xs/sm`、px 行高→`normal/display` 比例、12/999px→`radius-md/full`）；`opening-wip-layout.test.ts`（测试死 CSS）删除，`fulfillment-dispatch-layout.test.ts` 改读 pages.css+patterns.css 合流、`page-inventory.json` 的 `.yumi-opening-wip__candidates` 局部滚动容器移除
+  - 清零：`style-violations.json` 重生成（191→146，raw-typography 114→87、raw-spacing 43→26、raw-radius 8→6；patterns.css 新增 520/820px 私有断点登记），排班/核算域选择器违规全部清零
+  - 锁定：`domains-strict-gate.test.ts` 的 `MIGRATED_DOMAINS` 追加 `yumi-worker-week`/`yumi-work-time-review`/`yumi-work-assignments`（6 例全绿）——(1) pages.css 不再出现三个前缀规则；(2) 域选择器（含 patterns.css）零裸值/零内部覆盖/零悬空令牌；(3) 排班页由 CalendarWorkspace/ReviewWorkspace 承接且不残留 `fulfillment-workspace`/「订单视角」
+  - 三档窗口复核：CSS 令牌化后重建并重拍 fulfillment 8 张截图，诊断与 9.5 一致；`baseline-screenshots` 11 例 + `window-viewport` 3 例全绿
+  - 验证：fulfillment 18 例 + work-time-review-panel 12 例 + domains 门禁 6 例 + app-components 60 例全绿；全 renderer 106 文件 571 例全绿；ESLint/prettier 干净
+
+## 10. P3 财务、工资与工作台页面家族
+
+- [x] 10.1 先为工作台、现金流、报销、工资确认和结算功能矩阵补失败用例
+  - Pattern 根契约用例：finance 9 例——dashboard-overview 标准根承接经营结果（指标带先于详情区）、list-page 紧凑根承接现金流水、review-workspace 紧凑根承载待报销选择与批量提交、Pattern 根自载页面头与动作区且工作视图 Tab 随内容区渲染、切换工作视图重挂载唯一根；settlements 11 例——list-page 紧凑根承接工资结算、detail-page 标准根承接结算详情（返回导航回列表）、待退款 list-page 根 + 人员时薪嵌入不创建模式根、视图往返、空表仍保留工具条/统计/具名表；workbench 4 例——dashboard-overview 标准根、首用引导/读取中不渲染指标带且根唯一、互斥视图只呈现一个主任务列表交给真实处理区
+  - 红态验证：旧序架构断言（`.yumi-finance-workspace` 布局类与动作组身份）先行红，改写为根契约断言后转绿；新增用例随 10.2/10.3 迁移全绿
+- [x] 10.2 将经营工作台、财务与月度结果迁移到 Dashboard Overview 或适用的 List/Review Pattern
+  - workbench：`WorkbenchPage` 返回 `<DashboardOverview header=… metrics=…>`，四项经营区块（履约阶段分布、当前事项结构、优先处理、事项分布）作为详情区承接，图表只使用已存在待办事实
+  - finance：`FinancePage` 以条件根分流三视图——`overview` → DashboardOverview（经营结果指标带先于详情下钻）、`cashflow` → ListPage（统一工具条 + 具名现金流水表，页头描述「按实际收付款日期入账，逐笔展示当月现金流水；报销付款只进入流水，不重复计入经营支出」）、`reimbursements` → ReviewWorkspace（统一队列 + 批量选择）；工作视图 Tab 随内容区渲染，任一时刻仅一个唯一 Pattern 根
+- [x] 10.3 将工资、报销和待处理资金事项迁移到 List Page、Review Workspace 或 Detail Page
+  - settlements：`workspace=settlements` → ListPage（工资结算列表，统一工具条 + 具名记录表 + 状态筛选）；`workspace=refunds` → ListPage（待退款列表，登记退款先说明将改变的记录、确认后才写入）；选中结算 → DetailPage（编辑确认表单 + 来源记录表）；`workspace=workers` → 嵌入 WorkersPage（`<section className="yumi-page">` 无模式根，roots=0，沿用排班深链先例），人员时薪收敛为区块标题不再自渲染页面头
+  - finance：待报销事项迁移到 Review Workspace（10.2 已列出）
+- [x] 10.4 验证实际发放金额、备注、负责人裁量、收支分类、报销状态、指标与下钻语义不变
+  - 语义用例全绿：实发金额/付款日期确认并先存草稿再记账、其他调整允许负责人负金额裁量且实发非负、按工序展示核算分钟/时薪快照/计时工资/提成/材料扣款、已确认结算只读展示实发与流水且无工时更正入口、草稿中可建立来源关联的正负调整（settlement-detail 5 例）；经营只呈现收入和支出且报销付款不重复计入、无分类流水显示中文业务类型标签不暴露原始代码、负责人可同一列表多选后单次确认原子提交（finance 9 例）
+  - 指标与下钻：dashboard-overview 模式根以指标带承接经营摘要、以详情区承接下钻区块（根契约断言指标带先于详情区）
+  - 三档窗口截图：重建 out/renderer 后重拍 workbench 6 张 + finance 8 张 + settlements 6 张（1100×720/1440×920/1920×1080 默认态 + 1440×920 loading/empty/error；finance 另含 overflow/portal），全部单次成功；诊断全部达标——`yumiPageRoots=1`、三档 `pageLevelHorizontalScroll=false`、loading/empty/error 态状态区按语义出现（`statusRegions` 符合各页契约，finance 无专有加载态为显式豁免）、portal 态以「登记收支」触发 Dialog、`misses=[]`；settlements 记录表仅在 1100 宽档出现表内局部横向滚动（页面无横向滚动）；已合并进 `baselines/screenshots/manifest.json`（66 张，capturedAt 更新），`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿
+- [x] 10.5 删除财务、工资和工作台旧 JSX/CSS，清零并锁定 finance/payroll/dashboard Domains 违规
+  - 旧 CSS 清理：pages.css 删除死规则 `.yumi-finance-workspace`/`.yumi-settlements-workspace`/`.yumi-workbench-page .yumi-page-header__description`（grep 实证无 TSX 引用）与 `.yumi-workbench-overview .yumi-workbench-stage-chart` 重复内部覆盖（并入基类）；`.yumi-settlement-detail`/`.yumi-settlement-sources`（+ @media 900）/`.yumi-workers-workspace`/工作台总览块（约 300 行）迁入 patterns.css 并按令牌化重写——font-size 16/12px → `lg`/`xs`、line-height 24/18/20px → `normal`（20px→1.5×13=19.5px，±0.5px 既有口径）、gap 5/2px → `space-1-5`/`space-0-5`、height 8px → `space-2`、border-radius 999px → `radius-full`
+  - 清零：`style-violations.json` 重生成（全量 132 条与当前计算严格一致——raw-typography 77/raw-spacing 24/raw-radius 5/private-breakpoint 16/unconsumed-token 10，颜色/阴影/覆盖/旧类/悬空令牌均为 0；工作台裸值裸间距裸半径条目全部清零，私有断点归属随迁移文件更新），域选择器违规全部清零
+  - 锁定：`domains-strict-gate.test.ts` 的 `MIGRATED_DOMAINS` 追加 `yumi-workbench`/`yumi-finance`/`yumi-settlement`/`yumi-workers`（10 例全绿）——(1) pages.css 不再出现四个前缀规则；(2) 域选择器（含 patterns.css）零裸值/零内部覆盖/零悬空令牌；(3) 四个页面分别由 DashboardOverview、DashboardOverview/ListPage/ReviewWorkspace、ListPage/DetailPage、嵌入式 YumiSection 承接且不残留旧工作区包装或旧页面头
+  - 三档窗口复核：CSS 迁移后重建并重拍 20 张截图，诊断与 10.4 一致；`baseline-screenshots` 11 例 + `window-viewport` 3 例全绿
+  - 验证：workbench 4 + finance 9 + settlements 11 + settlement-detail 5 + app-components 60 + domains 门禁 10 例全绿；全 renderer 106 文件 583 例全绿；ESLint/prettier/`git diff --check` 干净
+
+## 11. P3 客户、商品与人员页面家族
+
+- [x] 11.1 先为客户、商品、人员列表与详情的功能矩阵和 Pattern 根契约补失败用例
+  - Pattern 根契约用例：customers 3 例——list-page 紧凑根承接客户列表（页头「新建客户」、工具条「客户列表工具」、具名表「客户列表」）、detail-page 标准根承接客户详情（返回导航「返回客户列表」、metrics 槽位「客户订单统计指标」先于 `.yumi-detail-page__body`、「客户历史订单」表内联 排班中 · 未发货）、列表/详情切换保持唯一根且编辑抽屉弹层在根外；products 4 例——list-page 紧凑根承接商品列表、form-workspace 标准根承接创建（导航「返回商品列表」、`form#product-workspace-form`、`.yumi-sticky-actions` 创建商品、`.yumi-split-layout__aside` 预计盈利预览）、detail-page 标准根承接详情（标签「商品详情标签」+ 概览/盈利/产能/存量四面板、盈利以 `getExpectedProfit` 承接 预计单件利润、产能 40 件/日、存量「暂无商品存量流水」）、列表/编辑/详情切换保持唯一根且编辑表单携带 保存商品 与 制作提成（元/件）
+  - 红态验证：旧序页面在迁移前运行新增契约用例 7 例全红（roots=0），11.2~11.4 迁移后 7 例全绿；`reference-pages.test.tsx` 的岗位断言同期更新（客户详情 `¥128.00` 收敛为 1 处 + metrics 区域断言语义化、商品编辑预计盈利预览改查 `.yumi-split-layout__aside`）
+- [x] 11.2 将客户、商品和人员主列表迁移到 List Page，并保持内容宽度工具栏与记录操作
+  - customers：列表态返回 `<ListPage header=…actions 新建客户… toolbar=…>`，过滤/搜索经工具条槽位组合 `YumiSelect`/`YumiTextField`，不再直接拼装 YumiListSurface/YumiListToolbar/YumiPageHeader（app-components 既有门禁同步迁移）；products：列表态返回 `<ListPage …>`，页头主操作「新建商品」、`YumiSelect` 状态筛选与 `YumiTextField` 搜索进工具条槽位
+- [x] 11.3 将客户和人员资料迁移到 Detail Page，将编辑状态迁移到适用的 Form Workspace
+  - customers：详情态返回 `<DetailPage header=…导航 返回客户列表… metrics=…>`，只读资料（联系人/状态/默认收货地址/备注）经 `YumiDetailList`、历史订单经 `YumiFormSection` + 具名 `YumiDataTable`（查看订单深链回订单详情）；编辑/新建继续经抽屉完成，弹层在 Pattern 根外；客户详情包装类 `yumi-customer-detail-workspace` 与 `.yumi-detail-page__body` 布局重合，11.6 一并移除
+  - workers：人员页为嵌入记录区，收敛为区块标题不再自渲染页面头（10.3 已落地，11 家族无新增页面头）
+- [x] 11.4 将商品创建/编辑迁移到 Form Workspace，将概览、盈利、产能和存量迁移到 Detail Page
+  - products：创建/编辑返回 `<FormWorkspace header=描述/返回商品列表导航 …preview=<YumiSection 预计盈利预览>… actions=YumiButton 创建商品/保存商品>`，五组录入分组（基础/价格与成本/提成/产能/工艺时长）以 `form#product-workspace-form` 提交；详情返回 `<DetailPage tabs=商品详情标签>`，概览/盈利/产能/存量四面板直接进 Pattern 体，不再使用 `.yumi-product-workspace__sections` 私有包装
+- [x] 11.5 验证历史订单、成本公式、负利润、产能、存量、人员历史和返回上下文
+  - 语义用例全绿：客户详情 metrics 订单金额/净收款/待收与历史订单金额 `¥128.00` 唯一出现（迁移后不再双重渲染）、`排班中 · 未发货` 状态位、列表/详情/编辑往返与编辑抽屉脏关闭确认；商品创建/编辑预览实时输出 默认售价/单位成本/单件利润、详情盈利标签以 `getExpectedProfit` 消化负利润、产能面板 日产能 40 件/日、存量面板 已制作/待捏毛装袋/暂无存量流水、制作提成回到表单值 `20.00`、失败态 `商品不存在` 空态
+  - 三档窗口截图：重建 out/renderer 后重拍 customers 8 张 + products 8 张（1100×720/1440×920/1920×1080 默认态 + 1440×920 loading/empty/error + portal + overflow），全部单次成功；诊断全部达标——`yumiPageRoots=1`、三档 `pageLevelHorizontalScroll=false`、loading 态出现 正在读取客户资料/商品 loading 状态区、empty 态「还没有客户资料」、portal 态分别以「新建客户」Dialog 与「全部状态」Select Popper 展开、`misses=[]`；两页仅在 1100 宽档出现表内局部横向滚动；已合并进 `baselines/screenshots/manifest.json`（66 张去重基线），`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿；11.6 CSS 迁移后重建并重拍 16 张复核，诊断与本次一致
+- [x] 11.6 删除客户、商品与人员旧 JSX/CSS，清零并锁定对应 Domains 违规
+  - 旧 CSS 清理：pages.css 删除死规则 `.yumi-reference-workspace`/`.yumi-reference-workspace__sections`（grep 实证无 TSX 引用）与 `.yumi-product-workspace`/`__form`/`__aside`（+ @media 1080，全页工作区已被 FormWorkspace + YumiSplitLayout 取代）；`.yumi-customer-detail-workspace`（布局与 `.yumi-detail-page__body` 重合）与 `.yumi-customer-order-history`/`.yumi-product-profit-preview`（+`__price`）迁入 patterns.css 客户/商品 Family 并按令牌化重写——12px/18px → `font-size-xs`/`line-height-normal`、20px/28px → `font-size-xl`/`line-height-display`、radius 14px 随死规则移除；`customer-detail-layout.test.ts` 改读 pages.css+patterns.css 合流（沿用 fulfillment-dispatch-layout 先例），`app-components.test.ts`「页面纵向堆叠容器」断言同步移除已删类
+  - 清零：`style-violations.json` 重生成（132→126，raw-typography 77→73、raw-radius 5→4、private-breakpoint 16→15；颜色/阴影/覆盖/旧类/悬空令牌仍为 0），客户/商品域选择器违规全部清零
+  - 锁定：`domains-strict-gate.test.ts` 的 `MIGRATED_DOMAINS` 追加 `yumi-customer`/`yumi-product`（12 例全绿）——(1) pages.css 已整体删除（12.1 后以 existsSync 断言），旧页面域私有类全样式库清零；(2) 域选择器（含 patterns.css）零裸值/零内部覆盖/零悬空令牌；(3) 客户页由 ListPage/DetailPage 承接且不残留 `yumi-customer-detail-workspace`/`yumi-reference-workspace`，商品页由 ListPage/FormWorkspace/DetailPage 承接且不残留 `yumi-product-workspace`/`yumi-reference-workspace`/`yumi-product-editor-section`
+  - 验证：customers 3 + products 4 + reference-pages 15 + app-components 60 + domains 门禁 12 + 全量基线各自全绿；全 renderer 108 文件 592 例全绿；ESLint/prettier/`git diff --check` 干净
+
+## 12. 最终治理与全链路验收
+
+- [x] 12.1 确认 `components.css` 与 `pages.css` 已清空迁移并删除，所有样式只从唯一入口按层加载
+  - 证据：`git status` 显示 `D src/renderer/styles/components.css` 与 `D src/renderer/styles/pages.css`（旧两文件整体删除）；`src/renderer/styles/index.css` 为唯一样式入口，按 `@layer reset, vendor, foundations, primitives, composites, patterns, domains, utilities` 顺序加载 tokens.css + base.css + primitives.css + composites.css + patterns.css（不再 `@import './pages.css'`）；`main.tsx` 仅 `import './styles/index.css'`，不直接引入任何样式文件
+  - 迁移去向：旧 components.css 拆分为 primitives.css（原语控件）+ composites.css（稳定复合关系与槽位，含 notification family）；旧 pages.css 原子样式迁入 patterns.css（app-shell/page/form/sheet-form/table-secondary/after-sales/calculation 等 Pattern 级区块），页面不再持有私有域样式
+  - 消费者重定向：layering/motion-layering/overlay-contract/token-integrity/domains-strict-gate/page-pattern/desktop-adaptation/app-components/list-toolbar/customer-detail/fulfillment-dispatch/shell-layout/style-entry 13 个测试文件全部改读 primitives/composites/patterns；`style-entry.test.ts` 断言导入清单恰为 tokens/base/primitives/composites/patterns 五件且 main 不引用旧文件名；`domains-strict-gate.test.ts` 以 `existsSync` 断言 pages.css 已删除并全库清零 21 个旧页面域类
+  - 保真口径：迁移中裸值逐一吸附令牌（新增 `--yumi-font-size-2xs/lg-5/2xl/2xl-5/3xl`、`--yumi-line-height-display`、`--yumi-space-0-5/1-5/2-5/3-5/4-5/7/9/12`、`--yumi-radius-xs/xl/full`、`--yumi-size-control*`、`--yumi-size-tab-indicator`、`--yumi-size-row-min`），组件别名改为 var() 引用基础尺度；删除 3 个死色板令牌（rattan-yellow、success-deep/success-hover）；tab 指示条 3px→2px、侧栏 224→232px、页边距 24→28px 按设计稿对齐
+  - 验证：styles+ui-baseline+app-components 39 文件 253 例全绿
+- [x] 12.2 移除 P0 既有违规豁免并启用仓库级零裸值、零旧 class、零私有断点和零悬空令牌门禁
+  - 证据：`violations.ts` 断点收敛——`APPROVED_BREAKPOINTS = {1279, 1440}`（窄/宽桌面适配点），删除 pages.css CSS 侧 shared-class-override 分支；全仓库仅剩唯一 `@media (max-width: 1279px)`（list-toolbar 折行），520/620/640/720/820/900/980/1023 私有断点清零
+  - 严格门禁：`style-violations.json` 重新生成为 `entries: []`；`style-violations.test.ts` 重写为严格零豁免（`expect(computeViolations()).toEqual([])`），裸值/裸排版/裸间距/裸圆角/裸阴影/私有断点/共享类覆盖/旧类残留/悬空令牌引用/未消费令牌十类清零；`primitives-strict-gate`、`composites-strict-gate`、`domains-strict-gate` 三扇已迁移层门禁同步全绿
+  - 验证：styles+ui-baseline 253 例全绿（含 `style-violations.test.ts` 单例严格零门禁）
+- [x] 12.3 验证所有顶层页面均有唯一 Pattern，所有嵌入式视图均无 Pattern 根、重复页头或第二滚动容器
+  - 证据：`page-pattern.test.ts` 8 例全绿——(1) `page-pattern-map.json` 顶层 9 视图全部归属七个 Pattern 之一、无悬空归属、无重复；(2) 每个顶层视图要么直接渲染 `YumiPageHeader`，要么经归属模式统一渲染共享页头；(3) 嵌入式视图（WorkAssignmentsPage/WorkersPage）不声明顶层 Pattern 归属，宿主渲染方经基线登记（`renderedBy`）校验且不再自渲染页面头（nestedHeaders=[]）；(4) 滚动所有权：应用壳仅 `.yumi-app-content` 与 `.yumi-app-navigation` 两个纵向滚动容器，页面内局部纵向滚动容器与基线一致（无新增）；嵌套模式根在 5.1 `PatternRoot` 契约层抛错 + 5.11 源码门禁双层拦截
+  - 验证：`page-pattern.test.ts` + `page-pattern-map.json` + `page-inventory.json` 三者一致全绿（随 12.1 样式层重定向后复跑通过）
+- [x] 12.4 运行受影响组件与页面的定向 Vitest、全量 renderer 回归、ESLint、Prettier 和 `git diff --check`
+  - 证据：ESLint 0 错误（仅 6 条既有 react-refresh 警告，限制于 density.tsx/page-pattern.tsx 的常量命名导出，非本提案引入）；Prettier 全仓库检查通过（格式化收敛 48 处，含 2 处已提交历史遗留折叠，全部为本提案文件或既有格式噪音，无语义改动）；`git diff --check` 干净
+  - 定向证据（数值型）：全量 renderer 回归 108 文件 / 585 例全绿；styles+ui-baseline 定向套件 39 文件 / 253 例全绿（含 12.1-12.3 各门禁与基线测试）；ESLint `eslint .` 末尾输出 `✖ 6 problems (0 errors, 6 warnings)`；Prettier 末尾输出 `All matched files use Prettier code style!`
+  - 回归范围覆盖：UI 组件库（action-menu/button/date-picker/dialog/select/tabs/sheet 等）、七个页面家族（workbench/orders/products/fulfillment/finance/payroll/settlements/customers/workers/settings/reports/reference-pages）与全部样式/基线门禁套件
+- [x] 12.5 使用独立有效的 TypeScript 检查配置完成类型验证，并运行 `pnpm build`
+  - 证据：临时 `tsconfig.check.json`（baseUrl+paths 解析 `@main/*`/`@shared/*`/`@renderer/*`）跑 `pnpm exec tsc --noEmit`——**提案属主文件（src/renderer 全部源码+测试、patterns、ui-baseline）0 错误**；仅余 23 条错误全部位于 12 个**未修改的已提交 src/main 基线文件**（`git status --porcelain` 逐路径确认为干净基线），类别为 ExcelJS 类型升级（order-document-workbook/report-export Buffer/Anchor/DocumentImage）、契约字段漂移（workbench-service scheduledReferenceWageCents/qualifiedCommissionCents、v2-order-repository V2Shipment 多态、finance-service null→V2ExpensePaymentSource）与测试夹具过期（trackingNo/V2ProductOrderSnapshot.unitPriceCents），仓库 typecheck 历来为 no-op、这些错误自提交起即存在，非本提案引入；临时配置已删除
+  - 类型修复清单（提案属主 10 个测试文件 + violations.ts）：`vi.hoisted` 空数组推断 `never[]` 逐项标注真实契约类型（`V2FinancialEntry`/`V2PendingReimbursement`/`V2OrderFund`/`V2BackupSummary`/`V2WorkbenchFirstUseGuide`）；`querySelector` 泛型 `<HTMLElement>`（settings/reports/reference-pages 12 处）；`getByRole` 的 `exact` 不属于 `ByRoleOptions` 移除（字符串本就精确匹配）；finance 夹具 `sourceType: 'manual'` 修正为合法联合 `'manual_expense'`；`wip-protection` 的 `Protection` 补 `recordedAt/resolvedAt`；`domain-dimension-allowlist` 的 Map 显式 `Map<string, …>`；violations.ts `matchAll` 迭代器经 `flatMap([...])` 展平
+  - 护栏修复（类型清理顺带暴露）：violations.ts 的 TS7053 修复使 `sharedClassNames()` 第一次真正生效——旧实现把 `RegExpStringIterator` 当 ExecArray 用、集合里只有 `undefined`，shared-class-override 门禁自建立起即静默失效；生效后立即暴露 24 条：23 条 `yumi-list-cell` 为**页面面向的复合工具 class（primitives/composites 定义但 components/ui 从不发射）**，按门禁原意「识别页面覆盖共享组件内部 class」把集合收敛为**组件内部集**（CSS 定义 ∩ components/ui 源码引用），页面消费复合工具 class 不构成覆盖；1 条真实违规 `work-assignments` 裸写 `className="yumi-record-action-bar"` 改经 `YumiRecordActionBar` 组件（actions 数组配置）承接。修复后 style-violations 严格零门禁与 ui-baseline 套件 12 文件 78 例全绿
+  - `pnpm build`（`pnpm exec electron-vite build`）通过：main 443.74 kB、preload 10.17 kB、renderer js 1,615.47 kB + css 97.56 kB，退出码 0 三包齐出
+  - 验证：**全量测试 159 文件 / 839 例全绿**（先以 prebuild-install 恢复 better-sqlite3 Node ABI 127——此前二进制被 Electron ABI 132 覆盖属环境摆锤，非代码回归）；ESLint 改后文件 0 错误；Prettier 干净；`git diff --check` 干净
+- [x] 12.6 在三档 Electron 窗口完成所有页面默认、加载、空态、错误、长文案、极端数值、多动作和 Portal 展开验收
+  - 证据：重建 out/renderer 后 `run-capture.sh` 全量重拍 66 张基线截图（9 页 × 3 档尺寸默认态 27 + 9 页 loading/empty/error 27 + 6 portal 页 overflow/portal 12），`capturedAt=2026-09-17T03:00:48Z`，66 张 PNG 全部单次成功（0 重试 0 失败），已合并进 `baselines/screenshots/manifest.json`（schemaVersion 1，17MB）
+  - 三档默认态：27/27 `yumiPageRoots=1`（每页唯一模式根）、`pageLevelHorizontalScroll=false`（页面无横向滚动）、`today=2026-03-18` 夹具基准日全固定；表格长数据走既定 `.yumi-data-table-wrap` 局部横向滚动（orders/settlements/customers/products 默认 + reports 5 处 wrap 局部滚动），页面根不产生第二滚动条
+  - 加载/空态/错误：loading 8/9 页出现 `role="status"` 加载呈现（finance 无专有加载态为契约显式豁免）；empty 页签内容归零并显示空态；error 降级零/占位且 6/9 页带 `role="alert"`；全部 `misses=[]`（stub 无未命中请求）
+  - 长文案/极端数值/多动作：overflow 态注入「超长中文文案」在 orders/customers/products 渲染断言命中，orders overflow 表格出现局部横向滚动；极端数值（`¥9,999,999.99`/`¥0.01`，5.5 dashboard-overview）+ DataTable 长文案（4.4）单元矩阵保持全绿；多动作经 orders 资金行「更正/冲正/凭证」、work-assignments 详情操作条等组合按钮功能用例覆盖（work-assignments 6 例 + orders 资金套件全绿）
+  - Portal 展开：6/6 全部 `ok:true` —— orders/products 两个 Select Popover（`overlay=1`）+ customers/finance/fulfillment/settings 四个 Dialog（`dialog:true`），与 PORTAL_TRIGGERS 登记一致
+  - 验证：`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿（合计 14/14）；本任务即 5.10 的追溯验收（见 5.10 勾选）
+- [x] 12.7 检查 Electron 控制台错误、网络失败、运行时异常、焦点恢复、键盘操作和 reduced-motion
+  - 新增设施：`visual-harness/interact-check.mjs`（一进程一页，复用 preload-stub 确定性数据）+ `run-interact-check.sh`（9 页串行、每次外层重试）；结果落在 `baselines/interact-check/{page}.json` + `summary.json`，9 页全部单次成功
+  - 控制台错误：9/9 页 `console` 错误级 0 条；每页仅 1 条 Electron 开发模式固有的 CSP 安全警告（`Insecure Content-Security-Policy`，打包后不出现，非应用日志）
+  - 网络失败：9/9 页 `did-fail-load`/`did-fail-provisional-load`/`render-process-gone`/`preload-error` 全部 0 条
+  - 运行时异常：页面注入 `window.onerror` + `unhandledrejection` 收集钩子，9/9 页 0 条
+  - 键盘操作：每页可聚焦元素 14–49 个（settings 14 / finance 15 / workbench 21 / settlements 21 / fulfillment 22 / customers 24 / products 26 / orders 29 / reports 49），首元素程序化聚焦全部可达（`programmaticFocusReachable=true`）；隐藏窗口无系统焦点，Tab 逐键语义由 jsdom 契约层覆盖（select 3.7 / dialog 4.5 键盘用例），脚本报告已注明
+  - 焦点恢复：6 个登记 portal 页（orders/customers/products/finance/fulfillment/settings）Esc 关闭后焦点全部回到触发元素（`restored=true`），与 jsdom `yumi-dialog.test.tsx`/`yumi-action-menu.test.tsx` 焦点恢复契约一致；脚本先 `focus()` 触发元素再 `click()`，与契约用例同构
+  - reduced-motion：经 CDP `Emulation.setEmulatedMedia` 模拟 `prefers-reduced-motion: reduce`，9/9 页 `matchMedia().matches=true` 且 `--yumi-duration-fast` 计算值 0ms（修复后，见下）
+  - ✅ 真实回归修复：实测发现 tokens.css 曾**无层导入**（`@import './tokens.css'`），CSS 无层声明优先级高于任何层内声明，导致 base.css `@layer foundations` 内的 `@media (prefers-reduced-motion: reduce)` 覆盖（`--yumi-duration-fast: 0ms`）输给 tokens 无层的 `:root` 140ms 定义——reduced-motion 契约在迁移后实际失效（2.5 引入，`motion-layering.test.ts` 只做源码文本断言未覆盖层优先级，真实 Electron 计算值检查才暴露）。修复：`index.css` 改为 `@import './tokens.css' layer(foundations)`（tokens 与 base 同层、base 后导入、同特异性后者胜），`base.css` 保持普通导入由其内部 `@layer foundations` 块落位；修复后实测 9/9 页 `--yumi-duration-fast` 归 0ms。另补 `style-entry.test.ts` 防护用例「tokens 必须显式 layer(foundations) 入层」防止回退。样式套件 38 文件 194 例全绿，app-components 60 例全绿
+  - ⚠️ 层修复后全量重拍 66 张基线截图复核：`baselines/screenshots/` 重拍成功（capturedAt 2026-09-17T03:43:19.737Z），`baseline-screenshots.test.ts` 11 例 + `window-viewport.test.ts` 3 例全绿（14/14）——层修复未造成视觉基线回归
+- [x] 12.8 执行订单 → 制作 → 计时工序 → 锁边/包装 → 部分发货 → 工资核算 → 财务与报表关键业务链路
+  - 恢复 Node ABI（`prebuild-install`）后运行整条业务链路的 e2e/集成套件 8 文件 25 例全绿：`v2-order-workflow.e2e`（快照/金额/资金/分批发货/附件备份 + 四工序一次核算链路 2 例）、`v2-work-time-payroll.e2e`（订单到工资流水/核算与结算约束/跨日计时核算/制作与计时更正作废/工作台分流 6 例）、`v2-large-order.e2e`（1 例）、`fulfillment-ipc.integration`（派工/核算 2 例）、`report-ipc`（报表口径与导出委托 1 例）、`register-v2-ipc`、`customer-management-ipc`、`v2-storage`（schema 11 例）
+  - 补充运行 `v2-runtime` + `v2-v1-isolation` 3 例全绿；本链路验证覆盖「订单 → 制作 → 计时工序 → 锁边/包装 → 部分发货 → 工资核算 → 财务与报表」全环节
+- [x] 12.9 核对数据库 schema、IPC 合约、领域计算、状态流转、负责人裁量和导出数据语义均无变更
+  - 领域改动面（`git status` 全库 tracked 变更核对）：`src/main` 仅 `index.ts`（窗口背景色 `#f6f5f2`→`#f4f2ec` 与 renderer `--yumi-canvas` 同步，由 `electron-canvas-sync.test.ts` 咬合，属提案允许的 Electron canvas 同步）；`src/shared/contracts/index.ts` 仅补 2 个 type 导出（V2OrderBusinessDetail、V2OrderBusinessItemReportRow，纯类型面补充，无运行语义变化）；`src/preload`、`src/main/database`、`src/main/domain`、`src/main/services`、`src/main/ipc`、`src/main/orders`、`src/main/production` 等全部零改动
+  - `use-fulfillment.ts` 是等价重构（Set.has → isActiveTaskStatus 类型守卫、Object.fromEntries → for 循环），语义不变
+  - 全量领域测试佐证：`src/main` + `src/shared` + `src/preload` 49 文件 252 例全绿（含 v2-order-workflow/v2-work-time-payroll/v2-large-order e2e、fulfillment/register/customer/report ipc、v2-storage schema、order-document-workbook 导出）；数据库 schema、IPC 合约、领域计算、状态流转、负责人裁量与导出数据语义均无变更
+- [x] 12.10 更新最终 UI 资产清单并验证共享导出、代码、规格、设计文档和自动治理结果一致
+  - 重跑 `scripts/inventory-exports.mjs` 生成最终清单：`ui-inventory.json` runtimeExports 53 / typeOnlyExports 20 / declarations +7 / zeroProductionUse 10 / uiInternalOnly 4，同步 `baselines/ui-inventory.md`；`ui-inventory.test.ts` 6 例全绿，页面与领域代码全部只从 ui 桶文件导入（深层路径旁路 0）
+  - 清单差异处置：零使用 10 项全部有据——5 项为 4.6 规格交付的布局原语（`YumiPageStack`/`YumiCluster`/`YumiGrid`/`YumiScrollArea`/`YumiDivider`，附结构契约测试，作为页面模式构建能力随 P3 接线，不属废弃代码）；5 项为内部活跃实现（`YumiPageActions`/`YumiSectionHeader` 由 PageHeader 渲染、`YumiNotification`/`YumiNotificationHost` 由 Provider 渲染、`useYumiNotification` 支撑全仓 `useYumiNotificationMessage`，3.9 已登记同款处置结论）；`YumiSplitLayout`/`YumiStickyActions` 已被 products 生产消费
+  - 设计文档同步：§1 资产口径指向治理基线；§3 追加终态口径（53 运行时 + 20 仅类型导出）；§18「不存在零使用共享组件」按两类例外收口（规格交付布局原语 / 内部活跃实现，均入 baseline 并有契约用例），与 tasks 3.9/4.6 处置结论一致
+  - 一致性验证：代码（ui 桶文件 87 行导出面）+ 自动治理（ui-baseline/Styles 治理套件：ui-inventory、style-violations、page-pattern、layering、style-entry、motion-layering、layout-primitives-contract、primitives/composites/domains-strict-gate、token-integrity 等全绿）+ 规格（tasks 3.9/4.6/12.x 处置）+ 设计文档（§1/§3/§18）+ 视觉基线（66 张截图 + 14/14 用例）全部对齐；共享导出、代码、规格、设计文档与自动治理结果一致

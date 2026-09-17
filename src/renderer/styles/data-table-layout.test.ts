@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const css = readFileSync(new URL('./components.css', import.meta.url), 'utf8').replace(
+const css = readFileSync(new URL('./composites.css', import.meta.url), 'utf8').replace(
   /\/\*[\s\S]*?\*\//g,
   ''
 )

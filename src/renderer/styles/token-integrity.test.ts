@@ -5,7 +5,7 @@ import { expect, it } from 'vitest'
 const styleDir = resolve(__dirname)
 const rendererDir = resolve(__dirname, '..')
 
-const styleFiles = ['tokens.css', 'base.css', 'components.css', 'pages.css']
+const styleFiles = ['tokens.css', 'base.css', 'primitives.css', 'composites.css', 'patterns.css']
 
 function walk(dir: string, extensions: string[], files: string[] = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

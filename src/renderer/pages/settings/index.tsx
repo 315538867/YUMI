@@ -7,6 +7,7 @@ import type {
 } from '@shared/contracts/index'
 import { formulaCatalog } from '@shared/calculations/catalog'
 import { formatMaterialPriceYuanPerGram, parseMaterialPriceYuanPerGram } from '@shared/money'
+import { SettingsWorkspace } from '../../components/patterns/settings-workspace'
 import { centsToYuan, formatCents, yuanToCents } from '../../composables/v2-utils'
 import { getErrorMessage } from '../../composables/v2-utils'
 import { useBackups } from '../../composables/use-backups'
@@ -26,7 +27,6 @@ import {
   YumiNumberField,
   YumiListSurface,
   YumiListToolbar,
-  YumiPageHeader,
   YumiPrimaryTabs,
   YumiSegmentedTabs,
   YumiSection,
@@ -166,30 +166,82 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="yumi-page yumi-settings-workspace">
-      <YumiPageHeader
-        actions={headerActions}
-        description={settingsCopy[view].description}
-        title={settingsCopy[view].title}
-      />
-      <YumiPrimaryTabs
-        ariaLabel="设置区域"
-        items={[
-          { id: 'studio', label: '工作室参数' },
-          { id: 'formulas', label: '计算公式' },
-          { id: 'finance', label: '财务资料' },
-          { id: 'protection', label: '数据保护' }
-        ]}
-        onValueChange={(nextView) => {
-          setError(null)
-          setView(nextView)
+    <>
+      <SettingsWorkspace
+        header={{
+          actions: headerActions,
+          description: settingsCopy[view].description,
+          title: settingsCopy[view].title
         }}
-        value={view}
-      />
-      {view === 'studio' && (
-        <StudioSettingsPanel loading={studio.loading} settings={studio.settings} />
-      )}
-      {view === 'formulas' && <CalculationFormulaCatalog />}
+        navigation={
+          <YumiPrimaryTabs
+            ariaLabel="设置区域"
+            items={[
+              { id: 'studio', label: '工作室参数' },
+              { id: 'formulas', label: '计算公式' },
+              { id: 'finance', label: '财务资料' },
+              { id: 'protection', label: '数据保护' }
+            ]}
+            onValueChange={(nextView) => {
+              setError(null)
+              setView(nextView)
+            }}
+            value={view}
+          />
+        }
+      >
+        {view === 'studio' && (
+          <StudioSettingsPanel loading={studio.loading} settings={studio.settings} />
+        )}
+        {view === 'formulas' && <CalculationFormulaCatalog />}
+        {view === 'finance' && (
+          <>
+            <YumiSegmentedTabs
+              ariaLabel="财务资料类型"
+              items={[
+                { id: 'income', label: '收入类目' },
+                { id: 'expense', label: '支出类目' },
+                { id: 'payer', label: '私人垫付人' }
+              ]}
+              onValueChange={(nextView) => {
+                setError(null)
+                setLibraryView(nextView)
+              }}
+              value={libraryView}
+            />
+            {libraryView === 'payer' ? (
+              <ResourceLibraryList
+                emptyDescription="建立垫付人后，私人支付的支出才可在财务登记中选择对应来源。"
+                emptyTitle="暂无私人垫付人"
+                items={finance.advancePayers}
+                listTitle="私人垫付人"
+                loading={finance.loading}
+                onDelete={(item) =>
+                  setPendingDelete({ id: item.id, kind: 'payer', name: item.name })
+                }
+                onEdit={(item) => setPayerEditor(item)}
+                summary={(item) => item.note || '暂无备注'}
+              />
+            ) : (
+              <ResourceLibraryList
+                emptyDescription={`建立${activeCategoryLabel}后，财务登记时才可选择对应类目。`}
+                emptyTitle={`暂无${activeCategoryLabel}`}
+                items={activeCategories}
+                listTitle={activeCategoryLabel}
+                loading={finance.loading}
+                onDelete={(item) =>
+                  setPendingDelete({ id: item.id, kind: 'category', name: item.name })
+                }
+                onEdit={(item) => setCategoryEditor({ direction: item.direction, item })}
+                summary={(item) =>
+                  item.enabled ? '可在财务登记中选择' : '已停用，不再用于新的财务登记'
+                }
+              />
+            )}
+          </>
+        )}
+        {view === 'protection' && <DataProtectionPanel backupState={backupState} />}
+      </SettingsWorkspace>
 
       <YumiSheet
         description="修改后只影响后续新建订单，历史订单保留创建时的快照。"
@@ -221,53 +273,6 @@ export function SettingsPage() {
           settings={studio.settings}
         />
       </YumiSheet>
-
-      {view === 'finance' && (
-        <div className="yumi-library-workspace">
-          <YumiSegmentedTabs
-            ariaLabel="财务资料类型"
-            items={[
-              { id: 'income', label: '收入类目' },
-              { id: 'expense', label: '支出类目' },
-              { id: 'payer', label: '私人垫付人' }
-            ]}
-            onValueChange={(nextView) => {
-              setError(null)
-              setLibraryView(nextView)
-            }}
-            value={libraryView}
-          />
-          {libraryView === 'payer' ? (
-            <ResourceLibraryList
-              emptyDescription="建立垫付人后，私人支付的支出才可在财务登记中选择对应来源。"
-              emptyTitle="暂无私人垫付人"
-              items={finance.advancePayers}
-              listTitle="私人垫付人"
-              loading={finance.loading}
-              onDelete={(item) => setPendingDelete({ id: item.id, kind: 'payer', name: item.name })}
-              onEdit={(item) => setPayerEditor(item)}
-              summary={(item) => item.note || '暂无备注'}
-            />
-          ) : (
-            <ResourceLibraryList
-              emptyDescription={`建立${activeCategoryLabel}后，财务登记时才可选择对应类目。`}
-              emptyTitle={`暂无${activeCategoryLabel}`}
-              items={activeCategories}
-              listTitle={activeCategoryLabel}
-              loading={finance.loading}
-              onDelete={(item) =>
-                setPendingDelete({ id: item.id, kind: 'category', name: item.name })
-              }
-              onEdit={(item) => setCategoryEditor({ direction: item.direction, item })}
-              summary={(item) =>
-                item.enabled ? '可在财务登记中选择' : '已停用，不再用于新的财务登记'
-              }
-            />
-          )}
-        </div>
-      )}
-
-      {view === 'protection' && <DataProtectionPanel backupState={backupState} />}
 
       <YumiDialog
         footer={
@@ -324,7 +329,7 @@ export function SettingsPage() {
         open={pendingDelete !== null}
         title="删除基础资料？"
       />
-    </div>
+    </>
   )
 }
 

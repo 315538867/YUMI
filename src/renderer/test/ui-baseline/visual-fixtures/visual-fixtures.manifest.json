@@ -1,0 +1,40 @@
+{
+  "$comment": "隔离视觉验收数据集的声明（任务 1.6）。visual-fixtures.test.ts 会断言代码产出的数据集与这里完全一致；改数量必须同步改 buildVisualDataset 的 DECLARED_COUNTS。",
+  "source": "src/renderer/test/ui-baseline/visual-fixtures/dataset.ts",
+  "timezone": "Asia/Shanghai",
+  "utcOffset": "+08:00",
+  "today": "2026-03-18",
+  "weekStart": "2026-03-16",
+  "seed": 20260318,
+  "counts": {
+    "customers": 12,
+    "products": 14,
+    "orders": 16,
+    "orderFunds": 20,
+    "shipments": 5,
+    "workers": 8,
+    "wageHistory": 10,
+    "settlements": 6,
+    "refunds": 4,
+    "financeCategories": 8,
+    "advancePayers": 3,
+    "financialEntries": 24,
+    "pendingReimbursements": 5,
+    "workAssignments": 18,
+    "workTimeReviews": 9,
+    "workbenchDecision": 6,
+    "workbenchAdvance": 5
+  },
+  "edgeSamples": {
+    "longestTextMinChars": 15,
+    "amountKeys": ["zero", "oneCent", "huge", "wide", "hugeNegative"],
+    "quantityKeys": ["min", "huge"]
+  },
+  "why": {
+    "fixedClock": "夹具的「今天」恒为 2026-03-18，周历恒为 2026-03-16 起那一周，避免基线截图随真实日期漂移。",
+    "fixedTimezone": "所有审计时间都带 +08:00 偏移、所有业务日期都是字面量 YYYY-MM-DD，因此不读宿主时区也能得到同一结果。",
+    "fixedOrdering": "排序只通过 stableSortBy 显式指定，不依赖引擎默认排序。",
+    "extremeValues": "每类集合都包含极端样本（极贵与一分钱商品、未维护产能、空字段、已停用、已作废、已冲正、锁定记录），保证基线覆盖真正的边界而不是只有正常路径。",
+    "seededRandom": "随机值只来自 mulberry32 固定种子；换种子会换数据，保证随机性可控且可复现。"
+  }
+}

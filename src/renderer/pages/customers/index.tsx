@@ -8,6 +8,8 @@ import type {
 } from '@shared/contracts/index'
 import { formatCents, getErrorMessage } from '../../composables/v2-utils'
 import { useCustomers } from '../../composables/use-customers'
+import { DetailPage } from '../../components/patterns/detail-page'
+import { ListPage } from '../../components/patterns/list-page'
 import {
   YumiButton,
   YumiDataTable,
@@ -17,10 +19,6 @@ import {
   YumiFieldLabel,
   YumiFormMessage,
   YumiFormSection,
-  YumiListSurface,
-  YumiListToolbar,
-  YumiMetricStrip,
-  YumiPageHeader,
   YumiSelect,
   YumiSheet,
   YumiStatusTag,
@@ -153,260 +151,251 @@ export function CustomersPage({ onNavigate }: CustomersPageProps) {
   }
 
   return (
-    <div className="yumi-page yumi-reference-workspace">
+    <>
       {detailOpen && viewing ? (
-        <>
-          <YumiPageHeader
-            actions={{
+        <DetailPage
+          header={{
+            actions: {
               ariaLabel: '客户详情页面动作',
               primaryAction: { label: '编辑客户', onClick: startEditingViewingCustomer }
-            }}
-            description="资料与历史订单只读展示；需要变更时再主动进入编辑。"
-            meta="客户档案"
-            navigation={{
+            },
+            description: '资料与历史订单只读展示；需要变更时再主动进入编辑。',
+            meta: '客户档案',
+            navigation: {
               ariaLabel: '客户详情导航',
               label: '返回客户列表',
               onClick: closeDetail
-            }}
-            title={viewing.name}
-          />
-          <div
-            aria-label={`客户详情：${viewing.name}`}
-            className="yumi-customer-detail-workspace"
-            role="region"
-          >
-            {viewing && (
-              <div className="yumi-sheet-form">
-                <YumiDetailList
-                  ariaLabel="客户基础资料"
-                  items={[
-                    { label: '联系人', value: viewing.contact || '未填写' },
-                    { label: '状态', value: viewing.enabled ? '启用' : '停用' },
-                    { label: '默认收货地址', value: viewing.defaultAddress || '未填写' },
-                    { label: '备注', value: viewing.notes || '暂无备注' }
-                  ]}
+            },
+            title: viewing.name
+          }}
+          metrics={
+            insights
+              ? {
+                  ariaLabel: '客户订单统计指标',
+                  items: [
+                    { label: '订单数', value: `${insights.orderCount} 单` },
+                    { label: '订单金额', value: formatCents(insights.totalCurrentAmountCents) },
+                    {
+                      label: '净收款',
+                      tone: 'success',
+                      value: formatCents(insights.totalNetReceivedCents)
+                    },
+                    {
+                      label: '待收',
+                      tone: 'warning',
+                      value: formatCents(insights.totalOutstandingCents)
+                    }
+                  ]
+                }
+              : undefined
+          }
+        >
+          <div aria-label={`客户详情：${viewing.name}`} role="region">
+            <YumiDetailList
+              ariaLabel="客户基础资料"
+              items={[
+                { label: '联系人', value: viewing.contact || '未填写' },
+                { label: '状态', value: viewing.enabled ? '启用' : '停用' },
+                { label: '默认收货地址', value: viewing.defaultAddress || '未填写' },
+                { label: '备注', value: viewing.notes || '暂无备注' }
+              ]}
+            />
+            <YumiFormSection className="yumi-customer-order-history" title="客户历史订单">
+              {insightsLoading ? (
+                <YumiEmptyState
+                  description="正在汇总该客户的历史订单与资金信息，请稍候。"
+                  scenario="loading"
+                  title="客户订单加载中"
                 />
-                <YumiFormSection className="yumi-customer-order-history" title="客户订单统计">
-                  {insightsLoading ? (
-                    <YumiEmptyState
-                      description="正在汇总该客户的历史订单与资金信息，请稍候。"
-                      scenario="loading"
-                      title="客户订单加载中"
-                    />
-                  ) : insights ? (
-                    <>
-                      <YumiMetricStrip
-                        ariaLabel="客户订单统计指标"
-                        items={[
-                          { label: '订单数', value: `${insights.orderCount} 单` },
-                          {
-                            label: '订单金额',
-                            value: formatCents(insights.totalCurrentAmountCents)
-                          },
-                          {
-                            label: '净收款',
-                            tone: 'success',
-                            value: formatCents(insights.totalNetReceivedCents)
-                          },
-                          {
-                            label: '待收',
-                            tone: 'warning',
-                            value: formatCents(insights.totalOutstandingCents)
-                          }
-                        ]}
-                      />
-                      <YumiFormMessage tone="hint">
-                        最近下单：{insights.latestOrderDate ?? '暂无订单'}
-                      </YumiFormMessage>
-                      <YumiDataTable<V2CustomerOrderHistoryRow>
-                        ariaLabel="客户历史订单"
-                        columns={[
-                          {
-                            key: 'code',
-                            label: '订单',
-                            render: (row) => <strong>{row.orderCode}</strong>
-                          },
-                          {
-                            key: 'date',
-                            label: '下单时间',
-                            render: (row) => row.createdAt.slice(0, 10)
-                          },
-                          {
-                            align: 'right',
-                            key: 'amount',
-                            label: '订单金额',
-                            render: (row) => formatCents(row.currentAmountCents)
-                          },
-                          {
-                            align: 'right',
-                            key: 'received',
-                            label: '净收款',
-                            render: (row) => formatCents(row.netReceivedCents)
-                          },
-                          {
-                            align: 'right',
-                            key: 'outstanding',
-                            label: '待收',
-                            render: (row) => formatCents(row.outstandingCents)
-                          },
-                          {
-                            key: 'status',
-                            label: '状态',
-                            render: (row) => (
-                              <>
-                                {row.orderStatus} · {row.shipmentStatus}
-                              </>
-                            )
-                          },
-                          {
-                            key: 'action',
-                            label: '操作',
-                            render: (row) => (
-                              <YumiButton
-                                onClick={() =>
-                                  onNavigate?.({
-                                    view: 'orders',
-                                    orderId: row.orderId,
-                                    orderView: 'overview'
-                                  })
-                                }
-                                variant="ghost"
-                              >
-                                查看订单
-                              </YumiButton>
-                            )
-                          }
-                        ]}
-                        emptyText="该客户暂时还没有历史订单。"
-                        getRowKey={(row) => row.orderId}
-                        rows={insights.orders}
-                      />
-                    </>
-                  ) : (
-                    <YumiEmptyState
-                      description="当前客户暂时没有可汇总的订单记录。"
-                      title="暂无客户订单统计"
-                    />
-                  )}
-                </YumiFormSection>
-              </div>
-            )}
+              ) : insights ? (
+                <>
+                  <YumiFormMessage tone="hint">
+                    最近下单：{insights.latestOrderDate ?? '暂无订单'}
+                  </YumiFormMessage>
+                  <YumiDataTable<V2CustomerOrderHistoryRow>
+                    ariaLabel="客户历史订单"
+                    columns={[
+                      {
+                        key: 'code',
+                        label: '订单',
+                        render: (row) => <strong>{row.orderCode}</strong>
+                      },
+                      {
+                        key: 'date',
+                        label: '下单时间',
+                        render: (row) => row.createdAt.slice(0, 10)
+                      },
+                      {
+                        align: 'right',
+                        key: 'amount',
+                        label: '订单金额',
+                        render: (row) => formatCents(row.currentAmountCents)
+                      },
+                      {
+                        align: 'right',
+                        key: 'received',
+                        label: '净收款',
+                        render: (row) => formatCents(row.netReceivedCents)
+                      },
+                      {
+                        align: 'right',
+                        key: 'outstanding',
+                        label: '待收',
+                        render: (row) => formatCents(row.outstandingCents)
+                      },
+                      {
+                        key: 'status',
+                        label: '状态',
+                        render: (row) => (
+                          <>
+                            {row.orderStatus} · {row.shipmentStatus}
+                          </>
+                        )
+                      },
+                      {
+                        key: 'action',
+                        label: '操作',
+                        render: (row) => (
+                          <YumiButton
+                            onClick={() =>
+                              onNavigate?.({
+                                view: 'orders',
+                                orderId: row.orderId,
+                                orderView: 'overview'
+                              })
+                            }
+                            variant="ghost"
+                          >
+                            查看订单
+                          </YumiButton>
+                        )
+                      }
+                    ]}
+                    emptyText="该客户暂时还没有历史订单。"
+                    getRowKey={(row) => row.orderId}
+                    rows={insights.orders}
+                  />
+                </>
+              ) : (
+                <YumiEmptyState
+                  description="当前客户暂时没有可汇总的订单记录。"
+                  title="暂无客户订单统计"
+                />
+              )}
+            </YumiFormSection>
           </div>
-        </>
+        </DetailPage>
       ) : (
-        <>
-          <YumiPageHeader
-            actions={{
+        <ListPage
+          header={{
+            actions: {
               ariaLabel: '客户页面动作',
               primaryAction: { label: '新建客户', onClick: openCreate }
-            }}
-            description="维护订单可关联的客户资料；订单会保留当时的客户快照。"
-            meta={`共 ${visibleCustomers.length} 位`}
-            title="客户"
-          />
-          <YumiListSurface ariaLabel={`客户列表，共 ${visibleCustomers.length} 位`}>
-            <YumiListToolbar
-              ariaLabel="客户列表工具"
-              countLabel={`共 ${visibleCustomers.length} 位客户`}
-              filters={
-                <YumiSelect
-                  aria-label="客户状态筛选"
-                  onValueChange={(value) =>
-                    setStatusFilter(value as 'all' | 'enabled' | 'disabled')
-                  }
-                  options={[
-                    { label: '全部状态', value: 'all' },
-                    { label: '已启用', value: 'enabled' },
-                    { label: '已停用', value: 'disabled' }
-                  ]}
-                  value={statusFilter}
-                />
-              }
-              search={
-                <YumiTextField
-                  aria-label="搜索客户"
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="搜索客户、联系人或地址"
-                  value={searchQuery}
-                />
-              }
-            />
-            {loading ? (
-              <YumiEmptyState
-                description="正在读取客户资料，请稍候。"
-                scenario="loading"
-                title="客户资料加载中"
-              />
-            ) : customers.length === 0 ? (
-              <YumiEmptyState
-                description="点击右上角“新建客户”后，负责人可在新增订单时主动选择关联。"
-                scenario="first-use"
-                title="还没有客户资料"
-              />
-            ) : visibleCustomers.length ? (
-              <YumiDataTable
-                ariaLabel="客户列表"
-                columns={[
-                  {
-                    key: 'customer',
-                    label: '客户 / 备注',
-                    render: (customer) => (
-                      <div className="yumi-list-cell">
-                        <strong>{customer.name}</strong>
-                        <span>{customer.notes ? `备注：${customer.notes}` : '暂无备注'}</span>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'contact',
-                    label: '联系人',
-                    render: (customer) => customer.contact || '未填写'
-                  },
-                  {
-                    key: 'address',
-                    label: '默认地址',
-                    render: (customer) => customer.defaultAddress || '未填写'
-                  },
-                  {
-                    key: 'status',
-                    label: '状态',
-                    render: (customer) => (
-                      <YumiStatusTag tone={customer.enabled ? 'success' : 'neutral'}>
-                        {customer.enabled ? '启用' : '停用'}
-                      </YumiStatusTag>
-                    )
-                  },
-                  {
-                    key: 'updatedAt',
-                    label: '最近更新',
-                    render: (customer) => customer.updatedAt.slice(0, 10)
-                  },
-                  {
-                    align: 'right',
-                    key: 'actions',
-                    label: '操作',
-                    render: (customer) => (
-                      <YumiButton
-                        aria-label={`查看客户资料：${customer.name}`}
-                        onClick={() => void openDetail(customer)}
-                        variant="ghost"
-                      >
-                        查看详情
-                      </YumiButton>
-                    )
-                  }
+            },
+            description: '维护订单可关联的客户资料；订单会保留当时的客户快照。',
+            meta: `共 ${visibleCustomers.length} 位`,
+            title: '客户'
+          }}
+          toolbar={{
+            ariaLabel: '客户列表工具',
+            countLabel: `共 ${visibleCustomers.length} 位客户`,
+            filters: (
+              <YumiSelect
+                aria-label="客户状态筛选"
+                onValueChange={(value) => setStatusFilter(value as 'all' | 'enabled' | 'disabled')}
+                options={[
+                  { label: '全部状态', value: 'all' },
+                  { label: '已启用', value: 'enabled' },
+                  { label: '已停用', value: 'disabled' }
                 ]}
-                getRowKey={(customer) => customer.id}
-                rows={visibleCustomers}
+                value={statusFilter}
               />
-            ) : (
-              <YumiEmptyState
-                description="请调整搜索内容或状态筛选后重试。"
-                title="没有符合筛选条件的客户。"
+            ),
+            search: (
+              <YumiTextField
+                aria-label="搜索客户"
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="搜索客户、联系人或地址"
+                value={searchQuery}
               />
-            )}
-          </YumiListSurface>
-        </>
+            )
+          }}
+        >
+          {loading ? (
+            <YumiEmptyState
+              description="正在读取客户资料，请稍候。"
+              scenario="loading"
+              title="客户资料加载中"
+            />
+          ) : customers.length === 0 ? (
+            <YumiEmptyState
+              description="点击右上角“新建客户”后，负责人可在新增订单时主动选择关联。"
+              scenario="first-use"
+              title="还没有客户资料"
+            />
+          ) : visibleCustomers.length ? (
+            <YumiDataTable
+              ariaLabel="客户列表"
+              columns={[
+                {
+                  key: 'customer',
+                  label: '客户 / 备注',
+                  render: (customer) => (
+                    <div className="yumi-list-cell">
+                      <strong>{customer.name}</strong>
+                      <span>{customer.notes ? `备注：${customer.notes}` : '暂无备注'}</span>
+                    </div>
+                  )
+                },
+                {
+                  key: 'contact',
+                  label: '联系人',
+                  render: (customer) => customer.contact || '未填写'
+                },
+                {
+                  key: 'address',
+                  label: '默认地址',
+                  render: (customer) => customer.defaultAddress || '未填写'
+                },
+                {
+                  key: 'status',
+                  label: '状态',
+                  render: (customer) => (
+                    <YumiStatusTag tone={customer.enabled ? 'success' : 'neutral'}>
+                      {customer.enabled ? '启用' : '停用'}
+                    </YumiStatusTag>
+                  )
+                },
+                {
+                  key: 'updatedAt',
+                  label: '最近更新',
+                  render: (customer) => customer.updatedAt.slice(0, 10)
+                },
+                {
+                  align: 'right',
+                  key: 'actions',
+                  label: '操作',
+                  render: (customer) => (
+                    <YumiButton
+                      aria-label={`查看客户资料：${customer.name}`}
+                      onClick={() => void openDetail(customer)}
+                      variant="ghost"
+                    >
+                      查看详情
+                    </YumiButton>
+                  )
+                }
+              ]}
+              getRowKey={(customer) => customer.id}
+              rows={visibleCustomers}
+            />
+          ) : (
+            <YumiEmptyState
+              description="请调整搜索内容或状态筛选后重试。"
+              title="没有符合筛选条件的客户。"
+            />
+          )}
+        </ListPage>
       )}
 
       <YumiSheet
@@ -477,6 +466,6 @@ export function CustomersPage({ onNavigate }: CustomersPageProps) {
           </YumiField>
         </form>
       </YumiSheet>
-    </div>
+    </>
   )
 }

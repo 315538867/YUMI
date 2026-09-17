@@ -590,3 +590,72 @@ describe('派工抽屉按工序类型切换表单', () => {
     })
   })
 })
+
+describe('P2 · 排班 Pattern 根契约（任务 9.1）', () => {
+  it('人员周历由唯一 calendar-workspace 紧凑根承接，工具栏/摘要/滚动区依次排列', async () => {
+    installWeekData()
+    render(<FulfillmentPage />)
+    await screen.findByRole('region', { name: '人员周历' })
+
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    const root = roots[0] as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'calendar-workspace')
+    expect(root).toHaveAttribute('data-density', 'compact')
+    expect(root).toHaveClass('yumi-page')
+
+    const toolbar = root.querySelector('.yumi-calendar-workspace__toolbar')
+    const summary = root.querySelector('.yumi-calendar-workspace__summary')
+    const scrollWrap = root.querySelector('.yumi-calendar-workspace__scroll')
+    expect(toolbar).not.toBeNull()
+    expect(summary).not.toBeNull()
+    expect(scrollWrap).not.toBeNull()
+    expect(
+      within(toolbar as HTMLElement).getByRole('navigation', { name: '排班视角' })
+    ).toBeVisible()
+    expect(
+      within(summary as HTMLElement).getByRole('region', { name: '排班阶段总量' })
+    ).toBeVisible()
+    expect(
+      within(scrollWrap as HTMLElement).getByRole('region', { name: '人员周历' })
+    ).toBeVisible()
+    expect(scrollWrap!.querySelector('.yumi-worker-week__grid')).not.toBeNull()
+  })
+
+  it('待核算页签由唯一 review-workspace 紧凑根承接，统一队列包含视角、阶段总量与待核算表', async () => {
+    installWeekData()
+    render(<FulfillmentPage />)
+    await screen.findByRole('region', { name: '人员周历' })
+
+    fireEvent.click(screen.getByRole('button', { name: '待核算' }))
+    await screen.findByRole('table', { name: '待核算事项' })
+
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    const root = roots[0] as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'review-workspace')
+    expect(root).toHaveAttribute('data-density', 'compact')
+    expect(root).toHaveClass('yumi-page')
+
+    const queue = root.querySelector('.yumi-review-workspace__queue')
+    expect(queue).not.toBeNull()
+    expect(within(queue as HTMLElement).getByRole('navigation', { name: '排班视角' })).toBeVisible()
+    expect(within(queue as HTMLElement).getByRole('region', { name: '排班阶段总量' })).toBeVisible()
+    expect(within(queue as HTMLElement).getByRole('table', { name: '待核算事项' })).toBeVisible()
+  })
+
+  it('深链任务处理不创建模式根，嵌入工作安排页保持只读外层', async () => {
+    installWeekData()
+    render(
+      <FulfillmentPage
+        navigationTarget={{
+          view: 'fulfillment',
+          processTaskId: 'task-making',
+          focus: 'inspection'
+        }}
+      />
+    )
+    await screen.findByRole('table', { name: '工作安排列表' })
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(0)
+  })
+})

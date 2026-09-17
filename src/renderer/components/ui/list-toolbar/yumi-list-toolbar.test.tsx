@@ -103,4 +103,28 @@ describe('YumiListToolbar', () => {
     expect(controls).not.toContainElement(count as HTMLElement)
     expect(count).toHaveAttribute('aria-live', 'polite')
   })
+
+  it('按搜索、筛选、统计的固定顺序渲染，折行不改变控件顺序', () => {
+    render(
+      <YumiListToolbar
+        ariaLabel="订单列表工具"
+        countLabel="共 1 张订单"
+        filters={<button type="button">全部状态</button>}
+        search={<input aria-label="搜索订单" />}
+      />
+    )
+
+    const toolbar = screen.getByRole('toolbar', { name: '订单列表工具' })
+    const search = toolbar.querySelector('.yumi-list-toolbar__search')
+    const filter = toolbar.querySelector('.yumi-list-toolbar__filter')
+    const count = toolbar.querySelector('.yumi-list-toolbar__count')
+
+    expect(search).not.toBeNull()
+    expect(filter).not.toBeNull()
+    expect(count).not.toBeNull()
+    expect(search!.compareDocumentPosition(filter!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(filter!.compareDocumentPosition(count!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(search!.parentElement).toHaveClass('yumi-list-toolbar__controls')
+    expect(count!.parentElement).toHaveClass('yumi-list-toolbar')
+  })
 })

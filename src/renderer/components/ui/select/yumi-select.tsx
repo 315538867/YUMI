@@ -1,7 +1,8 @@
 import * as Popover from '@radix-ui/react-popover'
 import * as Select from '@radix-ui/react-select'
 import { Check, ChevronDown, Plus, Search } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type KeyboardEventHandler, type ReactNode } from 'react'
+import { useDensity } from '../../patterns/density'
 import {
   useYumiFieldAccessibility,
   type YumiFieldAccessibilityProps
@@ -55,7 +56,12 @@ export function YumiSelect({
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content className="yumi-select__content" position="popper" sideOffset={6}>
+        <Select.Content
+          className="yumi-select__content"
+          data-density={useDensity()}
+          position="popper"
+          sideOffset={6}
+        >
           <Select.Viewport className="yumi-select__viewport">
             {options.map((option) => (
               <Select.Item
@@ -106,6 +112,8 @@ export function YumiSearchSelect({
   })
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const escapeCloseRef = useRef(false)
   const selected = options.find((option) => option.value === value)
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -117,7 +125,20 @@ export function YumiSearchSelect({
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
-    if (!nextOpen) setQuery('')
+    if (!nextOpen) {
+      setQuery('')
+      if (escapeCloseRef.current) {
+        escapeCloseRef.current = false
+        triggerRef.current?.focus()
+      }
+    }
+  }
+
+  const openOnKeyboard: KeyboardEventHandler<HTMLButtonElement> = (event) => {
+    if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      setOpen(true)
+    }
   }
 
   return (
@@ -125,12 +146,14 @@ export function YumiSearchSelect({
       <Popover.Trigger asChild>
         <button
           {...fieldAccessibility}
+          ref={triggerRef}
           aria-label={ariaLabel}
           aria-expanded={open}
           aria-haspopup="listbox"
           className={['yumi-select__trigger', className].filter(Boolean).join(' ')}
           data-placeholder={selected ? undefined : true}
           disabled={disabled}
+          onKeyDown={openOnKeyboard}
           role="combobox"
           type="button"
         >
@@ -139,7 +162,15 @@ export function YumiSearchSelect({
         </button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="start" className="yumi-select__search-content" sideOffset={6}>
+        <Popover.Content
+          align="start"
+          className="yumi-select__search-content"
+          data-density={useDensity()}
+          onEscapeKeyDown={() => {
+            escapeCloseRef.current = true
+          }}
+          sideOffset={6}
+        >
           <div className="yumi-select__search-wrap">
             <Search aria-hidden="true" size={16} />
             <input

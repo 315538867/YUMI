@@ -27,6 +27,7 @@ export const YumiButton = forwardRef<HTMLButtonElement, YumiButtonProps>(functio
       className={['yumi-button', `yumi-button--${variant}`, className].filter(Boolean).join(' ')}
       data-loading={loading || undefined}
       data-variant={variant}
+      aria-busy={loading || undefined}
       disabled={disabled || loading}
       type={type}
     >

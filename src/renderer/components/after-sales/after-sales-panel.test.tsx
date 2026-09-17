@@ -127,6 +127,10 @@ it('负责人先核对原发货上下文，再明确确认处理判断；确认�
           trackingNumber: 'SF001',
           note: null,
           items: [{ id: 'shipment-item-1', orderItemId: 'order-item-1', quantity: 12 }],
+          status: 'active',
+          voidedOn: null,
+          voidReason: null,
+          voidedAt: null,
           createdAt: '2026-09-07T10:00:00.000Z',
           updatedAt: '2026-09-07T10:00:00.000Z'
         }

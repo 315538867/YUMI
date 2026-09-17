@@ -44,8 +44,13 @@ const backupsComposableSource = source('src/renderer/composables/use-backups.ts'
 const workbenchPageSource = source('src/renderer/pages/workbench/index.tsx')
 const workbenchComposableSource = source('src/renderer/composables/use-workbench.ts')
 const designTokensSource = source('src/renderer/styles/tokens.css')
-const componentStylesSource = source('src/renderer/styles/components.css')
-const pageStylesSource = source('src/renderer/styles/pages.css')
+const componentStylesSource = `${source('src/renderer/styles/primitives.css')}\n${source(
+  'src/renderer/styles/composites.css'
+)}`
+const pageStylesSource = source('src/renderer/styles/patterns.css')
+const patternStylesSource = pageStylesSource
+const styleSource = (className: string) =>
+  patternStylesSource.match(new RegExp(`\\.${className}[^{]*\\{[^}]*gap:`))
 
 describe('V2 应用壳与页面边界', () => {
   it('应用壳仅负责导航与页面装配，不直接调用预加载能力', () => {
@@ -108,16 +113,11 @@ describe('V2 应用壳与页面边界', () => {
 describe('YUMI 列表业务容器规范', () => {
   it('列表页面与嵌入式业务列表统一使用 YumiListSurface，避免页面直接拼装容器基线', () => {
     const listSurfaceSources = [
-      customerPageSource,
-      productPageSource,
       orderPageSource,
       workersPageSource,
-      settlementsPageSource,
-      financePageSource,
       reportsPageSource,
       settingsPageSource,
       workAssignmentsPageSource,
-      workbenchPageSource,
       afterSalesPanelSource
     ]
 
@@ -125,6 +125,19 @@ describe('YUMI 列表业务容器规范', () => {
       expect(pageSource).toContain('YumiListSurface')
       expect(pageSource).not.toContain('className="yumi-list-surface')
     }
+
+    // 已迁移到 ListPage/DashboardOverview/ReviewWorkspace 的页面，列表表面由模式统一渲染。
+    for (const pageSource of [
+      settlementsPageSource,
+      financePageSource,
+      customerPageSource,
+      productPageSource
+    ]) {
+      expect(pageSource).toContain('ListPage')
+      expect(pageSource).not.toContain('className="yumi-list-surface')
+    }
+    expect(workbenchPageSource).toContain('DashboardOverview')
+    expect(workbenchPageSource).not.toContain('className="yumi-list-surface')
   })
 })
 
@@ -175,30 +188,63 @@ describe('YUMI 记录操作规范', () => {
 
 describe('YUMI 全局经营页面骨架', () => {
   it('所有一级业务页都复用结构化共享页头，避免在页面中拼接独立动作区', () => {
-    const businessPageSources = [
-      customerPageSource,
-      productPageSource,
-      orderPageSource,
-      fulfillmentPageSource,
-      workersPageSource,
-      settlementsPageSource,
-      financePageSource,
-      reportsPageSource,
-      workbenchPageSource,
-      settingsPageSource
-    ]
+    const directHeaderPageSources = [orderPageSource, fulfillmentPageSource]
 
-    for (const pageSource of businessPageSources) {
+    for (const pageSource of directHeaderPageSources) {
       expect(pageSource).toContain("from '../../components/ui'")
       expect(pageSource).toContain('YumiPageHeader')
       expect(pageSource).not.toContain('YumiPageActions')
     }
+
+    // 客户页列表/详情由 ListPage/DetailPage 承接，页头由模式统一渲染。
+    expect(customerPageSource).toContain('ListPage')
+    expect(customerPageSource).toContain('DetailPage')
+    expect(customerPageSource).not.toContain('YumiPageActions')
+
+    // 商品页列表/工作区/详情由 ListPage/FormWorkspace/DetailPage 承接，页头由模式统一渲染。
+    expect(productPageSource).toContain('ListPage')
+    expect(productPageSource).toContain('FormWorkspace')
+    expect(productPageSource).toContain('DetailPage')
+    expect(productPageSource).not.toContain('YumiPageActions')
+
+    // 报表页已迁移至 DashboardOverview，页头由模式统一渲染。
+    expect(reportsPageSource).toContain("from '../../components/ui'")
+    expect(reportsPageSource).toContain('DashboardOverview')
+    expect(reportsPageSource).not.toContain('YumiPageActions')
+
+    // 设置页已迁移至 SettingsWorkspace，页头由模式统一渲染。
+    expect(settingsPageSource).toContain("from '../../components/ui'")
+    expect(settingsPageSource).toContain('SettingsWorkspace')
+    expect(settingsPageSource).not.toContain('YumiPageActions')
+
+    // 工作台已迁移至 DashboardOverview，页头由模式统一渲染。
+    expect(workbenchPageSource).toContain("from '../../components/ui'")
+    expect(workbenchPageSource).toContain('DashboardOverview')
+    expect(workbenchPageSource).not.toContain('YumiPageActions')
+
+    // 财务页三种互斥视图由模式根统一渲染页头。
+    expect(financePageSource).toContain('DashboardOverview')
+    expect(financePageSource).toContain('ListPage')
+    expect(financePageSource).toContain('ReviewWorkspace')
+    expect(financePageSource).not.toContain('YumiPageActions')
+
+    // 工资页列表/详情由 ListPage/DetailPage 承接，人员时薪保持嵌入式区块。
+    expect(settlementsPageSource).toContain('ListPage')
+    expect(settlementsPageSource).toContain('DetailPage')
+    expect(settlementsPageSource).not.toContain('YumiPageActions')
+
+    // 人员页作为嵌入记录区只渲染区块标题，不自渲染页面头。
+    expect(workersPageSource).toContain('YumiSection')
+    expect(workersPageSource).not.toContain('YumiPageHeader')
+    expect(workersPageSource).not.toContain('YumiPageActions')
   })
 
-  it('工资结算与待退款记录区复用共享区块骨架，不在主标签下直接拼装独立容器', () => {
-    expect(settlementsPageSource).toContain('YumiSection')
-    expect(settlementsPageSource).toContain('title="工资结算记录"')
-    expect(settlementsPageSource).toContain('title="待退款记录"')
+  it('工资结算与退款记录区由 ListPage/DetailPage 承接，不在主标签下直接拼装独立容器', () => {
+    expect(settlementsPageSource).toContain('ListPage')
+    expect(settlementsPageSource).toContain('DetailPage')
+    expect(settlementsPageSource).not.toContain('yumi-settlements-workspace')
+    expect(settlementsPageSource).not.toContain('title="工资结算记录"')
+    expect(settlementsPageSource).not.toContain('title="待退款记录"')
   })
 
   it('含页面主操作的业务页只传递结构化配置，由共享页头生成唯一 primary 按钮', () => {
@@ -206,7 +252,6 @@ describe('YUMI 全局经营页面骨架', () => {
       customerPageSource,
       productPageSource,
       orderPageSource,
-      workersPageSource,
       settlementsPageSource,
       financePageSource,
       reportsPageSource
@@ -233,20 +278,22 @@ describe('YUMI 全局经营页面骨架', () => {
 
 describe('YUMI 全局导航与摘要来源护栏', () => {
   it('页面层级导航只复用主标签与次级分段组件，不重新拼装旧同形 Tab 样式', () => {
-    const primaryTabPageSources = [
-      orderPageSource,
+    for (const pageSource of [
       fulfillmentPageSource,
       settlementsPageSource,
       financePageSource,
       workbenchPageSource,
       settingsPageSource
-    ]
-
-    for (const pageSource of primaryTabPageSources) {
+    ]) {
       expect(pageSource).toContain('YumiPrimaryTabs')
       expect(pageSource).not.toContain('yumi-page-tabs')
       expect(pageSource).not.toContain('yumi-primary-tabs__item')
     }
+
+    // 订单详情的主标签改由 Detail Page 模式的 tabs 槽位承载，页面不再直接拼装主标签
+    expect(orderPageSource).toContain('DetailPage')
+    expect(orderPageSource).not.toContain('yumi-page-tabs')
+    expect(orderPageSource).not.toContain('yumi-primary-tabs__item')
 
     // 排班视角已迁移为页面级主 Tab，次级分段控件只剩设置页；两页仍不得自行拼装分段控件样式
     expect(settingsPageSource).toContain('YumiSegmentedTabs')
@@ -256,7 +303,9 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
   })
 
   it('订单详情与排班处理以共享实体摘要承接状态和整行经营指标', () => {
-    expect(orderPageSource).toContain('YumiEntitySummary')
+    expect(orderPageSource).toContain('DetailPage')
+    expect(orderPageSource).toContain('summary={{')
+    expect(orderPageSource).toContain('metrics={{')
     for (const pageSource of [orderPageSource]) {
       expect(pageSource).not.toContain('yumi-order-summary')
     }
@@ -267,8 +316,8 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
   })
 
   it('订单详情以共享实体摘要承接客户与交付资料，不保留订单私有档案样式', () => {
-    expect(orderPageSource).toContain('YumiEntitySummary')
-    expect(orderPageSource).toContain('ariaLabel="订单主体信息"')
+    expect(orderPageSource).toContain('DetailPage')
+    expect(orderPageSource).toContain("ariaLabel: '订单主体信息'")
     expect(orderPageSource).toContain('YumiFormSection')
     expect(orderPageSource).not.toContain('yumi-order-archive-grid')
     expect(orderPageSource).not.toContain('yumi-order-archive')
@@ -383,13 +432,7 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
   })
 
   it('经营摘要只经共享连续指标带输出，业务页不保留私有固定列卡片网格', () => {
-    const metricPageSources = [
-      customerPageSource,
-      orderPageSource,
-      fulfillmentPageSource,
-      financePageSource,
-      reportsPageSource
-    ]
+    const metricPageSources = [orderPageSource, fulfillmentPageSource]
 
     for (const pageSource of metricPageSources) {
       expect(pageSource).toContain('YumiMetricStrip')
@@ -397,6 +440,25 @@ describe('YUMI 全局导航与摘要来源护栏', () => {
       expect(pageSource).not.toContain('yumi-finance-summary-grid')
       expect(pageSource).not.toContain('yumi-finance-metric')
     }
+
+    // 客户详情指标带由 DetailPage 的 metrics 槽位统一渲染。
+    expect(customerPageSource).toContain('DetailPage')
+    expect(customerPageSource).toContain('metrics={')
+    expect(customerPageSource).not.toContain('yumi-order-stat-grid')
+    expect(customerPageSource).not.toContain('yumi-finance-summary-grid')
+    expect(customerPageSource).not.toContain('yumi-finance-metric')
+
+    // 报表页已迁移至 DashboardOverview，指标带由模式统一渲染。
+    expect(reportsPageSource).toContain('DashboardOverview')
+    expect(reportsPageSource).not.toContain('yumi-order-stat-grid')
+    expect(reportsPageSource).not.toContain('yumi-finance-summary-grid')
+    expect(reportsPageSource).not.toContain('yumi-finance-metric')
+
+    // 财务页指标带由 DashboardOverview 的 metrics 槽位统一渲染。
+    expect(financePageSource).toContain('DashboardOverview')
+    expect(financePageSource).toContain('metrics={{')
+    expect(financePageSource).not.toContain('yumi-finance-summary-grid')
+    expect(financePageSource).not.toContain('yumi-finance-metric')
   })
 })
 
@@ -469,7 +531,7 @@ describe('YUMI 中国色系设计令牌', () => {
     expect(designTokensSource).toContain('--yumi-palette-xuan-paper: #f4f2ec')
     expect(designTokensSource).toContain('--yumi-palette-silk-white: #fffdf8')
     expect(designTokensSource).toContain('--yumi-palette-bamboo-jade: #276d67')
-    expect(designTokensSource).toContain('--yumi-palette-rattan-yellow: #c9952f')
+    expect(designTokensSource).toContain('--yumi-palette-rattan-deep: #a66c1e')
     expect(designTokensSource).toContain('--yumi-palette-red-ochre: #b7514a')
     expect(designTokensSource).toContain('--yumi-canvas: var(--yumi-palette-xuan-paper)')
     expect(designTokensSource).toContain('--yumi-brand: var(--yumi-palette-bamboo-jade)')
@@ -480,10 +542,10 @@ describe('YUMI 中国色系设计令牌', () => {
     expect(pageStylesSource).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(|hsla?\(|gradient\(/i)
   })
 
-  it('保留窄宽度下表格和标签的横向阅读能力，不用渐变掩盖信息', () => {
+  it('保留窄宽度下表格的横向阅读能力，标签始终保持水平单行不换行', () => {
     expect(componentStylesSource).toContain('.yumi-data-table-wrap {\n  overflow-x: auto;')
-    expect(componentStylesSource).toContain('.yumi-primary-tabs {\n    overflow-x: auto;')
-    expect(componentStylesSource).toContain('.yumi-segmented-tabs {\n    display: flex;')
+    expect(componentStylesSource).toContain('.yumi-primary-tabs {\n  display: flex;')
+    expect(componentStylesSource).toContain('.yumi-segmented-tabs {\n  display: inline-flex;')
   })
 
   it('为可见焦点、选区和金额数字建立全局可访问性与阅读规则', () => {
@@ -510,13 +572,11 @@ describe('V2 订单工作区', () => {
 
   it('页面纵向堆叠容器都在样式表中声明间距，避免区块相互贴住', () => {
     for (const className of [
-      'yumi-order-detail-stack',
+      'yumi-detail-page__body',
       'yumi-order-profit-stack',
-      'yumi-order-schedule-stack',
-      'yumi-reference-workspace__sections',
-      'yumi-library-workspace'
+      'yumi-order-schedule-stack'
     ]) {
-      expect(pageStylesSource).toMatch(new RegExp(`\\.${className}[^{]*\\{[^}]*gap:`))
+      expect(styleSource(className), className).toBeTruthy()
     }
     expect(orderPageSource).toContain('"yumi-order-schedule-stack"')
   })
@@ -856,7 +916,8 @@ describe('YUMI 工资结算界面', () => {
       expect(pageSource).not.toContain('TextField.Root')
       expect(pageSource).not.toContain('type="date"')
     }
-    expect(settlementsPageSource).toContain('YumiListToolbar')
+    expect(settlementsPageSource).toContain('ListPage')
+    expect(settlementsPageSource).toContain("ariaLabel: '工资结算列表工具'")
     expect(settlementsPageSource).toContain('YumiDataTable')
     expect(settlementsPageSource).toContain('YumiSelect')
     expect(settlementsPageSource).toContain('YumiSearchSelect')
@@ -913,16 +974,20 @@ describe('YUMI 客户与商品资料界面', () => {
       expect(pageSource).not.toContain('@radix-ui/themes')
       expect(pageSource).not.toContain('TextField.Root')
       expect(pageSource).not.toContain('className="panel"')
-      expect(pageSource).toContain('YumiPageHeader')
-      expect(pageSource).toContain('YumiListToolbar')
+      expect(pageSource).toContain('ListPage')
       expect(pageSource).toContain('YumiDataTable')
       expect(pageSource).toContain('YumiSelect')
       expect(pageSource).toContain('YumiTextField')
     }
+    // 客户列表/详情由 ListPage/DetailPage 承接，编辑与新建经抽屉完成。
+    expect(customerPageSource).toContain('DetailPage')
     expect(customerPageSource).toContain('YumiSheet')
     expect(customerPageSource).toContain('订单会保留当时的客户快照')
+    // 商品列表/工作区/详情由 ListPage/FormWorkspace/DetailPage 承接，不再使用私有工作区类名。
+    expect(productPageSource).toContain('FormWorkspace')
+    expect(productPageSource).toContain('DetailPage')
     expect(productPageSource).not.toContain('YumiSheet')
-    expect(productPageSource).toContain('yumi-product-workspace')
+    expect(productPageSource).not.toContain('yumi-product-workspace')
     expect(productPageSource).toContain('YumiCalculatedAmount')
     expect(productPageSource).toContain('预计单件制作时长')
     expect(productPageSource).not.toContain('胶水用量')
@@ -959,11 +1024,12 @@ describe('YUMI 人员与财务设置界面', () => {
 })
 
 describe('YUMI 全局视觉入口', () => {
-  it('渲染入口仅加载 YUMI 样式令牌和自有组件，不再包装或依赖 Radix Themes', () => {
-    expect(mainSource).toContain("'./styles/tokens.css'")
-    expect(mainSource).toContain("'./styles/base.css'")
-    expect(mainSource).toContain("'./styles/components.css'")
-    expect(mainSource).toContain("'./styles/pages.css'")
+  it('渲染入口只加载唯一样式入口 index.css，不再包装或依赖 Radix Themes', () => {
+    expect(mainSource).toContain("'./styles/index.css'")
+    expect(mainSource).not.toContain("'./styles/tokens.css'")
+    expect(mainSource).not.toContain("'./styles/base.css'")
+    expect(mainSource).not.toContain("'./styles/components.css'")
+    expect(mainSource).not.toContain("'./styles/pages.css'")
     expect(mainSource).not.toContain('@radix-ui/themes')
     expect(mainSource).not.toContain("'./styles/app.css'")
     expect(mainSource).not.toContain('<Theme')

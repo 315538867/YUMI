@@ -65,7 +65,10 @@ const actionableStages: ActionableFulfillmentQueueStage[] = [
   'edge_sewing',
   'packing'
 ]
-const activeTaskStatuses = new Set<V2ProcessTaskStatus>(['pending', 'pending_inspection'])
+const isActiveTaskStatus = (
+  status: V2ProcessTaskStatus
+): status is Extract<V2ProcessTaskStatus, 'pending' | 'pending_inspection'> =>
+  status === 'pending' || status === 'pending_inspection'
 
 const stageBalanceKeys: Record<ActionableFulfillmentQueueStage, keyof V2FulfillmentStageBalances> =
   {
@@ -91,18 +94,17 @@ function mapProcessTypeToStage(processType: string): ActionableFulfillmentQueueS
 function createStageSchedules(
   stages: V2FulfillmentStageBalances
 ): Record<ActionableFulfillmentQueueStage, FulfillmentStageSchedule> {
-  return Object.fromEntries(
-    actionableStages.map((stage) => [
-      stage,
-      {
-        wipQuantity: getStageWip(stages, stage),
-        reservedQuantity: 0,
-        unassignedQuantity: getStageWip(stages, stage),
-        overassignedQuantity: 0,
-        tasks: []
-      }
-    ])
-  ) as Record<ActionableFulfillmentQueueStage, FulfillmentStageSchedule>
+  const schedules = {} as Record<ActionableFulfillmentQueueStage, FulfillmentStageSchedule>
+  for (const stage of actionableStages) {
+    schedules[stage] = {
+      wipQuantity: getStageWip(stages, stage),
+      reservedQuantity: 0,
+      unassignedQuantity: getStageWip(stages, stage),
+      overassignedQuantity: 0,
+      tasks: []
+    }
+  }
+  return schedules
 }
 
 function finalizeStageSchedules(
@@ -152,7 +154,7 @@ export function buildFulfillmentQueue(
       if (
         !item ||
         !stage ||
-        !activeTaskStatuses.has(task.status) ||
+        !isActiveTaskStatus(task.status) ||
         !task.plannedQuantity ||
         task.plannedQuantity <= 0
       )

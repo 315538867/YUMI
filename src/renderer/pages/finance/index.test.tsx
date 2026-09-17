@@ -11,6 +11,12 @@ import {
 } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../../components/ui'
+import type {
+  V2AdvancePayer,
+  V2FinanceCategory,
+  V2FinancialEntry,
+  V2PendingReimbursement
+} from '@shared/contracts/index'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
   renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
 import { installDomInteractionPolyfills } from '../../test/dom'
@@ -21,10 +27,10 @@ const mocks = vi.hoisted(() => ({
   loadMonthlyOverview: vi.fn(),
   reimburseBatch: vi.fn(),
   state: {
-    categories: [],
-    advancePayers: [],
-    entries: [],
-    pendingReimbursements: [],
+    categories: [] as V2FinanceCategory[],
+    advancePayers: [] as V2AdvancePayer[],
+    entries: [] as V2FinancialEntry[],
+    pendingReimbursements: [] as V2PendingReimbursement[],
     monthlySummary: {
       incomeCents: 50_000,
       operatingExpenseCents: 20_000,
@@ -59,37 +65,110 @@ afterEach(() => {
   }
 })
 
-describe('财务负责人工作区', () => {
-  it('财务使用统一页面骨架承接页头、工作视图和首个内容区', async () => {
+describe('P3 · 财务 Pattern 根契约（任务 10.1）', () => {
+  it('经营结果视图由唯一 dashboard-overview 标准根承接，指标带先于详情区', async () => {
     render(<FinancePage />)
 
-    const header = screen.getByRole('heading', { level: 1, name: '财务' }).closest('header')
-    const workspace = header?.closest('.yumi-page')
-    const tabs = screen.getByRole('navigation', { name: '财务工作视图' })
-    const overview = await screen.findByRole('heading', { name: '本月经营结果' })
+    await screen.findByRole('heading', { name: '本月经营结果' })
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    const root = roots[0] as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'dashboard-overview')
+    expect(root).toHaveAttribute('data-density', 'standard')
+    expect(root).toHaveClass('yumi-page')
 
-    expect(workspace).toHaveClass('yumi-finance-workspace')
+    const metrics = within(root).getByRole('region', { name: '本月经营结果指标' })
+    const details = root.querySelector('.yumi-dashboard-overview__details')
+    expect(details).not.toBeNull()
+    expect(
+      metrics.compareDocumentPosition(details!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(within(root).getByRole('button', { name: '登记收支' })).toBeVisible()
+  })
+
+  it('现金流水视图切换为唯一 list-page 紧凑根，列表表面承接具名记录表', async () => {
+    render(<FinancePage />)
+
+    await screen.findByRole('heading', { name: '本月经营结果' })
+    fireEvent.click(screen.getByRole('button', { name: '现金流水' }))
+    await screen.findByRole('table', { name: '现金流水列表' })
+
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    const root = document.querySelector('[data-page-pattern]') as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'list-page')
+    expect(root).toHaveAttribute('data-density', 'compact')
+    expect(root).toHaveClass('yumi-page')
+    expect(root.querySelector('.yumi-list-surface')).not.toBeNull()
+    expect(within(root).getByRole('toolbar', { name: '现金流水列表工具' })).toBeVisible()
+    expect(within(root).getByRole('table', { name: '现金流水列表' })).toBeVisible()
+    expect(within(root).getByRole('heading', { name: '财务' })).toBeVisible()
+  })
+
+  it('待报销视图切换为唯一 review-workspace 紧凑根，统一队列承载选择与批量报销', async () => {
+    mocks.state.pendingReimbursements = [
+      {
+        financialEntryId: 'advance-1',
+        amountCents: 10_000,
+        occurredOn: '2026-09-02',
+        categoryId: 'expense-1',
+        categoryName: '包装材料',
+        advancePayerId: 'payer-1',
+        advancePayerName: '小林',
+        note: '第一笔'
+      }
+    ]
+    render(<FinancePage />)
+
+    await screen.findByRole('heading', { name: '本月经营结果' })
+    fireEvent.click(screen.getByRole('button', { name: '待报销' }))
+    await screen.findByRole('table', { name: '待报销列表' })
+
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    const root = document.querySelector('[data-page-pattern]') as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'review-workspace')
+    expect(root).toHaveAttribute('data-density', 'compact')
+    expect(root).toHaveClass('yumi-page')
+    const queue = root.querySelector('.yumi-review-workspace__queue')
+    expect(queue).not.toBeNull()
+    expect(
+      within(queue as HTMLElement).getByRole('toolbar', { name: '待报销列表工具' })
+    ).toBeVisible()
+    expect(within(queue as HTMLElement).getByRole('table', { name: '待报销列表' })).toBeVisible()
+  })
+})
+
+describe('财务负责人工作区', () => {
+  it('每个 Pattern 根都自载页面头与动作区，工作视图 Tab 随内容区渲染', async () => {
+    render(<FinancePage />)
+
+    const overview = await screen.findByRole('heading', { name: '本月经营结果' })
+    const root = document.querySelector('[data-page-pattern]') as HTMLElement
+    const header = within(root).getByRole('heading', { level: 1, name: '财务' }).closest('header')
+    const tabs = within(root).getByRole('navigation', { name: '财务工作视图' })
+
     expect(header).not.toBeNull()
     expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(tabs.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(header!).getByRole('group', { name: '财务页面动作' })).toBeVisible()
   })
 
-  it('切换财务工作视图后页头动作组仍固定在页头，Tab 不进入内容区', async () => {
+  it('切换工作视图后重挂载唯一 Pattern 根，财务页头动作组随各根重建', async () => {
     render(<FinancePage />)
 
-    const header = screen.getByRole('heading', { level: 1, name: '财务' }).closest('header')
-    const tabs = screen.getByRole('navigation', { name: '财务工作视图' })
-    const actionGroup = within(header!).getByRole('group', { name: '财务页面动作' })
+    await screen.findByRole('heading', { name: '本月经营结果' })
+    fireEvent.click(screen.getByRole('button', { name: '现金流水' }))
+    await screen.findByRole('table', { name: '现金流水列表' })
 
-    fireEvent.click(within(tabs).getByRole('button', { name: '现金流水' }))
-
-    const contentHeading = await screen.findByRole('heading', { name: '当月现金流水' })
-    expect(within(header!).getByRole('group', { name: '财务页面动作' })).toBe(actionGroup)
-    expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
+    const root = document.querySelector('[data-page-pattern]') as HTMLElement
+    expect(root).toHaveAttribute('data-page-pattern', 'list-page')
+    const header = within(root).getByRole('heading', { level: 1, name: '财务' }).closest('header')
+    expect(within(header!).getByRole('group', { name: '财务页面动作' })).toBeVisible()
     expect(
-      tabs.compareDocumentPosition(contentHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+      header!.compareDocumentPosition(root.querySelector('.yumi-list-surface')!) &
+        Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(within(tabs).getByRole('button', { name: '现金流水' })).toHaveAttribute(
+    expect(within(root).getByRole('button', { name: '现金流水' })).toHaveAttribute(
       'aria-current',
       'page'
     )
@@ -109,7 +188,7 @@ describe('财务负责人工作区', () => {
     mocks.state.entries = [
       {
         id: 'entry-1',
-        sourceType: 'manual',
+        sourceType: 'manual_expense',
         direction: 'expense',
         businessType: '日常支出',
         amountCents: 12_340,

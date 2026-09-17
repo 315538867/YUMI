@@ -5,7 +5,7 @@ export type YumiFieldAccessibilityProps = Pick<
   'aria-describedby' | 'aria-invalid' | 'aria-label' | 'aria-labelledby'
 >
 
-type YumiFieldContextValue = {
+export type YumiFieldContextValue = {
   descriptionId?: string
   invalid: boolean
   labelId?: string

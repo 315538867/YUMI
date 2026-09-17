@@ -1,0 +1,36 @@
+{
+  "page": "settings",
+  "renderer": {
+    "innerWidth": 1440,
+    "innerHeight": 920
+  },
+  "runtimeErrorsInstalled": true,
+  "runtimeErrors": [],
+  "consoleMessages": [
+    {
+      "level": 2,
+      "message": "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security\n  Policy set or a policy with \"unsafe-eval\" enabled. This exposes users of\n  this app to unnecessary security risks.\n\nFor more information and help, consult\nhttps://electronjs.org/docs/tutorial/security.\nThis warning will not show up\nonce the app is packaged.",
+      "line": 2,
+      "sourceId": "node:electron/js2c/renderer_init"
+    }
+  ],
+  "loadFailures": [],
+  "keyboard": {
+    "focusableCount": 14,
+    "firstTag": "BUTTON",
+    "firstText": "工作台",
+    "programmaticFocusReachable": true,
+    "note": "隐藏窗口无系统焦点，Tab 逐键语义由 jsdom 契约层覆盖（select/dialog/sheet 键盘用例）"
+  },
+  "focusRestore": {
+    "ok": true,
+    "dialogOpen": true,
+    "popperOpen": false,
+    "restored": true,
+    "activeText": "编辑工作室参数"
+  },
+  "reducedMotion": {
+    "matched": true,
+    "durationFast": "0ms"
+  }
+}

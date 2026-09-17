@@ -1,0 +1,36 @@
+{
+  "$comment": "人工审定的目标 Pattern 归属与 P3 页面家族归属（P0 任务 1.2 决策记录）。page-pattern.test.ts 会校验其与 page-inventory.json 完全对齐；修改需同步更新本文件。",
+  "patterns": [
+    "list-page",
+    "detail-page",
+    "form-workspace",
+    "dashboard-overview",
+    "review-workspace",
+    "calendar-workspace",
+    "settings-workspace"
+  ],
+  "embeddedRole": "embedded",
+  "families": {
+    "reports": ["reports"],
+    "settings": ["settings"],
+    "orders": ["orders"],
+    "scheduling-review": ["fulfillment", "work-assignments"],
+    "finance-payroll-workbench": ["finance", "settlements", "workbench", "workers"],
+    "base-data": ["customers", "products"]
+  },
+  "topLevelViews": {
+    "workbench": ["dashboard-overview"],
+    "orders": ["list-page", "form-workspace", "detail-page"],
+    "fulfillment": ["calendar-workspace", "review-workspace"],
+    "settlements": ["list-page", "detail-page"],
+    "finance": ["dashboard-overview", "list-page", "review-workspace"],
+    "reports": ["dashboard-overview"],
+    "customers": ["list-page", "detail-page"],
+    "products": ["list-page", "form-workspace", "detail-page"],
+    "settings": ["settings-workspace"]
+  },
+  "embeddedViews": {
+    "WorkAssignmentsPage": "embedded",
+    "WorkersPage": "embedded"
+  }
+}

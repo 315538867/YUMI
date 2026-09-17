@@ -147,6 +147,8 @@ export type {
   V2FulfillmentProgressReport,
   V2FulfillmentProgressReportRow,
   V2MonthlyOperationReport,
+  V2OrderBusinessDetail,
+  V2OrderBusinessItemReportRow,
   V2OrderBusinessReport,
   V2OrderBusinessReportRow,
   V2OrderTableDocument,

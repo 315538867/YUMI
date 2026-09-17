@@ -16,6 +16,8 @@ type YumiTabsProps<T extends string> = {
   value: T
 }
 
+export type { YumiTabsProps }
+
 /**
  * 两层标签均按“同层切换”处理：方向键循环，Home/End 跳到边界，并跳过禁用项。
  * 组件仍使用 nav + button，而非误用 tablist，避免把页面切换伪装成同一面板内的 tabpanel。

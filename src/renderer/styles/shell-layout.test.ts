@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const pagesCss = readFileSync(new URL('./pages.css', import.meta.url), 'utf8')
+const patternsCss = readFileSync(new URL('./patterns.css', import.meta.url), 'utf8')
 const baseCss = readFileSync(new URL('./base.css', import.meta.url), 'utf8')
 
-function rule(selector: string, css = pagesCss) {
+function rule(selector: string, css = patternsCss) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const match = css.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`, 'm'))
   if (!match) throw new Error(`未找到 ${selector} 规则`)
@@ -30,7 +30,7 @@ describe('桌面壳层滚动边界', () => {
   })
 
   it('业务页面按内容高度排列，避免稀疏页面把指标区拉伸出大面积空白', () => {
-    const pageRuleMatch = pagesCss.match(/\n\.yumi-page\s*\{([^}]*)\}/m)
+    const pageRuleMatch = patternsCss.match(/\n\s*\.yumi-page\s*\{([^}]*)\}/m)
     if (!pageRuleMatch) throw new Error('未找到 .yumi-page 规则')
     const pageRule = pageRuleMatch[1]
 
@@ -39,8 +39,8 @@ describe('桌面壳层滚动边界', () => {
   })
 
   it('业务页面使用统一的圆角工作区表面承接设计稿视觉基线', () => {
-    expect(pagesCss).toMatch(/\.yumi-page\s*\{[^}]*border-radius:\s*22px/s)
-    expect(pagesCss).toMatch(/\.yumi-page\s*\{[^}]*background:\s*var\(--yumi-surface-raised\)/s)
-    expect(pagesCss).toMatch(/\.yumi-page\s*\{[^}]*box-shadow:\s*var\(--yumi-shadow-sm\)/s)
+    expect(patternsCss).toMatch(/\.yumi-page\s*\{[^}]*border-radius:\s*var\(--yumi-radius-xl\)/s)
+    expect(patternsCss).toMatch(/\.yumi-page\s*\{[^}]*background:\s*var\(--yumi-surface-raised\)/s)
+    expect(patternsCss).toMatch(/\.yumi-page\s*\{[^}]*box-shadow:\s*var\(--yumi-shadow-sm\)/s)
   })
 })

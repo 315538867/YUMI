@@ -64,4 +64,29 @@ describe('YumiDataTable', () => {
       'yumi-data-table__numeric'
     )
   })
+
+  it('极端长文案完整保留在单元格中，不丢字并落在局部滚动容器内', () => {
+    const longText =
+      '这是一个特别长的客户名称与收货地址组合，用于验证表格在内容超出可用宽度时允许自身区域横向滚动而不是压缩文字'.repeat(
+        3
+      )
+    render(
+      <YumiDataTable
+        ariaLabel="订单明细"
+        columns={[
+          {
+            key: 'note',
+            label: '备注',
+            render: (row: { note: string }) => row.note
+          }
+        ]}
+        getRowKey={(row) => row.note}
+        rows={[{ note: longText }]}
+      />
+    )
+
+    const table = screen.getByRole('table', { name: '订单明细' })
+    expect(table.closest('.yumi-data-table-wrap')).not.toBeNull()
+    expect(screen.getByText(longText)).toBeVisible()
+  })
 })

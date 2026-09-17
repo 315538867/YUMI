@@ -66,6 +66,7 @@ function settlement(overrides: Partial<V2WorkerSettlementDetail> = {}): V2Worker
         items: [
           {
             id: 'timed-item-1',
+            workTimeReviewItemId: 'review-item-1',
             processTaskId: 'task-fluffing',
             orderItemId: 'item-1',
             completedQuantity: 20,

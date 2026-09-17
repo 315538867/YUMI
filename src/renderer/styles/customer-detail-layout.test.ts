@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { expect, it } from 'vitest'
 
-const css = readFileSync(resolve(__dirname, 'pages.css'), 'utf8')
+// 客户/商品 Family 迁移后，历史订单列宽约束随域样式迁入 patterns.css（任务 11.6）。
+const css = readFileSync(resolve(__dirname, 'patterns.css'), 'utf8')
 
 function rule(selector: string) {
   const blocks = css.matchAll(/(?:^|\n)\s*([^{}]+?)\s*\{([^{}]*)\}/g)

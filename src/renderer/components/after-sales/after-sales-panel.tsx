@@ -270,6 +270,7 @@ export function AfterSalesPanel({
   return (
     <div className="yumi-after-sales-panel">
       <YumiMetricStrip
+        ariaLabel="售后处理指标"
         items={[
           { label: '售后单', value: `${cases.length} 笔` },
           {

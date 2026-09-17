@@ -1,0 +1,20 @@
+/*
+ * YUMI 唯一 UI 样式入口：固定级联层顺序。
+ * 层顺序一旦声明即为契约，后续文件按层落位（reset/vendor/foundations/primitives/
+ * composites/patterns/domains/utilities），第三方样式只进入 vendor，领域样式不得
+ * 覆盖共享组件内部结构。尚未落位的文件保持无层样式，迁移任务逐个移入对应层。
+ */
+@layer reset, vendor, foundations, primitives, composites, patterns, domains, utilities;
+
+/* 第三方样式只进入 vendor 层，本地共享样式保持无层覆盖之。 */
+@import '@daypicker/react/style.css' layer(vendor);
+
+/* 本地样式按 tokens/base/primitives/composites/patterns 顺序聚合：tokens 经
+   layer(foundations) 显式入层，否则无层优先级会压过一切层内覆盖（reduced-motion
+   等覆盖契约失效）；base.css 自带 `@layer foundations` 顶层块，普通导入即落位同层，
+   层内同特异性按导入顺序后者胜，base 的 reduce 覆盖正常生效。组件样式按层落位。 */
+@import './tokens.css' layer(foundations);
+@import './base.css';
+@import './primitives.css' layer(primitives);
+@import './composites.css' layer(composites);
+@import './patterns.css' layer(patterns);

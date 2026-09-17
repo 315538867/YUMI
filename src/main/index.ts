@@ -15,7 +15,8 @@ function createMainWindow(): void {
     minWidth: 1100,
     minHeight: 720,
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#f6f5f2',
+    // 必须与 renderer `--yumi-canvas`（基础色板 xuan-paper）保持一致，由 electron-canvas-sync.test.ts 咬合
+    backgroundColor: '#f4f2ec',
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,

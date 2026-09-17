@@ -14,7 +14,6 @@ import {
   YumiListSurface,
   YumiListToolbar,
   YumiNumberField,
-  YumiPageHeader,
   YumiSection,
   YumiSelect,
   YumiSheet,
@@ -24,8 +23,6 @@ import {
 } from '../../components/ui'
 
 interface WorkersPageProps {
-  /** 在工资页面内作为一级标签内容渲染时，收敛为区块而非重复页面头。 */
-  embedded?: boolean
   workers: V2Worker[]
   createWorker(input: {
     name: string
@@ -42,7 +39,6 @@ interface WorkersPageProps {
 }
 
 export function WorkersPage({
-  embedded = false,
   workers,
   createWorker,
   listWageHistory,
@@ -188,10 +184,6 @@ export function WorkersPage({
       新增人员
     </YumiButton>
   )
-  const pageActions = {
-    ariaLabel: '兼职人员页面动作',
-    primaryAction: { label: '新增人员', onClick: openCreate }
-  }
   const workerList = (
     <YumiListSurface ariaLabel={`兼职人员列表，共 ${visibleWorkers.length} 位`}>
       <YumiListToolbar
@@ -280,19 +272,10 @@ export function WorkersPage({
   )
 
   return (
-    <div
-      className={`yumi-workers-workspace${embedded ? ' yumi-workers-workspace--embedded' : ' yumi-page'}`}
-    >
-      {embedded ? (
-        <YumiSection actions={createAction} description={pageDescription} title="兼职人员">
-          {workerList}
-        </YumiSection>
-      ) : (
-        <>
-          <YumiPageHeader actions={pageActions} description={pageDescription} title="兼职人员" />
-          {workerList}
-        </>
-      )}
+    <div className="yumi-workers-workspace yumi-page">
+      <YumiSection actions={createAction} description={pageDescription} title="兼职人员">
+        {workerList}
+      </YumiSection>
 
       <YumiSheet
         description="建立人员时同时记录第一条时薪；后续调整将在人员资料中完成。"

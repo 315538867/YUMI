@@ -449,9 +449,7 @@ export function WorkAssignmentSheet(props: {
         ? `计划数量不能超过当前待派上限 ${schedule?.unassignedQuantity ?? 0} 件。`
         : undefined
   const extraMinutesError =
-    submitAttempted &&
-    isMaking &&
-    (!Number.isInteger(parsedExtraMinutes) || parsedExtraMinutes < 0)
+    submitAttempted && isMaking && (!Number.isInteger(parsedExtraMinutes) || parsedExtraMinutes < 0)
       ? '额外预留分钟必须是非负整数。'
       : undefined
 

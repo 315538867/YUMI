@@ -10,7 +10,11 @@ import {
   type TextareaHTMLAttributes
 } from 'react'
 import { YumiFormMessage } from '../form-message'
-import { YumiFieldContext, useYumiFieldAccessibility } from './yumi-field-accessibility'
+import {
+  YumiFieldContext,
+  type YumiFieldContextValue,
+  useYumiFieldAccessibility
+} from './yumi-field-accessibility'
 
 export type YumiFieldLabelProps = {
   children: ReactNode
@@ -63,9 +67,17 @@ export const YumiCheckbox = forwardRef<HTMLInputElement, YumiCheckboxProps>(func
   { children, className, ...props },
   ref
 ) {
+  const fieldAccessibility = useYumiFieldAccessibility(props)
+
   return (
     <label className={['yumi-checkbox', className].filter(Boolean).join(' ')}>
-      <input {...props} ref={ref} className="yumi-checkbox__input" type="checkbox" />
+      <input
+        {...props}
+        ref={ref}
+        {...fieldAccessibility}
+        className="yumi-checkbox__input"
+        type="checkbox"
+      />
       <span aria-hidden="true" className="yumi-checkbox__control">
         <Check className="yumi-checkbox__check" size={13} />
       </span>

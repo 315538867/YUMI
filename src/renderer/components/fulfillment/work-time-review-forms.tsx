@@ -102,14 +102,14 @@ export function MakingReviewDialog({
       completedQuantity,
       qualifiedQuantity
     })
-    if (current.completedError || current.qualifiedError) return
+    if (current.completedError || current.qualifiedError || !current.quantities) return
     if (target.mode === 'correct' && !reason.trim()) return
     setBusy(true)
     setError(null)
     try {
       await onSubmit({
-        completedQuantity,
-        qualifiedQuantity,
+        completedQuantity: completedQuantity!,
+        qualifiedQuantity: qualifiedQuantity!,
         note: note.trim() ? note.trim() : null,
         reason: target.mode === 'correct' ? reason.trim() : null
       })

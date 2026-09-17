@@ -13,7 +13,8 @@ import type {
   V2Product,
   V2ProductInput,
   V2ShippingListDocument,
-  V2OrderBusinessDetail
+  V2OrderBusinessDetail,
+  V2OrderBusinessItemReportRow
 } from '@shared/contracts/index'
 import {
   calculateOrderItemAmounts,
@@ -34,6 +35,9 @@ import { useCustomers } from '../../composables/use-customers'
 import { useProducts } from '../../composables/use-products'
 import { useStudioSettings } from '../../composables/use-studio-settings'
 import { AfterSalesPanel } from '../../components/after-sales/after-sales-panel'
+import { DetailPage } from '../../components/patterns/detail-page'
+import { FormWorkspace } from '../../components/patterns/form-workspace'
+import { ListPage } from '../../components/patterns/list-page'
 import {
   YumiButton,
   YumiCheckbox,
@@ -42,7 +46,6 @@ import {
   YumiDocumentPreview,
   YumiDatePicker,
   YumiEmptyState,
-  YumiEntitySummary,
   YumiField,
   YumiFieldLabel,
   YumiFormMessage,
@@ -51,8 +54,6 @@ import {
   YumiListToolbar,
   YumiMetricStrip,
   YumiNumberField,
-  YumiPageHeader,
-  YumiPrimaryTabs,
   YumiRecordActionBar,
   YumiSnapshotNotice,
   YumiSearchSelect,
@@ -62,6 +63,7 @@ import {
   YumiStatusTag,
   YumiTextArea,
   YumiTextField,
+  type YumiPageHeaderProps,
   useYumiNotificationMessage
 } from '../../components/ui'
 
@@ -905,188 +907,188 @@ export function OrdersPage({
   const baseDataReady = availableCustomers.length > 0 && availableProducts.length > 0
 
   return (
-    <section className="yumi-page order-workspace-page">
+    <>
       {workspaceMode === 'list' && (
-        <>
-          <YumiPageHeader
-            actions={{
+        <ListPage
+          header={{
+            actions: {
               ariaLabel: '订单页面动作',
               primaryAction: { label: '新建订单', onClick: openCreateWorkspace }
-            }}
-            description="查看已有订单，并进入订单详情处理资金、分批发货与售后。"
-            title="订单"
-          />
-          <YumiListSurface
-            ariaLabel={`订单列表，共 ${visibleOrders.length} 张`}
-            className="yumi-order-list-surface"
-          >
-            <YumiListToolbar
-              ariaLabel="订单列表工具"
-              countLabel={`共 ${visibleOrders.length} 张订单`}
-              filters={
-                <>
-                  <YumiSelect
-                    aria-label="资金状态筛选"
-                    onValueChange={(value) => setOrderFundFilter(value as OrderFundFilter)}
-                    options={[
-                      { label: '全部资金状态', value: 'all' },
-                      { label: '待收款', value: 'outstanding' },
-                      { label: '已收齐', value: 'settled' }
-                    ]}
-                    value={orderFundFilter}
-                  />
-                  <YumiSelect
-                    aria-label="交付排班筛选"
-                    onValueChange={(value) => setOrderScheduleFilter(value as OrderScheduleFilter)}
-                    options={[
-                      { label: '全部交付排班', value: 'all' },
-                      { label: '已设置交付', value: 'scheduled' },
-                      { label: '未设置交付', value: 'unscheduled' }
-                    ]}
-                    value={orderScheduleFilter}
-                  />
-                </>
-              }
-              search={
-                <YumiTextField
-                  aria-label="搜索订单"
-                  onChange={(event) => setOrderSearchQuery(event.target.value)}
-                  placeholder="搜索订单号、客户"
-                  value={orderSearchQuery}
+            },
+            description: '查看已有订单，并进入订单详情处理资金、分批发货与售后。',
+            title: '订单'
+          }}
+          toolbar={{
+            ariaLabel: '订单列表工具',
+            countLabel: `共 ${visibleOrders.length} 张订单`,
+            filters: (
+              <>
+                <YumiSelect
+                  aria-label="资金状态筛选"
+                  onValueChange={(value) => setOrderFundFilter(value as OrderFundFilter)}
+                  options={[
+                    { label: '全部资金状态', value: 'all' },
+                    { label: '待收款', value: 'outstanding' },
+                    { label: '已收齐', value: 'settled' }
+                  ]}
+                  value={orderFundFilter}
                 />
-              }
-            />
-            {loading ? (
-              <YumiEmptyState
-                description="订单资料正在读取，请稍候。"
-                scenario="loading"
-                title="正在加载订单…"
+                <YumiSelect
+                  aria-label="交付排班筛选"
+                  onValueChange={(value) => setOrderScheduleFilter(value as OrderScheduleFilter)}
+                  options={[
+                    { label: '全部交付排班', value: 'all' },
+                    { label: '已设置交付', value: 'scheduled' },
+                    { label: '未设置交付', value: 'unscheduled' }
+                  ]}
+                  value={orderScheduleFilter}
+                />
+              </>
+            ),
+            search: (
+              <YumiTextField
+                aria-label="搜索订单"
+                onChange={(event) => setOrderSearchQuery(event.target.value)}
+                placeholder="搜索订单号、客户"
+                value={orderSearchQuery}
               />
-            ) : orders.length ? (
-              visibleOrders.length ? (
-                <YumiDataTable
-                  ariaLabel="订单列表"
-                  columns={[
-                    {
-                      key: 'order',
-                      label: '订单号 / 客户',
-                      render: (order) => (
-                        <div className="yumi-list-cell">
-                          <strong>{order.code}</strong>
-                          <span>
-                            {order.customerName} · 共 {order.itemCount} 款
+            )
+          }}
+        >
+          {loading ? (
+            <YumiEmptyState
+              description="订单资料正在读取，请稍候。"
+              scenario="loading"
+              title="正在加载订单…"
+            />
+          ) : orders.length ? (
+            visibleOrders.length ? (
+              <YumiDataTable
+                ariaLabel="订单列表"
+                columns={[
+                  {
+                    key: 'order',
+                    label: '订单号 / 客户',
+                    render: (order) => (
+                      <div className="yumi-list-cell">
+                        <strong>{order.code}</strong>
+                        <span>
+                          {order.customerName} · 共 {order.itemCount} 款
+                        </span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'createdAt',
+                    label: '下单日期',
+                    render: (order) => (order.createdAt ?? order.updatedAt).slice(0, 10)
+                  },
+                  {
+                    key: 'amount',
+                    label: '订单金额',
+                    align: 'right',
+                    render: (order) => <strong>{formatCents(order.currentAmountCents)}</strong>
+                  },
+                  {
+                    key: 'funds',
+                    label: '资金状态',
+                    render: (order) => (
+                      <YumiStatusTag tone={order.outstandingCents > 0 ? 'warning' : 'success'}>
+                        {order.outstandingCents > 0
+                          ? `待收 ${formatCents(order.outstandingCents)}`
+                          : '已收齐'}
+                      </YumiStatusTag>
+                    )
+                  },
+                  {
+                    key: 'schedule',
+                    label: '排班进度',
+                    render: (order) => {
+                      const total = order.totalQuantity ?? 0
+                      const shipped = Math.min(order.shippedQuantity ?? 0, total)
+                      const progress = total ? Math.round((shipped / total) * 100) : 0
+                      return (
+                        <div className="yumi-order-progress">
+                          <span className="yumi-order-progress__track">
+                            <i
+                              style={{ '--yumi-order-progress': `${progress}%` } as CSSProperties}
+                            />
                           </span>
+                          <span>{total ? `已发 ${shipped} / ${total} 件` : '待排班'}</span>
                         </div>
                       )
-                    },
-                    {
-                      key: 'createdAt',
-                      label: '下单日期',
-                      render: (order) => (order.createdAt ?? order.updatedAt).slice(0, 10)
-                    },
-                    {
-                      key: 'amount',
-                      label: '订单金额',
-                      align: 'right',
-                      render: (order) => <strong>{formatCents(order.currentAmountCents)}</strong>
-                    },
-                    {
-                      key: 'funds',
-                      label: '资金状态',
-                      render: (order) => (
-                        <YumiStatusTag tone={order.outstandingCents > 0 ? 'warning' : 'success'}>
-                          {order.outstandingCents > 0
-                            ? `待收 ${formatCents(order.outstandingCents)}`
-                            : '已收齐'}
-                        </YumiStatusTag>
-                      )
-                    },
-                    {
-                      key: 'schedule',
-                      label: '排班进度',
-                      render: (order) => {
-                        const total = order.totalQuantity ?? 0
-                        const shipped = Math.min(order.shippedQuantity ?? 0, total)
-                        const progress = total ? Math.round((shipped / total) * 100) : 0
-                        return (
-                          <div className="yumi-order-progress">
-                            <span className="yumi-order-progress__track">
-                              <i
-                                style={{ '--yumi-order-progress': `${progress}%` } as CSSProperties}
-                              />
-                            </span>
-                            <span>{total ? `已发 ${shipped} / ${total} 件` : '待排班'}</span>
-                          </div>
-                        )
-                      }
-                    },
-                    {
-                      key: 'shipDate',
-                      label: '预计交付',
-                      render: (order) => order.expectedShipDate ?? '未设置'
-                    },
-                    {
-                      key: 'actions',
-                      label: '操作',
-                      align: 'right',
-                      render: (order) => (
-                        <YumiButton
-                          aria-label="查看详情"
-                          onClick={() => void openOrderDetail(order.id)}
-                          variant="ghost"
-                        >
-                          查看详情
-                        </YumiButton>
-                      )
                     }
-                  ]}
-                  getRowKey={(order) => order.id}
-                  rows={visibleOrders}
-                />
-              ) : (
-                <YumiEmptyState
-                  description="请调整搜索内容或筛选条件后重试。"
-                  title="没有符合筛选条件的订单。"
-                />
-              )
-            ) : baseDataReady ? (
-              <YumiEmptyState
-                description="客户与商品已就绪；点击右上角“新建订单”后即可在这里继续处理。"
-                scenario="first-use"
-                title="还没有订单"
+                  },
+                  {
+                    key: 'shipDate',
+                    label: '预计交付',
+                    render: (order) => order.expectedShipDate ?? '未设置'
+                  },
+                  {
+                    key: 'actions',
+                    label: '操作',
+                    align: 'right',
+                    render: (order) => (
+                      <YumiButton
+                        aria-label="查看详情"
+                        onClick={() => void openOrderDetail(order.id)}
+                        variant="ghost"
+                      >
+                        查看详情
+                      </YumiButton>
+                    )
+                  }
+                ]}
+                getRowKey={(order) => order.id}
+                rows={visibleOrders}
               />
             ) : (
-              <OrderSetupGuide
-                customersReady={availableCustomers.length > 0}
-                productsReady={availableProducts.length > 0}
-                onNavigateToBaseData={onNavigateToBaseData}
+              <YumiEmptyState
+                description="请调整搜索内容或筛选条件后重试。"
+                title="没有符合筛选条件的订单。"
               />
-            )}
-          </YumiListSurface>
-        </>
+            )
+          ) : baseDataReady ? (
+            <YumiEmptyState
+              description="客户与商品已就绪；点击右上角“新建订单”后即可在这里继续处理。"
+              scenario="first-use"
+              title="还没有订单"
+            />
+          ) : (
+            <OrderSetupGuide
+              customersReady={availableCustomers.length > 0}
+              productsReady={availableProducts.length > 0}
+              onNavigateToBaseData={onNavigateToBaseData}
+            />
+          )}
+        </ListPage>
       )}
 
       {workspaceMode === 'create' && (
-        <>
-          <YumiPageHeader
-            actions={{
-              ariaLabel: '新建订单动作',
-              primaryAction: baseDataReady
-                ? {
-                    label: '保存并进入详情',
-                    loading: submitting === 'create',
-                    onClick: () => createFormRef.current?.requestSubmit()
-                  }
-                : undefined
-            }}
-            description="客户、商品、订单优惠和本次成交条件会冻结为订单快照；缝边只作用于本订单商品行。"
-            navigation={{
+        <FormWorkspace
+          header={{
+            description:
+              '客户、商品、订单优惠和本次成交条件会冻结为订单快照；缝边只作用于本订单商品行。',
+            navigation: {
               ariaLabel: '新建订单导航',
               label: '返回订单列表',
               onClick: returnToOrderList
-            }}
-            title="新建订单"
-          />
+            },
+            title: '新建订单'
+          }}
+          actions={
+            baseDataReady ? (
+              <YumiButton
+                form="order-create-form"
+                loading={submitting === 'create'}
+                type="submit"
+                variant="primary"
+              >
+                保存并进入详情
+              </YumiButton>
+            ) : undefined
+          }
+        >
           {!baseDataReady ? (
             <OrderSetupGuide
               customersReady={availableCustomers.length > 0}
@@ -1124,11 +1126,10 @@ export function OrdersPage({
                     value={expectedShipDate}
                   />
                 </YumiField>
-                <YumiField>
+                <YumiField hint="默认来自工作室参数；可按本订单实际情况修改。">
                   <YumiFieldLabel>预留制作天数</YumiFieldLabel>
                   <YumiNumberField
                     aria-label="预留制作天数"
-                    hint="默认来自工作室参数；可按本订单实际情况修改。"
                     min="0"
                     onChange={(event) => setCreateReservedDays(event.target.value)}
                     step="1"
@@ -1173,13 +1174,13 @@ export function OrdersPage({
               </YumiField>
             </form>
           )}
-        </>
+        </FormWorkspace>
       )}
 
       {workspaceMode === 'detail' && selectedOrder && (
-        <>
-          <YumiPageHeader
-            actions={{
+        <OrderDetail
+          header={{
+            actions: {
               ariaLabel: '订单详情页面动作',
               visibleActions: [
                 {
@@ -1200,13 +1201,13 @@ export function OrdersPage({
                   setContentEditorOpen(true)
                 }
               }
-            }}
-            navigation={{
+            },
+            navigation: {
               ariaLabel: '订单详情导航',
               label: '返回订单列表',
               onClick: returnToOrderList
-            }}
-            description={[
+            },
+            description: [
               selectedOrder.expectedShipDate
                 ? `预计 ${selectedOrder.expectedShipDate} 发货`
                 : '预计发货待确认',
@@ -1214,128 +1215,126 @@ export function OrdersPage({
                 ? `制作截止 ${selectedOrder.productionDeadline}`
                 : '制作截止待确认',
               `预留制作 ${selectedOrder.reservedDays} 天`
-            ].join(' · ')}
-            meta={`订单编号 · ${selectedOrder.code}`}
-            title="订单详情"
-          />
-          <OrderDetail
-            activeView={detailView}
-            onViewChange={setDetailView}
-            order={selectedOrder}
-            funds={funds}
-            shipments={shipments}
-            fulfillmentItems={fulfillmentItems}
-            contentChanges={contentChanges}
-            products={availableProducts}
-            contentLines={contentLines}
-            setContentLines={setContentLines}
-            contentDescription={contentDescription}
-            setContentDescription={setContentDescription}
-            contentEditorOpen={contentEditorOpen}
-            setContentEditorOpen={setContentEditorOpen}
-            contentOrderDiscount={contentOrderDiscount}
-            setContentOrderDiscount={setContentOrderDiscount}
-            contentDate={contentDate}
-            setContentDate={setContentDate}
-            adjustmentAmount={adjustmentAmount}
-            setAdjustmentAmount={setAdjustmentAmount}
-            adjustmentReason={adjustmentReason}
-            setAdjustmentReason={setAdjustmentReason}
-            fundType={fundType}
-            setFundType={setFundType}
-            fundAmount={fundAmount}
-            setFundAmount={setFundAmount}
-            fundDate={fundDate}
-            setFundDate={setFundDate}
-            fundMethod={fundMethod}
-            setFundMethod={setFundMethod}
-            fundNote={fundNote}
-            setFundNote={setFundNote}
-            pendingFundProof={pendingFundProof}
-            onPickFundProof={() => void handlePickFundProof()}
-            onClearFundProof={() => {
-              if (pendingFundProof) void discardPreparedFundProof(pendingFundProof.id)
-              setPendingFundProof(null)
-            }}
-            onOpenFundProof={(fundId) => void handleOpenFundProof(fundId)}
-            onReplaceFundProof={(fundId) => void handleReplaceFundProof(fundId)}
-            correctionOriginalId={correctionOriginalId}
-            setCorrectionOriginalId={setCorrectionOriginalId}
-            correctionAmount={correctionAmount}
-            setCorrectionAmount={setCorrectionAmount}
-            correctionDate={correctionDate}
-            setCorrectionDate={setCorrectionDate}
-            correctionType={correctionType}
-            setCorrectionType={setCorrectionType}
-            shipmentDate={shipmentDate}
-            setShipmentDate={setShipmentDate}
-            shipmentLines={shipmentLines}
-            setShipmentLines={setShipmentLines}
-            shipmentCarrier={shipmentCarrier}
-            setShipmentCarrier={setShipmentCarrier}
-            shipmentTrackingNumber={shipmentTrackingNumber}
-            setShipmentTrackingNumber={setShipmentTrackingNumber}
-            shipmentNote={shipmentNote}
-            setShipmentNote={setShipmentNote}
-            shipmentSheetOpen={shipmentSheetOpen}
-            setShipmentSheetOpen={setShipmentSheetOpen}
-            shipmentAvailability={shipmentAvailability}
-            submitting={submitting}
-            updateContentLine={(index, key, value) =>
-              updateLine(contentLines, setContentLines, index, key, value)
-            }
-            onAddContentLine={() =>
-              setContentLines([...contentLines, createLine(availableProducts[0])])
-            }
-            onRemoveContentLine={(index) =>
-              setContentLines(contentLines.filter((_, lineIndex) => lineIndex !== index))
-            }
-            onContentChange={handleContentChange}
-            onRecordFund={handleRecordFund}
-            onCorrection={requestCorrectionConfirmation}
-            onConfirmCorrection={() => void confirmCorrection()}
-            onCorrectionConfirmChange={setCorrectionConfirmOpen}
-            correctionConfirmOpen={correctionConfirmOpen}
-            onShipment={handleCreateShipment}
-            exporting={exporting}
-            fundSheet={fundSheet}
-            onFundSheetChange={setFundSheet}
-            onShipmentVoidSheetChange={(open) => {
-              setShipmentVoidSheetOpen(open)
-              if (!open) setShipmentVoidConfirmOpen(false)
-            }}
-            onShipmentVoidStart={(shipmentId) => {
-              setShipmentToVoid(shipmentId)
-              setShipmentVoidDate(today())
-              setShipmentVoidReason('')
-              setShipmentVoidConfirmOpen(false)
-              setShipmentVoidSheetOpen(true)
-            }}
-            onConfirmVoidShipment={() => void confirmVoidShipment()}
-            onVoidShipment={requestVoidShipmentConfirmation}
-            shipmentToVoid={shipmentToVoid}
-            shipmentVoidDate={shipmentVoidDate}
-            shipmentVoidReason={shipmentVoidReason}
-            shipmentVoidSheetOpen={shipmentVoidSheetOpen}
-            shipmentVoidConfirmOpen={shipmentVoidConfirmOpen}
-            onShipmentVoidConfirmChange={setShipmentVoidConfirmOpen}
-            setShipmentVoidDate={setShipmentVoidDate}
-            setShipmentVoidReason={setShipmentVoidReason}
-            onExportShippingList={(shipmentId) => void exportOrderFile('shipping-list', shipmentId)}
-            onPreviewShippingList={(shipmentId) => void openShippingListPreview(shipmentId)}
-            orderBusinessDetail={orderBusinessDetail}
-            orderBusinessLoading={orderBusinessLoading}
-            orderBusinessError={orderBusinessError}
-            orderSchedule={orderSchedule}
-            orderScheduleLoading={orderScheduleLoading}
-            orderScheduleError={orderScheduleError}
-            onNavigateToFulfillment={(target) => onNavigate?.(target)}
-            listAfterSalesCases={listAfterSalesCases}
-            createAfterSalesCase={createAfterSalesCase}
-            updateCase={updateAfterSalesCase}
-            linkCharge={linkAfterSalesCharge}
-          />
-        </>
+            ].join(' · '),
+            meta: `订单编号 · ${selectedOrder.code}`,
+            title: '订单详情'
+          }}
+          activeView={detailView}
+          onViewChange={setDetailView}
+          order={selectedOrder}
+          funds={funds}
+          shipments={shipments}
+          fulfillmentItems={fulfillmentItems}
+          contentChanges={contentChanges}
+          products={availableProducts}
+          contentLines={contentLines}
+          setContentLines={setContentLines}
+          contentDescription={contentDescription}
+          setContentDescription={setContentDescription}
+          contentEditorOpen={contentEditorOpen}
+          setContentEditorOpen={setContentEditorOpen}
+          contentOrderDiscount={contentOrderDiscount}
+          setContentOrderDiscount={setContentOrderDiscount}
+          contentDate={contentDate}
+          setContentDate={setContentDate}
+          adjustmentAmount={adjustmentAmount}
+          setAdjustmentAmount={setAdjustmentAmount}
+          adjustmentReason={adjustmentReason}
+          setAdjustmentReason={setAdjustmentReason}
+          fundType={fundType}
+          setFundType={setFundType}
+          fundAmount={fundAmount}
+          setFundAmount={setFundAmount}
+          fundDate={fundDate}
+          setFundDate={setFundDate}
+          fundMethod={fundMethod}
+          setFundMethod={setFundMethod}
+          fundNote={fundNote}
+          setFundNote={setFundNote}
+          pendingFundProof={pendingFundProof}
+          onPickFundProof={() => void handlePickFundProof()}
+          onClearFundProof={() => {
+            if (pendingFundProof) void discardPreparedFundProof(pendingFundProof.id)
+            setPendingFundProof(null)
+          }}
+          onOpenFundProof={(fundId) => void handleOpenFundProof(fundId)}
+          onReplaceFundProof={(fundId) => void handleReplaceFundProof(fundId)}
+          correctionOriginalId={correctionOriginalId}
+          setCorrectionOriginalId={setCorrectionOriginalId}
+          correctionAmount={correctionAmount}
+          setCorrectionAmount={setCorrectionAmount}
+          correctionDate={correctionDate}
+          setCorrectionDate={setCorrectionDate}
+          correctionType={correctionType}
+          setCorrectionType={setCorrectionType}
+          shipmentDate={shipmentDate}
+          setShipmentDate={setShipmentDate}
+          shipmentLines={shipmentLines}
+          setShipmentLines={setShipmentLines}
+          shipmentCarrier={shipmentCarrier}
+          setShipmentCarrier={setShipmentCarrier}
+          shipmentTrackingNumber={shipmentTrackingNumber}
+          setShipmentTrackingNumber={setShipmentTrackingNumber}
+          shipmentNote={shipmentNote}
+          setShipmentNote={setShipmentNote}
+          shipmentSheetOpen={shipmentSheetOpen}
+          setShipmentSheetOpen={setShipmentSheetOpen}
+          shipmentAvailability={shipmentAvailability}
+          submitting={submitting}
+          updateContentLine={(index, key, value) =>
+            updateLine(contentLines, setContentLines, index, key, value)
+          }
+          onAddContentLine={() =>
+            setContentLines([...contentLines, createLine(availableProducts[0])])
+          }
+          onRemoveContentLine={(index) =>
+            setContentLines(contentLines.filter((_, lineIndex) => lineIndex !== index))
+          }
+          onContentChange={handleContentChange}
+          onRecordFund={handleRecordFund}
+          onCorrection={requestCorrectionConfirmation}
+          onConfirmCorrection={() => void confirmCorrection()}
+          onCorrectionConfirmChange={setCorrectionConfirmOpen}
+          correctionConfirmOpen={correctionConfirmOpen}
+          onShipment={handleCreateShipment}
+          exporting={exporting}
+          fundSheet={fundSheet}
+          onFundSheetChange={setFundSheet}
+          onShipmentVoidSheetChange={(open) => {
+            setShipmentVoidSheetOpen(open)
+            if (!open) setShipmentVoidConfirmOpen(false)
+          }}
+          onShipmentVoidStart={(shipmentId) => {
+            setShipmentToVoid(shipmentId)
+            setShipmentVoidDate(today())
+            setShipmentVoidReason('')
+            setShipmentVoidConfirmOpen(false)
+            setShipmentVoidSheetOpen(true)
+          }}
+          onConfirmVoidShipment={() => void confirmVoidShipment()}
+          onVoidShipment={requestVoidShipmentConfirmation}
+          shipmentToVoid={shipmentToVoid}
+          shipmentVoidDate={shipmentVoidDate}
+          shipmentVoidReason={shipmentVoidReason}
+          shipmentVoidSheetOpen={shipmentVoidSheetOpen}
+          shipmentVoidConfirmOpen={shipmentVoidConfirmOpen}
+          onShipmentVoidConfirmChange={setShipmentVoidConfirmOpen}
+          setShipmentVoidDate={setShipmentVoidDate}
+          setShipmentVoidReason={setShipmentVoidReason}
+          onExportShippingList={(shipmentId) => void exportOrderFile('shipping-list', shipmentId)}
+          onPreviewShippingList={(shipmentId) => void openShippingListPreview(shipmentId)}
+          orderBusinessDetail={orderBusinessDetail}
+          orderBusinessLoading={orderBusinessLoading}
+          orderBusinessError={orderBusinessError}
+          orderSchedule={orderSchedule}
+          orderScheduleLoading={orderScheduleLoading}
+          orderScheduleError={orderScheduleError}
+          onNavigateToFulfillment={(target) => onNavigate?.(target)}
+          listAfterSalesCases={listAfterSalesCases}
+          createAfterSalesCase={createAfterSalesCase}
+          updateCase={updateAfterSalesCase}
+          linkCharge={linkAfterSalesCharge}
+        />
       )}
 
       <YumiSheet
@@ -1542,7 +1541,7 @@ export function OrdersPage({
           title="正在加载订单详情…"
         />
       )}
-    </section>
+    </>
   )
 }
 
@@ -1687,7 +1686,7 @@ function OrderProfitPanel({
         description="按商品行展示订单收入、快照预计成本与已知毛利，并展示每件缝边预计增量利润；订单级优惠与金额调整不强行分摊到商品行。"
         title="商品预计盈利明细"
       >
-        <YumiDataTable
+        <YumiDataTable<V2OrderBusinessItemReportRow>
           ariaLabel="商品盈利明细"
           columns={[
             { key: 'productName', label: '商品', render: (item) => item.productName },
@@ -1864,6 +1863,7 @@ function OrderLines({
 }
 
 function OrderDetail(props: {
+  header: YumiPageHeaderProps
   activeView: OrderDetailView
   onViewChange: (view: OrderDetailView) => void
   order: V2Order
@@ -2079,11 +2079,12 @@ function OrderDetail(props: {
   }
 
   return (
-    <div className="yumi-order-detail-stack">
-      <YumiEntitySummary
-        ariaLabel="订单主体信息"
-        eyebrow="客户与交付"
-        metadata={[
+    <DetailPage
+      header={props.header}
+      summary={{
+        ariaLabel: '订单主体信息',
+        eyebrow: '客户与交付',
+        metadata: [
           { label: '订单号', value: order.code },
           { label: '联系人', value: order.customerSnapshot.contact || '未填写' },
           {
@@ -2091,12 +2092,12 @@ function OrderDetail(props: {
             value: order.expectedShipDate ? `预计 ${order.expectedShipDate} 发货` : '预计发货待确认'
           },
           { label: '收货地址', value: order.customerSnapshot.defaultAddress || '未填写' }
-        ]}
-        title={order.customerSnapshot.name}
-      />
-      <YumiMetricStrip
-        ariaLabel="订单关键指标"
-        items={[
+        ],
+        title: order.customerSnapshot.name
+      }}
+      metrics={{
+        ariaLabel: '订单关键指标',
+        items: [
           {
             label: '订单金额',
             value: formatCents(order.amount.orderAmountCents ?? order.amount.currentAmountCents)
@@ -2116,16 +2117,15 @@ function OrderDetail(props: {
               ? `${Math.min(shippedQuantity, totalQuantity)} / ${totalQuantity} 件`
               : '—'
           }
-        ]}
-      />
-
-      <YumiPrimaryTabs
-        ariaLabel="订单详情工作视图"
-        items={detailViews}
-        onValueChange={props.onViewChange}
-        value={activeView}
-      />
-
+        ]
+      }}
+      tabs={{
+        ariaLabel: '订单详情工作视图',
+        items: detailViews,
+        onValueChange: props.onViewChange,
+        value: activeView
+      }}
+    >
       {activeView === 'overview' && (
         <>
           <YumiSection
@@ -2335,7 +2335,7 @@ function OrderDetail(props: {
             ) : props.orderScheduleError ? (
               <YumiEmptyState
                 description={props.orderScheduleError}
-                scenario="error"
+                scenario="filter"
                 title="无法读取订单排班"
               />
             ) : (
@@ -2757,7 +2757,6 @@ function OrderDetail(props: {
                               props.setCorrectionAmount(centsToYuan(Math.abs(fund.amountCents)))
                               props.onFundSheetChange('correction')
                             }}
-                            size="small"
                             variant="ghost"
                           >
                             更正
@@ -2766,7 +2765,6 @@ function OrderDetail(props: {
                         {fund.attachmentId ? (
                           <YumiButton
                             onClick={() => props.onOpenFundProof(fund.id)}
-                            size="small"
                             variant="secondary"
                           >
                             查看凭证
@@ -2774,7 +2772,6 @@ function OrderDetail(props: {
                         ) : fund.direction === 'income' ? (
                           <YumiButton
                             onClick={() => props.onReplaceFundProof(fund.id)}
-                            size="small"
                             variant="ghost"
                           >
                             关联凭证
@@ -2955,6 +2952,6 @@ function OrderDetail(props: {
           linkCharge={props.linkCharge}
         />
       )}
-    </div>
+    </DetailPage>
   )
 }

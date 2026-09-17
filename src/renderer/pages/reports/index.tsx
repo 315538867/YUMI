@@ -8,6 +8,7 @@ import type {
   V2OrderBusinessReportRow,
   V2RiskLevel
 } from '@shared/contracts/index'
+import { DashboardOverview } from '../../components/patterns/dashboard-overview'
 import { useReports } from '../../composables/use-reports'
 import { formatCents, getErrorMessage, today } from '../../composables/v2-utils'
 import {
@@ -19,9 +20,7 @@ import {
   YumiFieldLabel,
   YumiListSurface,
   YumiListToolbar,
-  YumiMetricStrip,
   YumiMonthPicker,
-  YumiPageHeader,
   YumiSection,
   YumiSelect,
   YumiStatusTag,
@@ -113,9 +112,9 @@ export function ReportsPage({ onNavigate }: ReportsPageProps) {
   )
 
   return (
-    <div className="yumi-page yumi-report-page">
-      <YumiPageHeader
-        actions={{
+    <DashboardOverview
+      header={{
+        actions: {
           ariaLabel: '经营报表页面动作',
           menu: {
             ariaLabel: '经营报表更多操作',
@@ -138,40 +137,36 @@ export function ReportsPage({ onNavigate }: ReportsPageProps) {
             label: '导出当前报表',
             onClick: () => void exportReport()
           }
-        }}
-        description="只读取已确认的订单、排班、收付款和工资事实；风险记录只提供进入实际处理区的入口。"
-        meta={`${month} 统计`}
-        title="经营报表"
-      />
-      {loading ? (
-        <YumiEmptyState
-          description="正在汇总订单、排班、资金与工资事实，请稍候。"
-          scenario="loading"
-          title="经营报表加载中"
-        />
-      ) : (
-        <>
-          <YumiSection
-            actions={
-              <YumiButton disabled={loading} onClick={() => void reload()} variant="secondary">
-                刷新
-              </YumiButton>
-            }
-            description="按统计月份查看实际收付款、经营支出和已确认工资。"
-            title="月度经营"
-          >
-            <YumiListToolbar
-              ariaLabel="月度经营筛选工具"
-              filters={
+        },
+        description:
+          '只读取已确认的订单、排班、收付款和工资事实；风险记录只提供进入实际处理区的入口。',
+        meta: `${month} 统计`,
+        title: '经营报表'
+      }}
+      toolbar={
+        loading ? undefined : (
+          <YumiListToolbar
+            ariaLabel="月度经营筛选工具"
+            filters={
+              <>
                 <YumiField>
                   <YumiFieldLabel>统计月份</YumiFieldLabel>
                   <YumiMonthPicker aria-label="统计月份" onValueChange={setMonth} value={month} />
                 </YumiField>
-              }
-            />
-            <YumiMetricStrip
-              ariaLabel="月度经营结果指标"
-              items={[
+                <YumiButton disabled={loading} onClick={() => void reload()} variant="secondary">
+                  刷新
+                </YumiButton>
+              </>
+            }
+          />
+        )
+      }
+      metrics={
+        loading
+          ? undefined
+          : {
+              ariaLabel: '月度经营结果指标',
+              items: [
                 {
                   label: '实际收入',
                   tone: 'success',
@@ -192,10 +187,26 @@ export function ReportsPage({ onNavigate }: ReportsPageProps) {
                   tone: 'brand',
                   value: formatCents(monthlyOperation?.confirmedSettlementPaidCents ?? 0)
                 }
-              ]}
-            />
-          </YumiSection>
-
+              ]
+            }
+      }
+      insights={
+        loading ? undefined : (
+          <section aria-label="月度经营结果说明">
+            <h2>月度经营</h2>
+            <p>按统计月份查看实际收付款、经营支出和已确认工资。</p>
+          </section>
+        )
+      }
+    >
+      {loading ? (
+        <YumiEmptyState
+          description="正在汇总订单、排班、资金与工资事实，请稍候。"
+          scenario="loading"
+          title="经营报表加载中"
+        />
+      ) : (
+        <>
           <YumiSection
             description="周期内待制作需求、已排制作量与商品模具日产能并列展示。点击商品只查看基础资料；修改参数需在资料页主动编辑。"
             title="商品产能风险"
@@ -584,7 +595,7 @@ export function ReportsPage({ onNavigate }: ReportsPageProps) {
           </YumiSection>
         </>
       )}
-    </div>
+    </DashboardOverview>
   )
 }
 

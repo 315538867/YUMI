@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiNotificationProvider } from '../components/ui'
 const render = (ui: Parameters<typeof renderBase>[0]) =>
   renderBase(<YumiNotificationProvider>{ui}</YumiNotificationProvider>)
-import type { V2Product } from '@shared/contracts/index'
+import type { V2BackupSummary, V2Product } from '@shared/contracts/index'
 import { formulaCatalog } from '@shared/calculations/catalog'
 import { installDomInteractionPolyfills } from '../test/dom'
 import { CustomersPage } from './customers'
@@ -69,7 +69,7 @@ const mocks = vi.hoisted(() => ({
   },
   backup: {
     create: vi.fn(async () => ({})),
-    list: vi.fn(async () => []),
+    list: vi.fn(async () => [] as V2BackupSummary[]),
     restore: vi.fn(async () => ({}))
   },
   finance: {
@@ -175,7 +175,7 @@ describe('页面级骨架与信息层级', () => {
     render(<SettingsPage />)
 
     const page = screen.getByRole('heading', { level: 1, name: '工作室参数' }).closest('.yumi-page')
-    const header = page?.querySelector('.yumi-page-header')
+    const header = page?.querySelector<HTMLElement>('.yumi-page-header')
     const tabs = screen.getByRole('navigation', { name: '设置区域' })
     const actionGroup = within(header!).getByRole('group', { name: '工作室参数页面动作' })
 
@@ -330,7 +330,10 @@ describe('YUMI 基础资料按需录入', () => {
     expect(within(historyTable).getByText('YUMI-001')).toBeVisible()
     expect(historyTable.closest('.yumi-customer-order-history')).not.toBeNull()
     expect(within(detail).getByText('排班中 · 未发货')).toBeVisible()
-    expect(within(detail).getAllByText('¥128.00')).toHaveLength(2)
+    expect(within(detail).getAllByText('¥128.00')).toHaveLength(1)
+    const metrics = screen.getByRole('region', { name: '客户订单统计指标' })
+    expect(within(metrics).getByText('¥128.00')).toBeVisible()
+    expect(within(metrics).getByText('¥80.00')).toBeVisible()
     fireEvent.click(within(detail).getByRole('button', { name: '查看订单' }))
     expect(onNavigate).toHaveBeenCalledWith({
       view: 'orders',
@@ -463,7 +466,8 @@ describe('YUMI 基础资料按需录入', () => {
     expect(screen.getByLabelText('预计单件缝边时长（分钟）')).toHaveValue('8')
     expect(screen.queryByLabelText('材料损耗率（%）')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('胶水用量（克）')).not.toBeInTheDocument()
-    const preview = screen.getByRole('complementary', { name: '预计盈利预览' })
+    const preview = document.querySelector('.yumi-split-layout__aside') as HTMLElement
+    expect(preview).not.toBeNull()
     expect(within(preview).getByText('预计单件利润')).toBeVisible()
     expect(within(preview).getByText('默认售价 − 预计单件成本')).toBeVisible()
 

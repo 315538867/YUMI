@@ -14,7 +14,11 @@ const mocks = vi.hoisted(() => ({
   exportOrderTable: vi.fn(),
   exportShippingList: vi.fn(),
   load: vi.fn(),
-  state: { loading: false }
+  state: {
+    loading: false,
+    loadError: null as string | null,
+    exportMessage: null as string | null
+  }
 }))
 
 vi.mock('../../composables/use-reports', () => ({
@@ -36,13 +40,13 @@ vi.mock('../../composables/use-reports', () => ({
       ]
     },
     exportCurrentReport: mocks.exportCurrentReport,
-    exportMessage: null,
+    exportMessage: mocks.state.exportMessage,
     exportOrderTable: mocks.exportOrderTable,
     exportShippingList: mocks.exportShippingList,
     exporting: false,
     fulfillmentProgress: { rows: [], totalConfirmedQuantity: 0, totalShippedQuantity: 0 },
     load: mocks.load,
-    loadError: null,
+    loadError: mocks.state.loadError,
     loading: mocks.state.loading,
     monthlyOperation: {
       month: '2026-09',
@@ -88,36 +92,85 @@ afterEach(() => {
   cleanup()
   mocks.load.mockReset()
   mocks.state.loading = false
+  mocks.state.loadError = null
+  mocks.state.exportMessage = null
 })
 
 describe('经营报表页面级骨架', () => {
-  it('页头说明统计口径，页面动作保持在页头右侧，首个内容区紧随其后', () => {
-    render(<ReportsPage />)
+  it('以唯一 dashboard-overview 模式根呈现，页头/工具条/指标/洞察/明细按固定顺序', () => {
+    const { container } = render(<ReportsPage />)
+
+    const root = container.querySelector('[data-page-pattern]')
+    expect(root).toHaveAttribute('data-page-pattern', 'dashboard-overview')
+    expect(root).toHaveAttribute('data-density', 'standard')
+    expect(container.querySelectorAll('[data-page-pattern]').length).toBe(1)
 
     const header = screen.getByRole('heading', { level: 1, name: '经营报表' }).closest('header')
-    expect(screen.getByText(/\d{4}-\d{2} 统计/)).toBeVisible()
-    const firstSection = screen.getByRole('heading', { level: 2, name: '月度经营' })
     expect(header).not.toBeNull()
+    expect(screen.getByText(/\d{4}-\d{2} 统计/)).toBeVisible()
     expect(
       screen.getByText(
         '只读取已确认的订单、排班、收付款和工资事实；风险记录只提供进入实际处理区的入口。'
       )
     ).toBeVisible()
     expect(within(header!).getByRole('group', { name: '经营报表页面动作' })).toBeVisible()
+
+    const toolbarEl = container.querySelector<HTMLElement>('.yumi-dashboard-overview__toolbar')
+    const metricsEl = container.querySelector('.yumi-metric-strip')
+    const insightsEl = container.querySelector<HTMLElement>('.yumi-dashboard-overview__insights')
+    const detailsEl = container.querySelector<HTMLElement>('.yumi-dashboard-overview__details')
+    expect(toolbarEl).not.toBeNull()
+    expect(metricsEl).not.toBeNull()
+    expect(insightsEl).not.toBeNull()
+    expect(detailsEl).not.toBeNull()
+
+    const order = [header, toolbarEl, metricsEl, insightsEl, detailsEl]
+    for (let index = 1; index < order.length; index += 1) {
+      const relation = order[index - 1]!.compareDocumentPosition(order[index]!)
+      expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+  })
+
+  it('期间工具条承载统计月份选择与整页刷新，指标带呈现四项月度经营结果', () => {
+    const { container } = render(<ReportsPage />)
+
+    const toolbarEl = container.querySelector<HTMLElement>('.yumi-dashboard-overview__toolbar')
+    expect(toolbarEl).not.toBeNull()
+    expect(within(toolbarEl!).getByLabelText('统计月份')).toBeVisible()
+    expect(within(toolbarEl!).getByRole('button', { name: '刷新' })).toBeVisible()
+
+    const values = container.querySelectorAll('.yumi-metric-strip dd')
+    expect(values).toHaveLength(4)
+    const labels = [...container.querySelectorAll('.yumi-metric-strip dt')].map((node) =>
+      node.textContent?.trim()
+    )
+    expect(labels).toEqual(['实际收入', '经营支出', '经营结果', '已确认工资'])
+  })
+
+  it('洞察区保留月度经营说明，明细区按固定顺序落五个区块', () => {
+    const { container } = render(<ReportsPage />)
+
+    const insightsEl = container.querySelector<HTMLElement>('.yumi-dashboard-overview__insights')
+    expect(within(insightsEl!).getByRole('heading', { level: 2, name: '月度经营' })).toBeVisible()
     expect(
-      header!.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
+      within(insightsEl!).getByText('按统计月份查看实际收付款、经营支出和已确认工资。')
+    ).toBeVisible()
+
+    const detailsEl = container.querySelector<HTMLElement>('.yumi-dashboard-overview__details')
+    const headings = [...detailsEl!.querySelectorAll('h2')].map((node) => node.textContent?.trim())
+    expect(headings).toEqual(['商品产能风险', '交期风险', '订单核算', '排班进度', '已确认工资'])
   })
 })
 
 describe('经营报表加载反馈', () => {
-  it('首次加载时显示统一的具名加载状态，而不是提前呈现空报表', () => {
+  it('首次加载时显示统一的具名加载状态，且不提前呈现指标带与空报表', () => {
     mocks.state.loading = true
-
-    render(<ReportsPage />)
+    const { container } = render(<ReportsPage />)
 
     expect(screen.getByRole('heading', { name: '经营报表' })).toBeVisible()
     expect(screen.getByText('经营报表加载中')).toBeVisible()
+    expect(container.querySelector('.yumi-metric-strip')).toBeNull()
+    expect(container.querySelector('.yumi-dashboard-overview__toolbar')).toBeNull()
     expect(screen.queryByRole('table', { name: '订单经营列表' })).not.toBeInTheDocument()
   })
 })
@@ -185,5 +238,36 @@ describe('风险报表入口', () => {
       orderId: 'order-1',
       focus: 'queue'
     })
+  })
+})
+
+describe('经营报表期间筛选与错误反馈', () => {
+  it('切换统计月份后以新月份重新加载报表', async () => {
+    render(<ReportsPage />)
+    mocks.load.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: '统计月份' }))
+    fireEvent.click(await screen.findByRole('button', { name: '六月' }))
+
+    expect(mocks.load).toHaveBeenLastCalledWith(
+      '2026-06',
+      expect.objectContaining({
+        capacity: expect.anything(),
+        delivery: expect.anything()
+      })
+    )
+  })
+
+  it('加载失败经危险通知呈现，导出成功经成功通知呈现', () => {
+    mocks.state.loadError = '报表加载失败，请稍后重试'
+    const { unmount } = render(<ReportsPage />)
+    expect(screen.getByRole('alert')).toHaveTextContent('报表加载失败，请稍后重试')
+    unmount()
+
+    mocks.state.loadError = null
+    mocks.state.exportMessage = '已导出当前报表'
+    render(<ReportsPage />)
+    const host = screen.getByLabelText('全局通知')
+    expect(within(host).getByRole('status')).toHaveTextContent('已导出当前报表')
   })
 })

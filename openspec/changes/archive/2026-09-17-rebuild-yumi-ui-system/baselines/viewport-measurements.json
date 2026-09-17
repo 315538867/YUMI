@@ -1,0 +1,76 @@
+{
+  "$comment": "由 openspec/changes/rebuild-yumi-ui-system/scripts/run-viewport-probe.sh 实测生成；见同目录 probe-viewport.mjs 的 --no-sandbox 运行说明。",
+  "measuredAt": "2026-09-15",
+  "environment": {
+    "platform": "darwin",
+    "electron": "34.5.8",
+    "chrome": "132.0.6834.210",
+    "primaryDisplay": {
+      "size": {
+        "width": 1800,
+        "height": 1169
+      },
+      "workAreaSize": {
+        "width": 1800,
+        "height": 1078
+      },
+      "scaleFactor": 2
+    }
+  },
+  "measurements": [
+    {
+      "label": "min",
+      "outerRequested": {
+        "width": 1100,
+        "height": 720
+      },
+      "contentBounds": {
+        "width": 1100,
+        "height": 720
+      },
+      "renderer": {
+        "innerWidth": 1100,
+        "innerHeight": 720,
+        "outerWidth": 1100,
+        "outerHeight": 720,
+        "devicePixelRatio": 2
+      }
+    },
+    {
+      "label": "default",
+      "outerRequested": {
+        "width": 1440,
+        "height": 920
+      },
+      "contentBounds": {
+        "width": 1440,
+        "height": 920
+      },
+      "renderer": {
+        "innerWidth": 1440,
+        "innerHeight": 920,
+        "outerWidth": 1440,
+        "outerHeight": 920,
+        "devicePixelRatio": 2
+      }
+    },
+    {
+      "label": "wide",
+      "outerRequested": {
+        "width": 1920,
+        "height": 1080
+      },
+      "contentBounds": {
+        "width": 1920,
+        "height": 1080
+      },
+      "renderer": {
+        "innerWidth": 1920,
+        "innerHeight": 1080,
+        "outerWidth": 1920,
+        "outerHeight": 1080,
+        "devicePixelRatio": 2
+      }
+    }
+  ]
+}

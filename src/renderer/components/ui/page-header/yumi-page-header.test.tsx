@@ -4,9 +4,77 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { YumiButton } from '../button/yumi-button'
-import { YumiPageActions, YumiPageHeader, YumiRecordSummary, YumiSection } from './yumi-page-header'
+import { YumiMetricStrip } from '../metric-strip/yumi-metric-strip'
+import {
+  YumiPageActions,
+  YumiPageHeader,
+  YumiRecordSummary,
+  YumiSection,
+  YumiSectionHeader
+} from './yumi-page-header'
 
 afterEach(cleanup)
+
+describe('YumiSectionHeader', () => {
+  it('将标题与说明置于左侧，状态在操作之前、操作固定右侧', () => {
+    render(
+      <YumiSectionHeader
+        actions={<YumiButton>导出</YumiButton>}
+        description="按日期查看和处理已有记录。"
+        status={<span>共 12 条记录</span>}
+        title="记录列表"
+      />
+    )
+
+    const header = document.querySelector('.yumi-section__header')
+    expect(header).not.toBeNull()
+    const headingContent = header!.querySelector('.yumi-section__heading-content')
+    const meta = header!.querySelector('.yumi-section__meta')
+    expect(headingContent).not.toBeNull()
+    expect(meta).not.toBeNull()
+    expect(
+      headingContent!.compareDocumentPosition(meta!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    const statusEl = header!.querySelector('.yumi-section__status')
+    const actionsEl = header!.querySelector('.yumi-section__actions')
+    expect(statusEl).not.toBeNull()
+    expect(actionsEl).not.toBeNull()
+    expect(
+      statusEl!.compareDocumentPosition(actionsEl!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    expect(screen.getByRole('heading', { name: '记录列表' })).toBeVisible()
+    expect(screen.getByText('按日期查看和处理已有记录。')).toBeVisible()
+    expect(screen.getByText('共 12 条记录')).toBeVisible()
+    expect(screen.getByRole('button', { name: '导出' })).toBeVisible()
+  })
+
+  it('无状态与操作时只渲染标题与说明，不产生空头部容器', () => {
+    render(<YumiSectionHeader description="仅说明" title="纯标题区块" />)
+
+    expect(document.querySelector('.yumi-section__header')).toBeNull()
+    expect(document.querySelector('.yumi-section__heading-content')).not.toBeNull()
+    expect(screen.getByRole('heading', { name: '纯标题区块' })).toBeVisible()
+    expect(screen.getByText('仅说明')).toBeVisible()
+  })
+
+  it('将标题、说明、状态与操作各放入固定语义插槽', () => {
+    render(
+      <YumiSectionHeader
+        actions={<YumiButton>区块操作</YumiButton>}
+        description="区块说明"
+        status={<span>区块状态</span>}
+        title="区块标题"
+      />
+    )
+
+    expect(document.querySelector('.yumi-section__heading')).toHaveTextContent('区块标题')
+    expect(document.querySelector('.yumi-section__description')).toHaveTextContent('区块说明')
+    expect(document.querySelector('.yumi-section__status')).toHaveTextContent('区块状态')
+    expect(document.querySelector('.yumi-section__actions')).toHaveTextContent('区块操作')
+  })
+})
 
 describe('YumiSection', () => {
   it('将区块级动作与标题和说明置于同一上下文头部', () => {
@@ -55,6 +123,27 @@ describe('YumiRecordSummary', () => {
     expect(within(summary).getByTestId('record-summary-metrics').parentElement).toHaveClass(
       'yumi-record-summary__metrics'
     )
+  })
+
+  it('经营摘要以整行指标带承接经营状态，不承载完整 Tab 明细', () => {
+    render(
+      <YumiRecordSummary ariaLabel="工资结算摘要" status={<span>草稿</span>} title="张三">
+        <YumiMetricStrip
+          ariaLabel="工资结算经营摘要"
+          items={[
+            { label: '计时工资', value: '¥1,200.00' },
+            { label: '计件提成', value: '¥800.00' }
+          ]}
+        />
+      </YumiRecordSummary>
+    )
+
+    const summary = screen.getByRole('region', { name: '工资结算摘要' })
+    const metrics = screen.getByRole('region', { name: '工资结算经营摘要' })
+    expect(metrics.parentElement).toHaveClass('yumi-record-summary__metrics')
+    expect(within(summary).queryByRole('table')).not.toBeInTheDocument()
+    expect(within(summary).queryByRole('tablist')).not.toBeInTheDocument()
+    expect(within(summary).getByText('草稿').closest('.yumi-record-summary__status')).not.toBeNull()
   })
 })
 

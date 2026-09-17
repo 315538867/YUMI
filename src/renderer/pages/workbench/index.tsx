@@ -2,14 +2,13 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import type { V2NavigationTarget, V2WorkbenchItem } from '@shared/contracts/index'
 import { useWorkbench } from '../../composables/use-workbench'
 import { formatCents } from '../../composables/v2-utils'
+import { DashboardOverview } from '../../components/patterns/dashboard-overview'
 import {
   YumiDataTable,
   YumiListSurface,
   YumiListToolbar,
-  YumiMetricStrip,
   YumiButton,
   YumiEmptyState,
-  YumiPageHeader,
   YumiPrimaryTabs,
   YumiSection,
   YumiStatusTag,
@@ -31,16 +30,15 @@ const viewLabels: Record<WorkbenchView, string> = {
 }
 
 /** 仅展示工作台快照中已有的履约类待办；不是生产数量、预测或自动派工。 */
-const workbenchDistributionDefinitions = [
-  { kinds: ['process_task', 'work_time_review'] as const, label: '排班与核算' },
-  { kinds: ['shipment', 'after_sales_handling'] as const, label: '订单履约' },
-  { kinds: ['settlement_confirmation', 'refund'] as const, label: '工资结算' },
-  { kinds: ['reimbursement'] as const, label: '财务报销' }
-] satisfies ReadonlyArray<{
-  kind?: never
+const workbenchDistributionDefinitions: ReadonlyArray<{
   kinds: readonly V2WorkbenchItem['kind'][]
   label: string
-}>
+}> = [
+  { kinds: ['process_task', 'work_time_review'], label: '排班与核算' },
+  { kinds: ['shipment', 'after_sales_handling'], label: '订单履约' },
+  { kinds: ['settlement_confirmation', 'refund'], label: '工资结算' },
+  { kinds: ['reimbursement'], label: '财务报销' }
+]
 
 const fulfillmentStageDefinitions = [
   { kind: 'process_task', label: '待执行' },
@@ -122,28 +120,51 @@ export function WorkbenchPage({
   )
 
   return (
-    <section className="yumi-page yumi-workbench-page">
-      <YumiPageHeader
-        description="只显示由订单、排班、售后、工资和财务事实生成的当前处理入口。"
-        title="工作台"
-        actions={{
+    <DashboardOverview
+      header={{
+        actions: {
           ariaLabel: '工作台页面动作',
-          visibleActions: [
-            {
-              label: '刷新',
-              onClick: () => void reload()
+          visibleActions: [{ label: '刷新', onClick: () => void reload() }]
+        },
+        description: '只显示由订单、排班、售后、工资和财务事实生成的当前处理入口。',
+        title: '工作台'
+      }}
+      metrics={
+        !loading && !snapshot?.firstUseGuide
+          ? {
+              ariaLabel: '工作台概览',
+              items: [
+                {
+                  label: '需要我决定',
+                  tone: decisionCount > 0 ? 'warning' : 'default',
+                  value: `${decisionCount} 项`
+                },
+                {
+                  label: '可以推进',
+                  tone: advanceCount > 0 ? 'brand' : 'default',
+                  value: `${advanceCount} 项`
+                },
+                {
+                  label: '优先处理',
+                  tone: priorityCount > 0 ? 'warning' : 'default',
+                  value: `${priorityCount} 项`
+                },
+                {
+                  label: '数据截至',
+                  value: snapshot?.generatedOn ?? '—'
+                }
+              ]
             }
-          ]
-        }}
-      />
+          : undefined
+      }
+    >
       {loading ? (
         <YumiEmptyState
           description="正在汇总当前需要处理的业务事实。"
           scenario="loading"
           title="读取工作台中…"
         />
-      ) : null}
-      {!loading && snapshot?.firstUseGuide ? (
+      ) : snapshot?.firstUseGuide ? (
         <YumiEmptyState
           action={
             <YumiButton
@@ -157,33 +178,8 @@ export function WorkbenchPage({
           description={snapshot.firstUseGuide.description}
           title={snapshot.firstUseGuide.title}
         />
-      ) : null}
-      {!loading && !snapshot?.firstUseGuide ? (
+      ) : (
         <>
-          <YumiMetricStrip
-            ariaLabel="工作台概览"
-            items={[
-              {
-                label: '需要我决定',
-                tone: decisionCount > 0 ? 'warning' : 'default',
-                value: `${decisionCount} 项`
-              },
-              {
-                label: '可以推进',
-                tone: advanceCount > 0 ? 'brand' : 'default',
-                value: `${advanceCount} 项`
-              },
-              {
-                label: '优先处理',
-                tone: priorityCount > 0 ? 'warning' : 'default',
-                value: `${priorityCount} 项`
-              },
-              {
-                label: '数据截至',
-                value: snapshot?.generatedOn ?? '—'
-              }
-            ]}
-          />
           <YumiPrimaryTabs
             ariaLabel="工作台事项视图"
             items={[
@@ -387,7 +383,7 @@ export function WorkbenchPage({
             </YumiSection>
           )}
         </>
-      ) : null}
-    </section>
+      )}
+    </DashboardOverview>
   )
 }

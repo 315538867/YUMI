@@ -1,0 +1,252 @@
+{
+  "states": [
+    "default",
+    "hover",
+    "active",
+    "focus-visible",
+    "disabled",
+    "loading",
+    "read-only",
+    "invalid"
+  ],
+  "categories": [
+    {
+      "id": "button",
+      "label": "按钮",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "yes",
+        "read-only": "na",
+        "invalid": "na"
+      }
+    },
+    {
+      "id": "icon-button",
+      "label": "图标按钮",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "yes",
+        "read-only": "na",
+        "invalid": "na"
+      }
+    },
+    {
+      "id": "action-menu",
+      "label": "动作菜单",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "na",
+        "invalid": "na"
+      }
+    },
+    {
+      "id": "primary-tabs",
+      "label": "主 Tab",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "na",
+        "invalid": "na"
+      }
+    },
+    {
+      "id": "segmented-tabs",
+      "label": "分段控制",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "na",
+        "invalid": "na"
+      }
+    },
+    {
+      "id": "status-tag",
+      "label": "状态标签",
+      "states": {
+        "default": "yes",
+        "hover": "no",
+        "active": "na",
+        "focus-visible": "no",
+        "disabled": "na",
+        "loading": "na",
+        "read-only": "na",
+        "invalid": "na"
+      }
+    },
+    {
+      "id": "text-field",
+      "label": "文本输入",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "yes",
+        "invalid": "yes"
+      }
+    },
+    {
+      "id": "numeric-text-field",
+      "label": "数字输入",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "yes",
+        "invalid": "yes"
+      }
+    },
+    {
+      "id": "textarea",
+      "label": "多行文本域",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "yes",
+        "invalid": "yes"
+      }
+    },
+    {
+      "id": "checkbox",
+      "label": "复选框",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "yes",
+        "invalid": "yes"
+      }
+    },
+    {
+      "id": "select",
+      "label": "下拉选择",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "yes",
+        "invalid": "yes"
+      }
+    },
+    {
+      "id": "search-select",
+      "label": "搜索选择",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "yes",
+        "invalid": "yes"
+      }
+    },
+    {
+      "id": "date-picker",
+      "label": "日期选择",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "yes",
+        "invalid": "yes"
+      }
+    },
+    {
+      "id": "month-picker",
+      "label": "月份选择",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "yes",
+        "invalid": "yes"
+      }
+    },
+    {
+      "id": "time-field",
+      "label": "时间输入",
+      "states": {
+        "default": "yes",
+        "hover": "yes",
+        "active": "yes",
+        "focus-visible": "yes",
+        "disabled": "yes",
+        "loading": "na",
+        "read-only": "yes",
+        "invalid": "yes"
+      }
+    },
+    {
+      "id": "dialog",
+      "label": "对话框/确认框",
+      "states": {
+        "default": "yes",
+        "hover": "na",
+        "active": "na",
+        "focus-visible": "yes",
+        "disabled": "na",
+        "loading": "yes",
+        "read-only": "na",
+        "invalid": "na"
+      }
+    },
+    {
+      "id": "sheet",
+      "label": "抽屉",
+      "states": {
+        "default": "yes",
+        "hover": "na",
+        "active": "na",
+        "focus-visible": "yes",
+        "disabled": "na",
+        "loading": "yes",
+        "read-only": "na",
+        "invalid": "na"
+      }
+    }
+  ]
+}

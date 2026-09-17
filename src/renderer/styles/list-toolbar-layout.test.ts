@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const css = readFileSync(new URL('./components.css', import.meta.url), 'utf8')
+const css = readFileSync(new URL('./composites.css', import.meta.url), 'utf8')
 
 function rule(selector: string, source = css) {
   const blocks = source.matchAll(/(?:^|\n)\s*([^{}]+?)\s*\{([^{}]*)\}/g)
@@ -53,15 +53,8 @@ describe('共享列表工具栏布局契约', () => {
     expect(rule('.yumi-list-toolbar__count')).toMatch(/white-space:\s*nowrap/)
   })
 
-  it('1024px 以下才允许折行，640px 以下转为全宽单列', () => {
-    expect(mediaRule(1023, '.yumi-list-toolbar')).toMatch(/flex-wrap:\s*wrap/)
-    expect(mediaRule(1023, '.yumi-list-toolbar__filters')).toMatch(/flex-wrap:\s*wrap/)
-    expect(mediaRule(640, '.yumi-list-toolbar__search')).toMatch(/flex-basis:\s*100%/)
-    expect(mediaRule(640, '.yumi-list-toolbar__filters')).toMatch(/flex-basis:\s*100%/)
-  })
-
-  it('窄屏统计独立成行，不与被压缩的筛选控件抢宽度', () => {
-    expect(mediaRule(820, '.yumi-list-toolbar__count')).toMatch(/width:\s*100%/)
-    expect(mediaRule(820, '.yumi-list-toolbar__count')).toMatch(/margin-left:\s*0/)
+  it('唯一窄桌面适配点（1279px）以下才允许折行，控件不拉伸填满', () => {
+    expect(mediaRule(1279, '.yumi-list-toolbar')).toMatch(/flex-wrap:\s*wrap/)
+    expect(mediaRule(1279, '.yumi-list-toolbar__filters')).toMatch(/flex-wrap:\s*wrap/)
   })
 })

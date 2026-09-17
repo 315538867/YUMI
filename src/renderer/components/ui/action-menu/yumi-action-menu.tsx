@@ -1,5 +1,6 @@
 import * as Popover from '@radix-ui/react-popover'
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useDensity } from '../../patterns/density'
 import { YumiButton } from '../button/yumi-button'
 
 export type YumiActionMenuItem = {
@@ -102,6 +103,7 @@ export function YumiActionMenu({
         <Popover.Content
           align="end"
           className="yumi-action-menu__content"
+          data-density={useDensity()}
           onOpenAutoFocus={(event) => {
             event.preventDefault()
             focusInitialMenuItem()

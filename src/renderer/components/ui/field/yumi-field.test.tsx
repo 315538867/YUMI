@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   YumiCheckbox,
   YumiField,
@@ -14,6 +14,8 @@ import {
 } from './yumi-field'
 import { YumiSelect } from '../select/yumi-select'
 import { YumiDatePicker } from '../date-picker/yumi-date-picker'
+
+afterEach(cleanup)
 
 describe('YumiCheckbox', () => {
   it('以统一控件承载可访问的布尔选择与键盘焦点样式钩子', () => {
@@ -135,5 +137,78 @@ describe('YumiField', () => {
     const hint = within(view.container).getByText('请输入客户可识别的付款说明。')
 
     expect(field).toHaveAttribute('aria-describedby', `existing-description ${hint.id}`)
+  })
+})
+
+describe('YumiField · 适用状态与读写契约（任务 3.6）', () => {
+  it('将字段级错误与提示关联到容器内的复选框控件', () => {
+    const view = render(
+      <YumiField error="请确认已勾选">
+        <YumiCheckbox>同意结算条款</YumiCheckbox>
+      </YumiField>
+    )
+
+    const checkbox = within(view.container).getByRole('checkbox', { name: '同意结算条款' })
+    const error = within(view.container).getByText('请确认已勾选')
+
+    expect(checkbox).toHaveAttribute('aria-invalid', 'true')
+    expect(checkbox).toHaveAttribute('aria-describedby', error.id)
+  })
+
+  it('字段消息槽位常驻占位，空字段也保留下方消息位置', () => {
+    render(
+      <YumiField>
+        <YumiFieldLabel>处理备注</YumiFieldLabel>
+        <YumiTextArea />
+      </YumiField>
+    )
+
+    expect(screen.getByRole('textbox', { name: '处理备注' })).toBeVisible()
+    expect(document.querySelector('.yumi-form-message--reserved')).toBeInTheDocument()
+  })
+
+  it('错误清除后还原无效声明，消息槽从错误切换为提示', () => {
+    const view = render(
+      <YumiField error="必填">
+        <YumiFieldLabel>客户备注</YumiFieldLabel>
+        <YumiTextField />
+      </YumiField>
+    )
+
+    const field = () => within(view.container).getByRole('textbox', { name: '客户备注' })
+    expect(field()).toHaveAttribute('aria-invalid', 'true')
+
+    view.rerender(
+      <YumiField hint="选填">
+        <YumiFieldLabel>客户备注</YumiFieldLabel>
+        <YumiTextField />
+      </YumiField>
+    )
+
+    expect(field()).not.toHaveAttribute('aria-invalid')
+    expect(within(view.container).getByText('选填')).toBeVisible()
+    expect(within(view.container).queryByText('必填')).not.toBeInTheDocument()
+  })
+
+  it('只读字段保留可读值与只读语义，且不视为无效', () => {
+    render(
+      <YumiField hint="供应商固定">
+        <YumiFieldLabel>付款方式</YumiFieldLabel>
+        <YumiTextField readOnly value="银行转账" />
+      </YumiField>
+    )
+
+    const field = screen.getByRole('textbox', { name: '付款方式' })
+    expect(field).toHaveValue('银行转账')
+    expect(field).toHaveAttribute('readonly')
+    expect(field).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('数字字段使用数字键盘输入模式并透传读写属性', () => {
+    render(<YumiNumberField allowDecimal readOnly value="123.45" />)
+
+    const field = screen.getByRole('textbox')
+    expect(field).toHaveAttribute('inputmode', 'decimal')
+    expect(field).toHaveAttribute('readonly')
   })
 })
