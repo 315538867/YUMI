@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>YUMI 前端治理路线对比</title>
+  <style>
+    :root {
+      --canvas: #eef1f3;
+      --surface: #ffffff;
+      --surface-muted: #f7f8f8;
+      --ink: #253033;
+      --muted: #677477;
+      --border: #d8dfe0;
+      --border-strong: #bcc8c9;
+      --brand: #276d67;
+      --brand-soft: #e4f0ed;
+      --warning: #a66c1e;
+      --warning-soft: #f8edd8;
+      --danger: #a94c47;
+      --danger-soft: #f8e8e3;
+      --blue: #356f9d;
+      --blue-soft: #e8f0f7;
+      --success: #38745d;
+      --shadow: 0 10px 28px rgb(38 52 54 / 10%);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+    button { font: inherit; }
+    .page { max-width: 1580px; margin: 0 auto; padding: 28px; }
+    .intro { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 22px; }
+    .intro h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.3; }
+    .intro p { margin: 0; max-width: 920px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+    .legend { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .legend span { border: 1px solid var(--border); background: var(--surface); padding: 5px 8px; font-size: 12px; color: var(--muted); }
+    .routes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+    .route {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      min-width: 0;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      box-shadow: 0 2px 8px rgb(38 52 54 / 5%);
+      cursor: pointer;
+      transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+    }
+    .route:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .route.selected { outline: 3px solid rgb(39 109 103 / 23%); border-color: var(--brand); }
+    .route-head { display: flex; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border); align-items: flex-start; }
+    .letter { display: grid; place-items: center; flex: 0 0 30px; height: 30px; color: white; background: var(--ink); font-size: 13px; font-weight: 750; }
+    .route.recommended .letter { background: var(--brand); }
+    .route-head h2 { margin: 0 0 4px; font-size: 17px; line-height: 1.3; }
+    .route-head p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .flag { margin-left: auto; flex: none; padding: 4px 7px; background: var(--brand-soft); color: var(--brand); font-size: 11px; font-weight: 700; }
+    .scope { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--border); }
+    .scope div { padding: 9px 8px; text-align: center; border-right: 1px solid var(--border); }
+    .scope div:last-child { border-right: 0; }
+    .scope b { display: block; margin-bottom: 2px; font-size: 11px; }
+    .scope span { color: var(--muted); font-size: 10px; }
+    .app { display: grid; grid-template-columns: 58px minmax(0, 1fr); min-height: 470px; background: var(--surface-muted); }
+    .side { padding: 12px 8px; background: #273638; color: #d9e3e2; }
+    .logo { display: grid; place-items: center; height: 34px; margin-bottom: 16px; background: var(--brand); color: white; font-weight: 800; font-size: 12px; }
+    .nav-dot { height: 30px; margin: 8px 0; border: 1px solid rgb(255 255 255 / 12%); background: rgb(255 255 255 / 5%); }
+    .nav-dot.active { border-color: rgb(255 255 255 / 26%); background: rgb(255 255 255 / 14%); }
+    .work { min-width: 0; padding: 14px; }
+    .page-head { display: flex; justify-content: space-between; gap: 10px; align-items: start; margin-bottom: 12px; }
+    .page-head h3 { margin: 0 0 3px; font-size: 16px; }
+    .page-head p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .action { flex: none; border: 0; background: var(--brand); color: white; min-height: 28px; padding: 0 10px; font-size: 10px; font-weight: 700; }
+    .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+    .tabs span { padding: 7px 9px; color: var(--muted); font-size: 10px; }
+    .tabs .active { color: var(--brand); border-bottom: 2px solid var(--brand); font-weight: 700; }
+    .toolbar { display: flex; align-items: end; gap: 8px; margin-bottom: 10px; }
+    .field { display: grid; gap: 3px; }
+    .field label { color: var(--muted); font-size: 9px; }
+    .input { height: 27px; min-width: 88px; border: 1px solid var(--border-strong); background: white; padding: 6px; font-size: 9px; }
+    .section-title { margin: 0 0 8px; font-size: 12px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--border); background: white; margin-bottom: 10px; }
+    .metric { padding: 9px; border-right: 1px solid var(--border); }
+    .metric:last-child { border-right: 0; }
+    .metric span { display: block; color: var(--muted); font-size: 9px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 16px; font-variant-numeric: tabular-nums; }
+    .metric.income strong { color: var(--success); }
+    .metric.result strong { color: var(--brand); }
+    .panel { border: 1px solid var(--border); background: white; }
+    .panel-title { padding: 8px 9px; border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700; }
+    .row { display: grid; grid-template-columns: 1.2fr .8fr .7fr; gap: 6px; padding: 8px 9px; border-bottom: 1px solid var(--border); font-size: 9px; }
+    .row:last-child { border-bottom: 0; }
+    .row span:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .patch .work { padding: 18px; }
+    .patch .hero-card { padding: 15px; border: 1px solid var(--border); border-radius: 12px; background: white; box-shadow: var(--shadow); margin-bottom: 12px; }
+    .patch .hero-card h4 { margin: 0 0 5px; font-size: 17px; }
+    .patch .hero-card p { margin: 0; color: var(--muted); font-size: 10px; }
+    .patch .metrics { border-radius: 12px; overflow: hidden; box-shadow: 0 5px 16px rgb(38 52 54 / 7%); }
+    .patch .panel { border-radius: 12px; overflow: hidden; }
+
+    .system .app { grid-template-columns: 74px minmax(0, 1fr); }
+    .system .work { padding: 16px 18px; }
+    .system .page-head { margin-bottom: 10px; }
+    .system .summary-band { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 16px; padding: 12px 0 14px; border-bottom: 1px solid var(--border-strong); margin-bottom: 12px; }
+    .system .summary-band .lead span { color: var(--muted); font-size: 9px; }
+    .system .summary-band .lead strong { display: block; margin-top: 2px; font-size: 23px; color: var(--brand); font-variant-numeric: tabular-nums; }
+    .system .summary-band .equation { color: var(--muted); font-size: 9px; text-align: right; line-height: 1.5; }
+    .system .content-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(130px, .75fr); gap: 10px; }
+    .system .breakdown { border-left: 3px solid var(--warning); background: var(--warning-soft); padding: 10px; }
+    .system .breakdown h4 { margin: 0 0 8px; font-size: 10px; }
+    .system .breakdown div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgb(166 108 30 / 18%); font-size: 9px; }
+    .system .breakdown div:last-child { border: 0; }
+
+    .replace .side { background: #f2f5f8; color: var(--ink); border-right: 1px solid #d2dbe3; }
+    .replace .logo { background: var(--blue); }
+    .replace .nav-dot { border-color: #d8e0e7; background: white; border-radius: 6px; }
+    .replace .nav-dot.active { background: var(--blue-soft); border-color: #a8c0d5; }
+    .replace .action { background: var(--blue); border-radius: 6px; }
+    .replace .tabs .active { color: var(--blue); border-color: var(--blue); }
+    .replace .metrics { gap: 8px; border: 0; background: transparent; }
+    .replace .metric { border: 1px solid #d4dde4; border-radius: 7px; background: white; }
+    .replace .metric:last-child { border-right: 1px solid #d4dde4; }
+    .replace .metric.result strong { color: var(--blue); }
+    .replace .panel { border-radius: 7px; }
+    .replace .input { border-radius: 6px; }
+
+    .verdict { padding: 14px 16px; border-top: 1px solid var(--border); background: white; }
+    .verdict strong { display: block; margin-bottom: 6px; font-size: 12px; }
+    .verdict p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .verdict .cost { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+    .chip { padding: 4px 6px; background: var(--surface-muted); border: 1px solid var(--border); color: var(--muted); font-size: 9px; }
+    .question { margin-top: 18px; padding: 14px 16px; border-left: 4px solid var(--brand); background: var(--brand-soft); }
+    .question strong { display: block; margin-bottom: 4px; font-size: 14px; }
+    .question p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    @media (max-width: 1100px) { .routes { grid-template-columns: 1fr; } .app { min-height: 400px; } }
+    @media (max-width: 640px) { .page { padding: 16px; } .intro { display: block; } .legend { justify-content: flex-start; margin-top: 12px; } .system .content-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="intro">
+      <div>
+        <h1>YUMI 前端要重构到哪一层？</h1>
+        <p>三列使用同一份经营报表信息。差别不在功能，而在是否建立统一的视觉语法、页面骨架和组件职责。点击 A / B / C 可记录倾向。</p>
+      </div>
+      <div class="legend"><span>同一业务内容</span><span>同一桌面宽度</span><span>只比较治理层级</span></div>
+    </section>
+
+    <section class="routes options">
+      <article class="route patch option" data-choice="A" onclick="toggleSelect(this)">
+        <header class="route-head">
+          <div class="letter">A</div>
+          <div><h2>继续逐页修补</h2><p>保留当前组件和 CSS，用每个页面的定制样式解决观感。</p></div>
+        </header>
+        <div class="scope"><div><b>令牌</b><span>沿用</span></div><div><b>组件</b><span>沿用</span></div><div><b>页面模式</b><span>各自发挥</span></div></div>
+        <div class="app">
+          <aside class="side"><div class="logo">Y</div><div class="nav-dot"></div><div class="nav-dot active"></div><div class="nav-dot"></div><div class="nav-dot"></div></aside>
+          <div class="work">
+            <div class="page-head"><div><h3>经营报表</h3><p>订单、排班、资金与工资事实</p></div><button class="action">导出报表</button></div>
+            <div class="tabs"><span class="active">经营结果</span><span>产能风险</span><span>交期风险</span></div>
+            <div class="hero-card"><h4>这个月最后留下多少</h4><p>收入减去经营支出，形成现金经营结果</p></div>
+            <div class="toolbar"><div class="field"><label>统计月份</label><div class="input">2026-09</div></div></div>
+            <div class="metrics"><div class="metric income"><span>实际收入</span><strong>¥86,420</strong></div><div class="metric"><span>经营支出</span><strong>¥54,180</strong></div><div class="metric result"><span>经营结果</span><strong>¥32,240</strong></div></div>
+            <div class="panel"><div class="panel-title">钱去了哪里</div><div class="row"><span>已确认工资</span><span>¥28,600</span><span>52.8%</span></div><div class="row"><span>其他经营支出</span><span>¥25,580</span><span>47.2%</span></div></div>
+          </div>
+        </div>
+        <footer class="verdict"><strong>结果：局部更精致，但全局继续漂移</strong><p>圆角、阴影、标题尺寸和结构仍由页面作者临时决定。下一个页面会再次发明一套布局。</p><div class="cost"><span class="chip">成本低</span><span class="chip">见效快</span><span class="chip">复发概率高</span></div></footer>
+      </article>
+
+      <article class="route system option recommended" data-choice="B" onclick="toggleSelect(this)">
+        <header class="route-head">
+          <div class="letter">B</div>
+          <div><h2>重建设计系统与页面模式</h2><p>保留 React + Radix，把令牌、组件职责和页面骨架一起收紧。</p></div>
+          <span class="flag">推荐</span>
+        </header>
+        <div class="scope"><div><b>令牌</b><span>重整尺度</span></div><div><b>组件</b><span>补齐契约</span></div><div><b>页面模式</b><span>统一骨架</span></div></div>
+        <div class="app">
+          <aside class="side"><div class="logo">YUMI</div><div class="nav-dot"></div><div class="nav-dot active"></div><div class="nav-dot"></div><div class="nav-dot"></div></aside>
+          <div class="work">
+            <div class="page-head"><div><h3>经营报表</h3><p>先判断经营结果，再按需下钻明细</p></div><button class="action">导出当前报表</button></div>
+            <div class="tabs"><span class="active">经营结果</span><span>风险明细</span><span>订单核算</span></div>
+            <div class="toolbar"><div class="field"><label>统计月份</label><div class="input">2026-09</div></div></div>
+            <div class="summary-band"><div class="lead"><span>本月现金经营结果</span><strong>¥32,240</strong></div><div class="equation">¥86,420 收入<br>− ¥54,180 经营支出</div></div>
+            <div class="content-grid">
+              <div class="panel"><div class="panel-title">经营结果构成</div><div class="row"><span>实际收入</span><span>¥86,420</span><span>100%</span></div><div class="row"><span>经营支出</span><span>¥54,180</span><span>62.7%</span></div><div class="row"><span>最终留下</span><span>¥32,240</span><span>37.3%</span></div></div>
+              <div class="breakdown"><h4>经营支出</h4><div><span>工资</span><b>¥28,600</b></div><div><span>其他</span><b>¥25,580</b></div></div>
+            </div>
+          </div>
+        </div>
+        <footer class="verdict"><strong>结果：页面作者不再决定基础视觉</strong><p>报表只选择“总览型页面模式”和业务数据；间距、层级、动作位置、指标与明细关系由系统组件固定。</p><div class="cost"><span class="chip">成本中高</span><span class="chip">可渐进迁移</span><span class="chip">根因覆盖最完整</span></div></footer>
+      </article>
+
+      <article class="route replace option" data-choice="C" onclick="toggleSelect(this)">
+        <header class="route-head">
+          <div class="letter">C</div>
+          <div><h2>更换完整 UI 组件库</h2><p>引入成套企业组件库，替换按钮、表单、表格、弹窗和布局。</p></div>
+        </header>
+        <div class="scope"><div><b>令牌</b><span>跟随新库</span></div><div><b>组件</b><span>大面积替换</span></div><div><b>页面模式</b><span>仍需自建</span></div></div>
+        <div class="app">
+          <aside class="side"><div class="logo">Y</div><div class="nav-dot"></div><div class="nav-dot active"></div><div class="nav-dot"></div><div class="nav-dot"></div></aside>
+          <div class="work">
+            <div class="page-head"><div><h3>经营报表</h3><p>企业组件库默认后台风格</p></div><button class="action">导出报表</button></div>
+            <div class="tabs"><span class="active">经营结果</span><span>风险明细</span><span>订单核算</span></div>
+            <div class="toolbar"><div class="field"><label>统计月份</label><div class="input">2026-09</div></div><button class="action">查询</button></div>
+            <div class="metrics"><div class="metric income"><span>实际收入</span><strong>¥86,420</strong></div><div class="metric"><span>经营支出</span><strong>¥54,180</strong></div><div class="metric result"><span>经营结果</span><strong>¥32,240</strong></div></div>
+            <div class="panel"><div class="panel-title">经营支出明细</div><div class="row"><span>项目</span><span>金额</span><span>占比</span></div><div class="row"><span>已确认工资</span><span>¥28,600</span><span>52.8%</span></div><div class="row"><span>其他经营支出</span><span>¥25,580</span><span>47.2%</span></div></div>
+          </div>
+        </div>
+        <footer class="verdict"><strong>结果：控件统一，但产品结构问题仍在</strong><p>能快速获得成熟控件，却不能自动决定 YUMI 应如何呈现经营总览、排班工作区和订单详情，迁移代价也最大。</p><div class="cost"><span class="chip">成本最高</span><span class="chip">控件成熟</span><span class="chip">业务页面模式仍空缺</span></div></footer>
+      </article>
+    </section>
+
+    <section class="question">
+      <strong>先确认治理层级，不确认最终配色</strong>
+      <p>我的判断是 B：保留 Radix 作为无样式行为层，重整 YUMI 自己的令牌、基础组件、复合组件和页面模式。请在浏览器点击 A / B / C，或直接在终端说你更接近哪一条路线。</p>
+    </section>
+  </main>
+</body>
+</html>
