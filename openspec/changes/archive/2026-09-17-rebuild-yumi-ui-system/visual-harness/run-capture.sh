@@ -8,8 +8,8 @@
 # 用法：
 #   bash run-capture.sh
 #       # 默认固定矩阵（与视觉基线测试同源）：全 11 页面 × 四档尺寸 × default，
-#       # 每页补 loading/empty/error/long-text/overflow，portal 页补 portal，
-#       # 每页补登记的真实交互状态（form/detail/sheet/popover/dialog/invalid）。
+#       # 每页补 loading/empty/error/long-text/overflow 与登记的真实交互状态
+#       #（form/detail/sheet/popover/dialog/invalid），portal 页补 portal。
 #   bash run-capture.sh finance reports workbench \
 #       --sizes 1100x720,1280x800,1440x920,1920x1080 \
 #       --states default,loading,empty,error,overflow,long-text,portal

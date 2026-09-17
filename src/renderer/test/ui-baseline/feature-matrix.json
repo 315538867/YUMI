@@ -28,7 +28,7 @@
             "filter/risk-level: 风险级别下拉（全部级别、严重、预警、未计划、正常），纯前端过滤且影响计数",
             "action/export-current: 页头主操作导出当前报表",
             "action/export-menu: 更多操作菜单：导出订单表、导出发货汇总",
-            "action/refresh: 刷新与两处刷新风险均触发全量重新加载六个请求",
+            "action/refresh: 页头刷新与两处区块刷新（刷新风险、刷新交期）按各自归属重新加载",
             "action/drill-product: 查看商品，深链到商品页并带 productId",
             "action/drill-fulfillment: 进入排班处理，深链到排班页并带 orderId 与 focus 为 queue",
             "state/loading: 整页 loading 空态替换全部内容（非骨架）",
