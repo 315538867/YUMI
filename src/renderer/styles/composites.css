@@ -283,6 +283,11 @@
 .yumi-data-table__numeric {
   font-variant-numeric: tabular-nums;
 }
+/* 操作格按钮：宽松列被超长内容（长文本态）压缩时，按钮保持单行不拆成逐字竖排；
+   列宽不足就随 .yumi-data-table-wrap 横向滚动，而不是把按钮文字竖向堆叠。 */
+.yumi-data-table td .yumi-button {
+  white-space: nowrap;
+}
 .yumi-data-table-wrap--compact .yumi-data-table th {
   padding-block: var(--yumi-space-2);
 }

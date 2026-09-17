@@ -124,6 +124,37 @@ describe('P0 · 功能保留矩阵（任务 1.5）', () => {
     }
   })
 
+  it('每页登记四档窗口矩阵与真实交互状态触发（任务 6 后不再豁免任何页面）', () => {
+    // 与 baseline-screenshots.test.ts 的 REGISTERED_STATES 保持一致：视觉基线按同一份
+    // 清单要求每页状态成图，功能保留矩阵把这份覆盖面钉成 P0 保留条目。
+    const registered: Record<string, string[]> = {
+      workbench: [],
+      orders: ['form', 'detail', 'sheet'],
+      fulfillment: ['sheet', 'invalid'],
+      settlements: ['sheet', 'detail'],
+      finance: ['sheet', 'popover'],
+      reports: ['popover'],
+      customers: ['sheet', 'detail'],
+      products: ['form', 'detail'],
+      settings: ['sheet', 'dialog'],
+      workers: ['form', 'detail'],
+      'work-assignments': ['sheet']
+    }
+    for (const { page } of allPages) {
+      expect(
+        page.features.some((entry) => entry.startsWith('state/window-matrix')),
+        `${page.module} 未登记 state/window-matrix 条目`
+      ).toBe(true)
+      const triggers = registered[page.module]
+      if (triggers && triggers.length) {
+        expect(
+          page.features.some((entry) => entry.startsWith('interaction/real-trigger')),
+          `${page.module} 未登记 interaction/real-trigger 条目`
+        ).toBe(true)
+      }
+    }
+  })
+
   it('输出矩阵规模供 P3 逐家族核对', () => {
     const summary = matrix.families
       .map((family) => {

@@ -1,16 +1,16 @@
 {
   "$comment": "功能保留矩阵的反向棘轮（任务 1.5）。条目只增不减：feature-matrix.test.ts 断言每页条目数不低于此处的记录值。迁移过程中确实要废弃某项时，必须先在任务说明里写明理由，再同时下调这里的数字。",
   "counts": {
-    "reports.reports": 22,
-    "settings.settings": 18,
-    "orders.orders": 39,
-    "scheduling-review.fulfillment": 7,
-    "scheduling-review.work-assignments": 25,
-    "finance-payroll-workbench.workbench": 10,
-    "finance-payroll-workbench.finance": 12,
-    "finance-payroll-workbench.settlements": 16,
-    "finance-payroll-workbench.workers": 8,
-    "base-data.customers": 11,
-    "base-data.products": 13
+    "reports.reports": 24,
+    "settings.settings": 20,
+    "orders.orders": 41,
+    "scheduling-review.fulfillment": 9,
+    "scheduling-review.work-assignments": 27,
+    "finance-payroll-workbench.workbench": 11,
+    "finance-payroll-workbench.finance": 14,
+    "finance-payroll-workbench.settlements": 18,
+    "finance-payroll-workbench.workers": 10,
+    "base-data.customers": 13,
+    "base-data.products": 15
   }
 }

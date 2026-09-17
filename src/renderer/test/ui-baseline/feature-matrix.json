@@ -34,7 +34,9 @@
             "state/loading: 整页 loading 空态替换全部内容（非骨架）",
             "state/empty-per-table: 每张表独立空态文案，容器带 role 为 status",
             "state/partial-data: 缺数据回退：数字 0、列表空数组、文本为破折号",
-            "interaction/export-feedback: 导出反馈分级：成功停留五秒、已取消三秒、失败为 danger"
+            "interaction/export-feedback: 导出反馈分级：成功停留五秒、已取消三秒、失败为 danger",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 更多操作导出 Popover 由真实点击打开，禁默认态冒充"
           ]
         }
       ]
@@ -66,7 +68,9 @@
             "state/loading: 三处 loading 空态，初次加载无骨架",
             "state/empty: 各表独立空态：暂无私人垫付人、暂无收入或支出类目、还没有备份",
             "state/submitting: 提交按表单 key 锁定按钮 loading；备份 busy 期间禁用全部恢复按钮",
-            "interaction/no-dirty-guard: 关闭 Sheet 或 Dialog 不校验脏数据，与订单页行为不一致，迁移时需确认目标行为"
+            "interaction/no-dirty-guard: 关闭 Sheet 或 Dialog 不校验脏数据，与订单页行为不一致，迁移时需确认目标行为",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 编辑工作室参数 Sheet 与删除确认 Dialog 由真实点击打开，禁默认态冒充"
           ]
         }
       ]
@@ -119,7 +123,9 @@
             "state/read-only-history: 只读历史：内容变更记录与已作废批次不再可操作",
             "interaction/dirty-guard: 所有 Sheet 关闭前做脏值确认",
             "interaction/aria-labels: 逐控件 aria-label（第 N 行商品、数量、单价、缝边；批次 N 操作；订单页面动作），迁移必须保留",
-            "interaction/no-sort: 现状记录：全页无列排序、无分页、无多选批量、无键盘快捷键；这是现状缺口而非要保留的功能"
+            "interaction/no-sort: 现状记录：全页无列排序、无分页、无多选批量、无键盘快捷键；这是现状缺口而非要保留的功能",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 新建订单 Form、查看详情 Detail、详情资金登记 Sheet 由真实点击打开，禁默认态冒充"
           ]
         }
       ]
@@ -140,7 +146,9 @@
             "action/export-schedule: 导出排班页头按钮，当前为空实现；迁移时须确认是补齐还是按未接线代码处理",
             "action/nav-focus: 导航聚焦：shipment 跳到订单发货 Tab，inspection 与 reviews 切到待核算 Tab",
             "state/loading: 整页 loading 空态显示正在加载排班待办",
-            "state/error: 读取失败经通知浮层提示，页头动作在加载期间禁用"
+            "state/error: 读取失败经通知浮层提示，页头动作在加载期间禁用",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 派工 Sheet 与计时核算校验错误 Dialog 由真实点击/提交打开，禁默认态冒充"
           ]
         },
         {
@@ -173,7 +181,9 @@
             "state/empty: 无人员首用引导（指引去工资页维护人员与时薪）、无安排、待核算空、记录空、候选空与搜索无结果",
             "state/locked: 锁定记录禁用更正与作废并显示锁定原因与指引",
             "interaction/conflicts: 冲突与警告：派工超排上限、计时交期逾期标记、缺少预计单件分钟快照提示、效率核对异常提示",
-            "interaction/no-drag: 现状记录：无拖拽排班、无键盘快捷键、无批量勾选"
+            "interaction/no-drag: 现状记录：无拖拽排班、无键盘快捷键、无批量勾选",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 派工 Sheet 由真实点击打开，禁默认态冒充"
           ]
         }
       ]
@@ -197,7 +207,8 @@
             "list/items: 事项列表：待处理事项（标题与描述）、优先级标签（优先处理、请跟进、待处理）、金额或数量、处理时点、操作（进入处理）",
             "action/refresh: 刷新工作台快照",
             "action/drill: 进入处理：按事项类型深链到订单、排班、工资或财务对应视图",
-            "state/loading-first-use: loading 空态、首用引导空态（带动作文案）、各视图独立空态"
+            "state/loading-first-use: loading 空态、首用引导空态（带动作文案）、各视图独立空态",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面"
           ]
         },
         {
@@ -217,7 +228,9 @@
             "form/entry: 登记日常收支：方向（收入、支出）与实际收付款日期、金额、收支类目（必填，按方向过滤启用项）；支出专属付款来源（公账支出、私人垫付）与垫付人；支付方式、备注",
             "form/batch-reimburse: 确认批量报销：付款日期必填、支付方式、备注；并说明任一记录已报销或无效则整批不产生部分报销",
             "state/selection: 选择汇总显示已选择 N 笔与合计金额；待报销列表变化时自动裁剪失效选择",
-            "state/empty-error: 各表 loading 与独立空态；错误统一走通知浮层"
+            "state/empty-error: 各表 loading 与独立空态；错误统一走通知浮层",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 登记收支 Sheet 与统计月份 Popover 由真实点击打开，禁默认态冒充"
           ]
         },
         {
@@ -241,7 +254,9 @@
             "form/adjustment: 已结算工时更正：关联核算记录、更正后分钟、原因、备注",
             "form/refund: 登记兼职退款字段：实际退款金额必填且不得超过待退款金额、退款日期、处理备注",
             "state/focus: 深链聚焦：带 settlementId 自动选中结算；focus 为 refund 时切到待退款",
-            "state/loading-empty: 列表 loading 与按筛选分支的空态文案"
+            "state/loading-empty: 列表 loading 与按筛选分支的空态文案",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 新建结算 Sheet 与查看详情 Detail 由真实点击打开，禁默认态冒充"
           ]
         },
         {
@@ -257,7 +272,9 @@
             "view/profile: 人员资料明细：姓名、状态、备注、当前时薪（无记录时显示暂未记录）",
             "list/wage-history: 时薪历史记录表：生效日期、时薪（元每小时）",
             "action/wage-adjust: 调整时薪，内联表单（新时薪、生效日期），支持取消调整",
-            "state/empty: 还没有兼职人员首用引导、筛选无结果、时薪历史为空"
+            "state/empty: 还没有兼职人员首用引导、筛选无结果、时薪历史为空",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 新增人员 Form 与查看详情 Detail 由真实点击打开，禁默认态冒充"
           ]
         }
       ]
@@ -282,7 +299,9 @@
             "action/view-order: 查看订单，深链到订单详情概览",
             "state/loading-empty: loading 空态、还没有客户资料首用空态、没有符合筛选条件的客户",
             "state/insights-loading: 详情订单统计懒加载，加载中单独提示",
-            "interaction/dirty-guard: 关闭 Sheet 前做放弃修改确认"
+            "interaction/dirty-guard: 关闭 Sheet 前做放弃修改确认",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 新建客户 Sheet 与查看详情 Detail 由真实点击打开，禁默认态冒充"
           ]
         },
         {
@@ -303,7 +322,9 @@
             "form/profit-preview: 右侧吸附的预计盈利预览，随表单输入即时重算，输入按商品字段加工作室参数与三个基准时薪计算",
             "state/loading-empty-error: 列表四态、设置加载失败提示、盈利区块独立 loading 与错误态、保存中按钮 loading、存量面板 loading 与流水首用空态",
             "interaction/tab-keys: 详情 Tab 支持左右方向键切换",
-            "interaction/no-dirty-guard: 现状记录：返回列表即丢弃未保存修改，无脏值拦截，与客户页行为不一致"
+            "interaction/no-dirty-guard: 现状记录：返回列表即丢弃未保存修改，无脏值拦截，与客户页行为不一致",
+            "state/window-matrix: 四档窗口（1100×720/1280×800/1440×920/1920×1080）default 全尺寸成图，1440×920 下加载/空态/错误/长文本/溢出态成图，视觉基线不再豁免任何页面",
+            "interaction/real-trigger: 新建商品 Form 与查看详情 Detail 由真实点击打开，禁默认态冒充"
           ]
         }
       ]

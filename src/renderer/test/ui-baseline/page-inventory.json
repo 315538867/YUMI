@@ -223,14 +223,14 @@
       "file": "src/renderer/pages/work-assignments/index.tsx",
       "renderedBy": ["src/renderer/pages/fulfillment/index.tsx"],
       "rendersPageHeader": false,
-      "rendersPageLevelSurface": true
+      "rendersPageLevelSurface": false
     },
     {
       "component": "WorkersPage",
       "file": "src/renderer/pages/workers/index.tsx",
       "renderedBy": ["src/renderer/pages/settlements/index.tsx"],
       "rendersPageHeader": false,
-      "rendersPageLevelSurface": true
+      "rendersPageLevelSurface": false
     }
   ]
 }

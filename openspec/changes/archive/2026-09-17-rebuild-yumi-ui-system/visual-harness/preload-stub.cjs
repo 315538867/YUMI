@@ -51,11 +51,9 @@ const EMPTY_VALUES = {
   'finance.listAdvancePayers': [],
   'finance.listEntries': [],
   'finance.listPendingReimbursements': [],
-  'finance.getMonthlySummary': {
-    incomeCents: 0,
-    operatingExpenseCents: 0,
-    operatingResultCents: 0
-  },
+  // finance 空态须让页面走「本月暂无经营数据」空态：页面按 monthlySummary 真值判断，
+  // 返回 {0,0,0} 会渲染出一排 ¥0.00 指标带而不是空态，因此这里必须返回 null。
+  'finance.getMonthlySummary': null,
   'workbench.getSnapshot': {
     advanceItems: [],
     decisionItems: [],
@@ -78,10 +76,91 @@ const EMPTY_VALUES = {
   'afterSales.listCases': []
 }
 
-/** overflow 态：给主要列表注入超长文案并追加克隆行，验证表格/表单的溢出表现。 */
+/**
+ * 长文本/溢出态：给所有页面的关键展示位注入同一段「超长中文文案」标记，
+ * 让每一页的 bodyTextPreview 都能确定性命中标记，验证表格、表单、日历与
+ * 工具栏在极端长文案下是否出现非预期换行、截断、溢出与横向滚动。
+ * overflow 额外追加克隆行放大数据量；long-text 只拉长既有行（两者共用注入面）。
+ */
+const LONG_TEXT =
+  '这是一个用于视觉基线验收的超长中文文案样本，用来验证表格、表单与工具栏在极端长文案下是否出现非预期换行、截断、溢出与横向滚动表现；本段文本会同时出现在客户名称、订单编号等关键展示位上。'
+
+/** 就地拉长各页面可见的关键文本字段（worker/订单/结算/垫付人/工作台事项/排班安排）。 */
+function applyLongText() {
+  const LONG = LONG_TEXT
+  // 人员周历按应用运行时的真实系统日期锚定「本周」（React 侧 today() 取系统时钟，
+  // stub 无法改时钟）。fixture 的工作安排落在 3 月那周，若不搬家，本周日历没有
+  // 任何卡片，拉长后的兼职人员名与订单商品也不会进入可见 DOM，长文本/溢出标记
+  // 就永远不会出现在工作安排页的截图文本里。这里把每条安排按原星期几映射到
+  // 真实当前周，保证长文本/溢出态的人员周历确定性渲染出拉伸后的内容。
+  const now = new Date()
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7))
+  const iso = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+      date.getDate()
+    ).padStart(2, '0')}`
+  const weekdayOf = (isoDate) => {
+    const [y, m, d] = isoDate.split('-').map(Number)
+    return (new Date(y, m - 1, d).getDay() + 6) % 7
+  }
+  for (const assignment of dataset.workAssignments) {
+    if (!assignment || !assignment.assignedOn) continue
+    const target = new Date(monday)
+    target.setDate(monday.getDate() + weekdayOf(assignment.assignedOn))
+    assignment.assignedOn = iso(target)
+  }
+  const stretch = (record) => {
+    if (!record) return
+    if (record.name && typeof record.name === 'string') {
+      record.name = record.name.slice(0, 20) + '；' + LONG
+    }
+    if (record.notes && typeof record.notes === 'string') {
+      record.notes = record.notes.slice(0, 40) + '；' + LONG
+    }
+    if (record.note && typeof record.note === 'string') {
+      record.note = record.note.slice(0, 40) + '；' + LONG
+    }
+    if (record.managerNote && typeof record.managerNote === 'string') {
+      record.managerNote = record.managerNote.slice(0, 40) + '；' + LONG
+    }
+    if (record.title && typeof record.title === 'string') {
+      record.title = record.title.slice(0, 20) + '；' + LONG
+    }
+    if (record.customerName && typeof record.customerName === 'string') {
+      record.customerName = record.customerName.slice(0, 20) + '；' + LONG
+    }
+    if (record.categoryName && typeof record.categoryName === 'string') {
+      record.categoryName = record.categoryName.slice(0, 20) + '；' + LONG
+    }
+    if (record.code && typeof record.code === 'string') {
+      record.code = record.code.slice(0, 16) + '-' + LONG.slice(0, 40)
+    }
+  }
+  dataset.customers.forEach(stretch)
+  dataset.orderSummaries.forEach(stretch)
+  dataset.products.forEach(stretch)
+  dataset.financialEntries.forEach(stretch)
+  dataset.workers.forEach(stretch)
+  dataset.settlements.forEach(stretch)
+  dataset.refunds.forEach(stretch)
+  dataset.financeCategories.forEach(stretch)
+  dataset.advancePayers.forEach(stretch)
+  dataset.workAssignments.forEach(stretch)
+  dataset.workbenchSnapshot.advanceItems.forEach((item) => stretch(item.subject))
+  dataset.workbenchSnapshot.decisionItems.forEach((item) => stretch(item.subject))
+  for (const order of dataset.orders) {
+    for (const item of order.items ?? []) {
+      if (item.productSnapshot?.name) {
+        item.productSnapshot.name =
+          item.productSnapshot.name.slice(0, 20) + '；' + LONG
+      }
+    }
+  }
+}
+
+/** overflow 态：在长文本注入的基础上追加克隆行，放大待核算/长按行数据量。 */
 function applyOverflow() {
-  const LONG =
-    '这是一个用于视觉基线验收的超长中文文案样本，用来验证表格、表单与工具栏在极端长文案下是否出现非预期换行、截断、溢出与横向滚动表现；本段文本会同时出现在客户名称、订单编号等关键展示位上。'
+  const LONG = LONG_TEXT
   const cloneRows = (list, suffix, mutate, count = 6) => {
     const samples = list.slice(0, count)
     for (let i = 0; i < samples.length; i += 1) {
@@ -91,6 +170,7 @@ function applyOverflow() {
       list.push(clone)
     }
   }
+  applyLongText()
   cloneRows(dataset.customers, '-ov', (row) => {
     if (row.name) row.name = row.name.slice(0, 20) + '；' + LONG
     if (row.notes) row.notes = row.notes + LONG
@@ -107,10 +187,14 @@ function applyOverflow() {
     if (row.categoryName) row.categoryName = row.categoryName + LONG
     if (row.note) row.note = row.note + LONG
   })
+  cloneRows(dataset.workAssignments, '-ov', (row) => {
+    if (row.note) row.note = row.note + LONG
+  })
   function LongCode(code) {
     return new Array(24).fill(code).join('')
   }
 }
+if (harnessState === 'long-text') applyLongText()
 if (harnessState === 'overflow') applyOverflow()
 
 const byId = (items) => new Map(items.map((item) => [item.id, item]))

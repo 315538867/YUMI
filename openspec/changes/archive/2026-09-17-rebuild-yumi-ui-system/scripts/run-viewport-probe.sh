@@ -7,10 +7,10 @@
 # 单档全部失败时脚本以非 0 退出，方便调用方判断数据是否完整。
 set -uo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-PROBE="$REPO_ROOT/openspec/changes/rebuild-yumi-ui-system/scripts/probe-viewport.mjs"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
+PROBE="$REPO_ROOT/openspec/changes/archive/2026-09-17-rebuild-yumi-ui-system/scripts/probe-viewport.mjs"
 ELECTRON="$REPO_ROOT/node_modules/.bin/electron"
-SIZES=("1100x720" "1440x920" "1920x1080")
+SIZES=("1100x720" "1280x800" "1440x920" "1920x1080")
 MAX_ATTEMPTS=6
 WORK_DIR="$(mktemp -d)"
 OUT="$WORK_DIR/viewport.json"

@@ -27,9 +27,10 @@ const measurements = JSON.parse(
 const mainSource = readFileSync(new URL('../../../main/index.ts', import.meta.url), 'utf8')
 
 describe('验收窗口与 renderer viewport 对齐', () => {
-  it('三档验收尺寸的 renderer viewport 等于窗口外层尺寸', () => {
+  it('四档验收尺寸的 renderer viewport 等于窗口外层尺寸', () => {
     expect(measurements.measurements.map((entry) => entry.label)).toEqual([
       'min',
+      'standard',
       'default',
       'wide'
     ])
@@ -42,7 +43,7 @@ describe('验收窗口与 renderer viewport 对齐', () => {
     }
   })
 
-  it('三档验收尺寸都不小于窗口下限', () => {
+  it('四档验收尺寸都不小于窗口下限', () => {
     const minWidth = 1100
     const minHeight = 720
     for (const { label, outerRequested } of measurements.measurements) {

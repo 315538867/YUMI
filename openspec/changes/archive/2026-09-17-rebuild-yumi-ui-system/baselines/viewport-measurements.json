@@ -1,6 +1,6 @@
 {
-  "$comment": "由 openspec/changes/rebuild-yumi-ui-system/scripts/run-viewport-probe.sh 实测生成；见同目录 probe-viewport.mjs 的 --no-sandbox 运行说明。",
-  "measuredAt": "2026-09-15",
+  "$comment": "由 openspec/changes/archive/2026-09-17-rebuild-yumi-ui-system/scripts/run-viewport-probe.sh 实测生成；见同目录 probe-viewport.mjs 的 --no-sandbox 运行说明。",
+  "measuredAt": "2026-09-18",
   "environment": {
     "platform": "darwin",
     "electron": "34.5.8",
@@ -33,6 +33,24 @@
         "innerHeight": 720,
         "outerWidth": 1100,
         "outerHeight": 720,
+        "devicePixelRatio": 2
+      }
+    },
+    {
+      "label": "standard",
+      "outerRequested": {
+        "width": 1280,
+        "height": 800
+      },
+      "contentBounds": {
+        "width": 1280,
+        "height": 800
+      },
+      "renderer": {
+        "innerWidth": 1280,
+        "innerHeight": 800,
+        "outerWidth": 1280,
+        "outerHeight": 800,
         "devicePixelRatio": 2
       }
     },

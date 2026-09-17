@@ -15,9 +15,15 @@
 #       # 页面可经位置参数或 --pages 逗号列表给出；省略的组回落到默认矩阵对应项。
 #   bash run-capture.sh --pages a,b --sizes WxH,... --states s1,s2
 # 所有采集仍走同一个串行 run_one 循环，每张截图独占一个 Electron 进程。
+#
+# runs.log 行为：不带 CLI 参数时（默认矩阵）会先清空 runs.log；带 --pages/--sizes/
+# --states 时改为「追加」——build-manifest.mjs 按 out 去重（后者胜出），因此多次
+# 分段采集可以安全追加进同一条日志，最后一次性生成完整 manifest。也可用
+# YUMI_CAPTURE_APPEND=1 强制追加。
 # 环境变量：
 #   YUMI_CAPTURE_BASE  截图输出根目录（默认 openspec/changes/rebuild-yumi-ui-system/baselines/screenshots）
 #   YUMI_CAPTURE_SIZE  状态截图使用的窗口尺寸（默认 1440x920）
+#   YUMI_CAPTURE_APPEND 1 时不截断 runs.log（强制追加）
 set -u
 
 HARNESS_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -33,7 +39,18 @@ MANIFEST="$OUT_BASE/manifest.json"
 RETRIES=3
 
 mkdir -p "$OUT_BASE"
-: > "$LOG"
+# CLI 矩阵改为追加模式：分段采集共享一条 runs.log，build-manifest 按 out 去重。
+CLI_MODE=0
+for arg in "$@"; do
+  case "$arg" in
+    --pages|--sizes|--states) CLI_MODE=1 ;;
+  esac
+done
+if [ "${YUMI_CAPTURE_APPEND:-0}" = "1" ] || [ "$CLI_MODE" = "1" ]; then
+  touch "$LOG"
+else
+  : > "$LOG"
+fi
 
 DEFAULT_PAGES=(workbench orders fulfillment settlements finance reports customers products settings)
 DEFAULT_SIZES=(1100x720 1440x920 1920x1080)
