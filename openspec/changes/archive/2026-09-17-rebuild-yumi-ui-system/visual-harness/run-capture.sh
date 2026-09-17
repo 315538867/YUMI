@@ -8,7 +8,7 @@
 # 用法：
 #   bash run-capture.sh
 #       # 默认固定矩阵（与视觉基线测试同源）：全 11 页面 × 四档尺寸 × default，
-#       # 每页补 loading/empty/error/long-text，portal 页补 overflow/portal，
+#       # 每页补 loading/empty/error/long-text/overflow，portal 页补 portal，
 #       # 每页补登记的真实交互状态（form/detail/sheet/popover/dialog/invalid）。
 #   bash run-capture.sh finance reports workbench \
 #       --sizes 1100x720,1280x800,1440x920,1920x1080 \
@@ -132,17 +132,16 @@ if [ "${#PAGES[@]}" -eq 0 ] && [ "${#SIZES[@]}" -eq 0 ] && [ "${#STATES[@]}" -eq
     for size in "${DEFAULT_SIZES[@]}"; do
       run_one "$page" default "$size" || fails=$((fails + 1))
     done
-    for st in loading empty error long-text; do
+    for st in loading empty error long-text overflow; do
       run_one "$page" "$st" "$MAIN_SIZE" || fails=$((fails + 1))
     done
-    for st in ${DEFAULT_TRIGGER_STATES[$page]}; do
+    # ${arr[$page]-}：set -u 下缺键展开为空字符串而非报未绑定变量（workbench 无触发状态）。
+    for st in ${DEFAULT_TRIGGER_STATES[$page]-}; do
       run_one "$page" "$st" "$MAIN_SIZE" || fails=$((fails + 1))
     done
   done
   for page in "${DEFAULT_PORTAL_PAGES[@]}"; do
-    for st in overflow portal; do
-      run_one "$page" "$st" "$MAIN_SIZE" || fails=$((fails + 1))
-    done
+    run_one "$page" portal "$MAIN_SIZE" || fails=$((fails + 1))
   done
 else
   # CLI 矩阵：页面 × 尺寸 × 状态的串行笛卡尔积；省略的组回落到默认矩阵对应项。
