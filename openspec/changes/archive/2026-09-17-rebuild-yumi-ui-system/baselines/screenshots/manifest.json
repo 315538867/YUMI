@@ -1,7 +1,7 @@
 {
   "kind": "yumi-visual-baseline",
   "schemaVersion": 1,
-  "capturedAt": "2026-09-17T16:23:14.979Z",
+  "capturedAt": "2026-09-17T16:56:45.284Z",
   "sourceFixtures": "openspec/changes/rebuild-yumi-ui-system/visual-harness/fixtures.json",
   "shotCount": 128,
   "shots": [

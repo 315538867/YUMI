@@ -648,9 +648,11 @@ app.whenReady().then(async () => {
   console.log(`SHOT ${JSON.stringify(report)}`)
 
   window.destroy()
-  // 交互状态没被真实展开时，这张截图不能当作有效基线：删除这次写入的 PNG，
+  // 交互步骤没全部成功时，这张截图不能当作有效基线：删除这次写入的 PNG，
   // 以非 0 退出让 run-capture.sh 重试并最终记为 FAIL（避免伪绿）。
-  if (stateSteps.length > 0 && !interaction.ok) {
+  // 注意 baseSteps 的导航失败同样致命——纯状态截图（default/loading/empty/…）没有任何
+  // stateSteps，若只在有 stateSteps 时兜底，导航失败会留下「错页冒充」的 wrong-page 基线。
+  if (!interaction.ok) {
     try {
       rmSync(outPath, { force: true })
     } catch {

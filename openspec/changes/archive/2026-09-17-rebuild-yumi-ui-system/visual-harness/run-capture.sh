@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 任务 1.9：串行批量采集三档窗口基线截图。
+# 任务 1.9：串行批量采集四档窗口基线截图。
 #
 # 本机约束（来自 1.7 实测）：Electron renderer 进程偶发 Mach port rendezvous 失败，
 # 且一个进程内创建第二个 BrowserWindow 几乎必然失败。因此每张截图独占一个进程，
@@ -7,11 +7,12 @@
 #
 # 用法：
 #   bash run-capture.sh
-#       # 默认固定矩阵（历史调用方行为不变）：全 9 页面 × 三档尺寸 × default，
-#       # 每页补 loading/empty/error，portal 页面补 overflow/portal。
+#       # 默认固定矩阵（与视觉基线测试同源）：全 11 页面 × 四档尺寸 × default，
+#       # 每页补 loading/empty/error/long-text，portal 页补 overflow/portal，
+#       # 每页补登记的真实交互状态（form/detail/sheet/popover/dialog/invalid）。
 #   bash run-capture.sh finance reports workbench \
 #       --sizes 1100x720,1280x800,1440x920,1920x1080 \
-#       --states default,loading,empty,error,overflow,portal
+#       --states default,loading,empty,error,overflow,long-text,portal
 #       # 页面可经位置参数或 --pages 逗号列表给出；省略的组回落到默认矩阵对应项。
 #   bash run-capture.sh --pages a,b --sizes WxH,... --states s1,s2
 # 所有采集仍走同一个串行 run_one 循环，每张截图独占一个 Electron 进程。
@@ -52,9 +53,23 @@ else
   : > "$LOG"
 fi
 
-DEFAULT_PAGES=(workbench orders fulfillment settlements finance reports customers products settings)
-DEFAULT_SIZES=(1100x720 1440x920 1920x1080)
-DEFAULT_PORTAL_PAGES=(orders customers products finance fulfillment settings)
+DEFAULT_PAGES=(workbench orders fulfillment settlements finance reports customers products settings workers work-assignments)
+DEFAULT_SIZES=(1100x720 1280x800 1440x920 1920x1080)
+# 与 capture.mjs TRIGGERS / baseline-screenshots.test.ts REGISTERED_STATES 同源：
+# 每页在 MAIN_SIZE 下补出的真实交互状态。
+declare -A DEFAULT_TRIGGER_STATES=(
+  [orders]="form detail sheet"
+  [products]="form detail"
+  [customers]="sheet detail"
+  [fulfillment]="sheet invalid"
+  [settlements]="sheet detail"
+  [finance]="sheet popover"
+  [reports]="popover"
+  [settings]="sheet dialog"
+  [workers]="form detail"
+  [work-assignments]="sheet"
+)
+DEFAULT_PORTAL_PAGES=(orders customers products finance fulfillment settings settlements workers work-assignments)
 DEFAULT_CLI_STATES=(default)
 
 run_one() {
@@ -112,12 +127,15 @@ STATES=("${CLI_STATES[@]}")
 
 fails=0
 if [ "${#PAGES[@]}" -eq 0 ] && [ "${#SIZES[@]}" -eq 0 ] && [ "${#STATES[@]}" -eq 0 ]; then
-  # 默认固定矩阵：与历史调用方行为完全一致，逐页串行、每张截图独占进程。
+  # 默认固定矩阵：与视觉基线测试同源的全量矩阵，逐页串行、每张截图独占进程。
   for page in "${DEFAULT_PAGES[@]}"; do
     for size in "${DEFAULT_SIZES[@]}"; do
       run_one "$page" default "$size" || fails=$((fails + 1))
     done
-    for st in loading empty error; do
+    for st in loading empty error long-text; do
+      run_one "$page" "$st" "$MAIN_SIZE" || fails=$((fails + 1))
+    done
+    for st in ${DEFAULT_TRIGGER_STATES[$page]}; do
       run_one "$page" "$st" "$MAIN_SIZE" || fails=$((fails + 1))
     done
   done
@@ -142,7 +160,9 @@ else
 fi
 
 if command -v node >/dev/null 2>&1; then
-  node "$HARNESS_DIR/build-manifest.mjs" "$OUT_BASE" "$MANIFEST" "$@" >/dev/null 2>&1 \
+  # 必须在仓库根运行：build-manifest 按 process.cwd() 解析 SHOT.out 的相对路径，
+  # 在 harness 目录下跑会把全部 png 元数据丢掉。
+  ( cd "$ROOT" && node "$HARNESS_DIR/build-manifest.mjs" "$OUT_BASE" "$MANIFEST" "$@" >/dev/null 2>&1 ) \
     && echo "manifest: $MANIFEST"
 fi
 
