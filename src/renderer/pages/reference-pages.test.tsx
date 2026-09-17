@@ -156,8 +156,8 @@ describe('页面级骨架与信息层级', () => {
   it('设置页将页头、页面级 Tab 和首个内容区按固定顺序排列，并让说明承载业务边界', () => {
     render(<SettingsPage />)
 
-    const page = screen.getByRole('heading', { level: 1, name: '工作室参数' }).closest('.yumi-page')
-    const header = screen.getByRole('heading', { level: 1, name: '工作室参数' })
+    const page = screen.getByRole('heading', { level: 1, name: '设置' }).closest('.yumi-page')
+    const header = screen.getByRole('heading', { level: 1, name: '设置' })
     const tabs = screen.getByRole('navigation', { name: '设置区域' })
     const content = screen.getByRole('region', { name: '工作室参数查看' })
 
@@ -174,14 +174,14 @@ describe('页面级骨架与信息层级', () => {
   it('切换设置区域后页头动作组仍固定在页头，页面级 Tab 不进入内容区', () => {
     render(<SettingsPage />)
 
-    const page = screen.getByRole('heading', { level: 1, name: '工作室参数' }).closest('.yumi-page')
+    const page = screen.getByRole('heading', { level: 1, name: '设置' }).closest('.yumi-page')
     const header = page?.querySelector<HTMLElement>('.yumi-page-header')
     const tabs = screen.getByRole('navigation', { name: '设置区域' })
     const actionGroup = within(header!).getByRole('group', { name: '工作室参数页面动作' })
 
     fireEvent.click(within(tabs).getByRole('button', { name: '计算公式' }))
 
-    const contentHeading = screen.getByRole('heading', { level: 2, name: '计算公式' })
+    const contentHeading = screen.getByRole('table', { name: '系统计算公式' })
     expect(within(header!).getByRole('group', { name: '计算公式页面动作' })).toBe(actionGroup)
     expect(header!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(
@@ -685,7 +685,7 @@ describe('YUMI 人员时薪与动态设置', () => {
     mocks.finance.createCategory.mockResolvedValue({})
     render(<SettingsPage />)
 
-    expect(screen.getByRole('heading', { level: 1, name: '工作室参数' })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: '设置' })).toBeVisible()
     expect(screen.getByText('0.0034 元 / 克')).toBeVisible()
     expect(screen.queryByText('定金收入')).not.toBeInTheDocument()
 
@@ -712,10 +712,8 @@ describe('YUMI 人员时薪与动态设置', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('已保存工作室参数')
 
     fireEvent.click(screen.getByRole('button', { name: '财务资料' }))
-    expect(screen.getByRole('heading', { name: '财务资料' })).toBeVisible()
     expect(screen.getByRole('button', { name: '收入类目' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('region', { name: '收入类目记录区' })).toBeVisible()
-    expect(screen.getByRole('heading', { name: '收入类目' })).toBeVisible()
     expect(screen.getByRole('toolbar', { name: '收入类目列表工具' })).toBeVisible()
     expect(screen.getByRole('table', { name: '收入类目列表' })).toBeVisible()
     expect(screen.getByText('定金收入')).toBeVisible()
@@ -800,7 +798,7 @@ describe('设置计算公式', () => {
   it('在独立标签完整列出当前系统已实现的计算口径与边界', async () => {
     render(<SettingsPage />)
     fireEvent.click(await screen.findByRole('button', { name: '计算公式' }))
-    expect(screen.getAllByRole('heading', { name: '计算公式' })).not.toHaveLength(0)
+    expect(screen.getByRole('heading', { name: '不纳入订单盈利' })).toBeVisible()
     const formulaTable = screen.getByRole('table', { name: '系统计算公式' })
     expect(within(formulaTable).getAllByRole('row')).toHaveLength(formulaCatalog.length + 1)
     for (const entry of formulaCatalog) {

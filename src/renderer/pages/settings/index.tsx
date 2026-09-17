@@ -23,7 +23,6 @@ import {
   YumiField,
   YumiFieldLabel,
   YumiFormMessage,
-  YumiFormSection,
   YumiNumberField,
   YumiListSurface,
   YumiListToolbar,
@@ -45,24 +44,21 @@ type PendingDelete = { id: string; kind: 'category' | 'payer'; name: string } | 
 type SettingsView = 'studio' | 'formulas' | 'finance' | 'protection'
 type LibraryView = 'income' | 'expense' | 'payer'
 
-const settingsCopy: Record<SettingsView, { title: string; description: string }> = {
-  studio: {
-    title: '工作室参数',
-    description:
-      '维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。'
-  },
-  formulas: {
-    title: '计算公式',
-    description: '集中公开当前系统已实现的计算口径、输入字段、快照边界与未纳入项；这里不提供编辑。'
-  },
-  finance: {
-    title: '财务资料',
-    description: '维护财务登记可选择的资料；已被流水引用的资料不能删除，可改名或停用。'
-  },
-  protection: {
-    title: '数据保护',
-    description: '完整备份包含工作室数据和附件；恢复前会自动建立当前数据的安全备份。'
-  }
+const settingsPageTitle = '设置'
+/** 当前设置视图在页头动作中的命名，不重复出现在内容区标题。 */
+const settingsViewTitles: Record<SettingsView, string> = {
+  studio: '工作室参数',
+  formulas: '计算公式',
+  finance: '财务资料',
+  protection: '数据保护'
+}
+/** 页头说明只承载当前视图的业务边界，帮助判断与操作，不复述导航名称。 */
+const settingsViewDescriptions: Record<SettingsView, string> = {
+  studio:
+    '维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。',
+  formulas: '集中公开当前系统已实现的计算口径、输入字段、快照边界与未纳入项；这里不提供编辑。',
+  finance: '维护财务登记可选择的资料；已被流水引用的资料不能删除，可改名或停用。',
+  protection: '完整备份包含工作室数据和附件；恢复前会自动建立当前数据的安全备份。'
 }
 
 export function SettingsPage() {
@@ -161,7 +157,7 @@ export function SettingsPage() {
             }
           : undefined
   const headerActions = {
-    ariaLabel: `${settingsCopy[view].title}页面动作`,
+    ariaLabel: `${settingsViewTitles[view]}页面动作`,
     primaryAction
   }
 
@@ -170,8 +166,8 @@ export function SettingsPage() {
       <SettingsWorkspace
         header={{
           actions: headerActions,
-          description: settingsCopy[view].description,
-          title: settingsCopy[view].title
+          description: settingsViewDescriptions[view],
+          title: settingsPageTitle
         }}
         navigation={
           <YumiPrimaryTabs
@@ -336,10 +332,7 @@ export function SettingsPage() {
 function CalculationFormulaCatalog() {
   return (
     <div className="yumi-calculation-formula-catalog">
-      <YumiSection
-        description="公式与字段以当前程序实现为准。涉及订单、商品、时薪和提成的基础值，均须遵循相应快照规则，避免后续资料修改改写历史。"
-        title="计算公式"
-      >
+      <YumiSection description="公式与字段以当前程序实现为准。涉及订单、商品、时薪和提成的基础值，均须遵循相应快照规则，避免后续资料修改改写历史。">
         <YumiDataTable
           ariaLabel="系统计算公式"
           columns={[
@@ -379,45 +372,43 @@ function StudioSettingsPanel({
     )
   return (
     <section aria-label="工作室参数查看" className="yumi-form-panel yumi-settings-panel">
-      <YumiFormSection
-        description="材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。"
-        title="工作室参数"
-      >
-        <YumiDetailList
-          ariaLabel="当前工作室参数"
-          items={[
-            {
-              label: '材料克单价',
-              value: settings
-                ? `${formatMaterialPriceYuanPerGram(settings.materialPriceMicroYuanPerGram)} 元 / 克`
-                : '暂无参数'
-            },
-            {
-              label: '订单默认预留天数',
-              value: settings ? `${settings.orderReservedDays} 天` : '暂无参数'
-            },
-            {
-              label: '捏毛装袋预计基准时薪',
-              value: settings
-                ? `${formatCents(settings.fluffingBaggingExpectedHourlyWageCents)} / 小时`
-                : '暂无参数'
-            },
-            {
-              label: '缝边预计基准时薪',
-              value: settings
-                ? `${formatCents(settings.edgeSewingExpectedHourlyWageCents)} / 小时`
-                : '暂无参数'
-            },
-            {
-              label: '打包发货预计基准时薪',
-              value: settings
-                ? `${formatCents(settings.packingExpectedHourlyWageCents)} / 小时`
-                : '暂无参数'
-            }
-          ]}
-        />
-        <YumiFormMessage>如需修改，请点击页面右上角“编辑工作室参数”。</YumiFormMessage>
-      </YumiFormSection>
+      <YumiFormMessage>
+        材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。
+      </YumiFormMessage>
+      <YumiDetailList
+        ariaLabel="当前工作室参数"
+        items={[
+          {
+            label: '材料克单价',
+            value: settings
+              ? `${formatMaterialPriceYuanPerGram(settings.materialPriceMicroYuanPerGram)} 元 / 克`
+              : '暂无参数'
+          },
+          {
+            label: '订单默认预留天数',
+            value: settings ? `${settings.orderReservedDays} 天` : '暂无参数'
+          },
+          {
+            label: '捏毛装袋预计基准时薪',
+            value: settings
+              ? `${formatCents(settings.fluffingBaggingExpectedHourlyWageCents)} / 小时`
+              : '暂无参数'
+          },
+          {
+            label: '缝边预计基准时薪',
+            value: settings
+              ? `${formatCents(settings.edgeSewingExpectedHourlyWageCents)} / 小时`
+              : '暂无参数'
+          },
+          {
+            label: '打包发货预计基准时薪',
+            value: settings
+              ? `${formatCents(settings.packingExpectedHourlyWageCents)} / 小时`
+              : '暂无参数'
+          }
+        ]}
+      />
+      <YumiFormMessage>如需修改，请点击页面右上角“编辑工作室参数”。</YumiFormMessage>
     </section>
   )
 }
@@ -444,7 +435,8 @@ function StudioSettingsForm({
   const [fluffingBaggingWage, setFluffingBaggingWage] = useState('0')
   const [edgeSewingWage, setEdgeSewingWage] = useState('0')
   const [packingWage, setPackingWage] = useState('0')
-  const [error, setError] = useState<string | null>(null)
+  const [materialPriceError, setMaterialPriceError] = useState<string | null>(null)
+  const [reservedDaysError, setReservedDaysError] = useState<string | null>(null)
   useEffect(() => {
     if (settings) {
       setGluePrice(formatMaterialPriceYuanPerGram(settings.materialPriceMicroYuanPerGram))
@@ -457,22 +449,27 @@ function StudioSettingsForm({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setError(null)
+    setMaterialPriceError(null)
+    setReservedDaysError(null)
+    let materialPriceMicroYuanPerGram: number
     try {
-      const materialPriceMicroYuanPerGram = parseMaterialPriceYuanPerGram(gluePrice)
-      const reservedDays = Number(orderReservedDays)
-      if (!Number.isInteger(reservedDays) || reservedDays < 0)
-        throw new Error('订单默认预留天数必须是非负整数')
-      await onSave({
-        materialPriceMicroYuanPerGram,
-        orderReservedDays: reservedDays,
-        fluffingBaggingExpectedHourlyWageCents: yuanToCents(fluffingBaggingWage),
-        edgeSewingExpectedHourlyWageCents: yuanToCents(edgeSewingWage),
-        packingExpectedHourlyWageCents: yuanToCents(packingWage)
-      })
+      materialPriceMicroYuanPerGram = parseMaterialPriceYuanPerGram(gluePrice)
     } catch (cause) {
-      setError(getErrorMessage(cause))
+      setMaterialPriceError(getErrorMessage(cause))
+      return
     }
+    const reservedDays = Number(orderReservedDays)
+    if (!Number.isInteger(reservedDays) || reservedDays < 0) {
+      setReservedDaysError('订单默认预留天数必须是非负整数')
+      return
+    }
+    await onSave({
+      materialPriceMicroYuanPerGram,
+      orderReservedDays: reservedDays,
+      fluffingBaggingExpectedHourlyWageCents: yuanToCents(fluffingBaggingWage),
+      edgeSewingExpectedHourlyWageCents: yuanToCents(edgeSewingWage),
+      packingExpectedHourlyWageCents: yuanToCents(packingWage)
+    })
   }
 
   if (loading)
@@ -490,7 +487,7 @@ function StudioSettingsForm({
       onSubmit={(event) => void submit(event)}
     >
       <YumiField
-        error={error ?? undefined}
+        error={materialPriceError ?? undefined}
         hint="支持最多 6 位小数，例如 0.0034；商品只维护单件材料重量。"
       >
         <YumiFieldLabel htmlFor="studio-material-price" required>
@@ -537,7 +534,10 @@ function StudioSettingsForm({
           value={packingWage}
         />
       </YumiField>
-      <YumiField hint="新建订单默认使用，可在订单中按实际情况修改。">
+      <YumiField
+        error={reservedDaysError ?? undefined}
+        hint="新建订单默认使用，可在订单中按实际情况修改。"
+      >
         <YumiFieldLabel htmlFor="studio-order-reserved-days" required>
           订单默认预留天数（天）
         </YumiFieldLabel>
@@ -691,7 +691,7 @@ function ResourceLibraryList<T extends V2FinanceCategory | V2AdvancePayer>({
   if (items.length === 0)
     return <YumiEmptyState description={emptyDescription} title={emptyTitle} />
   return (
-    <YumiSection ariaLabel={`${listTitle}记录区`} title={listTitle}>
+    <YumiSection ariaLabel={`${listTitle}记录区`}>
       <YumiListSurface className="yumi-settings-library-surface">
         <YumiListToolbar
           ariaLabel={`${listTitle}列表工具`}

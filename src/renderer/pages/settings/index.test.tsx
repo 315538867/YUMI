@@ -100,9 +100,19 @@ describe('P3 · 设置工作台根契约（任务 7.1）', () => {
     expect(container.querySelectorAll('[data-page-pattern]').length).toBe(1)
   })
 
+  it('设置仅以主导航和内容区表达当前上下文，不重复输出当前 Tab 标题', async () => {
+    renderSettings()
+    const root = document.querySelector('[data-page-pattern="settings-workspace"]')!
+    const navigation = within(root).getByRole('navigation', { name: '设置区域' })
+    expect(
+      within(navigation).getByRole('button', { name: '工作室参数' })
+    ).toHaveAttribute('aria-current', 'page')
+    expect(within(root).queryByRole('heading', { name: '工作室参数' })).not.toBeInTheDocument()
+  })
+
   it('页头、导航区、内容区按固定顺序排列', () => {
     const { container } = renderSettings()
-    const header = screen.getByRole('heading', { level: 1, name: '工作室参数' }).closest('header')
+    const header = screen.getByRole('heading', { level: 1, name: '设置' }).closest('header')
     const navEl = container.querySelector<HTMLElement>('.yumi-settings-workspace__nav')
     const contentEl = container.querySelector<HTMLElement>('.yumi-settings-workspace__content')
     expect(header).not.toBeNull()
@@ -137,7 +147,7 @@ describe('P3 · 设置工作台根契约（任务 7.1）', () => {
     expect(within(contentEl()!).getByRole('region', { name: '当前工作室参数' })).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: '计算公式' }))
-    expect(within(contentEl()!).getByRole('heading', { level: 2, name: '计算公式' })).toBeVisible()
+    expect(within(contentEl()!).getByRole('table', { name: '系统计算公式' })).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: '财务资料' }))
     expect(within(contentEl()!).getByText('暂无收入类目')).toBeVisible()
@@ -223,5 +233,72 @@ describe('P3 · 设置资源新增与数据保护入口（任务 7.2）', () => 
     fireEvent.click(screen.getByRole('button', { name: '立即备份' }))
 
     await waitFor(() => expect(mocks.backup.createBackup).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe('P3 · 设置资源空态、反馈层级与弹层边界（任务 5）', () => {
+  it('财务资料的空资源列表以空状态承载，并清楚说明如何建立', () => {
+    renderSettings()
+    fireEvent.click(screen.getByRole('button', { name: '财务资料' }))
+
+    const empty = screen.getByRole('status', { name: '暂无内容' })
+    expect(within(empty).getByText('暂无收入类目')).toBeVisible()
+    expect(
+      within(empty).getByText('建立收入类目后，财务登记时才可选择对应类目。')
+    ).toBeVisible()
+    expect(screen.queryByRole('table', { name: '收入类目列表' })).not.toBeInTheDocument()
+  })
+
+  it('表单内校验错误落在字段槽位，不上升为全局通知', async () => {
+    renderSettings()
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑工作室参数' }))
+    const sheet = screen.getByRole('dialog', { name: '编辑工作室参数' })
+    fireEvent.change(
+      within(sheet).getByRole('textbox', { name: '订单默认预留天数（天）' }),
+      {
+        target: { value: 'abc' }
+      }
+    )
+    fireEvent.click(within(sheet).getByRole('button', { name: '保存工作室参数' }))
+
+    expect(await within(sheet).findByText('订单默认预留天数必须是非负整数')).toBeVisible()
+    expect(mocks.studio.update).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: '编辑工作室参数' })).toBeVisible()
+    const host = screen.getByLabelText('全局通知')
+    expect(
+      within(host).queryByText('订单默认预留天数必须是非负整数')
+    ).not.toBeInTheDocument()
+  })
+
+  it('Sheet、Dialog 与 ConfirmDialog 是模式根外的 Portal 兄弟节点', () => {
+    mocks.finance.categories = [
+      {
+        id: 'income-used',
+        direction: 'income',
+        name: '定金收入',
+        enabled: true,
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z'
+      }
+    ]
+    renderSettings()
+    const root = document.querySelector('[data-page-pattern="settings-workspace"]')!
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑工作室参数' }))
+    const sheet = screen.getByRole('dialog', { name: '编辑工作室参数' })
+    expect(root.contains(sheet)).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: '关闭编辑工作室参数' }))
+
+    fireEvent.click(screen.getByRole('button', { name: '财务资料' }))
+    fireEvent.click(screen.getByRole('button', { name: '新增收入类目' }))
+    const dialog = screen.getByRole('dialog', { name: '新增收入类目' })
+    expect(root.contains(dialog)).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: '关闭新增收入类目' }))
+
+    fireEvent.click(screen.getByRole('button', { name: '删除定金收入' }))
+    const confirm = screen.getByRole('alertdialog', { name: '删除基础资料？' })
+    expect(root.contains(confirm)).toBe(false)
+    expect(document.querySelectorAll('[data-page-pattern="settings-workspace"]')).toHaveLength(1)
   })
 })
