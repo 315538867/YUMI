@@ -1040,6 +1040,11 @@
     background: var(--yumi-surface-raised);
     box-shadow: var(--yumi-shadow-sm);
   }
+  /* Form Workspace：底部固定操作条留出内容安全留白，滚动内容不会从操作条下方透出。 */
+  .yumi-form-workspace {
+    --yumi-sticky-actions-space: calc(var(--yumi-control-height) + var(--yumi-panel-padding));
+    padding-bottom: var(--yumi-sticky-actions-space);
+  }
   .yumi-form-panel {
     display: grid;
     gap: var(--yumi-space-4);

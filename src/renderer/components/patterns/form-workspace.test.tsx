@@ -106,4 +106,41 @@ describe('P2 · Form Workspace 结构（任务 5.4）', () => {
       'comfortable'
     )
   })
+
+  it('受保护内容区包裹步骤与主从分栏，固定操作条位于内容区之外', () => {
+    const { container } = render(
+      <FormWorkspace
+        actions={<button type="submit">提交</button>}
+        header={header}
+        preview={<aside>订单预览</aside>}
+        steps={{
+          ariaLabel: '新建订单步骤',
+          items: [{ id: 'customer', label: '选择客户' }],
+          value: 'customer'
+        }}
+      >
+        <section>表单主区</section>
+      </FormWorkspace>
+    )
+    const root = container.querySelector('[data-page-pattern]')
+    const content = root!.querySelector('.yumi-form-workspace__content')
+    expect(content).not.toBeNull()
+    expect(content!.querySelector('.yumi-form-steps')).not.toBeNull()
+    expect(content!.querySelector('.yumi-split-layout')).not.toBeNull()
+    const actionsEl = root!.querySelector('.yumi-sticky-actions')
+    expect(actionsEl).not.toBeNull()
+    expect(content!.contains(actionsEl!)).toBe(false)
+  })
+
+  it('固定操作条声明 fixed 布局表面，供验收截图与遮罩诊断消费', () => {
+    const { container } = render(
+      <FormWorkspace actions={<button type="submit">保存</button>} header={header}>
+        <section>表单主区</section>
+      </FormWorkspace>
+    )
+    expect(container.querySelector('.yumi-sticky-actions')).toHaveAttribute(
+      'data-layout-surface',
+      'fixed'
+    )
+  })
 })

@@ -45,7 +45,7 @@ const cases: PatternCase[] = [
   {
     name: 'FormWorkspace',
     pattern: 'form-workspace',
-    contentSelector: '.yumi-split-layout__main',
+    contentSelector: '.yumi-form-workspace__content',
     render: (child) => (
       <FormWorkspace actions={<button type="submit">保存</button>} header={{ title: '新建' }}>
         {child}

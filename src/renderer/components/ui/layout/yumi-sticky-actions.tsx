@@ -6,5 +6,9 @@ type YumiStickyActionsProps = {
 
 /** 表单/工作区底部的固定操作条：吸附在视口底部，保持页面内容层之上的同一层叠面。 */
 export function YumiStickyActions({ children }: YumiStickyActionsProps) {
-  return <div className="yumi-sticky-actions">{children}</div>
+  return (
+    <div className="yumi-sticky-actions" data-layout-surface="fixed">
+      {children}
+    </div>
+  )
 }

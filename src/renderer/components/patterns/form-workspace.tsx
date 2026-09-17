@@ -45,16 +45,18 @@ export function FormWorkspace({
       pattern="form-workspace"
     >
       <YumiPageHeader {...header} />
-      {steps ? (
-        <ol aria-label={steps.ariaLabel} className="yumi-form-steps">
-          {steps.items.map((step) => (
-            <li aria-current={step.id === steps.value ? 'step' : undefined} key={step.id}>
-              {step.label}
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      <YumiSplitLayout aside={preview}>{children}</YumiSplitLayout>
+      <div className="yumi-form-workspace__content">
+        {steps ? (
+          <ol aria-label={steps.ariaLabel} className="yumi-form-steps">
+            {steps.items.map((step) => (
+              <li aria-current={step.id === steps.value ? 'step' : undefined} key={step.id}>
+                {step.label}
+              </li>
+            ))}
+          </ol>
+        ) : null}
+        <YumiSplitLayout aside={preview}>{children}</YumiSplitLayout>
+      </div>
       <YumiStickyActions>{actions}</YumiStickyActions>
     </PatternRoot>
   )

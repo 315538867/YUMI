@@ -773,7 +773,7 @@
   justify-content: flex-end;
   gap: var(--yumi-space-2);
   border-top: 1px solid var(--yumi-border);
-  background: var(--yumi-surface-raised);
+  background: var(--yumi-surface);
   padding: var(--yumi-panel-padding);
 }
 .yumi-divider {

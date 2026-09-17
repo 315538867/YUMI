@@ -167,6 +167,16 @@ describe('YumiField · 适用状态与读写契约（任务 3.6）', () => {
     expect(document.querySelector('.yumi-form-message--reserved')).toBeInTheDocument()
   })
 
+  it('字段组错误留在字段组消息槽，不渲染页面级 error banner', () => {
+    render(
+      <YumiField error="开始时间必须早于结束时间">
+        <YumiTextField aria-label="开始时间" />
+      </YumiField>
+    )
+    expect(screen.getByText('开始时间必须早于结束时间')).toHaveClass('yumi-form-message')
+    expect(screen.queryByRole('alert')).not.toHaveClass('yumi-page-alert')
+  })
+
   it('错误清除后还原无效声明，消息槽从错误切换为提示', () => {
     const view = render(
       <YumiField error="必填">
