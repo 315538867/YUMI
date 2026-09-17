@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "capturedAt": "2026-09-17T17:49:09.977Z",
-  "command": "--pages workbench,orders,products,fulfillment,finance,reports,customers,settings,settlements,workers,work-assignments --states dialog,sheet,popover,invalid",
+  "capturedAt": "2026-09-17T18:37:52.822Z",
+  "command": "",
   "pages": [
     "customers",
     "finance",

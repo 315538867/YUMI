@@ -652,10 +652,13 @@ app.whenReady().then(async () => {
   console.log(serialized)
 
   const failures = stateResults.filter((entry) => entry.verdict === 'failure')
+  // portal 族焦点恢复（PORTAL_TRIGGERS 一次检查，不经 states 数组）同样计入退出码门：
+  // 有触发器却未恢复焦点视为缺陷，让后续回归能非 0 退出，而非只写进 summary。
+  const focusRestoreFailed = Boolean(focusRestore && focusRestore.ok !== true)
   window.destroy()
-  if (loadFailures.length > 0 || consoleErrors > 0 || reportRuntimeErrors.length > 0 || failures.length > 0) {
+  if (loadFailures.length > 0 || consoleErrors > 0 || reportRuntimeErrors.length > 0 || failures.length > 0 || focusRestoreFailed) {
     console.error(
-      `INTERACT FAIL ${page}: loadFailures=${loadFailures.length} consoleErrors=${consoleErrors} runtimeErrors=${reportRuntimeErrors.length} stateFailures=${failures.map((f) => f.state).join(',')}`
+      `INTERACT FAIL ${page}: loadFailures=${loadFailures.length} consoleErrors=${consoleErrors} runtimeErrors=${reportRuntimeErrors.length} stateFailures=${failures.map((f) => f.state).join(',')} focusRestoreFailed=${focusRestoreFailed}`
     )
     app.exit(1)
     return
