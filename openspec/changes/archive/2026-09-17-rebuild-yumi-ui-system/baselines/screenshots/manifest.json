@@ -1,7 +1,7 @@
 {
   "kind": "yumi-visual-baseline",
   "schemaVersion": 1,
-  "capturedAt": "2026-09-17T16:56:45.284Z",
+  "capturedAt": "2026-09-17T18:12:28.835Z",
   "sourceFixtures": "openspec/changes/rebuild-yumi-ui-system/visual-harness/fixtures.json",
   "shotCount": 128,
   "shots": [
@@ -1625,10 +1625,10 @@
         "fixedLeak": []
       },
       "portal": null,
-      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n0.0034 元 / 克\n订单默认预留天数\n2 天\n捏毛装袋预计基准时薪\n¥28.00 / 小时\n缝边预计基准时薪\n¥32.00 / 小时\n打包发货预计基准时薪\n¥26.00 / 小时\n\n如需修改，请点击页面右上角“编辑工作室参数”。",
+      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n当前参数\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n0.0034 元 / 克\n订单默认预留天数\n2 天\n捏毛装袋预计基准时薪\n¥28.00 / 小时\n缝边预计基准时薪\n¥32.00 / 小时\n打包发货预计基准时薪\n¥26.00 / 小时\n\n如需修改，请点击页面右上角“编辑工作室参数”。",
       "png": {
         "basename": "settings-1100x720-default.png",
-        "bytes": 211936,
+        "bytes": 218616,
         "size": {
           "width": 2200,
           "height": 1440
@@ -1675,10 +1675,10 @@
         "fixedLeak": []
       },
       "portal": null,
-      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n0.0034 元 / 克\n订单默认预留天数\n2 天\n捏毛装袋预计基准时薪\n¥28.00 / 小时\n缝边预计基准时薪\n¥32.00 / 小时\n打包发货预计基准时薪\n¥26.00 / 小时\n\n如需修改，请点击页面右上角“编辑工作室参数”。",
+      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n当前参数\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n0.0034 元 / 克\n订单默认预留天数\n2 天\n捏毛装袋预计基准时薪\n¥28.00 / 小时\n缝边预计基准时薪\n¥32.00 / 小时\n打包发货预计基准时薪\n¥26.00 / 小时\n\n如需修改，请点击页面右上角“编辑工作室参数”。",
       "png": {
         "basename": "settings-1280x800-default.png",
-        "bytes": 211907,
+        "bytes": 219443,
         "size": {
           "width": 2560,
           "height": 1600
@@ -1725,10 +1725,10 @@
         "fixedLeak": []
       },
       "portal": null,
-      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n0.0034 元 / 克\n订单默认预留天数\n2 天\n捏毛装袋预计基准时薪\n¥28.00 / 小时\n缝边预计基准时薪\n¥32.00 / 小时\n打包发货预计基准时薪\n¥26.00 / 小时\n\n如需修改，请点击页面右上角“编辑工作室参数”。",
+      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n当前参数\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n0.0034 元 / 克\n订单默认预留天数\n2 天\n捏毛装袋预计基准时薪\n¥28.00 / 小时\n缝边预计基准时薪\n¥32.00 / 小时\n打包发货预计基准时薪\n¥26.00 / 小时\n\n如需修改，请点击页面右上角“编辑工作室参数”。",
       "png": {
         "basename": "settings-1440x920-default.png",
-        "bytes": 218557,
+        "bytes": 225987,
         "size": {
           "width": 2880,
           "height": 1840
@@ -1775,10 +1775,10 @@
         "fixedLeak": []
       },
       "portal": null,
-      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n0.0034 元 / 克\n订单默认预留天数\n2 天\n捏毛装袋预计基准时薪\n¥28.00 / 小时\n缝边预计基准时薪\n¥32.00 / 小时\n打包发货预计基准时薪\n¥26.00 / 小时\n\n如需修改，请点击页面右上角“编辑工作室参数”。",
+      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n当前参数\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n0.0034 元 / 克\n订单默认预留天数\n2 天\n捏毛装袋预计基准时薪\n¥28.00 / 小时\n缝边预计基准时薪\n¥32.00 / 小时\n打包发货预计基准时薪\n¥26.00 / 小时\n\n如需修改，请点击页面右上角“编辑工作室参数”。",
       "png": {
         "basename": "settings-1920x1080-default.png",
-        "bytes": 231726,
+        "bytes": 239075,
         "size": {
           "width": 3840,
           "height": 2160
@@ -4475,7 +4475,7 @@
       "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n工作室参数加载中\n\n正在读取当前工作室参数，请稍候。",
       "png": {
         "basename": "settings-1440x920-loading.png",
-        "bytes": 153461,
+        "bytes": 153465,
         "size": {
           "width": 2880,
           "height": 1840
@@ -4589,10 +4589,10 @@
         "modal": false,
         "popper": 0
       },
-      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n暂无参数\n订单默认预留天数\n暂无参数\n捏毛装袋预计基准时薪\n暂无参数\n缝边预计基准时薪\n暂无参数\n打包发货预计基准时薪\n暂无参数\n\n如需修改，请点击页面右上角“编辑工作室参数”。\n\nvisual-harness 注入错误\nvisual-harness 注入错误\nvisual-harness 注入错误\nvisual-harness 注入错误",
+      "bodyTextPreview": "Y\nYUMI\nSTUDIO\n\n工作\n\n工作台\n\n业务运营\n\n订单\n排班\n工资\n\n资金与分析\n\n财务\n报表\n\n基础资料\n\n客户\n商品\n设置\n工作室经营管理\nYUMI 捏捏工作室\n设置\n负责人工作台\n设置\n\n维护全工作室统一使用的参数：材料克单价、订单预留天数和三道计时工序的预计基准时薪；商品只维护自身材料重量与提成。\n\n编辑工作室参数\n工作室参数\n计算公式\n财务资料\n数据保护\n当前参数\n\n材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。\n\n材料克单价\n暂无参数\n订单默认预留天数\n暂无参数\n捏毛装袋预计基准时薪\n暂无参数\n缝边预计基准时薪\n暂无参数\n打包发货预计基准时薪\n暂无参数\n\n如需修改，请点击页面右上角“编辑工作室参数”。\n\nvisual-harness 注入错误\nvisual-harness 注入错误\nvisual-harness 注入错误\nvisual-harness 注入错误",
       "png": {
         "basename": "settings-1440x920-error.png",
-        "bytes": 265389,
+        "bytes": 272617,
         "size": {
           "width": 2880,
           "height": 1840
@@ -7135,5 +7135,773 @@
         }
       }
     }
-  ]
+  ],
+  "manualReview": {
+    "reviewedOn": "2026-09-17",
+    "scope": "11 个路由级页面（含 workers/work-assignments 嵌入边界）× 全状态 × 四档窗口（1100×720、1280×800、1440×920、1920×1080）",
+    "basis": "结论基于最终代码（electron-vite build 后）重采集证据链：manifest 布局诊断（overlaps/pageHorizontalScroll/fixedActionContentLeak/verticalGlyphRuns）+ 交互轨迹（interaction.done）+ bodyTextPreview + interact-check（真实展开/Esc 关闭焦点恢复/invalid 字段槽/console·network·runtime 计数）+ 各页契约单测负向断言。像素级观感（色彩、间距、排版审美）不在本模型能力内，标注需真人复核；本轮信号级复核未发现任何页面缺陷，issues 均为空。",
+    "pages": [
+      {
+        "page": "workbench",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "empty",
+          "error",
+          "loading",
+          "long-text",
+          "overflow",
+          "dialog",
+          "sheet",
+          "popover",
+          "invalid"
+        ],
+        "shotCount": 9,
+        "pngs": [
+          "workbench-1100x720-default.png",
+          "workbench-1280x800-default.png",
+          "workbench-1440x920-default.png",
+          "workbench-1920x1080-default.png",
+          "workbench-1440x920-loading.png",
+          "workbench-1440x920-empty.png",
+          "workbench-1440x920-error.png",
+          "workbench-1440x920-long-text.png",
+          "workbench-1440x920-overflow.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "workbench/index.test.tsx:175「工作台页头、工作区 Tab 与区块标题互不重复」"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "ok",
+            "evidence": "页头刷新按钮归属工作台（interact-check 键盘/交互全绿，无归属歧义测试断言）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「当前没有待处理事项」+ 分类型决策引导与「查看全部事项」入口；空态告知当前无待办、按紧急程度归类的规则」（bodyText=全部事项 当前没有待处理事项。 事项分布 按已有事项类型归类，点击后进入对应业务区继续处理。 当前没有待分派的业务事项。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=no-trigger；popover=no-trigger；invalid=no-trigger",
+        "issues": []
+      },
+      {
+        "page": "orders",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "detail",
+          "empty",
+          "error",
+          "form",
+          "loading",
+          "long-text",
+          "overflow",
+          "portal",
+          "sheet",
+          "dialog",
+          "popover",
+          "invalid"
+        ],
+        "shotCount": 13,
+        "pngs": [
+          "orders-1100x720-default.png",
+          "orders-1280x800-default.png",
+          "orders-1440x920-default.png",
+          "orders-1920x1080-default.png",
+          "orders-1440x920-loading.png",
+          "orders-1440x920-empty.png",
+          "orders-1440x920-error.png",
+          "orders-1440x920-long-text.png",
+          "orders-1440x920-overflow.png",
+          "orders-1440x920-portal.png",
+          "orders-1440x920-form.png",
+          "orders-1440x920-detail.png",
+          "orders-1440x920-sheet.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "orders/index.test.tsx:1266「订单详情页头、六个 Tab 与各区块标题互不重复，标题只承担单个上下文」"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "n/a",
+            "evidence": "n/a（该页无独立刷新按钮；资金/发货变更走详情内动作）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「先完成基础资料」→ 双 CTA「先建立客户 / 建立商品」；清单明确创建订单的前置条件与下一步动作」（bodyText=资金状态 全部交付排班 共 0 张订单 先完成基础资料 创建订单前，需要至少有一位客户和一个商品。 先建立客户 建立商品…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=ok；popover=no-trigger；invalid=no-trigger",
+        "issues": []
+      },
+      {
+        "page": "fulfillment",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "empty",
+          "error",
+          "invalid",
+          "loading",
+          "long-text",
+          "overflow",
+          "portal",
+          "sheet",
+          "dialog",
+          "popover"
+        ],
+        "shotCount": 12,
+        "pngs": [
+          "fulfillment-1100x720-default.png",
+          "fulfillment-1280x800-default.png",
+          "fulfillment-1440x920-default.png",
+          "fulfillment-1920x1080-default.png",
+          "fulfillment-1440x920-loading.png",
+          "fulfillment-1440x920-empty.png",
+          "fulfillment-1440x920-error.png",
+          "fulfillment-1440x920-long-text.png",
+          "fulfillment-1440x920-overflow.png",
+          "fulfillment-1440x920-portal.png",
+          "fulfillment-1440x920-sheet.png",
+          "fulfillment-1440x920-invalid.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "P3 工作区模式契约（components/patterns/review-workspace/calendar-workspace 测试）+ 视觉基线无标题重复缺陷"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "n/a",
+            "evidence": "n/a（无独立刷新按钮；周历上一周/本周/下一周为周期导航）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「先到「工资」页的「人员与时薪」新增兼职人员并设置生效时薪」；周历空态直接指引首个可用动作」（bodyText=」页的「人员与时薪」新增兼职人员并设置生效时薪；这里会按日期分列展示每位人员的排班，并提供每天列底部的「＋ 派工」入口。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "interact-check invalid：错误留在 .yumi-form-message--error 字段槽、Dialog 保持打开、4 个核算日期/时间控件不被禁用阻断；错误治理用例全绿"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=ok；popover=no-trigger；invalid=ok",
+        "issues": []
+      },
+      {
+        "page": "settlements",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "detail",
+          "empty",
+          "error",
+          "loading",
+          "long-text",
+          "overflow",
+          "portal",
+          "sheet",
+          "dialog",
+          "popover",
+          "invalid"
+        ],
+        "shotCount": 12,
+        "pngs": [
+          "settlements-1100x720-default.png",
+          "settlements-1280x800-default.png",
+          "settlements-1440x920-default.png",
+          "settlements-1920x1080-default.png",
+          "settlements-1440x920-loading.png",
+          "settlements-1440x920-empty.png",
+          "settlements-1440x920-error.png",
+          "settlements-1440x920-long-text.png",
+          "settlements-1440x920-overflow.png",
+          "settlements-1440x920-portal.png",
+          "settlements-1440x920-sheet.png",
+          "settlements-1440x920-detail.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "settlements/index.test.tsx:265「工资页…列表内容区不重复二级区块标题」+ :365「人员与时薪…不重复渲染二级页面头」"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "n/a",
+            "evidence": "n/a（无独立刷新按钮）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「尚未建立工资结算。」（新建结算为页面固定动作）」（bodyText=算 全部状态 共 0 笔结算 工资结算 待退款 人员与时薪 兼职人员 结算周期 最终实发 状态 操作 尚未建立工资结算。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=ok；popover=no-trigger；invalid=no-trigger",
+        "issues": []
+      },
+      {
+        "page": "finance",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "empty",
+          "error",
+          "loading",
+          "long-text",
+          "overflow",
+          "popover",
+          "portal",
+          "sheet",
+          "dialog",
+          "invalid"
+        ],
+        "shotCount": 12,
+        "pngs": [
+          "finance-1100x720-default.png",
+          "finance-1280x800-default.png",
+          "finance-1440x920-default.png",
+          "finance-1920x1080-default.png",
+          "finance-1440x920-loading.png",
+          "finance-1440x920-empty.png",
+          "finance-1440x920-error.png",
+          "finance-1440x920-long-text.png",
+          "finance-1440x920-overflow.png",
+          "finance-1440x920-portal.png",
+          "finance-1440x920-sheet.png",
+          "finance-1440x920-popover.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "finance/index.test.tsx:318「财务总览不重复当前 Tab 标题」+ :336「财务页头、工作区 Tab 与内容区标题互不重复」"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "ok",
+            "evidence": "页头「刷新」按钮归属财务总览度量（bodyText 含「负责人手动登记 刷新」）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「选择其他统计月份，或先登记实际收付款」；空态给出两条可行下一步」（bodyText=支 月度经营结果 现金流水 待报销 统计月份 2026年09月 本月暂无经营数据 选择其他统计月份，或先登记实际收付款。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=ok；popover=ok；invalid=no-trigger",
+        "issues": []
+      },
+      {
+        "page": "reports",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "empty",
+          "error",
+          "loading",
+          "long-text",
+          "overflow",
+          "popover",
+          "dialog",
+          "sheet",
+          "invalid"
+        ],
+        "shotCount": 10,
+        "pngs": [
+          "reports-1100x720-default.png",
+          "reports-1280x800-default.png",
+          "reports-1440x920-default.png",
+          "reports-1920x1080-default.png",
+          "reports-1440x920-loading.png",
+          "reports-1440x920-empty.png",
+          "reports-1440x920-error.png",
+          "reports-1440x920-long-text.png",
+          "reports-1440x920-overflow.png",
+          "reports-1440x920-popover.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "reports/index.test.tsx:154 + :283「经营报表页头与区块标题互不重复」"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "ok",
+            "evidence": "reports/index.test.tsx:283「区块风险刷新不在页面周期工具条内」"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「当前没有已确认并实际发放的工资结算。」（只读报表的条件性空态，说明数据口径，无新建动作属报表性质）」（bodyText= ¥0.00 共 0 笔结算 兼职人员 结算周期 实际付款日 实发金额 负责人备注 当前没有已确认并实际发放的工资结算。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=no-trigger；popover=ok；invalid=no-trigger",
+        "issues": []
+      },
+      {
+        "page": "customers",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "detail",
+          "empty",
+          "error",
+          "loading",
+          "long-text",
+          "overflow",
+          "portal",
+          "sheet",
+          "dialog",
+          "popover",
+          "invalid"
+        ],
+        "shotCount": 12,
+        "pngs": [
+          "customers-1100x720-default.png",
+          "customers-1280x800-default.png",
+          "customers-1440x920-default.png",
+          "customers-1920x1080-default.png",
+          "customers-1440x920-loading.png",
+          "customers-1440x920-empty.png",
+          "customers-1440x920-error.png",
+          "customers-1440x920-long-text.png",
+          "customers-1440x920-overflow.png",
+          "customers-1440x920-portal.png",
+          "customers-1440x920-sheet.png",
+          "customers-1440x920-detail.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "customers/index.test.tsx:155「客户详情页头、指标带与区块标题互不重复」"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "n/a",
+            "evidence": "n/a（无独立刷新按钮）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「点击右上角“新建客户”后，负责人可在新增订单时主动选择关联」」（bodyText=快照。 新建客户 全部状态 共 0 位客户 还没有客户资料 点击右上角“新建客户”后，负责人可在新增订单时主动选择关联。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=ok；popover=no-trigger；invalid=no-trigger",
+        "issues": []
+      },
+      {
+        "page": "products",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "detail",
+          "empty",
+          "error",
+          "form",
+          "loading",
+          "long-text",
+          "overflow",
+          "portal",
+          "dialog",
+          "sheet",
+          "popover",
+          "invalid"
+        ],
+        "shotCount": 13,
+        "pngs": [
+          "products-1100x720-default.png",
+          "products-1280x800-default.png",
+          "products-1440x920-default.png",
+          "products-1920x1080-default.png",
+          "products-1440x920-loading.png",
+          "products-1440x920-empty.png",
+          "products-1440x920-error.png",
+          "products-1440x920-long-text.png",
+          "products-1440x920-overflow.png",
+          "products-1440x920-portal.png",
+          "products-1440x920-form.png",
+          "products-1440x920-detail.png",
+          "products-1100x720-form.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "products/index.test.tsx:252「商品详情页头、Tab 与各区块标题互不重复」"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "n/a",
+            "evidence": "n/a（无独立刷新按钮）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「点击右上角“新建商品”后，负责人即可在新增订单时主动选择」」（bodyText=一维护。 新建商品 全部状态 共 0 款商品 还没有商品资料 点击右上角“新建商品”后，负责人即可在新增订单时主动选择。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=no-trigger；popover=no-trigger；invalid=no-trigger",
+        "issues": []
+      },
+      {
+        "page": "settings",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "dialog",
+          "empty",
+          "error",
+          "loading",
+          "long-text",
+          "overflow",
+          "portal",
+          "sheet",
+          "popover",
+          "invalid"
+        ],
+        "shotCount": 12,
+        "pngs": [
+          "settings-1100x720-default.png",
+          "settings-1280x800-default.png",
+          "settings-1440x920-default.png",
+          "settings-1920x1080-default.png",
+          "settings-1440x920-loading.png",
+          "settings-1440x920-empty.png",
+          "settings-1440x920-error.png",
+          "settings-1440x920-long-text.png",
+          "settings-1440x920-overflow.png",
+          "settings-1440x920-portal.png",
+          "settings-1440x920-sheet.png",
+          "settings-1440x920-dialog.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "settings/index.test.tsx:103「设置仅以主导航和内容区表达当前上下文，不重复输出当前 Tab 标题」+ settings/index.test.tsx:110 负向断言"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "n/a",
+            "evidence": "n/a（无独立刷新按钮）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「建立收入类目后，财务登记时才可选择对应类目」；右上角「新增收入类目」为固定动作」（bodyText=计算公式 财务资料 数据保护 收入类目 支出类目 私人垫付人 暂无收入类目 建立收入类目后，财务登记时才可选择对应类目。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=ok；sheet=ok；popover=no-trigger；invalid=no-trigger",
+        "issues": []
+      },
+      {
+        "page": "workers",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "detail",
+          "empty",
+          "error",
+          "form",
+          "loading",
+          "long-text",
+          "overflow",
+          "portal",
+          "dialog",
+          "sheet",
+          "popover",
+          "invalid"
+        ],
+        "shotCount": 12,
+        "pngs": [
+          "workers-1100x720-default.png",
+          "workers-1280x800-default.png",
+          "workers-1440x920-default.png",
+          "workers-1920x1080-default.png",
+          "workers-1440x920-loading.png",
+          "workers-1440x920-empty.png",
+          "workers-1440x920-error.png",
+          "workers-1440x920-long-text.png",
+          "workers-1440x920-overflow.png",
+          "workers-1440x920-portal.png",
+          "workers-1440x920-form.png",
+          "workers-1440x920-detail.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "并入工资页契约（settlements/index.test.tsx:365 嵌入区不重复二级页头）"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "n/a",
+            "evidence": "n/a（无独立刷新按钮）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「从右上角新增首位兼职人员，并同时记录其初始时薪」」（bodyText=回写既有工资结算。 新增人员 全部状态 共 0 位人员 还没有兼职人员 从右上角新增首位兼职人员，并同时记录其初始时薪。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=no-trigger；popover=no-trigger；invalid=no-trigger",
+        "issues": []
+      },
+      {
+        "page": "work-assignments",
+        "windows": [
+          "1100x720",
+          "1280x800",
+          "1440x920",
+          "1920x1080"
+        ],
+        "states": [
+          "default",
+          "empty",
+          "error",
+          "loading",
+          "long-text",
+          "overflow",
+          "portal",
+          "sheet",
+          "dialog",
+          "popover",
+          "invalid"
+        ],
+        "shotCount": 11,
+        "pngs": [
+          "work-assignments-1100x720-default.png",
+          "work-assignments-1280x800-default.png",
+          "work-assignments-1440x920-default.png",
+          "work-assignments-1920x1080-default.png",
+          "work-assignments-1440x920-loading.png",
+          "work-assignments-1440x920-empty.png",
+          "work-assignments-1440x920-error.png",
+          "work-assignments-1440x920-long-text.png",
+          "work-assignments-1440x920-overflow.png",
+          "work-assignments-1440x920-portal.png",
+          "work-assignments-1440x920-sheet.png"
+        ],
+        "conclusions": {
+          "标题无重复": {
+            "verdict": "ok",
+            "evidence": "work-assignments/index.test.tsx:335/352（嵌入页不渲染一级标题，边界契约）"
+          },
+          "Tab/说明不竞争上下文": {
+            "verdict": "ok",
+            "evidence": "同上负向断言；interact-check 每页任意时刻仅一个浮层展开（overlay survey），触发器标签精确唯一命中（runSteps 全 ok）"
+          },
+          "刷新归属正确": {
+            "verdict": "n/a",
+            "evidence": "n/a（无独立刷新按钮；周历上一周/本周/下一周为周期导航）"
+          },
+          "空态有下一步": {
+            "verdict": "ok",
+            "evidence": "empty 截图实测：「「先到「工资」页的「人员与时薪」新增兼职人员并设置生效时薪」；日历空态指引首个可用动作」（bodyText=」页的「人员与时薪」新增兼职人员并设置生效时薪；这里会按日期分列展示每位人员的排班，并提供每天列底部的「＋ 派工」入口。…）"
+          },
+          "固定操作条完整遮盖底部": {
+            "verdict": "ok",
+            "evidence": "全部截图 layout.fixedActionContentLeak=false（含 long-text/overflow 长文本与克隆行注入态）"
+          },
+          "字段错误位置稳定": {
+            "verdict": "ok",
+            "evidence": "表单错误治理用例（字段内联轻量红字 + 常驻消息槽位）全绿；该页流程覆盖由对应表单工作区契约测试保证"
+          },
+          "表格/日历只局部滚动": {
+            "verdict": "ok",
+            "evidence": "全部截图 pageHorizontalScroll=false、verticalGlyphRuns=0（无页面横滚/逐字竖排）；scrollableTables=0（数据量下无需横向容器）"
+          }
+        },
+        "interact": "dialog=no-trigger；sheet=ok；popover=no-trigger；invalid=no-trigger",
+        "issues": []
+      }
+    ]
+  }
 }

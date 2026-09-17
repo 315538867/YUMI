@@ -164,8 +164,8 @@ describe('P3 · 客户信息层级与浮层归属（Task 3）', () => {
     const headerTitle = (
       root.querySelector('.yumi-page-header h1') as HTMLElement
     ).textContent!.trim()
-    const sectionTitles = Array.from(root.querySelectorAll('h2, h3')).map(
-      (heading) => heading.textContent!.trim()
+    const sectionTitles = Array.from(root.querySelectorAll('h2, h3')).map((heading) =>
+      heading.textContent!.trim()
     )
     expect(sectionTitles, '详情体必须保留客户历史订单区块标题').toContain('客户历史订单')
     const all = [headerTitle, ...sectionTitles]

@@ -23,6 +23,7 @@ import {
   YumiField,
   YumiFieldLabel,
   YumiFormMessage,
+  YumiFormSection,
   YumiNumberField,
   YumiListSurface,
   YumiListToolbar,
@@ -372,43 +373,45 @@ function StudioSettingsPanel({
     )
   return (
     <section aria-label="工作室参数查看" className="yumi-form-panel yumi-settings-panel">
-      <YumiFormMessage>
-        材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。
-      </YumiFormMessage>
-      <YumiDetailList
-        ariaLabel="当前工作室参数"
-        items={[
-          {
-            label: '材料克单价',
-            value: settings
-              ? `${formatMaterialPriceYuanPerGram(settings.materialPriceMicroYuanPerGram)} 元 / 克`
-              : '暂无参数'
-          },
-          {
-            label: '订单默认预留天数',
-            value: settings ? `${settings.orderReservedDays} 天` : '暂无参数'
-          },
-          {
-            label: '捏毛装袋预计基准时薪',
-            value: settings
-              ? `${formatCents(settings.fluffingBaggingExpectedHourlyWageCents)} / 小时`
-              : '暂无参数'
-          },
-          {
-            label: '缝边预计基准时薪',
-            value: settings
-              ? `${formatCents(settings.edgeSewingExpectedHourlyWageCents)} / 小时`
-              : '暂无参数'
-          },
-          {
-            label: '打包发货预计基准时薪',
-            value: settings
-              ? `${formatCents(settings.packingExpectedHourlyWageCents)} / 小时`
-              : '暂无参数'
-          }
-        ]}
-      />
-      <YumiFormMessage>如需修改，请点击页面右上角“编辑工作室参数”。</YumiFormMessage>
+      <YumiFormSection
+        description="材料克单价和订单默认预留天数会带入新建订单快照；预计基准时薪只用于商品预计盈利和工时核对，不代表员工实际工资。"
+        title="当前参数"
+      >
+        <YumiDetailList
+          ariaLabel="当前工作室参数"
+          items={[
+            {
+              label: '材料克单价',
+              value: settings
+                ? `${formatMaterialPriceYuanPerGram(settings.materialPriceMicroYuanPerGram)} 元 / 克`
+                : '暂无参数'
+            },
+            {
+              label: '订单默认预留天数',
+              value: settings ? `${settings.orderReservedDays} 天` : '暂无参数'
+            },
+            {
+              label: '捏毛装袋预计基准时薪',
+              value: settings
+                ? `${formatCents(settings.fluffingBaggingExpectedHourlyWageCents)} / 小时`
+                : '暂无参数'
+            },
+            {
+              label: '缝边预计基准时薪',
+              value: settings
+                ? `${formatCents(settings.edgeSewingExpectedHourlyWageCents)} / 小时`
+                : '暂无参数'
+            },
+            {
+              label: '打包发货预计基准时薪',
+              value: settings
+                ? `${formatCents(settings.packingExpectedHourlyWageCents)} / 小时`
+                : '暂无参数'
+            }
+          ]}
+        />
+        <YumiFormMessage>如需修改，请点击页面右上角“编辑工作室参数”。</YumiFormMessage>
+      </YumiFormSection>
     </section>
   )
 }

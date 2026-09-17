@@ -10,7 +10,9 @@ const patternsPath = new URL('./patterns.css', import.meta.url)
  */
 export function assertPageLayoutOwnership(source: string): void {
   expect(source).toMatch(/\.yumi-sticky-actions[\s\S]*background:\s*var\(--yumi-surface\)/)
-  expect(source).toMatch(/\.yumi-form-workspace[\s\S]*padding-bottom:\s*var\(--yumi-sticky-actions-space\)/)
+  expect(source).toMatch(
+    /\.yumi-form-workspace[\s\S]*padding-bottom:\s*var\(--yumi-sticky-actions-space\)/
+  )
 }
 
 describe('P1 · 页面布局所有权契约（任务 1）', () => {

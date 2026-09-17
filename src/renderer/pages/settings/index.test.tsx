@@ -104,9 +104,10 @@ describe('P3 · 设置工作台根契约（任务 7.1）', () => {
     renderSettings()
     const root = document.querySelector('[data-page-pattern="settings-workspace"]')!
     const navigation = within(root).getByRole('navigation', { name: '设置区域' })
-    expect(
-      within(navigation).getByRole('button', { name: '工作室参数' })
-    ).toHaveAttribute('aria-current', 'page')
+    expect(within(navigation).getByRole('button', { name: '工作室参数' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
     expect(within(root).queryByRole('heading', { name: '工作室参数' })).not.toBeInTheDocument()
   })
 
@@ -243,9 +244,7 @@ describe('P3 · 设置资源空态、反馈层级与弹层边界（任务 5）',
 
     const empty = screen.getByRole('status', { name: '暂无内容' })
     expect(within(empty).getByText('暂无收入类目')).toBeVisible()
-    expect(
-      within(empty).getByText('建立收入类目后，财务登记时才可选择对应类目。')
-    ).toBeVisible()
+    expect(within(empty).getByText('建立收入类目后，财务登记时才可选择对应类目。')).toBeVisible()
     expect(screen.queryByRole('table', { name: '收入类目列表' })).not.toBeInTheDocument()
   })
 
@@ -254,21 +253,16 @@ describe('P3 · 设置资源空态、反馈层级与弹层边界（任务 5）',
 
     fireEvent.click(screen.getByRole('button', { name: '编辑工作室参数' }))
     const sheet = screen.getByRole('dialog', { name: '编辑工作室参数' })
-    fireEvent.change(
-      within(sheet).getByRole('textbox', { name: '订单默认预留天数（天）' }),
-      {
-        target: { value: 'abc' }
-      }
-    )
+    fireEvent.change(within(sheet).getByRole('textbox', { name: '订单默认预留天数（天）' }), {
+      target: { value: 'abc' }
+    })
     fireEvent.click(within(sheet).getByRole('button', { name: '保存工作室参数' }))
 
     expect(await within(sheet).findByText('订单默认预留天数必须是非负整数')).toBeVisible()
     expect(mocks.studio.update).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog', { name: '编辑工作室参数' })).toBeVisible()
     const host = screen.getByLabelText('全局通知')
-    expect(
-      within(host).queryByText('订单默认预留天数必须是非负整数')
-    ).not.toBeInTheDocument()
+    expect(within(host).queryByText('订单默认预留天数必须是非负整数')).not.toBeInTheDocument()
   })
 
   it('Sheet、Dialog 与 ConfirmDialog 是模式根外的 Portal 兄弟节点', () => {

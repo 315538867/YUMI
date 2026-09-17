@@ -4,6 +4,12 @@
     "innerWidth": 1440,
     "innerHeight": 920
   },
+  "statesRequested": [
+    "dialog",
+    "sheet",
+    "popover",
+    "invalid"
+  ],
   "runtimeErrorsInstalled": true,
   "runtimeErrors": [],
   "consoleMessages": [
@@ -14,6 +20,8 @@
       "sourceId": "node:electron/js2c/renderer_init"
     }
   ],
+  "consoleErrors": 0,
+  "consoleWarnings": 1,
   "loadFailures": [],
   "keyboard": {
     "focusableCount": 15,
@@ -29,8 +37,53 @@
     "restored": true,
     "activeText": "登记收支"
   },
+  "states": [
+    {
+      "state": "dialog",
+      "verdict": "no-trigger",
+      "ok": false,
+      "phase": "no-trigger",
+      "reason": "页面未登记该交互状态可用的触发器"
+    },
+    {
+      "state": "sheet",
+      "verdict": "ok",
+      "ok": true,
+      "phase": "close",
+      "opened": true,
+      "close": {
+        "closeable": true,
+        "stillOpen": false,
+        "restored": true,
+        "triggerText": "登记收支",
+        "activeText": "登记收支"
+      }
+    },
+    {
+      "state": "popover",
+      "verdict": "ok",
+      "ok": true,
+      "phase": "close",
+      "opened": true,
+      "close": {
+        "closeable": true,
+        "stillOpen": false,
+        "restored": true,
+        "triggerText": "2026年09月",
+        "activeText": "2026年09月"
+      }
+    },
+    {
+      "state": "invalid",
+      "verdict": "no-trigger",
+      "ok": false,
+      "phase": "no-trigger",
+      "reason": "页面未登记该交互状态可用的触发器"
+    }
+  ],
   "reducedMotion": {
     "matched": true,
     "durationFast": "0ms"
-  }
+  },
+  "remark": "每页 1 条 Electron 开发模式固有 CSP 安全警告（Insecure Content-Security-Policy），打包后不出现，非应用日志，不算失败"
 }

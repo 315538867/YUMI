@@ -693,9 +693,9 @@ describe('P4 · 排班挂起边界（Task 4）', () => {
     wraps.forEach((wrap) => expect(wrap.querySelector('.yumi-data-table')).not.toBeNull())
     expect(document.querySelectorAll('[data-page-pattern]')).toHaveLength(1)
     expect(
-      (
-        document.querySelector('[data-page-pattern]') as HTMLElement
-      ).getAttribute('data-page-pattern')
+      (document.querySelector('[data-page-pattern]') as HTMLElement).getAttribute(
+        'data-page-pattern'
+      )
     ).toBe('review-workspace')
   })
 })

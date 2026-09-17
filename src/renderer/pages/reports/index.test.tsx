@@ -288,8 +288,8 @@ describe('P2 · 经营报表信息层级与动作归属（任务 2）', () => {
       .filter(Boolean)
     expect(new Set(headingTexts).size).toBe(headingTexts.length)
     expect(screen.getByRole('heading', { level: 1, name: '经营报表' })).toBeVisible()
-    expect(
-      screen.getByRole('toolbar', { name: '月度经营筛选工具' })
-    ).not.toContainElement(screen.getByRole('button', { name: '刷新风险' }))
+    expect(screen.getByRole('toolbar', { name: '月度经营筛选工具' })).not.toContainElement(
+      screen.getByRole('button', { name: '刷新风险' })
+    )
   })
 })

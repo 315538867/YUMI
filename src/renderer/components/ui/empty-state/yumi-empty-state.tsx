@@ -2,12 +2,7 @@ import { CircleAlert, Inbox, ListFilter, LoaderCircle, Sparkles } from 'lucide-r
 import type { ReactNode } from 'react'
 
 export type YumiEmptyStateScenario =
-  | 'default'
-  | 'empty'
-  | 'filter'
-  | 'first-use'
-  | 'prerequisite'
-  | 'loading'
+  'default' | 'empty' | 'filter' | 'first-use' | 'prerequisite' | 'loading'
 
 type YumiEmptyStateProps = {
   action?: ReactNode

@@ -1,5 +1,5 @@
 {
-  "page": "settlements",
+  "page": "workers",
   "renderer": {
     "innerWidth": 1440,
     "innerHeight": 920
@@ -24,7 +24,7 @@
   "consoleWarnings": 1,
   "loadFailures": [],
   "keyboard": {
-    "focusableCount": 21,
+    "focusableCount": 24,
     "firstTag": "BUTTON",
     "firstText": "工作台",
     "programmaticFocusReachable": true,
@@ -41,17 +41,10 @@
     },
     {
       "state": "sheet",
-      "verdict": "ok",
-      "ok": true,
-      "phase": "close",
-      "opened": true,
-      "close": {
-        "closeable": true,
-        "stillOpen": false,
-        "restored": true,
-        "triggerText": "新建结算",
-        "activeText": "新建结算"
-      }
+      "verdict": "no-trigger",
+      "ok": false,
+      "phase": "no-trigger",
+      "reason": "页面未登记该交互状态可用的触发器"
     },
     {
       "state": "popover",

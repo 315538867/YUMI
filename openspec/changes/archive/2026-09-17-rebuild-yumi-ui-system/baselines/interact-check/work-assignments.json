@@ -1,5 +1,5 @@
 {
-  "page": "settlements",
+  "page": "work-assignments",
   "renderer": {
     "innerWidth": 1440,
     "innerHeight": 920
@@ -24,7 +24,7 @@
   "consoleWarnings": 1,
   "loadFailures": [],
   "keyboard": {
-    "focusableCount": 21,
+    "focusableCount": 22,
     "firstTag": "BUTTON",
     "firstText": "工作台",
     "programmaticFocusReachable": true,
@@ -49,8 +49,8 @@
         "closeable": true,
         "stillOpen": false,
         "restored": true,
-        "triggerText": "新建结算",
-        "activeText": "新建结算"
+        "triggerText": "＋ 派工",
+        "activeText": "＋ 派工"
       }
     },
     {

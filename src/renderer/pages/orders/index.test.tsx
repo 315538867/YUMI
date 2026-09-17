@@ -1274,8 +1274,8 @@ describe('订单信息层级与金额/浮层归属（Task 3）', () => {
       root.querySelector('.yumi-page-header h1') as HTMLElement
     ).textContent!.trim()
     const tabs = within(root).getByRole('navigation', { name: '订单详情工作视图' })
-    const tabLabels = Array.from(within(tabs).getAllByRole('button')).map(
-      (button) => button.textContent!.trim()
+    const tabLabels = Array.from(within(tabs).getAllByRole('button')).map((button) =>
+      button.textContent!.trim()
     )
 
     for (const tab of tabLabels) {
@@ -1287,15 +1287,14 @@ describe('订单信息层级与金额/浮层归属（Task 3）', () => {
       if (tab === '排班') {
         await within(body).findByRole('heading', { name: '本订单任务' })
       }
-      const sectionTitles = Array.from(root.querySelectorAll('h2, h3')).map(
-        (heading) => heading.textContent!.trim()
+      const sectionTitles = Array.from(root.querySelectorAll('h2, h3')).map((heading) =>
+        heading.textContent!.trim()
       )
       for (const section of sectionTitles) {
         expect(section, `区块标题「${section}」重复当前 Tab「${tab}」`).not.toBe(tab)
-        expect(
-          section,
-          `区块标题「${section}」重复页头标题「${headerTitle}」`
-        ).not.toBe(headerTitle)
+        expect(section, `区块标题「${section}」重复页头标题「${headerTitle}」`).not.toBe(
+          headerTitle
+        )
       }
       expect(body.querySelectorAll('h2').length, `${tab} Tab 至少保留一个区块标题`).toBeGreaterThan(
         0

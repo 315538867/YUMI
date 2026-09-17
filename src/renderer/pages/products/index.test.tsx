@@ -260,8 +260,8 @@ describe('P3 · 商品列表详情与表单工作区信息层级（Task 3）', (
       root.querySelector('.yumi-page-header h1') as HTMLElement
     ).textContent!.trim()
     const tabs = within(root).getByRole('navigation', { name: '商品详情标签' })
-    const tabLabels = Array.from(within(tabs).getAllByRole('button')).map(
-      (button) => button.textContent!.trim()
+    const tabLabels = Array.from(within(tabs).getAllByRole('button')).map((button) =>
+      button.textContent!.trim()
     )
     expect(tabLabels, '存量 Tab 不再与区块标题「商品存量」同名').toContain('存量')
 
@@ -271,15 +271,14 @@ describe('P3 · 商品列表详情与表单工作区信息层级（Task 3）', (
       if (tab === '成本与预计盈利') {
         await within(body).findByText('预计单件利润')
       }
-      const sectionTitles = Array.from(body.querySelectorAll('h2')).map(
-        (heading) => heading.textContent!.trim()
+      const sectionTitles = Array.from(body.querySelectorAll('h2')).map((heading) =>
+        heading.textContent!.trim()
       )
       for (const section of sectionTitles) {
         expect(section, `区块标题「${section}」重复当前 Tab「${tab}」`).not.toBe(tab)
-        expect(
-          section,
-          `区块标题「${section}」重复页头标题「${headerTitle}」`
-        ).not.toBe(headerTitle)
+        expect(section, `区块标题「${section}」重复页头标题「${headerTitle}」`).not.toBe(
+          headerTitle
+        )
       }
     }
   })
