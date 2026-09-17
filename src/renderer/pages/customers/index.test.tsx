@@ -150,3 +150,56 @@ describe('P3 · 客户 Pattern 根契约（任务 11.1）', () => {
     expect(document.querySelector('[data-page-pattern]')!.contains(createDialog)).toBe(false)
   })
 })
+
+describe('P3 · 客户信息层级与浮层归属（Task 3）', () => {
+  it('客户详情页头、指标带与区块标题互不重复，标题只承担单个上下文', async () => {
+    mocks.customers = [customerFixture]
+    mocks.getCustomerOrderInsights.mockResolvedValue(insightsFixture)
+    render(<CustomersPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看客户资料：木木工作室' }))
+    await screen.findByRole('table', { name: '客户历史订单' })
+
+    const root = document.querySelector('[data-page-pattern="detail-page"]') as HTMLElement
+    const headerTitle = (
+      root.querySelector('.yumi-page-header h1') as HTMLElement
+    ).textContent!.trim()
+    const sectionTitles = Array.from(root.querySelectorAll('h2, h3')).map(
+      (heading) => heading.textContent!.trim()
+    )
+    expect(sectionTitles, '详情体必须保留客户历史订单区块标题').toContain('客户历史订单')
+    const all = [headerTitle, ...sectionTitles]
+    expect(new Set(all).size, `重复标题：${JSON.stringify(all)}`).toBe(all.length)
+  })
+
+  it('客户列表筛选只在工具栏，页头不承载筛选控件', () => {
+    mocks.customers = [customerFixture]
+    render(<CustomersPage />)
+
+    const listRoot = document.querySelector('[data-page-pattern="list-page"]') as HTMLElement
+    expect(
+      (listRoot.querySelector('.yumi-page-header') as HTMLElement).querySelectorAll(
+        '[role="combobox"]'
+      ).length
+    ).toBe(0)
+    expect(
+      within(listRoot.querySelector('.yumi-list-toolbar') as HTMLElement).getByRole('combobox', {
+        name: '客户状态筛选'
+      })
+    ).toBeVisible()
+  })
+
+  it('新建客户把表单与按钮保留在浮层内，浮层经 Portal 落在页根之外', () => {
+    mocks.customers = [customerFixture]
+    render(<CustomersPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建客户' }))
+    const dialog = screen.getByRole('dialog', { name: '新建客户' })
+    const roots = document.querySelectorAll('[data-page-pattern]')
+    expect(roots).toHaveLength(1)
+    expect((roots[0] as HTMLElement).contains(dialog)).toBe(false)
+    expect(within(dialog).getByRole('button', { name: '创建客户' })).toBeVisible()
+    expect(within(dialog).getByRole('button', { name: '取消' })).toBeVisible()
+    expect(within(dialog).getByRole('textbox', { name: '客户名称' })).toBeVisible()
+  })
+})

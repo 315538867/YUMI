@@ -1261,3 +1261,95 @@ describe('订单页面模式根契约（8.1）', () => {
     expect(root).toHaveAttribute('data-page-pattern', 'detail-page')
   })
 })
+
+describe('订单信息层级与金额/浮层归属（Task 3）', () => {
+  it('订单详情页头、六个 Tab 与各区块标题互不重复，标题只承担单个上下文', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看详情' }))
+    await screen.findByRole('button', { name: '导出订单表' })
+
+    const root = document.querySelector('[data-page-pattern="detail-page"]') as HTMLElement
+    const headerTitle = (
+      root.querySelector('.yumi-page-header h1') as HTMLElement
+    ).textContent!.trim()
+    const tabs = within(root).getByRole('navigation', { name: '订单详情工作视图' })
+    const tabLabels = Array.from(within(tabs).getAllByRole('button')).map(
+      (button) => button.textContent!.trim()
+    )
+
+    for (const tab of tabLabels) {
+      fireEvent.click(within(tabs).getByRole('button', { name: tab }))
+      const body = root.querySelector('.yumi-detail-page__body') as HTMLElement
+      if (tab === '盈利') {
+        await within(body).findByRole('heading', { name: '预计成本构成' })
+      }
+      if (tab === '排班') {
+        await within(body).findByRole('heading', { name: '本订单任务' })
+      }
+      const sectionTitles = Array.from(root.querySelectorAll('h2, h3')).map(
+        (heading) => heading.textContent!.trim()
+      )
+      for (const section of sectionTitles) {
+        expect(section, `区块标题「${section}」重复当前 Tab「${tab}」`).not.toBe(tab)
+        expect(
+          section,
+          `区块标题「${section}」重复页头标题「${headerTitle}」`
+        ).not.toBe(headerTitle)
+      }
+      expect(body.querySelectorAll('h2').length, `${tab} Tab 至少保留一个区块标题`).toBeGreaterThan(
+        0
+      )
+    }
+  })
+
+  it('订单列表筛选只在工具栏，页头不承载筛选控件', () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    const listRoot = document.querySelector('[data-page-pattern="list-page"]') as HTMLElement
+    expect(
+      (listRoot.querySelector('.yumi-page-header') as HTMLElement).querySelectorAll(
+        '[role="combobox"]'
+      ).length
+    ).toBe(0)
+    const toolbar = within(listRoot.querySelector('.yumi-list-toolbar') as HTMLElement)
+    expect(toolbar.getByRole('combobox', { name: '资金状态筛选' })).toBeVisible()
+    expect(toolbar.getByRole('combobox', { name: '交付排班筛选' })).toBeVisible()
+  })
+
+  it('订单页头多按钮动作组与表格行操作各归其位，不越区重复', async () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    const listRoot = document.querySelector('[data-page-pattern="list-page"]') as HTMLElement
+    const listHeaderActions = listRoot.querySelector('.yumi-page-header__actions') as HTMLElement
+    expect(within(listHeaderActions).getByRole('button', { name: '新建订单' })).toBeVisible()
+    expect(
+      within(listHeaderActions).queryByRole('button', { name: '查看详情' })
+    ).not.toBeInTheDocument()
+    const orderCell = screen.getByRole('cell', { name: /YD-001/ })
+    const row = orderCell.closest('tr') as HTMLElement
+    expect(within(row).getByRole('button', { name: '查看详情' })).toBeVisible()
+
+    fireEvent.click(within(row).getByRole('button', { name: '查看详情' }))
+    await screen.findByRole('button', { name: '导出订单表' })
+    const detailActions = screen.getByRole('group', { name: '订单详情页面动作' })
+    expect(within(detailActions).getByRole('button', { name: '导出订单表' })).toBeVisible()
+    expect(within(detailActions).getByRole('button', { name: '发货汇总' })).toBeVisible()
+    expect(within(detailActions).getByRole('button', { name: '编辑订单' })).toBeVisible()
+    expect(
+      within(detailActions).queryByRole('button', { name: '查看详情' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('新建订单把极端金额保留在金额预览区，列表与表单不越界重复', () => {
+    render(<OrdersPage onNavigateToBaseData={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建订单' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '第 1 行单价' }), {
+      target: { value: '9999999999.99' }
+    })
+    const preview = screen.getByRole('region', { name: '订单金额预览' })
+    expect(within(preview).getByText('商品与缝边小计')).toBeVisible()
+    expect(preview).toHaveTextContent('¥9999999999.99')
+  })
+})

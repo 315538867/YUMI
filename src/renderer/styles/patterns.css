@@ -1045,6 +1045,21 @@
     --yumi-sticky-actions-space: calc(var(--yumi-control-height) + var(--yumi-panel-padding));
     padding-bottom: var(--yumi-sticky-actions-space);
   }
+  /* Form Workspace 预览侧栏：允许内容收缩换行，长中文标签不做逐字断开。 */
+  .yumi-form-workspace .yumi-split-layout__aside {
+    min-width: 0;
+  }
+  .yumi-form-workspace .yumi-calculated-amount__label {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  /* 较窄桌面（<1280，见 desktop-adaptation 契约）：压缩主从分栏的辅助栏宽度，
+     让表单主区优先获得剩余宽度，预览保持最小 220px 可读栏。 */
+  @media (max-width: 1279px) {
+    .yumi-form-workspace .yumi-split-layout {
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 0.32fr);
+    }
+  }
   .yumi-form-panel {
     display: grid;
     gap: var(--yumi-space-4);

@@ -21,7 +21,9 @@
 set -u
 
 HARNESS_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HARNESS_DIR/../../../.." && pwd)"
+# 归档后 harness 位于 openspec/changes/archive/2026-09-17-rebuild-yumi-ui-system/visual-harness，
+# 上溯 5 级才回到仓库根（4 级会解析到 openspec/ 并让 out/renderer/index.html 加载失败）。
+ROOT="$(cd "$HARNESS_DIR/../../../../.." && pwd)"
 ELECTRON="$ROOT/node_modules/.bin/electron"
 CAPTURE="$HARNESS_DIR/capture.mjs"
 OUT_BASE="${YUMI_CAPTURE_BASE:-$ROOT/openspec/changes/rebuild-yumi-ui-system/baselines/screenshots}"

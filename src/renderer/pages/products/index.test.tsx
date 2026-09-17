@@ -172,7 +172,7 @@ describe('P3 · 商品 Pattern 根契约（任务 11.1）', () => {
     expect(await within(body).findByText('日产能')).toBeVisible()
     expect(within(body).getByText('40 件/日')).toBeVisible()
 
-    fireEvent.click(within(tabs).getByRole('button', { name: '商品存量' }))
+    fireEvent.click(within(tabs).getByRole('button', { name: '存量' }))
     expect(await within(body).findByText('已制作，待捏毛装袋')).toBeVisible()
     expect(within(body).getByText('暂无商品存量流水')).toBeVisible()
   })
@@ -206,5 +206,103 @@ describe('P3 · 商品 Pattern 根契约（任务 11.1）', () => {
     expect(editRoot).toHaveAttribute('data-page-pattern', 'form-workspace')
     expect(within(editRoot).getByRole('button', { name: '保存商品' })).toBeVisible()
     expect(screen.getByLabelText('制作提成（元/件）')).toHaveValue('20.00')
+  })
+})
+
+describe('P3 · 商品列表详情与表单工作区信息层级（Task 3）', () => {
+  it('商品创建页在较窄桌面压缩预览而不逐字断开，操作条覆盖自身底部区域', () => {
+    render(<ProductsPage />)
+    fireEvent.click(screen.getByRole('button', { name: '新建商品' }))
+    const root = document.querySelector('[data-page-pattern="form-workspace"]')!
+    expect(root.querySelector('.yumi-form-workspace__content')).not.toBeNull()
+    expect(root.querySelector('.yumi-sticky-actions')).toHaveAttribute(
+      'data-layout-surface',
+      'fixed'
+    )
+  })
+
+  it('商品创建工作区把保存动作固定在内容区之外的粘性操作条，筛选只在列表工具栏', () => {
+    render(<ProductsPage />)
+    fireEvent.click(screen.getByRole('button', { name: '新建商品' }))
+
+    const root = document.querySelector('[data-page-pattern="form-workspace"]') as HTMLElement
+    const content = root.querySelector('.yumi-form-workspace__content') as HTMLElement
+    const sticky = root.querySelector('.yumi-sticky-actions') as HTMLElement
+    const form = root.querySelector('form#product-workspace-form') as HTMLElement
+    expect(content).not.toBeNull()
+    expect(sticky).not.toBeNull()
+    expect(content.contains(sticky)).toBe(false)
+    expect(form.querySelectorAll('button').length).toBe(0)
+    expect(within(sticky).getByRole('button', { name: '创建商品' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: '返回商品列表' }))
+    const listRoot = document.querySelector('[data-page-pattern="list-page"]') as HTMLElement
+    expect(
+      (listRoot.querySelector('.yumi-page-header') as HTMLElement).querySelectorAll(
+        '[role="combobox"]'
+      ).length
+    ).toBe(0)
+    expect(
+      within(listRoot.querySelector('.yumi-list-toolbar') as HTMLElement).getByRole('combobox', {
+        name: '商品状态筛选'
+      })
+    ).toBeVisible()
+  })
+
+  it('商品详情页头、Tab 与各区块标题互不重复，标题只承担单个上下文', async () => {
+    mocks.products = [productFixture]
+    render(<ProductsPage />)
+    fireEvent.click(screen.getByRole('button', { name: '查看商品资料：羊毛杯垫' }))
+    await screen.findByRole('heading', { name: '羊毛杯垫' })
+
+    const root = document.querySelector('[data-page-pattern="detail-page"]') as HTMLElement
+    const headerTitle = (
+      root.querySelector('.yumi-page-header h1') as HTMLElement
+    ).textContent!.trim()
+    const tabs = within(root).getByRole('navigation', { name: '商品详情标签' })
+    const tabLabels = Array.from(within(tabs).getAllByRole('button')).map(
+      (button) => button.textContent!.trim()
+    )
+    expect(tabLabels, '存量 Tab 不再与区块标题「商品存量」同名').toContain('存量')
+
+    for (const tab of tabLabels) {
+      fireEvent.click(within(tabs).getByRole('button', { name: tab }))
+      const body = root.querySelector('.yumi-detail-page__body') as HTMLElement
+      if (tab === '成本与预计盈利') {
+        await within(body).findByText('预计单件利润')
+      }
+      const sectionTitles = Array.from(body.querySelectorAll('h2')).map(
+        (heading) => heading.textContent!.trim()
+      )
+      for (const section of sectionTitles) {
+        expect(section, `区块标题「${section}」重复当前 Tab「${tab}」`).not.toBe(tab)
+        expect(
+          section,
+          `区块标题「${section}」重复页头标题「${headerTitle}」`
+        ).not.toBe(headerTitle)
+      }
+    }
+  })
+
+  it('商品创建页保留长中文标签与极端金额，预览与表单各居其位', () => {
+    render(<ProductsPage />)
+    fireEvent.click(screen.getByRole('button', { name: '新建商品' }))
+
+    const root = document.querySelector('[data-page-pattern="form-workspace"]') as HTMLElement
+    const form = within(root.querySelector('form#product-workspace-form') as HTMLElement)
+    expect(form.getByText('预计单件制作时长（分钟）')).toBeVisible()
+    expect(form.getByText('预计单件捏毛装袋时长（分钟）')).toBeVisible()
+    expect(form.getByText('预计单件打包发货时长（分钟）')).toBeVisible()
+    fireEvent.change(form.getByLabelText('默认销售单价（元）'), {
+      target: { value: '9999999999.99' }
+    })
+
+    const aside = root.querySelector('.yumi-split-layout__aside') as HTMLElement
+    expect(aside).not.toBeNull()
+    expect(within(aside).getByText('预计盈利预览')).toBeVisible()
+    expect(
+      within(aside).getAllByText('¥9999999999.99').length,
+      '极端金额至少同时出现在默认售价与利润预览中'
+    ).toBeGreaterThan(0)
   })
 })

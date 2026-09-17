@@ -23,7 +23,9 @@ app.commandLine.appendSwitch('no-sandbox')
 app.disableHardwareAcceleration()
 
 const harnessDir = dirname(fileURLToPath(import.meta.url))
-const repoRoot = join(harnessDir, '..', '..', '..', '..')
+// 归档后视觉 harness 位于 openspec/changes/archive/2026-09-17-rebuild-yumi-ui-system/visual-harness，
+// 上溯 5 级才回到仓库根（4 级会解析到 openspec/ 并让 out/renderer/index.html 加载失败）。
+const repoRoot = join(harnessDir, '..', '..', '..', '..', '..')
 
 const NAV_LABELS = {
   workbench: '工作台',

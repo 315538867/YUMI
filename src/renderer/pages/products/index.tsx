@@ -211,7 +211,8 @@ const detailTabs: ReadonlyArray<{ id: ProductDetailTab; label: string }> = [
   { id: 'overview', label: '商品概览' },
   { id: 'profit', label: '成本与预计盈利' },
   { id: 'capacity', label: '制作产能' },
-  { id: 'inventory', label: '商品存量' }
+  // 存量 Tab 使用短标签，避免与面板内的「商品存量」区块标题重复。
+  { id: 'inventory', label: '存量' }
 ]
 
 type ProductsPageProps = {
@@ -706,7 +707,7 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
       {selected ? (
         <>
           {detailTab === 'overview' ? (
-            <YumiSection title="商品概览">
+            <YumiSection>
               <YumiDetailList
                 ariaLabel="商品基础资料"
                 items={[
@@ -730,10 +731,7 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
             </YumiSection>
           ) : null}
           {detailTab === 'profit' ? (
-            <YumiSection
-              description="主进程按当前商品参数、全局材料克单价和预计基准时薪计算；这里不展示历史实际盈利。"
-              title="成本与预计盈利"
-            >
+            <YumiSection description="主进程按当前商品参数、全局材料克单价和预计基准时薪计算；这里不展示历史实际盈利。">
               {profitLoading ? (
                 <YumiEmptyState
                   description="正在读取主进程预计盈利，请稍候。"
@@ -773,7 +771,7 @@ export function ProductsPage({ navigationTarget }: ProductsPageProps) {
           ) : null}
           {detailTab === 'capacity' ? (
             <>
-              <YumiSection title="制作产能">
+              <YumiSection>
                 <YumiDetailList
                   ariaLabel="商品产能参数"
                   items={[
